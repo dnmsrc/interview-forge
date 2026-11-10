@@ -1,0 +1,113 @@
+[
+  {
+    "id": "Q-fe-vue-router-0001",
+    "nodeId": "fe.vue.router.history-mode",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 createWebHistory 与 createHashHistory，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "history 模式无需服务端配合，静态托管任意路径刷新都不会 404" },
+      { "key": "B", "text": "hash 模式因 # 后的片段不参与 HTTP 请求，天然兼容 file:// 与无 rewrite 的静态服务器，代价是 URL 丑且 # 内锚点语义被占用" },
+      { "key": "C", "text": "createMemoryHistory 仅用于浏览器环境性能优化，SSR 反而必须用 web history" },
+      { "key": "D", "text": "history 模式的前进后退完全靠 hashchange 事件模拟，与 pushState 无关" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "B 对：hash 段不发往服务器所以 file://（Electron 本地加载常用）与裸 nginx 都可跑；代价除美观外还有 **页面内锚点冲突**（#section 语义被路由占用需特殊处理）。A 反了：history 模式刷新深链接必须服务端 fallback 到 index.html（try_files/rewrite），否则 404 是它的头号运维事故。C 错：memory history 正是为 SSR/测试/非浏览器环境设计（每个请求独立实例防串态）。D 错：web history 基于 pushState/replaceState + popstate，hashchange 属于 hash 模式。",
+    "gapCheck": ["易漏点：hash 模式下 query 编码怪癖（?a=1 要写进 #/path?a=1）与 SEO 现状", "常见误区：把 Electron 生产包用 history 模式却忘了 loadFile 深链会找文件——要么 hash、要么协议拦截兜底", "追问延伸：history.state 里存什么？（back/forward/currentPosition 序号用于滚动恢复与 popstate 方向判断）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.router.history-mode"],
+      "related": ["fe.vue.router.navigation-guard", "fe.electron"],
+      "followUps": ["popstate 触发时 router 怎么区分前进还是后退？（state.position 对比）", "scrollBehavior 保存的位置存在哪？（history.state + savedPosition）", "为什么 Vue Router 4 移除了 * 通配改用 catch-all regex？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://router.vuejs.org/guide/essentials/history-mode.html", "retrievedAt": "2026-11-09", "note": "『HTML5 History Mode』含各家 server/静态托管 fallback 配置清单" },
+    "tags": ["路由基础", "Electron相关", "必考"],
+    "variants": [
+      { "angle": "换场景", "stem": "换场景决策题：我们的 Electron 客户端（本项目！）本地 loadFile 加载打包页，产品又要求部分页面可被外部浏览器打开做分享预览。请给出 history/hash 的选型方案（可以是混合策略），并说明 file:// 下 pushState 的具体限制与你的兜底。", "analysis": "要点：①Electron 主体验用 hash 或自定义协议+fallback——file:// origin 为 null，pushState 只允许同文档相对小改动，深链刷新（Ctrl+R）会按路径找文件失败；②分享预览走 http 侧用 web history，两套构建注入不同 createHistory（环境变量切 createWebHashHistory/createWebHistory）；③更优雅方案：registerFileProtocol/自定义 app:// 协议让主进程对未知路径一律回 index.html，即可全栈用 history 模式。加分：提到 webSecurity/CSP 与 base 标签在协议下的坑、以及 router base 在两环境的注入差异。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-router-0002",
+    "nodeId": "fe.vue.router.navigation-guard",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "用户从 /admin/user/1 跳到 /admin/user/2（同路由仅 params 变化），随后 beforeEach 里 return 了一个 Promise 异步判定。关于这次导航，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "组件不会重新创建，beforeRouteUpdate（或 watch route.params）才是同路由参数变化的正确拦截点" },
+      { "key": "B", "text": "beforeEach 返回 Promise 时导航会等待其 resolve；reject 或 return false 都会取消本次导航" },
+      { "key": "C", "text": "因为复用了组件实例，beforeRouteEnter 会再次执行用来重新拉数据" },
+      { "key": "D", "text": "query 变化（如 ?page=2）同样会触发 beforeEach，不要以为只有 path 变化才算导航" }]
+    ,
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A 对：params 变化走 update 不走 enter/leave，官方给的就是 beforeRouteUpdate/watch；C 错：beforeRouteEnter 只在**进入**该路由时跑，复用实例场景压根不触发（想重拉数据恰是 A 的两个点位）。B 对：守卫返回值协议——Promise resolve 继续、reject/next(false)/返回 false/返回 RouteLocation 各自语义明确（4.1+ 推荐直接 return）。D 对：路由变化判定包含 path/query/hash 三元组，筛选项写进 query 就是真导航——这也是『URL 是一等状态』的技术依据。",
+    "gapCheck": ["易漏点：同路由跳转还会触发 afterEach 与 scrollBehavior（可据 differentRoutes? 判断粒度）", "常见误区：在 beforeRouteEnter 的 next(vm=>...) 之外访问 this——enter 阶段实例未创建", "追问延伸：连续快速导航的竞态（旧导航被中断 abort，onError 里 NavigationFailure 类型判断）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.router.navigation-guard"],
+      "related": ["fe.vue.lifecycle.mount-unmount", "fe.vue.router.dynamic-routes"],
+      "followUps": ["守卫完整顺序背一遍？（leave→each global before→component beforeRouteUpdate→resolve→beforeResolve→update 完成→afterEach）", "next() 与 return 两种风格混用会有什么警告？", "路由级权限和接口级权限哪个才是真相？（永远后者）"]
+    },
+    "resources": [{ "title": "Vue Router 官方·Navigation Guards", "digest": "守卫全序表；同路由参数更新走 beforeRouteUpdate；返回值取消导航（false/Promise reject/跳转目标）三种方式与 afterEach 必跑的收尾语义。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://router.vuejs.org/guide/advanced/navigation-guards.html", "retrievedAt": "2026-11-09", "note": "Guards 全序图 +『Updating the Route Params』章节" },
+    "tags": ["高频", "守卫细节"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束排障题：登录过期后 beforeEach 里 `return '/login'`，结果控制台出现『Detected an infinite redirection in a navigation guard』并且页面白屏。请解释检测机制（连续 redirect 计数）、最常见的三个成因，以及在 login 路由本身就该放行时你的守卫写法。", "analysis": "机制：router 对一次导航内由守卫产生的重定向链计数，超过 redirectLimit(默认 10) 抛错终止（防死循环兜底）。三成因：①/login 自身没被 meta 白名单放行，每次跳 login 又被弹回；②token 过期判定读的是响应式 ref 但 login 页写入时序晚于守卫重入；③query redirect 参数自指（/login?redirect=/login）。写法：`if (to.meta.public) return true` 前置短路 + 对 to.path==='/login'&&未登录 直接放行；根治是把『未登录去哪』收敛到单一函数防逻辑分叉。加分：能提 4.4 起 redirectLimit 可配与错误对象里的 from/to 链调试字段。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-router-0003",
+    "nodeId": "fe.vue.router.dynamic-routes",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "短答（动态路由四连）：①登录后按权限 addRoute 的流程，为什么要『先 addRoute 再 replace 原地址』而不是 push？②刷新后动态路由丢失的时机问题：首屏导航已经发生，你怎么保证守卫拿到的是完整路由表？③catch-all `/:pathMatch(.*)*` 与后插入的动态路由为什么会冲突，解法？④removeRoute 的依据是什么、为什么官方建议给每条动态路由显式 name？",
+    "answer": { "ref": "①直接 push('/target')：此刻路由表还没有该记录会匹配到 404/匹配失败；正确姿势是登录成功 → addRoute 批量注册 → `router.replace(initial)` **重放**当初被拦的原始地址（守卫里记录 to.fullPath），replace 不留登录页历史防后退。②时机：router.isReady()/app.mount 前完成注册——主流做法是在 main.ts await 一次『恢复会话』（从 cookie/refresh token 拉权限→addRoute→再 mount），或在根组件 beforeEach 里挂一个『路由表未就绪则先 await initRoutes 再 next(to)』的一次性闸门（Promise 缓存防并发重复拉）；SSR 则在 server entry 每请求 await。③冲突：catch-all 一旦先注册，后续 addRoute 的记录排在它之后也**永远轮不到**匹配（按注册序遍历）——解法：删除 catch-all、addRoute 完再加回；或给 404 用 **不注册路由的 custom 匹配**（Vue Router 4 特例：catch-all 可最后加）；最稳是把 catch-all 也做成延迟添加的最后一条。④removeRoute 接收的是 addRoute 返回的 **移除函数** 或按 name 删除（removeRoute(name)）；无 name 时只能靠引用持有，权限回收/登出场景极易删不干净留下幽灵路由——显式 name 同时服务 onNameMissing? devtools 与 keep-alive include。" },
+    "scoringPoints": [
+      { "point": "①replace 重放 initial 的理由（防 404+防后退）", "weight": 2 },
+      { "point": "②给出 mount 前/一次性闸门两种方案之一并提并发防重", "weight": 2 },
+      { "point": "③讲清注册序导致 catch-all 遮蔽 + 延迟加回解法", "weight": 2 },
+      { "point": "④removeRoute 的移除函数/name 语义与 name 卫生", "weight": 2 },
+      { "point": "顺带提路由表持久化（存 name 列表回放）或 SSR 每请求隔离", "weight": 1 }
+    ],
+    "analysis": "动态权限路由是后台系统面试必杀实操题，四问环环相扣全是真实事故点：①的『push 撞 404』是新手坑；③的 catch-all 遮蔽是最多人翻车的隐蔽 bug（测试环境好好的、上线点错菜单就 404）。②答『isReady 之后再操作』不合格——isReady 只等初始导航，不等你的异步注册；要指出 mount 时序或闸门。",
+    "gapCheck": ["易漏点：router.addRoute(parentName?, route) 的 parent 挂载形态决定嵌套渲染位置，插错父级菜单高亮/面包屑全乱", "常见误区：把整棵路由表存 localStorage 复原——应存 **name 子集**从全量表过滤回放，防陈旧路径漂移", "追问延伸：按钮级权限与路由级权限的边界；后端下发菜单树的 schema 设计"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.router.dynamic-routes", "fe.vue.router.navigation-guard"],
+      "related": ["fe.vue.state.pinia-internals", "fe.vue.router.history-mode"],
+      "followUps": ["hasRoute 的用途与幂等 add 语义？（重复 add 同名会替换而非报错）", "动态路由与 <RouterView> keep-alive include 怎么联动？", "如果权限接口挂了 5xx，你的首屏策略是白屏还是降级只读路由？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://router.vuejs.org/guide/advanced/dynamic-routing.html", "retrievedAt": "2026-11-09", "note": "Adding Routes Dynamically / Removing Route Records；catch-all 注意段原文『404 要最后加』" },
+    "tags": ["后台系统必备", "实操压轴"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向架构题：有人提议『别搞动态 addRoute 了，前端全量注册路由、守卫里判权限跳 403 就行』。请给出这个『静态全量』方案的三个真实优点与两个致命缺点，并说出你按团队规模给出的裁决线。", "analysis": "优点：无时序竞态（首屏即完整路由表）、刷新/分享链接永远可解析、代码分割仍可按需（懒加载与注册无关）。致命缺点：①路由集合本身就是泄露面（内部路由名/参数结构被枚举，安全观感差）；②路由数量大时初始 matcher 构建与内存成本、以及『注册了但不该看见』导致的 keep-alive/埋点/SEO 噪声；③菜单与路由双源易漂移（权限改了路由没改）。裁决线：≤百人级中后台全量+守卫足够甜；平台型/多租户差异巨大才上动态——说『动态一定高级』的人要问他处理过 catch-all 与时序竞态没有。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-router-0004",
+    "nodeId": "fe.vue.router.dynamic-routes",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：实现路由核心迷你版——给定 routes=[{path:'/users/:id',handler},{path:'/',handler}]，实现 `match(path)` 返回 { handler, params } 或 404 哨兵，要求：①支持 :param 段捕获；②支持可选段 `/users/:id?`；③末尾斜杠归一；④按注册顺序先匹配先赢（并口述真实 Vue Router 的 ranking 比这多做什么）。",
+    "answer": { "ref": "编译期把每条 path 转正则：split('/') 逐段，:name? → ([^/]+)? 可选组、:name → ([^/]+)、*rest → .*；记录 names 数组按捕获组回填 params；normalize：去 query/hash、collapse 连续斜杠、去尾斜杠（根除外）。匹配循环 for of 有序表 test 即停。真实 Router 多做：得分排序（静态>参数>通配的 rank 分数排序而非注册序）、大小写/严格斜杠可配、嵌套路由 record 树 + 分段匹配、别名/重定向预处理、matcher 缓存。", "code": "function compile(routes) {\n  return routes.map((r) => {\n    const names = []\n    let src = r.path\n      .split('/')\n      .filter(Boolean)\n      .map((seg) => {\n        if (seg.startsWith(':')) {\n          const opt = seg.endsWith('?')\n          const name = seg.slice(1, opt ? -1 : undefined)\n          names.push(name)\n          return opt ? '(?:/([^/]+))?' : '/([^/]+)'\n        }\n        if (seg === '*') return '/?(.*)'\n        return '/' + seg.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')\n      })\n      .join('')\n    const re = new RegExp('^' + (src || '/?') + '$')\n    return { ...r, re, names }\n  })\n}\nfunction normalize(p) {\n  const path = p.split(/[?#]/)[0]\n  const merged = path.replace(/\\/+/g, '/')\n  return merged.length > 1 ? merged.replace(/\\/$/, '') : merged || '/'\n}\nfunction match(table, rawPath) {\n  const path = normalize(rawPath)\n  for (const r of table) {\n    const m = r.re.exec(path)\n    if (!m) continue\n    const params = {}\n    r.names.forEach((n, i) => { if (m[i + 1] !== undefined) params[n] = decodeURIComponent(m[i + 1]) })\n    return { handler: r.handler, params }\n  }\n  return { notFound: true }\n}\n// 用法：const table = compile([{path:'/users/:id',handler:U},{path:'/users/:id?',handler:UL}]); match(table,'/users/7?id=1') => {handler:U,params:{id:'7'}}" },
+    "scoringPoints": [
+      { "point": "path→RegExp 的分段编译正确（转义普通段防注入）", "weight": 2 },
+      { "point": ":id? 可选组用 (?:/([^/]+))? 形态（连斜杠一起可选）", "weight": 2 },
+      { "point": "normalize 覆盖尾斜杠/连续斜杠/query hash 剥离", "weight": 2 },
+      { "point": "names 与捕获组按序回填、decodeURIComponent 处理", "weight": 2 },
+      { "point": "口述 ranking 差异时提到『排序而非注册序』与静态>动态优先级", "weight": 2 }
+    ],
+    "analysis": "白板 router 的胜负手在细节：可选段的正则必须是**整段含斜杠**可选（写成 /([^/]+)? 会在 /users 时留个悬空斜杠失配）；普通段不转义会让含 . 的路径段（/v1.2）自我炸穿；先匹配先赢与真实 Router 的 score 排序差异是必答的口述题——注册序陷阱正是上一题 catch-all 事故的算法根源。",
+    "gapCheck": ["易漏点：'*'/catch-all 段的 .* 会吞掉一切，必须排最后——排序话题在这里闭环", "常见误区：忘记 decodeURIComponent 导致 %2F 参数语义失真（真实 Router 对 / 编码有专设策略）", "加分：主动提出嵌套路由需要『record 树+分段 matcher』而非拍平正则"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.router.dynamic-routes", "cs.algo"],
+      "related": ["fe.vue.router.history-mode", "fe.vue.router.navigation-guard"],
+      "followUps": ["把 match 改成支持嵌套 children 你的数据结构怎么变？", "matcher 缓存该用什么 key（LRU 呼应 cs 基础）？", "Vue Router 的 score 算法给 *pathRank* 之外还算什么？（sensitive/strict case、param 类型）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "仿 @vue/router-matcher tokenizer→score→exec 流程裁剪的白板题" },
+    "tags": ["手写题", "路由内核", "区分度"],
+    "variants": [
+      { "angle": "换问法", "stem": "口头审查版：同事的实现是 `new RegExp('^' + path.replace(/:(\\w+)/g, '([^/]+)') + '$')`，一行搞定。请当场找出至少三个 bug（场景举例佐证），并说明真实 matcher 为何要先 tokenize 再编译。", "analysis": "bug①：普通段未转义——/price.list 里的 . 变通配符误匹配 priceXlist；bug②：无可选段/通配支持，:id? 编译成非法或错位；bug③：无 normalize——/users//7 与尾斜杠 /users/7/ 都失配；bug④：捕获组序号与 names 对应关系在嵌套括号(转义引入)时漂移；场景各举一个 404 或误匹配即可。tokenize 先行的理由：把『段类型判定/转义/rank 打分』解耦成可组合步骤，正则只是末端产物——这句是满分收束句。" }
+    ]
+  }
+]

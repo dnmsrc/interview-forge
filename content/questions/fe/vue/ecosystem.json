@@ -1,0 +1,59 @@
+[
+  {
+    "id": "Q-fe-vue-eco-0001",
+    "nodeId": "fe.vue.ecosystem.vue-versions",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Vue 3.4 / 3.5 的版本内容，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "3.4 重写了模板 parser（官方称解析提速约 2 倍）并重写了响应式系统为 effect 数组化+版本计数" },
+      { "key": "B", "text": "3.5 引入 Sub/Dep 双链表响应式、Reactive Props Destructure、useTemplateRef、deferred Teleport 与 onServerPrefetch 时代的 rendered 钩子增强" },
+      { "key": "C", "text": "3.4 起 defineModel 进入稳定，watch 回调新增第二参数 onCleanup 用于竞态清理（3.5 后推荐改用 onWatcherCleanup）" },
+      { "key": "D", "text": "3.5 同时移除了 Options API 并宣布 Vue 4 计划，要求迁移前先关闭 <script setup>" }]
+    ,
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 对：3.4 Release Notes 双主角就是新 parser（2x）与响应式重写（skipped watcher）。B 对：3.5 公告清单——双链表（内存 -56%）、解构保响应转正、useTemplateRef、deferred Teleport，以及 SSR 的 onServerPrefetch/rendered 改进。C 对且带演进细节：defineModel 于 3.4 稳定；watch 第二参 onCleanup 曾长期可用，官方后来以 onWatcherCleanup 取代（旧参数 deprecated 但过渡期共存），能答出这层替换关系的属追过 changelog 的人。D 全错：Options API 从未被移除（官方明确长期兼容），Vapor/Vue 4 是渐进路线而非 3.5 的拆除令，<script setup> 反而是被持续加码的方向。",
+    "gapCheck": ["易漏点：3.5 还有 Reactive Iterator（对象迭代按 key 精确触发）与 v-slot 自动插入等小项，答题清单越全越显功底", "常见误区：把『Vue3.6 将内置 alien-signals』当成已发生事实——引用社区进展要标注版本号与不确定性", "追问延伸：面试官会问『你们项目现在锁哪个小版本、升级 3.5 动过什么 codemod』（propsDestructure 行为开关是典型回归点）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.ecosystem.vue-versions"],
+      "related": ["fe.vue.reactivity.effect-dep", "fe.vue.composition.sfc-macros"],
+      "followUps": ["3.4 的 watch 深层源快照优化是什么？（deep watcher 无变化时跳过比对）", "onWatcherCleanup 相对闭包手搓 token 的优势？（嵌套 watch 自动作用域回收）", "defineModel 稳定前社区的 useV-model 库为什么能一夜退役？"]
+    },
+    "resources": [{ "title": "Announcing Vue 3.4 / 3.5（官方博客两篇）", "digest": "3.4：parser 重写 2x、响应式重写 skipped watcher、defineModel 稳定、onWatcherCleanup、bundle 体积优化。3.5：Sub/Dep 双链表(-56% 内存)、reactive props destructure、useTemplateRef、reactive iterator、deferred teleport、rendered SSR 钩子；均声明无预期破坏性变更。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://blog.vuejs.org/posts/vue-3-5", "retrievedAt": "2026-11-09", "note": "3.5 公告为主，3.4 公告 https://blog.vuejs.org/posts/vue-3-4 交叉核对" },
+    "tags": ["版本演进", "2026新趋势", "多选"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束实操题：你负责把一个 Vue 3.3 的中后台升到 3.5，团队零停机。请给出分两步的最小升级路径（3.3→3.4→3.5）、每步各自的**最可能回归点**各两个，以及升级前必须跑的两类自动化检查。", "analysis": "路径与回归：3.4 步——①响应式重写对『在 computed 里制造副作用再靠 trigger 顺序兜底』的代码敏感（skip 机制改变执行次数）；②defineModel 若曾用实验 flag 需撤自研 useVModel。3.5 步——①reactive props destructure 是**行为级**变更：原来解构=快照的代码可能因 lint 未报警而静默变成 live 引用（或反向期待 live 却发现老代码在 3.4 前是快照），需开 eslint-plugin-vue 的 no-reactive-props-destructure 系列规则甄别；②watch 深层源/once/flush 的边缘时序微调与 reactive iterator 让某些『改任意 key 都触发』的老依赖收窄为按 key。两类检查：全量 e2e 冒烟（登录+动态路由+长列表三条黄金链路）+ vue-tsc --noEmit 类型门禁（宏与解构改动最先炸类型）。加分：报出用 @vue/compat?（那是 2→3 的）别混用、以及 lockfile diff 审查 @vue/* 小版本一致性。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-eco-0002",
+    "nodeId": "fe.vue.ecosystem.vue-vs-react",
+    "type": "essay",
+    "difficulty": 5,
+    "stem": "终极对比论述（引擎视角）：『Vue 和 React 的差异不在组件写法，而在两台不同的更新引擎。』请从四个引擎维度展开论证：①编译器参与度（有无静态信息可榨）；②依赖追踪粒度（自动收集 vs 渲染函数全量执行）；③更新传播模型（push 通知 vs 自上而下重渲染+memo 剪枝）；④可中断性（同步 patch vs Fiber 时间切片）。然后回答收尾两问：(a) 哪些真实工作负载分别偏向对方阵营的最优解；(b) Vapor/Alien Signals、React Compiler、TC39 Signals 三线并进，三年内两家的内核会趋同到什么程度？",
+    "answer": { "ref": "①编译器参与度：Vue 模板是受限 DSL，编译期能证明静态性（hoist）、动态性（patchFlag）、迭代结构（block/dc），diff 预算被编译产物直接指定；React JSX 图灵完备，编译器只能靠 rules of hooks 前提做启发式（React Compiler 的 memo 插入），静态信息天花板低——这是两家一切性能叙事差异的总根。②粒度：Vue 的 render effect 订阅到 **属性×key** 级（读啥订啥），一次 setState 只唤醒真正读过它的组件；React 的 useState 更新默认重跑整个组件函数（连带子树 reconcile），细粒度要靠开发者手动 memo/useCallback/selector(zustand/jotai) 赎身——『自动 vs 显式』是心智模型的根本分歧，Vue 侧对应成本是 .value 噪音与代理黑盒感。③传播模型：Vue push+惰性混合（trigger→scheduler 入队→渲染时 pull 最新值；computed 靠版本链失效）；React 纯 pull——状态变更后自上而下重新执行整棵被标记的子树，memo 是沿途的收费站。两家都在演化：Vue 3.5 双链表优化 push 存储、alien-signals 转拓扑序 pull；React Compiler 试图把 pull 的成本用编译降下来——方向互补。④可中断：Fiber 把 reconcile 做成可暂停的链表单元，高优输入（transition）可以抢占大更新；Vue 的 patch 在 job 内同步不可切，靠『每次更新工作量本来就小』硬扛，超大一次性挂载（无虚拟列表的 5k 行首渲）会卡帧是公认短板；Vue 的对案是 scheduler 层的 job 排序+未来并发模式探索，React 的对案是 Compiler 减少需要切片的大 reconcile。(a) 负载归属：表单密集中后台、高频局部小更新（IM 消息流、协同光标）、移动端弱网低端机 → Vue 的细粒度+低常数占优；富交互画布类（每次交互都逻辑上重建整棵树：DnD 编辑器、可视化大屏拖拽）、需要并发优先级与 RSC 流式、超大型多租户应用的服务器状态编排 → React 生态与 Fiber 语义占优；两边都救不了的超大列表都要虚拟化。(b) 趋同判断：内核层高度趋同——细粒度 signal 图（alien-signals 已是 Vue 3.6 方向、Preact/preact-signals、Angular signals、Svelte5 runes 同形态），React Compiler 补齐编译期、两家都走向『编译器+信号图+少量运行时』三件套；差异上移到**产品层**：模板 vs JSX 的 DX、RSC/服务端架构哲学、生态与招聘市场；TC39 Signals 若 Stage 3 落地会给全员提供共同基座但不会统一语义（equality policy/副作用边界不同）。结论句：三年后比内核会几乎分不出胜负，比外壳（谁的服务端故事与企业采购心智更顺）才见生死。加分：引 Vue Vapor RC/certificates.dev 实测口径、React Compiler GA 公告、solid 是这套内核的原型机三家任一作为证据链。" },
+    "scoringPoints": [
+      { "point": "①把『编译器参与度』确立为总根因并推导出其余差异", "weight": 2 },
+      { "point": "②粒度对比准确且指出双方各自的赎身/代价机制", "weight": 2 },
+      { "point": "③push/pull 模型表述正确（Vue 并非纯 push、React 是纯 pull 重放）", "weight": 2 },
+      { "point": "④Fiber 可中断与 Vue 同步 patch 的长短诚实并列", "weight": 2 },
+      { "point": "(a) 负载裁决具体到形态（表单/IM vs DnD/RSC）不和稀泥", "weight": 2 },
+      { "point": "(b) 趋同论有 2025-2026 证据锚（Vapor/alien、Compiler GA、Signals 提案任二）并给出分层结论", "weight": 2 }
+    ],
+    "analysis": "d5 压轴的评分核心是『因果链完整性』：从编译器参与度一路推到 DX、性能、生态选择，中间每一环都有机制支撑。最常见塌房点是③把 Vue 说成纯 push（忽略了渲染时才 pull 最新值的惰性设计，恰是 3.5 公告强调的 lazy chain）或把 React 说成『没有优化』（无视 memo/Selector/Fiber 的体系性）。(a) 段不许『各有千秋』滑头过关；(b) 段最防背题——需要近期情报（Compiler GA 与否、Vapor 成熟度），闭卷状态下说出『以我掌握的时间点』再给判断也算合格姿态。",
+    "gapCheck": ["易漏点：别忘了提两家**都放弃**的路径：Vue 不做 RSC、React 不采纳代理可变对象——放弃的理由比选择的理由更显理解深度", "常见误区：拿 benchmark 数字当论点——js-framework-benchmark 只测 CRUD 表格形态，天然偏 Vue 系，要点破测试偏差", "时间敏感：本题所有 2026 断言都应会前刷新（Vapor 是否 stable、Signals 提案 stage 几），面试里说错版本号比不说更伤"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.ecosystem.vue-vs-react", "fe.vue.runtime.diff-key", "fe.vue.reactivity.proxify"],
+      "related": ["fe.vue.ecosystem.vapor-signals", "fe.vue.composition.options-vs-composition", "fe.vue.compiler.block-tree"],
+      "followUps": ["Solid 赢了 benchmark 为什么没赢市场？（DX 断层：细粒度要求不可变错觉破除+生态迁移成本）", "如果 Vue 加入 RSC 阵营你觉得第一个撞墙的设计是什么？（响应式跨序列化边界）", "Angular 转向 signals 后为什么性能没质变？（瓶颈在 zoneless/checker  elsewhere——说明内核不是万能药）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://releaserun.com/modern-frontend-framework-guide-vue-js-angular-and-react-compared-2026/", "retrievedAt": "2026-11-09", "note": "2026 框架对比指南（reactivity 趋同论）；Vapor 现状另参考 certificates.dev/blog/vapor-mode-in-practice 与 clearmedia.pl 文" },
+    "tags": ["终局观", "三面压轴", "情报时效"],
+    "variants": [
+      { "angle": "换问法", "stem": "立场切换版：面试官命令你『接下来 3 分钟只能当 React 律师——为 React 反驳 Vue 阵营最常用的三个指控（响应式黑盒、性能靠编译器作弊、中文社区八股化），每个指控给一句反驳加一个不得不承认的事实』，最后一句你必须自己拆 React 最疼的短板。", "analysis": "合格辩护词样本：①『响应式黑盒』→ 反驳：React 的隐式魔法更多（hooks 调用序依赖、reconciler 时机、Compiler 插 memo），Vue 的代理至少可 toRaw/debug 具象化；承认：嵌套解构丢响应确实是新手税。②『编译器作弊』→ 反驳：静态优化是两家共识路线（React Compiler 同做），信息在 DSL 里本就是设计目标；承认：离开模板（JSX in Vue）收益打折是真实现象。③『八股化』是社会议题非技术议题，可用『React 的闭包陷阱教程同样铺天盖地』对冲。自拆短板首选：stale closure/deps 纪律的学习曲线与 Compiler 采用后的调试断层（编译前后代码不一致的心智成本）。评分看『钢人论证』质量：把对方论点最强形式立起来再拆，稻草人直接减分。" }
+    ]
+  }
+]

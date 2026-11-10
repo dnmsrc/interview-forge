@@ -1,0 +1,89 @@
+[
+  {
+    "id": "Q-ai-multi-value-0001",
+    "nodeId": "ai.multi.agent-orchestration.topology-selection",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "按 Anthropic 多智能体研究系统的官方实践，关于『什么时候值得上多代理』的说法**正确的是**：",
+    "options": [
+      { "key": "A", "text": "当任务可拆成多个可并行、各自需要独立上下文带宽的探索型子任务（如多方向同时调研）时收益最大；而动作紧密串行、共享状态多的任务更适合单代理" },
+      { "key": "B", "text": "多代理在所有任务上都碾压单代理，因为并行总是更快——报告实测延迟降低主要来自并行探索" },
+      { "key": "C", "text": "判断标准是子任务数量：超过 3 个子任务就该建多代理架构" },
+      { "key": "D", "text": "只要给每个子代理配便宜的小模型，多代理的总成本必然低于单代理大模型" }]
+    ,
+    "answer": { "keys": ["A"] },
+    "analysis": "官方报告的性能来源分析：研究类任务（广度优先、子方向互相独立、每个方向都要大量检索上下文）正是『宽扇出+上下文隔离』的主场——多代理并行把墙钟时间换质量；反例同样明确：写作/编码这类**高度串行、前步决定后步**的任务，子代理间传话损耗大于隔离收益，报告直接建议这类用单代理 → A。B 错在『所有任务』与『延迟总是降』：串行任务里多代理反而更慢更差；C 用数量当判据太机械——3 个紧耦合子任务不如 1 个强代理；D 忽略官方实测的多代理 token 倍率（对话的 ~15×），小模型摊不平协调开销。",
+    "gapCheck": ["易漏点：答『何时不该用多代理』比答何时用更值钱——官方点名的高频误用就是把多代理塞进协同编辑型任务", "常见误区：把并行收益与质量收益混谈——报告赢的是研究广度，延迟收益只在可并行部分成立", "加分项：引用 token 消耗解释 95% 性能方差的结论——先堆单代理的预算（更多工具/更长运行）再考虑拆"],
+    "knowledgeLinks": {
+      "prereq": ["ai.multi.agent-orchestration.topology-selection"],
+      "related": ["ai.harness.agent-loop.context-budget", "ai.serving.infer-serving.cost-latency"],
+      "followUps": ["你的业务里哪类请求符合『宽扇出』画像？举一个具体例子", "子代理意见冲突时 supervisor 怎么仲裁？", "15× 成本在你的场景折算成人力值多少钱？"]
+    },
+    "resources": [{ "title": "Anthropic · Multi-agent research system", "digest": "官方工程文：多代理架构在研究任务上大幅胜出（广度/事实准确率）、token 用量与性能方差的关系、『并行子任务适合多代理、依赖重的串行任务适合单代理』的显式选型建议。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.anthropic.com/engineering/built-multi-agent-research-system", "retrievedAt": "2026-11-09", "note": "官方工程博客 2025-06；与 harness 缓存题同文不同考点", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["多代理选型", "大厂实测", "反直觉"],
+    "variants": [
+      { "angle": "换场景", "stem": "场景裁决三连：①『同时调研 5 个竞品的定价策略』②『重构一个 2 万行模块并保持测试全绿』③『每天凌晨总结昨日全部客服会话并归类』。分别判单/多代理并各给一句理由。", "analysis": "①多代理：五个竞品天然独立可并行，每个方向的爬取+阅读吃大量上下文，隔离价值高。②单代理（可配子代理做局部探索）：重构的动作强串行——改 A 破坏 B、全局一致性是命门，多代理各改各的会在接口处打架；允许 spawn 只读子代理查影响面是正确姿势。③单代理+批处理循环：任务是同构 map-reduce（每份会话独立但单份不大），用一个带压缩的循环或代码管道即可，多代理的协调税无处安放。评分眼：每题的理由必须落在『耦合度/并行度/上下文体量』三轴之一，答『感觉复杂』不算。" }
+    ]
+  },
+  {
+    "id": "Q-ai-multi-fw-0002",
+    "nodeId": "ai.multi.agent-orchestration.framework-mechanics",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "对比 LangGraph 与 AutoGen 两类多智能体编排框架的设计哲学，下列说法**正确的有**：",
+    "options": [
+      { "key": "A", "text": "LangGraph 把 Agent 建模为共享状态上的图：节点执行返回状态增量、由 reducer 决定合并，super-step 边界自动落 checkpoint，可控性与可回放是第一公民" },
+      { "key": "B", "text": "AutoGen 的核心抽象是对话：多 Agent 通过消息收发协作（群聊/轮流发言），流程控制更多藏在对话动态里而非显式图结构" },
+      { "key": "C", "text": "两者在『失败恢复』上的路线相同：都靠重放模型调用实现确定性恢复，不需要状态快照" },
+      { "key": "D", "text": "handoff 模式（OpenAI Agents SDK/Swarm 一脉）与 supervisor 模式的区别在于控制权流向：前者是平级间移交控制权继续干活，后者是中心化的分派-汇总" }]
+    ,
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A 对：LangGraph 官方概念文档的原话结构就是 graph+shared state+reducer+Pregel 式 super-step+checkpointer；B 对：AutoGen（及其后继 AG2/0.4 的 actor 化演进）以 conversation 为中心组织多体协作，编排逻辑确实更多隐于消息流；D 对：handoff=把当前任务连同控制权整个移交（像工单转派），supervisor=工人干完回报中心再派活，两种拓扑的控制权模型确如所述。C 错得专业：LangGraph 的恢复靠 **checkpoint 状态快照**而非事件重放（正因为 LLM/工具输出不可确定性重放，见持久执行题）；AutoGen 0.4 亦是状态序列化路线。",
+    "gapCheck": ["易漏点：『确定性重放不可能所以要状态快照』这句是 C 项的破题钥匙，也是两框架共同的工程答案", "常见误区：把 LangGraph 的 conditional edge 和 AutoGen 的 speaker 选择说成『一个确定一个随机』——其实两边都有确定与动态混合，差别在默认叙事载体（图 vs 对话）", "加分项：能提 AutoGen 0.4 转向异步 actor 模型、LangGraph 加 durable execution 的双向收敛趋势"],
+    "knowledgeLinks": {
+      "prereq": ["ai.multi.agent-orchestration.framework-mechanics"],
+      "related": ["ai.harness.agent-loop.compaction-recovery", "ai.multi.agent-orchestration.shared-state"],
+      "followUps": ["reducer 选错（比如 last-write-wins 用在列表字段）会出什么事故？", "群聊模式的 token 成本为什么容易失控？谁背锅？", "你会在什么信号下放弃框架改裸 API 循环？"]
+    },
+    "resources": [{ "title": "LangGraph Concepts + AutoGen 文档", "digest": "LangGraph：state/reducer/super-step/checkpoint 概念页；AutoGen：architecture 页描述 async event-driven actor 与对话核心（旧版 group chat 文档对照）。两官方文档互读是这题的标准备面。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "自创对比题；选项事实以 langchain-ai.github.io/langgraph/concepts 与 microsoft.github.io/autogen 为准（题干措辞自拟）", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["框架机制", "设计哲学", "对比题"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "面试官追问：『框架抽象泄漏』——请讲两个你在 LangGraph 或 AutoGen 里真实踩到/见过的泄漏现场，以及你当时的绕行方案。", "analysis": "高分现场案例库：①LangGraph 的 checkpointer 序列化踩到不可序列化对象（工具闭包里的 DB 连接），每步快照都在悄悄变慢/失败——绕行是 state 只存纯数据、连接挂外部资源；②条件边的字符串路由与节点改名不同步导致线上永远走 fallback 分支（类型系统不保护路由 key）；③AutoGen group chat 的 speaker 选择靠 LLM 判定，出现『两个 agent 互相谦让轮流空转』的成本事故——绕行是强行 speaker 模板/终止条件；④中断恢复时 interrupt 前的副作用已执行过一遍（不是从节点起点重来）。评分看『具体故障形态+根因+绕行』三件套齐不齐，泛泛『调试困难』不给分。" }
+    ]
+  },
+  {
+    "id": "Q-ai-multi-tradeoff-0003",
+    "nodeId": "ai.multi.agent-orchestration.shared-state",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "架构评论题：LangChain 官方博客《Benchmarking Multi-Agent Architectures》用实测支持『协调者架构优于纯 swarm/群聊』的结论。请论述：一、这个结论的适用边界（哪些任务画像下协调者优势会收窄甚至反转）；二、supervisor 架构自身的三个结构性弱点及你能给出的缓解；三、如果让你为一个『跨团队协作的代码现代化项目』设计编排拓扑，你怎么组合，并说明每一处的取舍依据。",
+    "answer": { "ref": "参考骨架：【一·适用边界】协调者优势建立在『子任务可清晰界定+结果可被中心校验』上，收窄场景：①深度串行+强上下文连续性的任务（长链重构、创意写作）——中心每次转述都在丢失隐性语境，单代理连续性完胜（Anthropic 同一篇报告也承认这点，两家结论并不矛盾而是互补：广度任务中心调度赢、连续性任务单线赢）；②超低延迟要求——中心多一跳就是一次完整推理往返；③子任务高度同质且规则可判（每日批处理）——路由根本不需要 LLM，代码分发器比 supervisor 便宜可靠；④ swarm 的真正主场：子任务间需要**横向接力**且交接物是自包含工件（流水线式 handoff），此时中心反而是瓶颈。【二·supervisor 三弱点+缓解】①中心成为信息瓶颈与单点智商——所有跨团队知识必须穿过 supervisor 的窗口，它不懂的细节它就管不了：缓解=给 supervisor 只路由不干细活的极简人设+子代理直达工具授权（跳过中心的旁路通道）；②转述失真累积（telephone game）——每层摘要丢一点，末端执行拿到的目标已变形：缓解=任务下发用结构化契约（目标/验收/约束三段）、回传也用结构化摘要而非自由文本、关键参数原文透传不许改写；③成本与延迟的中心化放大——每跳都过 supervisor，简单问题也要中心过路费：缓解=分级路由（规则/小模型先过滤，复杂才升 supervisor）、子代理间白名单直连。【三·自选拓扑示范】代码现代化：supervisor 主干（任务分解+验收），下设三种异构成员：repo-mapper 只读侦察代理（并行扫模块出依赖地图）、migrator 执行代理（按模块串行推进保全局一致，禁止并发改共享接口）、reviewer 独立评审代理（不与 migrator 共享上下文防说服污染）；共享状态用文件化（迁移进度表+接口契约清单）而非消息口口相传；危险动作（删文件/改公共接口）挂 HITL。取舍要点：写路径串行化牺牲吞吐换一致性、评审隔离牺牲成本换独立性——两处都花了钱，要明说买的是什么。【收尾立场】拓扑没有普适冠军，只有『任务的耦合结构决定拓扑』；benchmark 的价值是告诉你默认起点，不是终点。" },
+    "scoringPoints": [
+      { "point": "边界分析 ≥3 类且能与 Anthropic 报告互相印证（互补而非打架）", "weight": 2 },
+      { "point": "swarm/handoff 的真实主场被公正指出", "weight": 1 },
+      { "point": "supervisor 弱点给出信息瓶颈/转述失真/成本放大三条且有对应缓解", "weight": 2 },
+      { "point": "缓解机制具体可用（结构化契约/旁路通道/分级路由）", "weight": 2 },
+      { "point": "自选拓扑自洽：分工、串并行选择、共享介质、HITL 挂钩四要素齐全", "weight": 2 },
+      { "point": "每处设计标注了『牺牲什么换什么』的代价账", "weight": 2 },
+      { "point": "收束有立场且不与前面论述打架", "weight": 1 }
+    ],
+    "analysis": "这题的陷阱是把 benchmark 结论当真理复述——考官等你说出『它是特定任务画像下的冠军』。第二段的三弱点必须有『转述失真』，这是多代理独有的通信问题（单体不存在），答不出说明没真跑过多体系统。第三段开放但有暗礁：代码现代化的**写冲突**是命门，migrator 并发改共享接口必炸，敢写『migrator 全并行』的会被追问到哑。结尾的『耦合结构决定拓扑』能把全文从拼盘抬成论点。",
+    "gapCheck": ["易漏点：引 benchmark 时补一句它的评测任务构成（多为可分解的研究/工具型）——结论强度受评测集约束", "常见误区：把 supervisor 和 orchestrator-worker 混为一谈——前者有对话式动态分派，后者偏静态 DAG 分派，成本画像不同", "加分弹药：LangChain 博客另有《Context engineering…blogging agent》展示单代理+好提示也能赢的对照案例，主动引用显公允", "结构自救：三段各限 3 分钟，示范段超时宁可减成员数不减代价分析"],
+    "knowledgeLinks": {
+      "prereq": ["ai.multi.agent-orchestration.shared-state", "ai.multi.agent-orchestration.topology-selection"],
+      "related": ["ai.multi.agent-orchestration.framework-mechanics", "ai.eval.evaluation-qa.metrics-dataset", "cs.design"],
+      "followUps": ["你的示范里 reviewer 的意见 migrator 不服怎么办？仲裁协议是什么？", "文件化共享状态的并发写锁怎么设计才不死锁？", "这套拓扑跑三个月后最先腐烂的是哪个部件？"]
+    },
+    "resources": [{ "title": "LangChain Blog · Benchmarking multi-agent architectures", "digest": "官方博客：system message baseline/supervisor/swarm 三架构在分解型 benchmark 上的对比，supervisor 综合领先；同站多篇工程文给出各自的适用讨论与成本视角。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://blog.langchain.com/benchmarking-multi-agent-architectures/", "retrievedAt": "2026-11-09", "note": "LangChain 官方博客 benchmark 文（2025），结论与其评测任务构成需一起引用", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["多代理思辨", "大厂博客锚", "设计论证"],
+    "variants": [
+      { "angle": "加约束", "stem": "追加约束重写第三段：你的代码现代化项目有严格预算——多代理总 token 不得超过单代理基线的 3×，且迁移期间主干分支每天都在演进。这两个约束各推翻你原设计的什么？怎么改？", "analysis": "预算约束打击：独立 reviewer 常驻（每次评审双倍 token）与 supervisor 全量过目——改为抽样评审（高风险 diff 才送 reviewer）+supervisor 只看结构化摘要不看原始轨迹；『每天主干演进』打击：repo-mapper 一次性侦察的地图会迅速过期、migrator 的串行队列与上游改动持续冲突——改为增量 rebase 检查点（每完成一模块立即对账主干）+侦察缓存带 TTL 与失效触发（CI 检测到依赖变更即重扫）。答题眼：两个约束都指向『多代理的贵要花在刀刃上、多代理的缓存会随世界漂移』——能识别被推翻项而非缝缝补补才是本变体的目的。" }
+    ]
+  }
+]

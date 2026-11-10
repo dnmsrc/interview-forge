@@ -1,0 +1,21 @@
+[
+  { "id": "ai.serving.infer-serving", "title": "推理优化与部署", "level": 3, "domain": "ai", "stack": "serving", "topic": "infer-serving", "mustMaster": false, "estMinutes": 70, "summary": "KV Cache、连续批处理、量化与推测解码的性能原理，加上 TTFT/TPOT 两分法驱动的成本延迟治理" },
+
+  { "id": "ai.serving.infer-serving.kv-cache-batching", "title": "KV Cache、PagedAttention 与连续批处理", "level": 4, "domain": "ai", "stack": "serving", "topic": "infer-serving",
+    "prerequisites": ["ai.serving.infer-serving", "ai.llm"],
+    "related": ["ai.serving.infer-serving.quantize-accel", "ai.serving.infer-serving.cost-latency"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲自回归解码为什么每步只算一个 token 却要读写全部历史 K/V、KV Cache 显存公式（2×层数×KV头数×头维×精度×并发）、Prefill 算力受限与 Decode 带宽受限的两阶段画像、PagedAttention 块表如何解决碎片与预留浪费、continuous batching 为何比静态 batch 吞吐高一个量级、prefix caching 的命中条件与计费折扣、chunked prefill 缓解 decode 被饿死" },
+
+  { "id": "ai.serving.infer-serving.quantize-accel", "title": "量化、蒸馏与推测解码", "level": 4, "domain": "ai", "stack": "serving", "topic": "infer-serving",
+    "prerequisites": ["ai.serving.infer-serving", "ai.train.finetune-vs-rag"],
+    "related": ["ai.serving.infer-serving.kv-cache-batching", "ai.train.finetune-vs-rag.finetune-decision"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲权重量化/激活量化/KV 量化各自压哪块开销、GPTQ/AWQ/bitsandbytes 的定位差异、FP8 训练与 BF16 的取舍、量化评估必须任务化的原因（MMLU 掉 1% 可能代码崩 10%）、推测解码 draft+verify 的无损原理与接受率决定收益、Medusa/EAGLE 思路、蒸馏小模型 vs 大模型+量化的同预算对比方法" },
+
+  { "id": "ai.serving.infer-serving.cost-latency", "title": "TTFT/TPOT 两分法与成本延迟治理", "level": 4, "domain": "ai", "stack": "serving", "topic": "infer-serving",
+    "prerequisites": ["ai.serving.infer-serving.kv-cache-batching", "ai.serving.infer-serving.quantize-accel"],
+    "related": ["ai.eval.evaluation-qa.online-regression", "ai.rag.retrieval-pipeline.rerank-compress"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲 TTFT 由排队+Prefill+prefix 缓存命中决定、TPOT 由访存带宽与采样策略决定、流式体验指标 E2E 怎么拆、SLA 该盯 p95/p99 而非均值的原因、治理手段分层（路由分级模型、缓存、批处理配额、并行解码、超时降级）、Agent 场景成本大头在重复上下文计费所以缓存命中即成本项、batch API 与在线请求的价差与适用性" }
+]

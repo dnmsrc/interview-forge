@@ -1,0 +1,41 @@
+[
+  { "id": "ai.eval.evaluation-qa", "title": "评测、回归与多智能体编排", "level": 3, "domain": "ai", "stack": "eval", "topic": "evaluation-qa", "mustMaster": true, "estMinutes": 90, "summary": "离线评估集、LLM-as-judge 偏差治理、在线指标与回归门禁；顺带覆盖 LangGraph/AutoGen 类多体编排——没有评测就没有资格谈编排" },
+
+  { "id": "ai.eval.evaluation-qa.metrics-dataset", "title": "离线评估集：指标定义、轨迹评估与数据建设", "level": 4, "domain": "ai", "stack": "eval", "topic": "evaluation-qa",
+    "prerequisites": ["ai.eval.evaluation-qa", "ai.rag.retrieval-pipeline.generation-grounding"],
+    "related": ["ai.eval.evaluation-qa.llm-as-judge", "ai.harness.agent-loop.loop-dynamics"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲结果指标 vs 轨迹指标（工具调用序列、步数、越权动作）、pass@k/pass^k 的区别与 Agent 可靠性含义、评估集怎么从线上失败案例长出来、数据集污染与过拟合评估、分层报告（按意图/难度切片）为何比单一总分有用、统计显著性与多次采样置信区间" },
+
+  { "id": "ai.eval.evaluation-qa.llm-as-judge", "title": "LLM-as-judge：偏差清单与校准", "level": 4, "domain": "ai", "stack": "eval", "topic": "evaluation-qa",
+    "prerequisites": ["ai.eval.evaluation-qa.metrics-dataset"],
+    "related": ["ai.rag.retrieval-pipeline.generation-grounding", "ai.serving.infer-serving.cost-latency"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲位置偏差/冗长偏差/自我偏好/指令服从四类经典偏差及各自对策（交换位置、rubric 分维、长度归一、异族裁判）、pointwise 与 pairwise 的适用场景、judge prompt 本身要过 meta-evaluation、与人工标注一致率（Cohen's kappa）怎么报、裁判模型与被评模型同源的风险、评分方差与温度设置" },
+
+  { "id": "ai.eval.evaluation-qa.online-regression", "title": "在线指标、A/B 与上线回归门禁", "level": 4, "domain": "ai", "stack": "eval", "topic": "evaluation-qa",
+    "prerequisites": ["ai.eval.evaluation-qa.metrics-dataset", "ai.eval.evaluation-qa.llm-as-judge"],
+    "related": ["ai.serving.infer-serving.cost-latency", "eng.release"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲在线指标三层结构（质量代理：赞踩/改写率/放弃率；任务级：完成率/转人工率；经济级：单次任务成本与延迟 p95）、离线涨在线不涨的常见原因、金丝雀与影子流量、prompt/模型版本变更的回归门禁设计、反馈数据回流评估集的闭环与采样偏差" },
+
+  { "id": "ai.multi.agent-orchestration", "title": "多智能体协作与编排", "level": 3, "domain": "ai", "stack": "eval", "topic": "agent-orchestration", "mustMaster": false, "estMinutes": 60, "summary": "单 Agent 优先原则下的多体分工：supervisor/swarm 拓扑、LangGraph/AutoGen 类框架机制与失败边界" },
+
+  { "id": "ai.multi.agent-orchestration.topology-selection", "title": "单 Agent vs 多 Agent：拓扑选型与成本账", "level": 4, "domain": "ai", "stack": "eval", "topic": "agent-orchestration",
+    "prerequisites": ["ai.multi.agent-orchestration", "ai.harness.agent-loop.loop-dynamics"],
+    "related": ["ai.multi.agent-orchestration.shared-state", "ai.harness.agent-loop.context-budget"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲什么信号提示该拆多体（上下文互相污染、可并行子任务、权限隔离需求）、supervisor/pipeline/swarm 三种拓扑的误差放大路径、token 成本倍增实测（Anthropic 报告多体约为单体的 15×）、延迟敏感任务为何慎拆、以及『先加强单 Agent+好工具』的决策顺序" },
+
+  { "id": "ai.multi.agent-orchestration.framework-mechanics", "title": "LangGraph / AutoGen 类框架：状态图、事件与中断", "level": 4, "domain": "ai", "stack": "eval", "topic": "agent-orchestration",
+    "prerequisites": ["ai.multi.agent-orchestration.topology-selection", "ai.tools.tool-calling.function-calling"],
+    "related": ["ai.harness.agent-loop.compaction-recovery", "ai.framework"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲 LangGraph 把 Agent 建模为共享 state 上的图（node/edge/conditional edge、super-step、reducer 合并策略、checkpointer 持久化、interrupt 人审）与 AutoGen 对话驱动 group chat 的差异、handoff 模式（OpenAI Agents SDK/Swarm）、何时裸 API 循环更优、框架抽象泄漏的典型现场（重试语义、状态膨胀、调试黑盒）" },
+
+  { "id": "ai.multi.agent-orchestration.shared-state", "title": "共享状态、通信契约与失败恢复边界", "level": 4, "domain": "ai", "stack": "eval", "topic": "agent-orchestration",
+    "prerequisites": ["ai.multi.agent-orchestration.framework-mechanics", "ai.memory.memory-skill.session-state"],
+    "related": ["ai.harness.agent-loop.compaction-recovery", "ai.reliability"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲共享 state 的并发写冲突与 reducer 设计、消息总线 vs 黑板两种通信范式的取舍、子 Agent 返回结果的契约化（结构化摘要而非原始 transcript）、部分失败的补偿与回滚边界、取消传播与孤儿任务清理、跨 Agent 的幂等键设计" }
+]

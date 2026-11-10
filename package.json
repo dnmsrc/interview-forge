@@ -1,0 +1,41 @@
+{
+  "name": "interview-forge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "面试熔炉 · Electron + Vue 面试训练客户端（练习/闭卷/知识图谱/FSRS 巩固/AI 批改与题库演进）",
+  "main": "./out/main/index.js",
+  "author": "harry",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "electron-vite preview",
+    "build": "electron-vite build",
+    "seed": "node scripts/seed.mjs",
+    "qa": "node scripts/qa/regress.mjs",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "electron": "^45.2.3",
+    "electron-vite": "^6.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.6",
+    "vue-tsc": "^3.3.14"
+  },
+  "dependencies": {
+    "@guolao/vue-monaco-editor": "^1.6.0",
+    "@vue-flow/background": "^1.3.2",
+    "@vue-flow/controls": "^1.1.3",
+    "@vue-flow/core": "^1.48.2",
+    "@vue-flow/minimap": "^1.5.4",
+    "echarts": "^6.1.0",
+    "markdown-it": "^15.0.3",
+    "monaco-editor": "^0.57.0",
+    "naive-ui": "^2.45.3",
+    "pinia": "^4.1.0",
+    "prismjs": "^1.30.0",
+    "vue": "^3.5.45",
+    "vue-echarts": "^8.3.2",
+    "vue-router": "^5.4.0"
+  }
+}

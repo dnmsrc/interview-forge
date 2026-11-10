@@ -1,0 +1,304 @@
+[
+  {
+    "id": "Q-ai-tools-args-0001",
+    "nodeId": "ai.tools.tool-calling.function-calling",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "模型决定调用工具后，返回给你的消息里 `tool_calls[i].function.arguments` 字段的原始形态是什么？",
+    "options": [
+      { "key": "A", "text": "一个已解析的 JSON 对象（dict），可直接取属性" },
+      { "key": "B", "text": "一个 JSON 字符串，需要你自己 parse 后才能拿到参数值" },
+      { "key": "C", "text": "一个 key-value 参数列表，类似查询字符串的有序序列" },
+      { "key": "D", "text": "纯自然语言描述，参数语义由下游自行理解" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "OpenAI Chat Completions API 文档明确：assistant 消息的 `tool_calls[].function.arguments` 是**JSON 格式的字符串**（流式下还是分块增量吐出来的，需要按 index 拼接后再 parse），调用方必须自行反序列化 → B。A 是很多 SDK 帮你 parse 后的假象——协议层从来不是对象；C 混淆了 REST query 参数与工具调用载荷；D 是早期 prompt 时代『让模型输出文字再正则抠参数』的旧记忆，function calling 正是为消灭它而生。",
+    "gapCheck": ["易漏点：SDK 层（openai-python/各封装）常把 arguments 包成 dict 给你，但换 HTTP 直连/MCP 场景就露馅——契约要记协议层不记 SDK 层", "常见误区：流式场景直接 json.loads 每帧的 arguments 片段，必然炸——要先按 tool_call index 聚合 delta 再 parse", "d1 送分但每年都有人翻车：面试时顺带补一句『所以生产代码里 parse 要包 try-catch』即显工程感"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.function-calling"],
+      "related": ["ai.harness.agent-loop.loop-dynamics", "ai.tools.tool-calling.mcp-protocol"],
+      "followUps": ["arguments 是什么时机可能被模型生成成非法 JSON？strict 模式能完全杜绝吗？", "流式下 tool call 的增量怎么拼？和文本增量有何不同？", "工具执行结果要以什么角色、什么字段回传给模型？"]
+    },
+    "resources": [{ "title": "OpenAI Platform · Function Calling", "digest": "官方指南：模型返回 tool_calls，其中 function.arguments 为 JSON string；配套示例代码统一 json.loads 后使用；strict:true 时函数名强制等于 tools 中的 name。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://platform.openai.com/docs/guides/function-calling", "retrievedAt": "2026-11-09", "note": "Function Calling 指南：tool_calls 结构与 arguments 类型说明", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["协议基础", "送分题", "SDK陷阱"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "接着问：你把工具执行结果回传给模型时，应该构造什么角色/什么结构的消息？如果工具报错了，这段内容怎么写效果最好？", "analysis": "标准闭环：追加一条 role:\"tool\"（或 Responses API 的 function_call_output）消息，tool_call_id 对应回去，content 是结果的字符串化。工具报错时最佳实践是把错误**结构化地**回灌而非抛异常终止：『FAILED: <原因> + 建议动作（缺参/换个工具/重试改参）』——模型看到可读错误会自我修正，看到裸 traceback 常瞎猜。延伸考点：错误信息的措辞本身就是 prompt 工程。" }
+    ]
+  },
+  {
+    "id": "Q-ai-tools-parallel-0002",
+    "nodeId": "ai.tools.tool-calling.function-calling",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 parallel tool calls，按 OpenAI 官方文档口径，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "一次响应可能返回多个 tool_calls；默认启用并行，官方曾明确提示『模型并不总是倾向并行调用，必要时需在 prompt 中引导』" },
+      { "key": "B", "text": "parallel_tool_calls:false 后，模型对互不相关的多个查询也只能逐个串行发起，永远无法合并成一次调用" },
+      { "key": "C", "text": "多个 tool_calls 必须由客户端串行执行，并行执行会破坏 tool_call_id 的对应关系" },
+      { "key": "D", "text": "并行 tool calls 只支持只读工具，带写操作的工具会被 API 自动拒绝并行返回" }]
+    ,
+    "answer": { "keys": ["A"] },
+    "analysis": "A 两句都站得住：结构上一条 assistant 消息可携带多个 tool_calls（各自独立 id）；行为侧 OpenAI 文档原文级提示『模型不总是并行调用工具，想强制就在 prompt 里明确要求』——即默认开启但行为不保证，要 prompt 兜底。B 错：关掉并行后模型仍可能把多个目标塞进**单个**调用（比如函数参数是个数组，一次查完），这正是官方 FAQ 给的替代路径；C 错：客户端对各 tool_call 的执行方式完全自主，并发跑再按 id 回填结果才是常规姿势；D 错：API 不做读写语义审查，副作用治理是应用层的事。",
+    "gapCheck": ["易漏点：『模型倾向』与『协议能力』是两层——协议允许≠模型爱用，这句是这题的题眼", "常见误区：把 parallel:false 理解成『一次只能调一个函数』——它限制的是单响应里的调用个数，不是参数表达力", "加分项：给出你团队的实测做法——对『必须并行的批量查询』直接在 system 里写死『优先并行发出所有独立检索』"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.function-calling"],
+      "related": ["ai.harness.agent-loop.loop-dynamics", "ai.serving.infer-serving.cost-latency"],
+      "followUps": ["并行调用时你怎么安全地并发执行有副作用的工具？", "为什么模型倾向串行？和训练数据里的工具链叙事有关吗？", "关掉并行对延迟的影响怎么量化？什么场景值得关？"]
+    },
+    "resources": [{ "title": "OpenAI Cookbook · Parallel Function Calling", "digest": "官方 cookbook 演示并行调用结构，并记录 FAQ：禁用并行时可用数组参数单次调用代替；模型并非总主动并行，可在 prompt 强调。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://cookbook.openai.com/examples/how_to_call_functions_with_chat_models", "retrievedAt": "2026-11-09", "note": "How to call functions 指南的并行调用章节与常见问题", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["协议细节", "文档原话", "易被质疑"],
+    "variants": [
+      { "angle": "换场景", "stem": "场景题：Agent 要同时查 5 个城市的天气。分别描述『模型并行发 5 个 tool_calls』『模型只发 1 个带数组参数的调用』『模型串行发 5 次』三种路径各自的延迟与失败面，以及你的工具 schema 设计会引导向哪一种。", "analysis": "延迟排序：单次数组参数 < 5 路并发 < 串行 5 次（5×RTT+5×推理）。失败面：单次数组参数最怕长尾（5 个城市里 1 个解析失败拖累整包，且部分成功的语义要自己定义）；并行 5 个的失败面最干净（每个 id 独立成败、独立重试）；串行的失败是累积延迟。schema 设计上我会提供 batch 版工具（cities: array）并在 description 里写『多城市优先用本工具』引导单次——但要为『整包失败降级为逐个重试』写补偿逻辑。考点：工具形状反过来塑造模型行为。" }
+    ]
+  },
+  {
+    "id": "Q-ai-tools-schema-0003",
+    "nodeId": "ai.tools.tool-calling.function-calling",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "你在给 function calling 写严格的 JSON Schema（含 $defs、minLength、pattern 等高级约束），API 返回 400。按 OpenAI 文档对 structured outputs / strict 模式的说明，最可能的原因是：",
+    "options": [
+      { "key": "A", "text": "Schema 里出现了中文描述，模型语言检测失败" },
+      { "key": "B", "text": "使用了受支持子集之外的特性（如部分组合关键字或数值范围约束），strict 模式只保证兼容文档列出的 JSON Schema 子集" },
+      { "key": "C", "text": "strict:true 要求所有属性都必须可选，你写了 required 列表" },
+      { "key": "D", "text": "嵌套超过一层对象的 schema 一律不被支持" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "OpenAI 文档明确：structured outputs 在 strict 模式下支持的是 **JSON Schema 的一个子集**（$ref/$defs、enum/const、anyOf 带 if/then/else、additionalProperties:false、minLength/maxLength/pattern 等在列，但超出清单的特性——典型如未列出的 format、数值型约束——会被拒或要求去掉），400 的第一排查就是对照官方 supported schemas 清单 → B。A 荒谬（description 支持多语言且不影响校验）；C 恰好说反：strict 反而**要求所有属性列进 required**（可选性靠 type 里加 \"null\" 表达）；D 错：深层嵌套+$defs 引用正是支持项，只是曾有深度上限的历史版本问题，不是『一层』。",
+    "gapCheck": ["易漏点：strict 模式下 required=全部属性、可选语义用 [\"string\",\"null\"] 表达——这是从『子集』推出的一条实操规则，必背", "常见误区：把 JSON mode（response_format:{type:\"json_object\"}）与 structured outputs 混谈：前者只保证合法 JSON 不保证 schema 符合", "加分项：讲清机制——strict 是约束解码（grammar-constrained decoding）保证语法 100% 合规，代价是首 token 略慢与语义质量微降"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.function-calling"],
+      "related": ["ai.tools.tool-calling.tool-design-routing", "ai.harness.agent-loop.loop-dynamics"],
+      "followUps": ["约束解码为什么会影响生成质量？给个直觉解释", "additionalProperties:false 为什么是 strict 的硬前提？", "你的 schema 里有 pattern 约束的正则，模型违反过吗？strict 前后对比？"]
+    },
+    "resources": [{ "title": "OpenAI Structured Outputs · Supported Schemas", "digest": "官方逐条列出支持/不支持的 JSON Schema 关键字与 strict 模式三条硬性规则（所有 property 必须 required、顶层必须 object、additionalProperties:false），并注明子集会持续扩充。" }],
+    "openBookAllowed": true
+    ,
+    "source": { "kind": "official", "url": "https://platform.openai.com/docs/guides/structured-outputs", "retrievedAt": "2026-11-09", "note": "Structured outputs 指南 supported schemas 小节（含 strict 规则与子集清单）", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["结构化输出", "文档细节", "400排查"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向排查：你没开 strict，模型输出的 JSON 十次里坏两次。先回答：不开 strict 时 API 层面发生了什么让 JSON 仍不可靠？再给出不用 strict 模式时的三层容错方案。", "analysis": "机制答案：不开 strict 时只有『软引导』（prompt 里的格式描述+RLHF 习惯），采样逐 token 自由，任何一次都可能在语法上越轨——所谓『99.9% 遵守』是经验数字不是保证。三层容错：①防御性 parse（trim、剥 markdown 围栏、宽松引号修复）②失败重试一次并把 parse 错误信息回灌给模型自纠 ③终极降级：规则抽取（正则定位最大 JSON 块）或换用支持 constrained decoding 的开源栈/vLLM guided decoding。能讲『软引导 vs 硬约束』的分界即为深入。" }
+    ]
+  },
+  {
+    "id": "Q-ai-tools-mcp-0004",
+    "nodeId": "ai.tools.tool-calling.mcp-protocol",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "按 MCP 官方规范（modelcontextprotocol.io），关于协议的组成，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "MCP 定义了一套专有的二进制传输帧，服务端必须先升级网关才能接入" },
+      { "key": "B", "text": "MCP 基于 JSON-RPC 2.0 消息层，规范定义的本地传输是 stdio、HTTP 承载在规范内演进（早期为 SSE 双端点，后续版本收敛为 Streamable HTTP 单端点），数据层分 server/client/宿主三方角色" },
+      { "key": "C", "text": "MCP 只是 function calling 的新版命名，没有独立的握手与生命周期协商" },
+      { "key": "D", "text": "MCP 服务端只能暴露 tools，resources 与 prompts 属于客户端侧概念" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "规范原文：MCP 的数据层是 JSON-RPC 2.0 请求/通知/响应，附 initialize 握手与 capabilities 协商的生命周期；传输层『stdio 用于本地进程，HTTP 承载（GET/POST/DELETE + SSE 流升级）』——历史上 2025-03 版是 HTTP+SSE 双端点、随后被 Streamable HTTP 取代，答题时报这个演进过程最稳 → B。A 错：没有任何私有二进制帧；C 错：MCP 是有状态协议（会话、协商、双向能力），function calling 是无状态的消息字段；D 错反了：tools/resources/prompts 三项 server 端原语恰恰都由服务端暴露（sampling/elicitation 才是 client 侧能力）。",
+    "gapCheck": ["易漏点：『Streamable HTTP 取代 HTTP+SSE』是 2025 年规范的著名变更，说的时候带版本号（spec 2025-03-26/2025-06-18）显得真读过", "常见误区：把 MCP 说成『Anthropic 的私有标准』——它是开放规范（已被 OpenAI/Google/Microsoft 等采纳），创始方≠闭源方", "加分项：能画三方图（host 持有策略、client 一对一连 server、server 供能力）并指出『client 隔离』的安全意义"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.mcp-protocol"],
+      "related": ["ai.tools.tool-calling.function-calling", "ai.reliability"],
+      "followUps": ["为什么要 initialize/capabilities 协商而不是直接调工具？", "Streamable HTTP 解决了双端点方案的什么问题？", "MCP 的 sampling 是谁调谁？为什么这个方向很重要？"]
+    },
+    "resources": [{ "title": "MCP 规范 · Basic / Transports", "digest": "规范定义 JSON-RPC 2.0 消息与生命周期（初始化/关闭），传输条款：stdio 为必需本地传输、HTTP-based 传输用于远程；2025-06-18 起 Streamable HTTP 合并原 HTTP+SSE 为单端点。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://modelcontextprotocol.io/specification/2025-06-18/basic/transports", "retrievedAt": "2026-11-09", "note": "规范传输章节原文；另参考 introduction 页对 JSON-RPC 与生命周期的描述", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["MCP必考", "规范细节", "2026主流"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "追问：MCP 的 resources 和现在流行的 RAG 有什么区别？如果一个 server 同时有 tools 和 resources，宿主怎么决定用哪个？", "analysis": "资源=『可被应用按需读取的数据面』（文件、DB 表、issue 列表），本身不进模型上下文，由宿主决定注入方式（可以全量塞、可以让模型通过 prompts/模板选、也可以包成一个 read_resource 型工具）；RAG 则是宿主侧的检索管线。规范刻意不管『怎么选』——这是宿主策略。理想答法：资源适合小而精的可枚举数据直接挂载；量大时宿主应自建索引或让 server 提供搜索型 tool，而不是把 resources 当无限向量库。考点：分清『协议原语』与『宿主实现策略』的边界。" }
+    ]
+  },
+  {
+    "id": "Q-ai-tools-design-0005",
+    "nodeId": "ai.tools.tool-calling.tool-design-routing",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "按 Anthropic 工程博客《Writing effective tools for agents》的口径，下列工具设计做法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "工具描述应与 agent 实际使用它的复杂度相称：评价标准是『模型能否据此选对工具、正确调用』，为此可以在 description 里放用例示例与易混工具的辨析" },
+      { "key": "B", "text": "返回值要用 token 效率高的格式（如紧凑 JSON/截断预览），并提供分页与 filter 参数帮 agent 控制上下文占用" },
+      { "key": "C", "text": "工具名越抽象越好（如 do_work、process_data），避免绑定具体领域，方便未来扩展复名" },
+      { "key": "D", "text": "评测工具定义质量的方法之一：给 agent 一组真实任务跑，统计它对工具的调用率与准确率，再据失败案例迭代描述与参数" }]
+    ,
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "该文的方法论三支柱：以评测驱动工具定义（D 对——官方给了 get_next_battle 反例：含糊命名导致过度探索）、token 意识（B 对：返回高信息密度格式、分页/filter 防刷屏）、描述与示例的充分性（A 对：文中提倡像写 onboarding doc 一样写工具，含用法示例与合并冗余工具）。C 错得正好相反：文章批评的就是抽象命名，主张**具体、带命名空间**的名字（如 financial_analyze，示例 get_customer_ticket_history），抽象名把选择成本转嫁给模型。",
+    "gapCheck": ["易漏点：『工具描述是 prompt 的一部分』这句话要能讲出推论——它占上下文、参与竞争、可 A/B、可回归测试", "常见误区：只优化 description 文案不做任务级评测——文中反复强调 eval-first", "加分项：提到 return schema 也是契约：错误码字典、可行动的错误消息（agent 会照做）"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.tool-design-routing"],
+      "related": ["ai.tools.tool-calling.function-calling", "ai.eval.evaluation-qa.metrics-dataset"],
+      "followUps": ["30 个工具怎么选而不是 300 个全挂上去？说说动态挂载的做法", "两个工具功能重叠怎么办？", "工具描述写得越长越准吗？token 预算怎么权衡？"]
+    },
+    "resources": [{ "title": "Anthropic Engineering · Writing effective tools for agents", "digest": "官方工具构建六原则：从 eval 出发、合并精简工具集、命名空间化命名、描述匹配复杂度、schema/返回格式 token 高效、显式评测调用率与准确率并用失败案例迭代。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.anthropic.com/engineering/writing-tools-for-agents", "retrievedAt": "2026-11-09", "note": "Anthropic 官方工程博客（2025-09），2026 仍是工具设计的事实标准参考", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["工具设计", "方法论", "大厂口径"],
+    "variants": [
+      { "angle": "换场景", "stem": "场景实操：你给内部 DBA Agent 设计 execute_sql 工具。按上述原则给出你的 schema 设计要点（参数、返回、防护），并说明哪些决策来自哪条原则。", "analysis": "示范映射：token 意识→返回默认限行（limit 参数+预览行数）+列元数据而非全量行；eval-first→拿 20 条历史慢查工单测调用正确率；描述充分→description 写明『只读事务、超时 15s、禁止 DDL』并给正反例；合并工具→execute_sql/describe_table 若模型常混淆可合成带 mode 的单工具；命名空间→database_execute_sql 防与其他 sql 工具撞名。防护面：只读账号+正则拦 DML/DDL+超时杀查询。能把每条设计回溯到原则即为满分——考的是原则内化程度。" }
+    ]
+  },
+  {
+    "id": "Q-ai-tools-jsonmode-0006",
+    "nodeId": "ai.tools.tool-calling.function-calling",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：设置 `response_format: { \"type\": \"json_object\" }`（JSON mode）后，模型输出不仅保证是合法 JSON，还会遵循你在 prompt 里描述的目标 schema 的字段名与类型。",
+    "answer": { "judge": false },
+    "analysis": "前半句真后半句假：JSON mode 只保证输出**语法上是合法 JSON**（配合约束解码不会坏语法），但结构完全听 prompt——字段名拼错、该给数组给了字符串、层级不对都是常态，官方文档为此专门推出 structured outputs：用 json_schema 声明+strict:true 才做到『schema 合规』。判断题的经典设计就是把两层保证焊在一句里让你判假。答题时要把分界线说破：语法合法性 ≠ 结构契约性。",
+    "gapCheck": ["易漏点：structured outputs 的三条件（GPT-4o 及以后、json_schema 模式、strict:true 才 100%）要顺带报全，只判假不够", "常见误区：以为 JSON mode 会自动按 prompt 示例执行——RLHF 习惯是概率性的，示例漂移它就漂移", "延伸弹药：为什么 OpenAI 要把两步分开演进？（JSON mode 是解码层约束，schema 合规需要把 schema 编译成 grammar，成本高得多）"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.function-calling"],
+      "related": ["ai.tools.tool-calling.tool-design-routing", "ai.harness.agent-loop.loop-dynamics"],
+      "followUps": ["strict 模式的 schema 合规是 100% 吗？有没有例外？（函数名强制匹配那条）", "不用 OpenAI，开源栈上怎么做等价的事？（outlines/lm-format-enforcer/vLLM guided decoding）", "schema 合规了内容就可靠了吗？语义错误谁来管？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创概念辨析判断题，区分依据为 OpenAI structured outputs 文档对 JSON mode 与 schema 保证的表述" },
+    "tags": ["判断题眼", "概念辨析", "易错"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向问：既然 strict 模式能保证语法与 schema，为什么很多团队生产上仍然保留『parse 失败重试』代码？这个重试什么时候才算真的可以删掉？", "analysis": "原因：①多模型/多供应商架构里并非每家都实现了等价约束解码，路由到便宜小模型就回到软引导；②strict 的 grammar 编译偶有 bug/子集限制导致调用失败要 fallback 非 strict；③schema 合规≠语义正确（日期格式对了但值域离谱），语义校验失败仍需重试回路。可以删的条件：单一供应商且模型在 structured outputs 支持列表、schema 全在子集内、且你接受『语义校验另设一层』的前提。考点：可靠性来自架构假设而非单点开关。" }
+    ]
+  },
+  {
+    "id": "Q-ai-tools-mcp-blank-0007",
+    "nodeId": "ai.tools.tool-calling.mcp-protocol",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "补全 MCP 规范说法：MCP 的数据层基于 ______ 协议（版本 2.0）；服务端向客户端暴露的三大原语是 tools、______ 和 prompts；服务端还可以反向利用客户端的能力——请求宿主侧模型做补全叫 ______，请求用户给出结构化输入叫 elicitation。",
+    "answer": { "blanks": ["JSON-RPC", "resources", "sampling"], "synonyms": { "JSON-RPC": ["jsonrpc", "JSON RPC 2.0", "json-rpc2.0"], "resources": ["资源", "resource"], "sampling": ["采样", "createMessage", "messages sampling"] } },
+    "analysis": "规范三件套：消息层=JSON-RPC 2.0（request/notification/result/error 四类消息，initialize 握手协商版本与 capabilities）；server 原语=tools（模型驱动的可执行操作）/resources（应用驱动的可读数据）/prompts（用户控制的模板交互）；client 能力=sampling（server 通过 createMessage 借宿主的模型推理，实现『server 逻辑+宿主模型』的组合）、elicitation（向用户追问结构化输入）、roots（宿主文件系统边界告知）。填错的代价是把三方的控制权归属搞混——tools 归模型、resources 归应用、prompts 归用户，这条『谁控制』轴是 MCP 最常被追问的设计观。",
+    "gapCheck": ["易漏点：三原语的控制权分工（model/app/user-driven）比名字本身更常考，答完主动补这句", "常见误区：把 sampling 理解成训练术语的采样——它是『server 反向调用 client 的 LLM』通道，方向感是关键", "同义兜底：『采样』『createMessage』均判对；JSON-RPC 大小写宽容但要带 2.0 语义", "版本敏感：elicitation 是 2025-06-18 规范才有的，答题带时间戳更稳"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.mcp-protocol"],
+      "related": ["ai.tools.tool-calling.function-calling", "ai.multi.agent-orchestration.framework-mechanics"],
+      "followUps": ["为什么 sampling 要由 server 发起而不是 server 自带 API key？", "roots 原语解决什么安全问题？", "prompts 原语在你的产品里到底谁在用？"]
+    },
+    "resources": [{ "title": "MCP 规范 · Architecture / Server primitives", "digest": "architecture 页：数据层 JSON-RPC 2.0，server 提供 tools/resources/prompts 并可利用 client 的 sampling/elicitation/roots；tools 由模型控制、resources 由应用控制、prompts 由用户控制。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://modelcontextprotocol.io/specification/2025-06-18/architecture", "retrievedAt": "2026-11-09", "note": "规范 architecture 与 server-client primitives 章节", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["MCP", "必背填空", "规范术语"],
+    "variants": [
+      { "angle": "换问法", "stem": "换填空方向：MCP 中由**模型**自主决定调用的是 ______ 原语，由**应用程序**决定何时读取挂载的是 ______，由**用户**主动挑选触发的是 ______。（按 model/app/user 三个控制方依次填）", "analysis": "依次 tools、resources、prompts。记忆锚点就是控制权三分：tool 是模型的按钮（tool discovery 后模型自选）、resource 是应用喂给对话的数据（附件式挂载）、prompt 是用户菜单里的 slash command（/summarize 这类）。这题反过来填的正是规范原文『who controls what』表格，很多人第一遍记名字没记控制方，面试追问当场卡住。" }
+    ]
+  },
+  {
+    "id": "Q-ai-tools-resilience-0008",
+    "nodeId": "ai.tools.tool-calling.function-calling",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "Agent 调用外部 API 工具时经常拿到脏数据或报错。请给出一个『结构化输出与工具结果』双端的容错清单：每端至少两条具体手段，并说明各自适用的失败模式。",
+    "answer": { "ref": "生成端（模型输出）：①schema 硬约束——structured outputs/guided decoding 消除语法非法（治语法不治语义）；②语义校验层——zod/pydantic parse+业务规则（枚举值域、日期区间），失败时把**具体校验错误**回灌重试（最多 N 次，仍败则降级到保守输出或人工）；③宽松解析兜底：剥 markdown 围栏、截取最大合法 JSON 块、常见引号/尾逗号修复——适用于没开 strict 的旧模型。执行端（工具结果）：①错误分类回灌：把异常翻译成模型可行动的结构（{error_code, retryable, hint}），transient（超时/限流）自动退避重试、bad_params 让模型改参、fatal 直接终止别浪费轮次；②结果整形：超长输出截断+摘要+落盘留引用（防上下文爆炸）、schema 版本化（外部 API 字段改名要有适配层而非裸 JSON 直灌）；③幂等与副作用分级：写操作带 idempotency key，重试才安全。贯穿原则：所有容错动作都要进 trace，否则线上永远说不清是模型坏了还是世界坏了。" },
+    "scoringPoints": [
+      { "point": "生成端给出语法层（约束解码/schema）与语义层（校验+错误回灌重试）两级", "weight": 2 },
+      { "point": "执行端错误分类：可重试 vs 改参 vs 致命，且错误信息面向模型可行动", "weight": 2 },
+      { "point": "提到结果整形（截断/落盘引用/版本适配）防止脏数据污染上下文", "weight": 2 },
+      { "point": "副作用工具的幂等键意识（写操作重试不重复扣款）", "weight": 1 },
+      { "point": "容错与可观测挂钩（重试次数、降级率进指标）", "weight": 1 }
+    ],
+    "analysis": "清单题考『分层』：双端各自的失败模式不同，手段不能互抄——语法错靠解码约束，语义错靠校验重试，外部世界错靠错误分类与幂等。高分特征是『错误回灌的措辞是给模型看的』这个细节（hint 写得可行动，模型下一轮才会改而不是再猜）。丢分在把两端混成一锅（『加 try-catch』通吃）和完全没提副作用幂等。",
+    "gapCheck": ["易漏点：transient 错误自动重试与语义错误让模型重试的区别——前者不该消耗模型轮次，后者不该用指数退避", "常见误区：把工具错误原样 throw 出去终止循环，或把整段 traceback 塞回上下文吓模型", "加分项：说出『降级也要有质量门』——保守输出（拒答/只答有据部分）比带病输出便宜"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.function-calling"],
+      "related": ["ai.reliability", "ai.harness.agent-loop.loop-dynamics"],
+      "followUps": ["重试上限怎么定？和第几轮失败有关吗？", "错误回灌的重试与评估集回归怎么联动（新错误模式要不要进集）？", "多供应商路由下 strict 不可用时你的降级路径？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创清单题；素材综合自各家 function calling 容错实践与可靠性常识，无单一出处" },
+    "tags": ["容错清单", "生产经验", "高频追问"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束：你们的 Agent 调用的工具里 70% 是纯读、30% 是有副作用的写（发工单、退款）。容错清单要怎么按读写分级？退款这种操作失败了『不知道成没成』怎么办？", "analysis": "分级：读工具可放心自动重试+并行（幂等天然成立）；写工具必须 idempotency key（客户端生成、随重试透传）+『先查询后动作』的状态机。『不知道成没成』= indeterminate 状态处理：不能盲目重试（可能双退款），要凭 key 去查终态（对账接口/状态查询），查不到就冻结该操作转人工而不是赌。这道题实际考分布式幂等在 Agent 语境的重述——能把 exactly-once 幻觉讲破的人不多。" }
+    ]
+  },
+  {
+    "id": "Q-ai-tools-errors-0009",
+    "nodeId": "ai.tools.tool-calling.tool-design-routing",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "你的 Agent 在生产上频繁出现『工具调用循环』：模型反复调同一个工具反复失败。关于这类故障的成因与对策，下列说法**正确的有**：",
+    "options": [
+      { "key": "A", "text": "最高频成因之一是工具错误信息对模型不可行动——裸抛『Internal error 500』时模型无从改参，只能原参数瞎重试" },
+      { "key": "B", "text": "全局 max_turns 能区分『重复调同一个失败工具』与『正常的多步推进』，因此是精准的停滞熔断器" },
+      { "key": "C", "text": "把错误响应结构化成 {error_code, retryable, suggested_fix} 能显著降低循环率——模型会照着消息里的 hint 改变动作" },
+      { "key": "D", "text": "按 (tool, args_hash) 滑窗指纹检测重复、连续 N 次后注入『换策略或报告』的系统提醒，比掐轮数更精准：它停滞才触发，不误伤正常多步进展" }]
+    ,
+    "answer": { "keys": ["A", "C", "D"], "ref": "补充成因全景：①错误不可行动（A）；②参数边界没写清——schema description 没说分页/时间格式，模型每次都差一点点；③工具语义歧义——两个工具都能部分满足意图导致震荡横跳；④环境真坏了——下游持续宕机，模型再聪明也没用，此时该放弃让模型试。护栏全景：retryable 错误由 harness 自动退避重试（不消耗模型轮次）、non-retryable 立刻回灌让模型改道；空结果要带『为什么可能为空』的解释字段而不是裸空列表；循环事件带 trace 归档进评估集防复发。" },
+    "analysis": "A 对：错误不可行动是循环事故的第一大源，模型面对裸 500 的唯一理性选择就是换着花样撞同一面墙；C 对：Anthropic 的工具实践明确 agent 会遵循错误消息里的行动建议，『hint 写给模型看』就是 prompt 工程；D 对：指纹检测把『无进展』这个概念可计算化，恰好在停滞点介入。B 错得典型：max_turns 只数总量不识进展——第 3 轮和第 30 轮都在调同一个失败工具它都无感，是最钝的最后防线不是精准熔断器（这正与其『兜底』定位相反）。这题的实战洞察藏在选项外：有些循环根本不是模型的错（环境坏了），识别『何时不让模型再试』同样是护栏职责。",
+    "gapCheck": ["易漏点：空结果≠失败也要设计返回（『未找到匹配，建议放宽时间范围』），否则模型对着空列表自己脑补重试理由", "常见误区：把熔断做成全局禁用该工具——应该只禁当前参数组合/当前任务分支", "加分项：提到 LLM 的『坚持重试』倾向与 RLHF 奖励叙事有关（放弃=失败的训练暗示），所以要显式给它『报告障碍也是成功』的出口"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.tool-design-routing"],
+      "related": ["ai.harness.agent-loop.loop-dynamics", "ai.reliability"],
+      "followUps": ["指纹检测的窗口 N 定多少？误伤正常重试怎么办？", "熔断后注入的提醒文案怎么写最不误导？", "这类线上循环怎么变成离线评估用例？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创故障分析题；对策框架参考 Anthropic 工具博客的错误返回实践与通用 Agent 循环护栏常识" },
+    "tags": ["故障模式", "护栏设计", "生产向"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向思考：有人说『加大 max_turns 就能解决循环问题』。请反驳，并说明 max_turns 调大对『真需要多轮的复杂任务』和『陷入循环的任务』分别意味着什么。", "analysis": "反驳核心：循环的定义是无进展重复，max_turns 只限总量不识进展——调大等于允许它烧更多 token 再失败（成本×N，结果不变），还推迟了本该更早触发的升级/降级。对真复杂任务，调大 max_turns 才可能有用，但更好的判据同样是进展信号（新调用参数在变、上下文在长、子目标在勾）而不是固定轮数。理想答案会把『进展度量』立为第一公民、max_turns 降为最后防线——顺带引出预算分层（轮/token/时间/成本各自的上限该配哪个）。" }
+    ]
+  },
+  {
+    "id": "Q-ai-tools-mcpvsfc-0010",
+    "nodeId": "ai.tools.tool-calling.mcp-protocol",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "深度题：『有了原生 function calling，MCP 是不是多余的中间层？』请从协议职责分层、生态经济学、安全与信任模型、以及 MCP 已知的工程痛点四个角度论述你的判断。要求讲到具体机制，不许各打五十大板。",
+    "answer": { "ref": "参考骨架（立场鲜明、机制支撑）：【分层论】function calling 是**模型 API 的运行时原语**（单次推理循环内的表达：tools 数组进、tool_calls 出，无状态）；MCP 是**工具供给侧的连接协议**（发现、生命周期、有状态会话、鉴权、跨宿主复用）。两者是互补层不是竞争层：MCP server 的能力最终仍要被宿主翻译成 function calling 喂给模型——没有 MCP 取代 calls 一说。【生态经济学】没有 MCP 的世界是 M×N 集成泥潭（M 个应用×N 个工具）；MCP 把它摊平成 M+N——这是『USB-C 时刻』的核心论证。价值分布：写死的私有 integration 只有集成方受益，开放协议让长尾工具（个人开发者的小 server）能被任意宿主发现，生态红利在可组合性。【安全与信任】function calling 的安全假设简单（工具是你自己写的，你知道边界）；MCP 引入第三方 server 后出现新问题面：恶意/劣质 server 的工具描述即注入面（tool description injection）、resources 内容的 indirect prompt injection、『同一工具名在不同 server 的实现可以完全不同』的混淆攻击、以及 OAuth 授权粒度。规范在补（roots/elicitation/更细授权），但 2026 年实践共识仍是『host 要把 server 当不可信代码沙箱跑』。【痛点诚实清单】上下文膨胀（几十个 server 的 schema 常驻几千 token，催生 tool discovery/延迟加载）、有状态连接的运维负担（stdio 进程管理、HTTP 会话粘性）、规范演进快导致的兼容撕裂（SSE→Streamable HTTP 一年内换传输）、以及『协议解决了连接没解决质量』——工具好不好用还是要 eval。【判断】不是多余而是必要的不完美中间层：对单产品自闭环，裸 function calling 足够；对平台型/多宿主场景，MCP 的复用经济学无法拒绝。加分：能预判『模型原生工具使用能力越来越强后，协议层的价值会不会被上游吞掉』的辩论正反方。" },
+    "scoringPoints": [
+      { "point": "分层清晰：运行时原语 vs 供给连接协议，并明说二者最终在宿主内汇合", "weight": 2 },
+      { "point": "M×N→M+N 的生态经济学论证完整", "weight": 2 },
+      { "point": "安全面具体：描述注入/间接注入/工具混淆至少两项，且有 host 侧防御观点", "weight": 2 },
+      { "point": "痛点清单诚实且具体（上下文膨胀、传输演进兼容、状态管理）", "weight": 2 },
+      { "point": "有明确立场与适用边界（何时不需要 MCP），不和稀泥", "weight": 2 },
+      { "point": "前瞻：协议层与模型能力的长期关系有自己的判断", "weight": 1 }
+    ],
+    "analysis": "这题答『功能重复所以淘汰一个』的直接不及格——说明没看懂两者不在一层。及格线是把 M×N 论证讲圆；高分线是同时持有『互补』与『痛点清单』两头：知道 MCP 的上下文税与安全债真实存在，才能解释为什么大厂一边接 MCP 一边自建私有工具层。安全角度的细节（tool description injection 这个名词及其机理）是 2026 年区分度最高的加分区。",
+    "gapCheck": ["易漏点：『MCP server 的工具最终还是要注册成宿主 tools 数组走 function calling』这句机制话是分层论证的铁证，必须有", "常见误区：把 MCP 类比成『API 网关』——它不含流量治理语义，更像『外设总线+驱动模型』", "引用弹药：OWASP LLM Top10 的 prompt injection 条目、MCP 规范 security 章节、Simon Willison 的 lethal trifecta 讨论", "节奏：四角度各 90 秒，最后 60 秒立场收束，超纲加分放结尾不放中间"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.mcp-protocol", "ai.tools.tool-calling.function-calling"],
+      "related": ["ai.tools.tool-calling.tool-design-routing", "ai.reliability", "ai.multi.agent-orchestration.shared-state"],
+      "followUps": ["如果 OpenAI/Google 都原生支持 MCP，Anthropic 的协议中立性还值钱吗？", "tool discovery 机制（动态挂载）能救上下文膨胀吗？代价是什么？", "企业自建 MCP gateway 是不是新泥潭？"]
+    },
+    "resources": [{ "title": "综合参考", "digest": "分层与生态论证：MCP 官方 introduction 与『why MCP』；安全面：规范 security best practices 章节与 OWASP LLM01；痛点面：各宿主（Claude/OpenAI SDK）文档中的 tool discovery 与连接管理描述。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创论述题；论点各有官方佐证（见 resources），组合与评分标准自拟" },
+    "tags": ["架构思辨", "大厂深水区", "观点题"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "顺着论述追问：你说『host 要把第三方 MCP server 当不可信代码』。给出具体的最小防御清单——你的 Agent 平台要接入任意社区 server，上线前必须做哪五件事？", "analysis": "候选清单（任朝五件、有优先级即高分）：①server 进程/请求沙箱化（文件系统与网络白名单，防 resources 内容外带）；②工具描述进注入过滤器（描述即 prompt，要扫描指令劫持模式）；③高危工具（写/删/支付/发消息）默认人工确认或 allowlist 权限位；④工具命名冲突检测与来源标注（同名不同实现要消歧展示）；⑤调用审计日志+每 server 配额（成本与爆炸半径控制）；⑥server 依赖与更新锁定（版本 pin，防『更新即投毒』）。答题亮点在指出『工具描述注入』这条最容易被忽略的攻击面——它发生在用户还没调用之前。" }
+    ]
+  },
+  {
+    "id": "Q-ai-tools-loop-0011",
+    "nodeId": "ai.tools.tool-calling.function-calling",
+    "type": "code",
+    "difficulty": 3,
+    "stem": "手写题（白板版，语言不限伪代码/JS/Python 均可）：实现 function calling 的**执行层** `executeToolCalls(calls, registry)`——输入模型返回的 tool_calls 数组与工具注册表 {name: fn}，要求：(1) 各调用**并发**执行且结果按原顺序回填；(2) 单工具异常不炸整批，转成结构化错误对象回传；(3) 每个调用的结果 JSON 序列化后若超过 8000 字符则截断并附 marker。写出代码并说明你与『把 tool_call_id 对应关系搞丢』这个 bug 的战斗方案。",
+    "answer": {
+      "ref": "得分骨架：对 calls.map 生成 Promise 数组（或 asyncio.gather），每个 promise 内部 try/catch 把异常折叠为 {role:'tool', tool_call_id, content: JSON.stringify({error_code, message})}；成功路径同样包成 tool 消息；结果字符串化后判长度截断加 marker；最后 Promise.all 保序返回。关键正确点：①失败也必须是**一条合法 tool 消息**（漏掉某个 id 的回信会让下一轮 API 直接 400）；②保序用索引/原数组 zip 而非完成顺序；③id 对应靠 map 闭包携带 call.id，不靠 push 顺序。延伸讨论点：并发上限（信号量）、写操作工具要不要串行、截断策略按行还是按 token。",
+      "code": "// JS 版参考实现\nasync function executeToolCalls(calls, registry, { maxConc = 5, maxChars = 8000 } = {}) {\n  const limiter = createLimiter(maxConc) // p-limit 风格信号量\n  const results = await Promise.all(calls.map((call) => limiter(async () => {\n    const base = { role: 'tool', tool_call_id: call.id }\n    try {\n      const fn = registry[call.function.name]\n      if (!fn) throw Object.assign(new Error('unknown tool'), { code: 'TOOL_NOT_FOUND' })\n      let args\n      try { args = JSON.parse(call.function.arguments || '{}') }\n      catch (e) { throw Object.assign(new Error('bad arguments json'), { code: 'ARGS_PARSE_FAIL' }) }\n      let out = await fn(args)\n      let text = typeof out === 'string' ? out : JSON.stringify(out)\n      if (text.length > maxChars) // 截断保头部+marker，尾部信息通常低价值\n        text = text.slice(0, maxChars) + `\\n[truncated ${text.length - maxChars} chars]`\n      return { ...base, content: text }\n    } catch (err) {\n      // 失败也要回信：漏掉 id 会让下一轮请求被 API 拒绝\n      return { ...base, content: JSON.stringify({\n        error_code: err.code ?? 'TOOL_RUNTIME_ERROR',\n        message: String(err.message).slice(0, 500),\n        retryable: err.code !== 'TOOL_NOT_FOUND' && err.code !== 'ARGS_PARSE_FAIL',\n      }) }\n    }\n  })))\n  return results // Promise.all 保持与 calls 同序\n}"
+    },
+    "scoringPoints": [
+      { "point": "并发发起但结果保序（all/zip 语义清楚，不靠完成顺序）", "weight": 2 },
+      { "point": "异常折叠为带 tool_call_id 的合法 tool 消息——讲出『漏回复下一轮必 400』", "weight": 3 },
+      { "point": "arguments parse 也有独立错误分支（ARGS_PARSE_FAIL），呼应协议题", "weight": 1 },
+      { "point": "截断策略有取舍说明（保头弃尾/加 marker/可找回途径）", "weight": 1 },
+      { "point": "并发上限与读写工具分级（写操作限并发或串行）的主动讨论", "weight": 1 },
+      { "point": "id 对应机制口述正确：闭包/映射携带，绝不依赖数组 push 时序", "weight": 1 }
+    ],
+    "analysis": "这题是 function calling 协议的『纸上落地』，考官盯四个正确性节点：失败必须回信（协议硬约束，漏一个 orphan tool_call_id 整个会话报废）、保序语义（乱序回信虽合法但会诱发模型的步骤错乱叙事）、arguments 二次解析（和 Q-ai-tools-args-0001 形成连环考点）、以及并发安全（三个 delete_file 并发跑在依赖彼此的文件上会怎样——引到幂等与读写分级）。截断是真实生产约束（工具吐 200KB 日志会把上下文撑爆），能说出『截断的代价是模型看不见全貌，所以 marker 要写明丢了什么、能不能重查』即生产经验。",
+    "gapCheck": ["易漏点：unknown tool name 也要回信而不是静默跳过——模型幻觉出不存在的工具名是日常事故", "常见误区：catch 里 return undefined 或 continue，制造 orphan tool_call——比抛异常更隐蔽更致命", "白板纪律：先把『一条 tool 消息的三要素（id/name/content）』写在角落防遗漏，再写逻辑"],
+    "knowledgeLinks": {
+      "prereq": ["ai.tools.tool-calling.function-calling"],
+      "related": ["ai.harness.agent-loop.loop-dynamics", "ai.tools.tool-calling.tool-design-routing"],
+      "followUps": ["如果两个并行 tool call 有副作用冲突（都改同一个文件），你的调度怎么改？", "截断后再想找回完整结果，工程上留什么钩子？（落盘+引用 id）", "流式场景下 arguments 还没传完就执行了，怎么防？（done 信号再执行）"]
+    },
+    "resources": [{ "title": "OpenAI Function Calling 指南 · 错误处理", "digest": "官方指南明确：每个 tool_call 都必须有一条对应 tool_call_id 的 tool 消息作为响应（含失败场景），缺失会导致后续请求校验失败；示例代码展示了 JSON parse 容错与错误文本回灌。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创手写题；协议硬约束（每 call 必回信）以 OpenAI function calling 文档为判分依据" },
+    "tags": ["手写题", "协议落地", "事故高发区"],
+    "variants": [
+      { "angle": "加约束", "stem": "追加约束：registry 里的工具分为纯读、幂等写、非幂等写三类（注册时已标注）。把 executeToolCalls 改成感知副作用等级的调度器：给出调度策略 diff 与失败重试的差异化处理。", "analysis": "策略要点：读与幂等写满并发（沿用信号量）；非幂等写降为串行或按资源键互斥（如同一路径的写用 per-key lock），且必须带 idempotency key 再入队。失败重试差异：读失败可自动退避重试（harness 层不打扰模型）；幂等写重试安全；非幂等写失败落入 indeterminate 态——先经查询接口对账再决定重试与否，绝不盲目重放（呼应持久执行题的悬挂调用）。加分点：指出并发上限本身也要按工具类别分池（付费 API 的读工具配额 ≠ 本地文件写），单一全局信号量会造成互相挤兑。" }
+    ]
+  }
+]

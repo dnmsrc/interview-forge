@@ -1,0 +1,587 @@
+/* ============================================================================
+   面试熔炉 · 设计系统基座
+   规范来源：docs/design/COMMUNITY-UI-BENCHMARK.md（社区对标）
+            docs/design/UI-DESIGN-SYSTEM.md（本项目落地决策）
+   原则：token 驱动、单一主色、三级 surface、四态可辨、动效只碰 transform/opacity、
+        对比度达 WCAG AA、prefers-reduced-motion 可降级。
+   ========================================================================== */
+
+/* ---------- 1. Tokens ---------- */
+:root {
+  color-scheme: light;
+  /* 中性阶（冷灰） */
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #f2f4f8;
+  --surface-3: #e9edf3;
+  --border: #e3e8ef;
+  --border-2: #cbd3dd;
+  --text: #16191f;
+  --text-dim: #5b6472;
+  --text-faint: #8b95a3;
+
+  /* 品牌与语义 */
+  --accent: #5e6ad2;
+  --accent-2: #4f5ac0;
+  --accent-hi: #6e79e0;
+  --on-accent: #ffffff;
+  --ok: #157f3d;
+  --warn: #a16207;
+  --bad: #d1242f;
+  --purple: #7c3aed;
+  --cyan: #0e7490;
+  --hot: #c2410c;
+
+  /* 间距刻度（4px baseline） */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
+  --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
+
+  /* 排版阶梯 */
+  --fs-xs: 11.5px; --fs-sm: 12.5px; --fs-base: 13.5px; --fs-md: 15px;
+  --fs-lg: 17px; --fs-xl: 21px; --fs-2xl: 27px; --fs-3xl: 34px;
+  --lh-tight: 1.25; --lh-snug: 1.45; --lh-loose: 1.75;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui,
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  --mono: "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+
+  /* 圆角层级 */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px; --r-pill: 999px;
+
+  /* 阴影层级（多层柔和） */
+  --sh-1: 0 1px 2px rgba(16, 24, 40, .06), 0 1px 3px rgba(16, 24, 40, .05);
+  --sh-2: 0 2px 4px -2px rgba(16, 24, 40, .06), 0 6px 16px -6px rgba(16, 24, 40, .12);
+  --sh-3: 0 12px 32px -8px rgba(16, 24, 40, .18), 0 2px 6px -2px rgba(16, 24, 40, .08);
+  --sh-4: 0 24px 64px -12px rgba(16, 24, 40, .28), 0 4px 12px -4px rgba(16, 24, 40, .12);
+  --ring: 0 0 0 3px color-mix(in oklab, var(--accent) 32%, transparent);
+  --ring-soft: 0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent);
+
+  /* 动效三档 + 曲线（方向性缓动：进入用减速、退出用加速，见 COMMUNITY-UI-BENCHMARK §6.5） */
+  --dur-fast: 120ms; --dur: 200ms; --dur-slow: 320ms; --dur-exit: 120ms;
+  --ease-out: cubic-bezier(.22, .8, .28, 1);
+  --ease-in-out: cubic-bezier(.4, 0, .2, 1);
+  --ease-enter: cubic-bezier(.16, 1, .3, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, .9);
+  --spring: cubic-bezier(.34, 1.36, .64, 1);
+
+  /* 玻璃浮层与结构尺寸 */
+  --glass: rgba(255, 255, 255, .82);
+  --glass-solid: rgba(255, 255, 255, .95);
+  --scrim: rgba(16, 24, 40, .38);
+  --side-w: 240px;
+  --topbar-h: 56px;
+
+  /* 兼容旧命名（逐步淘汰中，勿在新代码里使用） */
+  --panel: var(--surface); --panel-2: var(--surface-2);
+  --line: var(--border); --line-2: var(--border-2);
+  --radius: var(--r-md); --shadow: var(--sh-2);
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0d12;
+  --surface: #14171d;
+  --surface-2: #1a1e26;
+  --surface-3: #232833;
+  --border: #262c38;
+  --border-2: #3a424f;
+  --text: #e6eaf0;
+  --text-dim: #9aa4b2;
+  --text-faint: #6b7684;
+
+  --accent: #7b83eb;
+  --accent-2: #8b93f0;
+  --accent-hi: #8f97f2;
+  --on-accent: #0b0d12;
+  --ok: #3fb950;
+  --warn: #d29922;
+  --bad: #f85149;
+  --purple: #a78bfa;
+  --cyan: #34b3c7;
+  --hot: #f0883e;
+
+  --sh-1: 0 1px 2px rgba(0, 0, 0, .5);
+  --sh-2: 0 2px 4px -2px rgba(0, 0, 0, .5), 0 6px 18px -6px rgba(0, 0, 0, .6);
+  --sh-3: 0 14px 36px -10px rgba(0, 0, 0, .7), 0 2px 8px -2px rgba(0, 0, 0, .5);
+  --sh-4: 0 28px 70px -14px rgba(0, 0, 0, .8), 0 6px 16px -6px rgba(0, 0, 0, .6);
+
+  --glass: rgba(20, 23, 29, .78);
+  --glass-solid: rgba(23, 27, 34, .96);
+  --scrim: rgba(0, 0, 0, .58);
+}
+
+/* ---------- 2. Reset / Base ---------- */
+* { box-sizing: border-box }
+html, body, #app { height: 100% }
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  line-height: var(--lh-snug);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  transition: background-color var(--dur) var(--ease-out), color var(--dur) var(--ease-out);
+}
+h1, h2, h3, h4 { font-weight: 620; letter-spacing: -.01em; line-height: var(--lh-tight) }
+b, strong { font-weight: 650 }
+::selection { background: color-mix(in oklab, var(--accent) 26%, transparent) }
+.num, .tabular { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1 }
+
+:focus { outline: none }
+:focus-visible { box-shadow: var(--ring); border-radius: var(--r-sm); outline: 2px solid transparent }
+a:focus-visible, .nav a:focus-visible { box-shadow: var(--ring-soft) }
+
+::-webkit-scrollbar { width: 10px; height: 10px }
+::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--text-faint) 32%, transparent); border-radius: var(--r-pill); border: 2px solid transparent; background-clip: padding-box }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--text-faint) 52%, transparent); background-clip: padding-box }
+::-webkit-scrollbar-track { background: transparent }
+
+/* ---------- 3. App Shell ---------- */
+.shell { display: flex; height: 100vh; overflow: hidden }
+.side {
+  width: var(--side-w); flex: 0 0 var(--side-w);
+  display: flex; flex-direction: column;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--surface-2) 70%, var(--bg)), var(--bg));
+  border-right: 1px solid var(--border);
+  transition: width var(--dur) var(--ease-out), flex-basis var(--dur) var(--ease-out);
+}
+.shell.rail { --side-w: 62px }
+.brand { padding: var(--sp-4) var(--sp-4) var(--sp-3); display: flex; align-items: center; gap: 10px; min-height: var(--topbar-h) }
+.brand .logo { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px; display: grid; place-content: center; background: linear-gradient(140deg, var(--accent), color-mix(in oklab, var(--purple) 65%, var(--accent))); box-shadow: 0 2px 8px color-mix(in oklab, var(--accent) 40%, transparent); color: #fff; font-size: 15px }
+.brand b { font-size: 14.5px; letter-spacing: -.01em; white-space: nowrap }
+.brand small { display: block; color: var(--text-faint); font-size: var(--fs-xs); margin-top: 2px; white-space: nowrap }
+.shell.rail .brand .meta { display: none }
+
+.nav { padding: var(--sp-2) var(--sp-2) 0; display: grid; gap: 2px }
+.nav-label { padding: var(--sp-3) var(--sp-3) var(--sp-1); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); font-weight: 600 }
+.shell.rail .nav-label { opacity: 0; height: 8px; padding: 0 }
+.nav a {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--r-md);
+  color: var(--text-dim); text-decoration: none; font-size: var(--fs-base); font-weight: 500;
+  transition: background-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.nav a .ic { width: 20px; height: 20px; flex: 0 0 20px; display: grid; place-content: center; font-size: 15px; filter: grayscale(.35); transition: filter var(--dur-fast) }
+.nav a:hover { background: color-mix(in oklab, var(--surface-3) 70%, transparent); color: var(--text) }
+.nav a:hover .ic { filter: none }
+.nav a:active { transform: scale(.985) }
+.nav a.on { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: var(--sh-1); border: 1px solid var(--border) }
+.nav a.on .ic { filter: none }
+.nav a.on::before { content: ''; position: absolute; left: -8px; top: 50%; translate: 0 -50%; width: 3px; height: 18px; border-radius: 0 3px 3px 0; background: linear-gradient(180deg, var(--accent), var(--purple)) }
+.shell.rail .nav a { justify-content: center; padding: 9px 0 }
+.shell.rail .nav a .lbl { display: none }
+.nav a .dot { margin-left: auto; min-width: 19px; height: 19px; display: grid; place-content: center; font-size: 10.5px; font-weight: 700; background: var(--bad); color: #fff; border-radius: var(--r-pill); padding: 0 5px; font-variant-numeric: tabular-nums }
+.shell.rail .nav a .dot { position: absolute; top: 3px; right: 6px; min-width: 15px; height: 15px; padding: 0; margin: 0 }
+
+.side-foot { margin-top: auto; padding: var(--sp-3) var(--sp-4) var(--sp-4); border-top: 1px solid var(--border); color: var(--text-faint); font-size: var(--fs-xs); line-height: 1.7 }
+.side-foot .row2 { display: flex; align-items: center; gap: 6px }
+.shell.rail .side-foot { padding: var(--sp-2); font-size: 0 }
+.shell.rail .side-foot .row2 { justify-content: center }
+.side-foot b { color: var(--text-dim) }
+
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column }
+.topbar {
+  height: var(--topbar-h); flex: 0 0 var(--topbar-h);
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 0 var(--sp-5); background: var(--glass); backdrop-filter: blur(12px) saturate(1.4);
+  border-bottom: 1px solid var(--border); z-index: 12;
+}
+.topbar h2 { margin: 0; font-size: var(--fs-md); font-weight: 650 }
+.topbar .sub { color: var(--text-faint); font-size: var(--fs-xs); margin-top: 1px }
+.topbar .grow { flex: 1 }
+.kpi-strip { display: flex; align-items: center; gap: var(--sp-2) }
+.page { flex: 1; overflow: auto; padding: var(--sp-5) var(--sp-6) var(--sp-10); display: grid; gap: var(--sp-4); align-content: start }
+.page-narrow { max-width: 1120px; margin-inline: auto; width: 100% }
+
+/* ---------- 4. Surfaces ---------- */
+.card {
+  position: relative; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--sp-4) var(--sp-5); box-shadow: var(--sh-1);
+  transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+}
+.card.pad-0 { padding: 0 }
+.card.flat { box-shadow: none }
+.card.lift:hover { border-color: color-mix(in oklab, var(--accent) 26%, var(--border)); box-shadow: var(--sh-2); transform: translateY(-2px) }
+.card h3 { margin: 0 0 var(--sp-3); font-size: var(--fs-base); font-weight: 620; display: flex; align-items: center; gap: var(--sp-2) }
+.panel-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3) }
+.panel-head h3 { margin: 0 }
+.panel-head .grow { flex: 1 }
+.panel-head .desc { color: var(--text-faint); font-size: var(--fs-sm) }
+.grid { display: grid; gap: var(--sp-4); align-items: start }
+/* minmax(0,…) 而不是 minmax(Npx,1fr)：grid item 的默认 min-width:auto 会让
+   SVG / 长代码块按固有宽度撑破轨道（实测把 dashboard 两列图卡推到视口外）。
+   轨道下限用 min(固定值, 100%) 表达，窄窗自动收敛。 */
+.g2 { grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)) }
+.g3 { grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr)) }
+.g4 { grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)) }
+.g-side { grid-template-columns: minmax(0, 1fr) 340px }
+.grid > * { min-width: 0 }
+/* 两列卡片默认高度不同会留下大片空白；需要视觉对齐时显式加 .stretch */
+.grid.stretch { align-items: stretch }
+.grid.stretch > * { display: flex; flex-direction: column; height: 100% }
+.grid.stretch > * > :last-child { flex: 1 }
+/* 同上：任何 grid 容器的直接子项都要 min-width:0，否则 nowrap/长代码的 min-content
+   会把轨道撑到无限宽（实测把 .kpis 从 1062px 撑到 1744px，整页横向跑出去） */
+.page > *, .kpis > *, .q-list > *, .acc-body > *, .kv > *, .row > * { min-width: 0 }
+@media (max-width: 1180px) { .g-side { grid-template-columns: minmax(0, 1fr) } }
+.row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap }
+.col { display: grid; gap: var(--sp-2) }
+/* 通用弹性/省略工具类：任何 flex 子项要撑开或截断都用它们，避免各页重复造 */
+.grow { flex: 1 1 auto; min-width: 0 }
+.shrink { flex: 0 0 auto }
+.ellip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0 }
+.clamp2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden }
+.nowrap { white-space: nowrap }
+.wrap-any { overflow-wrap: anywhere }
+/* 图标按钮（顶栏、抽屉关闭等复用）：命中区 32px，深色/浅色都走 token */
+.icon-btn {
+  width: 32px; height: 32px; flex: 0 0 32px; display: grid; place-content: center;
+  border: 1px solid transparent; border-radius: var(--r-md); background: transparent; color: var(--text-dim);
+  cursor: pointer; transition: background-color var(--dur-fast), color var(--dur-fast), transform var(--dur-fast) var(--spring), border-color var(--dur-fast);
+}
+.icon-btn:hover { background: var(--surface-2); color: var(--text); border-color: var(--border) }
+.icon-btn:active { transform: scale(.92) }
+.icon-btn:focus-visible { outline: none; box-shadow: var(--ring) }
+.muted { color: var(--text-dim) }
+.faint { color: var(--text-faint) }
+.tiny { font-size: var(--fs-sm) }
+.micro { font-size: var(--fs-xs) }
+.hr { height: 1px; background: var(--border); margin: var(--sp-4) 0; border: 0 }
+.kv { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: 9px 0; border-bottom: 1px dashed var(--border) }
+.kv:last-child { border: 0 }
+.kv:hover .kv-link { color: var(--accent) }
+.big { font-size: var(--fs-2xl); font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums }
+.stat {
+  position: relative; overflow: hidden; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: var(--sp-4); box-shadow: var(--sh-1);
+  transition: border-color var(--dur) var(--ease-out), box-shadow var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+}
+.stat:hover { border-color: color-mix(in oklab, var(--accent) 28%, var(--border)); box-shadow: var(--sh-2); transform: translateY(-2px) }
+.stat.clickable { cursor: pointer }
+.stat .lbl { color: var(--text-faint); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; margin-bottom: 6px }
+.stat .val { font-size: var(--fs-xl); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em }
+.stat .foot { color: var(--text-faint); font-size: var(--fs-xs); margin-top: 5px }
+.stat::after { content: ''; position: absolute; inset: 0; background: radial-gradient(120% 80% at 100% 0%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 62%); opacity: 0; transition: opacity var(--dur) }
+.stat:hover::after { opacity: 1 }
+
+/* KPI 条：一卡一指标 + 趋势位（dashboard 规范） */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: var(--sp-3) }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: var(--sp-3) var(--sp-4); box-shadow: var(--sh-1) }
+.kpi .k { color: var(--text-faint); font-size: var(--fs-xs); font-weight: 600; letter-spacing: .04em; text-transform: uppercase }
+.kpi .v { font-size: var(--fs-xl); font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px }
+.kpi .d { font-size: var(--fs-xs); color: var(--text-faint); margin-top: 2px }
+
+.hero {
+  /* ⚠️ 这里必须是 clip 而不是 hidden：.hero 是 .page（grid）的直接子项，
+     Chrome 在「grid item + overflow:hidden」下会把 auto 轨道按 0 解析，整块内容只剩 padding 高度（实测 42px），
+     子项照常绘制但溢出去的部分会被 hidden 裁掉，于是按钮看起来盖在下一块上面。
+     overflow:clip 同样能裁圆角渐变，且不改变自动尺寸解析。实测 hidden→42px，clip→146px。 */
+  position: relative; overflow: clip; background:
+    radial-gradient(120% 140% at 8% -10%, color-mix(in oklab, var(--accent) 14%, transparent), transparent 55%),
+    radial-gradient(90% 120% at 100% 0%, color-mix(in oklab, var(--purple) 12%, transparent), transparent 50%),
+    var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r-xl); padding: var(--sp-5) var(--sp-6);
+  display: flex; gap: var(--sp-6); align-items: center; flex-wrap: wrap; box-shadow: var(--sh-2);
+}
+.hero h3 { margin: 0 0 4px; font-size: var(--fs-lg) }
+html[data-theme="dark"] .hero { background:
+    radial-gradient(120% 140% at 8% -10%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 55%),
+    radial-gradient(90% 120% at 100% 0%, color-mix(in oklab, var(--purple) 18%, transparent), transparent 50%),
+    var(--surface) }
+
+/* ---------- 5. Controls ---------- */
+.pill {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; height: 21px;
+  border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: 550; line-height: 1;
+  border: 1px solid transparent; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.pill.ok { background: color-mix(in oklab, var(--ok) 13%, transparent); color: var(--ok); border-color: color-mix(in oklab, var(--ok) 30%, transparent) }
+.pill.warn { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); border-color: color-mix(in oklab, var(--warn) 32%, transparent) }
+.pill.bad { background: color-mix(in oklab, var(--bad) 12%, transparent); color: var(--bad); border-color: color-mix(in oklab, var(--bad) 30%, transparent) }
+.pill.info { background: color-mix(in oklab, var(--accent) 12%, transparent); color: var(--accent-2); border-color: color-mix(in oklab, var(--accent) 30%, transparent) }
+.pill.lock { background: color-mix(in oklab, var(--text-dim) 11%, transparent); color: var(--text-dim); border-color: color-mix(in oklab, var(--text-dim) 26%, transparent) }
+.pill.purple { background: color-mix(in oklab, var(--purple) 13%, transparent); color: var(--purple); border-color: color-mix(in oklab, var(--purple) 30%, transparent) }
+.pill.cyan { background: color-mix(in oklab, var(--cyan) 13%, transparent); color: var(--cyan); border-color: color-mix(in oklab, var(--cyan) 30%, transparent) }
+html[data-theme="dark"] .pill.info { color: var(--accent-hi) }
+
+.dotmark { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: 0 0 7px }
+.dotmark.pulse { animation: pulse 1.8s var(--ease-in-out) infinite }
+@keyframes pulse { 50% { opacity: .35; transform: scale(.82) } }
+
+.bar { height: 6px; background: var(--surface-3); border-radius: var(--r-pill); overflow: hidden }
+.bar > i { display: block; height: 100%; border-radius: var(--r-pill); background: linear-gradient(90deg, var(--ok), color-mix(in oklab, var(--ok) 55%, #4ade80)); transition: width var(--dur-slow) var(--ease-out) }
+.bar.accent > i { background: linear-gradient(90deg, var(--accent), color-mix(in oklab, var(--purple) 60%, var(--accent))) }
+
+.seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md) }
+.seg button { border: 0; background: transparent; color: var(--text-dim); font: inherit; font-size: var(--fs-sm); padding: 5px 11px; border-radius: calc(var(--r-md) - 3px); cursor: pointer; transition: color var(--dur-fast), background-color var(--dur-fast) }
+.seg button:hover { color: var(--text) }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--sh-1); font-weight: 600 }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--border-2);
+  background: var(--surface); color: var(--text); font: inherit; font-size: var(--fs-sm); font-weight: 550;
+  padding: 7px 13px; border-radius: var(--r-md); cursor: pointer; box-shadow: var(--sh-1);
+  transition: transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast), border-color var(--dur-fast), background-color var(--dur-fast);
+}
+.btn:hover { border-color: color-mix(in oklab, var(--accent) 45%, var(--border-2)); box-shadow: var(--sh-2) }
+.btn:active { transform: scale(.97) }
+.btn.primary { background: linear-gradient(180deg, var(--accent-hi), var(--accent)); border-color: transparent; color: var(--on-accent); box-shadow: 0 2px 10px color-mix(in oklab, var(--accent) 42%, transparent) }
+.btn.primary:hover { box-shadow: 0 4px 16px color-mix(in oklab, var(--accent) 52%, transparent) }
+.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--text-dim) }
+.btn.ghost:hover { background: var(--surface-2); color: var(--text) }
+.btn.danger { color: var(--bad); border-color: color-mix(in oklab, var(--bad) 35%, var(--border)) }
+.btn.danger:hover { background: color-mix(in oklab, var(--bad) 10%, transparent) }
+kbd, .kbd { font-family: var(--mono); font-size: 10.5px; padding: 2px 5px; border: 1px solid var(--border-2); border-bottom-width: 2px; border-radius: 5px; background: var(--surface-2); color: var(--text-dim); line-height: 1 }
+
+.search-shell { position: relative; display: flex; align-items: center; gap: 8px; min-width: 180px; max-width: 320px; flex: 1 1 200px }
+.search-shell .n-input { flex: 1 }
+
+/* ---------- 6. Feedback / States ---------- */
+.fb { border: 1px solid color-mix(in oklab, var(--accent) 26%, var(--border)); background: color-mix(in oklab, var(--accent) 7%, var(--surface)); border-left: 3px solid var(--accent); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); margin-top: var(--sp-3) }
+.fb.ok { border-color: color-mix(in oklab, var(--ok) 28%, var(--border)); background: color-mix(in oklab, var(--ok) 7%, var(--surface)); border-left-color: var(--ok) }
+.fb.warn { border-color: color-mix(in oklab, var(--warn) 30%, var(--border)); background: color-mix(in oklab, var(--warn) 8%, var(--surface)); border-left-color: var(--warn) }
+.fb.bad { border-color: color-mix(in oklab, var(--bad) 28%, var(--border)); background: color-mix(in oklab, var(--bad) 6%, var(--surface)); border-left-color: var(--bad) }
+.fb h4 { margin: 0 0 6px; font-size: var(--fs-base); color: var(--text); display: flex; gap: var(--sp-2); align-items: center }
+.fb ul { margin: 6px 0; padding-left: 20px; line-height: var(--lh-loose) }
+.fb li::marker { color: var(--text-faint) }
+.section-title { font-size: var(--fs-xs); color: var(--text-faint); text-transform: uppercase; letter-spacing: .1em; font-weight: 620; margin: var(--sp-4) 0 var(--sp-2); display: flex; align-items: center; gap: var(--sp-2) }
+.section-title::after { content: ''; flex: 1; height: 1px; background: var(--border) }
+
+.skeleton { position: relative; overflow: hidden; background: var(--surface-2); border-radius: var(--r-md) }
+.skeleton::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--text-faint) 14%, transparent), transparent); transform: translateX(-100%); animation: shimmer 1.5s var(--ease-in-out) infinite }
+@keyframes shimmer { to { transform: translateX(100%) } }
+.sk-line { height: 11px; margin: 7px 0 }
+.sk-block { height: 74px }
+.empty { display: grid; place-content: center; justify-items: center; gap: 8px; padding: var(--sp-8) var(--sp-4); text-align: center; color: var(--text-faint) }
+.empty .ic { font-size: 26px; opacity: .55 }
+.empty .t { color: var(--text-dim); font-size: var(--fs-base); font-weight: 550 }
+.empty .d { font-size: var(--fs-sm); max-width: 34ch; line-height: var(--lh-snug) }
+/* 空态必须给下一步动作（Primer：empty state 要有主行动，而不是只说"没有数据"） */
+.empty .cta { margin-top: 6px; display: flex; align-items: center; gap: var(--sp-2) }
+.empty.error .ic { color: var(--bad); opacity: 1 }
+
+.rise { animation: rise var(--dur-slow) var(--ease-enter) both; animation-delay: calc(var(--i, 0) * 45ms) }
+@keyframes rise { from { opacity: 0; transform: translateY(8px) } }
+.pop { animation: pop var(--dur) var(--ease-enter) both }
+@keyframes pop { from { opacity: 0; transform: scale(.97) } }
+.n-config-provider, .n-message-provider { height: 100% }
+
+/* ---------- 7. Typography helpers & markdown ---------- */
+.stem { font-size: var(--fs-md); line-height: var(--lh-loose); font-weight: 500 }
+.md { line-height: var(--lh-loose); font-size: var(--fs-base) }
+.md p { margin: 8px 0 }
+.md code { background: color-mix(in oklab, var(--accent) 9%, var(--surface-2)); padding: 1.5px 5px; border-radius: 5px; font-size: 12.5px; color: var(--accent-2); font-family: var(--mono) }
+.md pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); overflow: auto; margin: 10px 0 }
+.md pre code { background: none; padding: 0; color: var(--text); font-size: 12.5px; line-height: 1.6 }
+.md h1, .md h2, .md h3, .md h4 { margin: 14px 0 8px; font-size: var(--fs-base); color: var(--text) }
+.md ul, .md ol { padding-left: 22px; margin: 8px 0 }
+.md table { border-collapse: collapse; margin: 10px 0; font-size: var(--fs-sm); width: 100% }
+.md th, .md td { border: 1px solid var(--border); padding: 6px 10px }
+.md th { background: var(--surface-2); font-weight: 620 }
+.md blockquote { margin: 10px 0; padding: 6px 12px; border-left: 3px solid var(--purple); background: color-mix(in oklab, var(--purple) 7%, transparent); color: var(--text-dim); border-radius: 0 var(--r-sm) var(--r-sm) 0 }
+.md a { color: var(--accent-2); text-decoration: underline; text-underline-offset: 2px }
+textarea.code, input.code { font-family: var(--mono) !important; font-size: 13px !important; line-height: 1.65 !important }
+.code-area { width: 100%; min-height: 220px; resize: vertical; background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); font-family: var(--mono); font-size: 13px; line-height: 1.65; tab-size: 2; outline: none; transition: border-color var(--dur-fast), box-shadow var(--dur-fast) }
+.code-area:focus { border-color: var(--accent); box-shadow: var(--ring-soft); background: var(--surface) }
+
+/* ---------- 8. Question interaction ---------- */
+.opt {
+  display: flex; gap: 10px; align-items: flex-start; padding: 11px var(--sp-4);
+  border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface);
+  cursor: pointer; transition: border-color var(--dur-fast), background-color var(--dur-fast), transform var(--dur-fast) var(--spring), box-shadow var(--dur-fast);
+  margin-bottom: 8px; box-shadow: var(--sh-1);
+}
+.opt:hover { border-color: color-mix(in oklab, var(--accent) 40%, var(--border)); background: color-mix(in oklab, var(--accent) 4%, var(--surface)); transform: translateY(-1px) }
+.opt:active { transform: scale(.995) }
+.opt.sel { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 9%, var(--surface)); box-shadow: var(--ring-soft) }
+.opt.right { border-color: color-mix(in oklab, var(--ok) 60%, transparent); background: color-mix(in oklab, var(--ok) 10%, var(--surface)) }
+.opt.wrong { border-color: color-mix(in oklab, var(--bad) 55%, transparent); background: color-mix(in oklab, var(--bad) 8%, var(--surface)) }
+.opt .key { font-weight: 700; color: var(--text-faint); min-width: 18px; font-variant-numeric: tabular-nums }
+.opt.sel .key { color: var(--accent-2) }
+.opt .txt { flex: 1; line-height: 1.6; min-width: 0; overflow-wrap: anywhere }
+.q-list { display: grid; gap: 8px }
+.q-item {
+  display: flex; align-items: center; gap: var(--sp-3); padding: 10px var(--sp-4);
+  border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface);
+  cursor: pointer; box-shadow: var(--sh-1); min-width: 0;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast) var(--ease-out);
+}
+.q-item:hover { border-color: color-mix(in oklab, var(--accent) 40%, var(--border)); box-shadow: var(--sh-2); transform: translateX(2px) }
+.q-item .qt { flex: 1; min-width: 0; font-size: var(--fs-base); line-height: 1.5; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical }
+.timer { font-variant-numeric: tabular-nums; font-size: var(--fs-xl); font-weight: 700; letter-spacing: .02em }
+.timer.danger { color: var(--bad); animation: blink 1s var(--ease-in-out) infinite }
+@keyframes blink { 50% { opacity: .45 } }
+.answer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 6px }
+.answer-cell { aspect-ratio: 1; border-radius: var(--r-sm); border: 1px solid var(--border-2); display: grid; place-content: center; cursor: pointer; font-size: var(--fs-sm); background: var(--surface-2); font-variant-numeric: tabular-nums; transition: border-color var(--dur-fast), background-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast) var(--ease-out) }
+.answer-cell:hover { border-color: var(--accent) }
+.answer-cell.done { background: color-mix(in oklab, var(--accent) 20%, var(--surface)); border-color: var(--accent); color: var(--accent-2) }
+.answer-cell.cur { box-shadow: var(--ring-soft); border-color: var(--accent) }
+
+/* ---------- 9. Graph canvas ---------- */
+.graph-wrap { height: 100%; min-height: 0; position: relative; background: var(--bg) }
+.vue-flow { background: var(--bg) }
+.vf-node { width: 232px; border-radius: var(--r-md); padding: 9px var(--sp-3); font-size: var(--fs-sm); line-height: 1.45; border: 1px solid var(--border-2); background: var(--surface); cursor: pointer; transition: border-color var(--dur-fast), background-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast) var(--ease-out) }
+.vf-node:hover { box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 35%, transparent); transform: translateY(-1px) }
+.vf-node .t { font-weight: 600; margin-bottom: 4px; color: var(--text) }
+.vf-node .m { color: var(--text-faint); font-size: var(--fs-xs); display: flex; gap: 6px; align-items: center; flex-wrap: wrap }
+.vf-node.lit { border-color: color-mix(in oklab, var(--ok) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklab, var(--ok) 12%, transparent), var(--surface)) }
+.vf-node.needs { border-color: color-mix(in oklab, var(--warn) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklab, var(--warn) 12%, transparent), var(--surface)) }
+.vf-node.locked { opacity: .45; filter: saturate(.35) }
+.vf-node.must::after { content: '必'; position: absolute; right: -7px; top: -7px; width: 18px; height: 18px; border-radius: 50%; background: var(--purple); color: #fff; font-size: 10px; display: grid; place-content: center }
+.vf-node.l1 { width: 130px; font-size: var(--fs-md); font-weight: 700 }
+.vf-node.l2 { width: 180px; font-weight: 600 }
+.vf-node.sel { box-shadow: 0 0 0 2px var(--accent) }
+
+.gn { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r-md); padding: 8px 10px; font-size: var(--fs-sm); box-shadow: var(--sh-1); transition: opacity var(--dur), box-shadow var(--dur-fast), border-color var(--dur-fast), transform var(--dur-fast) var(--ease-out) }
+.gn:hover { box-shadow: var(--sh-3); transform: translateY(-1px) }
+.gn.dim { opacity: .22 }
+.gn.sel { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent) }
+.gn .t { font-weight: 600; font-size: var(--fs-base); line-height: 1.35; color: var(--text) }
+.gn .m { display: flex; gap: var(--sp-2); align-items: center; margin-top: 4px; font-size: 10.5px; color: var(--text-faint); white-space: nowrap }
+.gn .mono { font-variant-numeric: tabular-nums }
+.gn .bar { height: 5px; background: var(--surface-3); border-radius: var(--r-pill); margin-top: 6px; overflow: hidden }
+.gn .bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--ok), color-mix(in oklab, var(--ok) 55%, #4ade80)); border-radius: var(--r-pill); transition: width var(--dur-slow) var(--ease-out) }
+.gn-root { width: 194px; border-width: 2px }
+.gn-root .t { font-size: var(--fs-md) }
+.gn-l2 { width: 236px }
+.gn-l2.must:not(.sel) { border-left: 4px solid var(--purple) }
+.gn-l3 { width: 194px; background: var(--surface-2) }
+.gn-l4 { width: 264px }
+.gn-l4.lit { border-color: color-mix(in oklab, var(--ok) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklab, var(--ok) 11%, transparent), var(--surface)) }
+.gn-l4.needs { border-color: color-mix(in oklab, var(--warn) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklab, var(--warn) 11%, transparent), var(--surface)) }
+.gn-l4.locked .t { color: var(--text-faint) }
+.gn-l4.locked { background: repeating-linear-gradient(135deg, var(--surface) 0 8px, var(--surface-2) 8px 16px) }
+.gn-l4.must:not(.lit) { border-left: 4px solid var(--purple) }
+.gn .dots { display: flex; gap: var(--sp-1); align-items: center; margin-top: 6px; font-size: 10.5px }
+.gn .dots i { width: 9px; height: 9px; border-radius: 50% }
+.gn .due { color: var(--hot) }
+.gn .needb { color: var(--warn) }
+.gn .fresh { color: var(--accent-2) }
+.gn .lockb { color: var(--text-faint) }
+.gn .mustn { color: var(--purple) }
+.gn .exp { margin-left: auto; color: var(--text-faint) }
+.gn .shield { margin-left: 5px; font-size: var(--fs-sm) }
+.graph-progress { position: absolute; top: var(--sp-3); left: var(--sp-3); z-index: 8; display: flex; align-items: center; gap: var(--sp-3); background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: var(--r-md); padding: 7px var(--sp-3); font-size: var(--fs-xs); color: var(--text-dim); box-shadow: var(--sh-2) }
+.graph-progress .bar.big { width: 150px; height: 7px; margin: 0; background: var(--surface-3); border-radius: var(--r-pill); overflow: hidden }
+.graph-progress .bar.big i { display: block; height: 100%; background: linear-gradient(90deg, var(--ok), color-mix(in oklab, var(--ok) 55%, #4ade80)) }
+.graph-progress .hot { color: var(--hot); font-weight: 620 }
+.legend { position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--sp-3); background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 12px; font-size: var(--fs-xs); display: grid; gap: 6px; z-index: 9; box-shadow: var(--sh-2) }
+/* 左下角留给 VueFlow 的缩放控件，图例居底中；窄窗下让控件优先，图例自动收窄 */
+@media (max-width: 1100px) { .legend { max-width: calc(100% - 140px) } }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: var(--r-sm); margin-right: 6px }
+.legend.closed { padding: 4px 8px; gap: 0; background: var(--glass); box-shadow: none }
+.graph-toolbar { position: absolute; right: var(--sp-3); top: var(--sp-3); z-index: 9; display: flex; gap: var(--sp-2); background: var(--glass); backdrop-filter: blur(10px); padding: 7px; border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--sh-2) }
+.drawer {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 430px; max-width: 92%;
+  /* 主进程默认 disableHardwareAcceleration()：软件光栅下大面积 backdrop-filter 是最贵的属性，
+     抽屉这种整屏高度用实色 surface + 阴影，观感不降、帧率稳 */
+  background: var(--surface); border-left: 1px solid var(--border);
+  box-shadow: var(--sh-4); z-index: 20; padding: var(--sp-5); overflow: auto;
+  animation: slide-in var(--dur) var(--ease-enter) both;
+}
+@keyframes slide-in { from { transform: translateX(18px); opacity: 0 } }
+
+/* VueFlow MiniMap 默认 background-color:#fff —— 深色主题下是一块刺眼白板，必须主题化 */
+.graph-wrap .vue-flow__minimap {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: var(--r-md); overflow: hidden; box-shadow: var(--sh-2);
+}
+.graph-wrap .vue-flow__minimap-mask { fill: color-mix(in oklab, var(--bg) 62%, transparent); stroke: color-mix(in oklab, var(--accent) 60%, transparent); stroke-width: 1 }
+.graph-wrap .vue-flow__controls { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--sh-2); overflow: hidden }
+.graph-wrap .vue-flow__controls-button { background: transparent; border-bottom: 1px solid var(--border); color: var(--text-dim); fill: currentColor }
+.graph-wrap .vue-flow__controls-button:hover { background: var(--surface-3); color: var(--accent-2) }
+
+/* ---------- 10. Charts ---------- */
+svg text { font-family: inherit }
+/* SVG 图表：viewBox 决定内在比例，必须显式限高/限宽，否则等比放大后刻度文字会胖成海报字 */
+.chart { width: 100%; height: auto; display: block; min-width: 0; max-height: 300px }
+.chart-radar { width: 100%; max-width: 470px; height: auto; display: block; margin: 0 auto }
+/* 手写 SVG 图表一律走语义类取色，切主题时随 token 自动换色 */
+.c-grid { stroke: var(--border); fill: none }
+.c-axis { stroke: var(--border-2); fill: none }
+.c-tick { fill: var(--text-faint); font-size: 10px }
+.c-label { fill: var(--text-dim); font-size: 11px }
+.c-empty { fill: var(--text-faint); font-size: 13px; text-anchor: middle }
+.c-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round }
+.c-accent { stroke: var(--accent) }
+.c-ok { stroke: var(--ok) }
+.c-warn { stroke: var(--warn) }
+.f-accent { fill: color-mix(in oklab, var(--accent) 20%, transparent) }
+.f-ok { fill: color-mix(in oklab, var(--ok) 16%, transparent) }
+.c-dot { transition: r var(--dur-fast) var(--ease-out); cursor: pointer }
+.c-dot:hover { r: 4.5 }
+.ring-track { stroke: var(--surface-3) }
+.ring-fill { stroke: var(--ok); stroke-linecap: round; transition: stroke-dasharray var(--dur-slow) var(--ease-out) }
+.spark-track { fill: none; stroke: var(--border); stroke-width: 1 }
+
+/* ---------- 10b. Page furniture & disclosure ---------- */
+.page-head { display: flex; align-items: flex-end; gap: var(--sp-4); flex-wrap: wrap }
+.page-head h1 { margin: 0; font-size: var(--fs-xl); letter-spacing: -.02em }
+.page-head p { margin: 3px 0 0; color: var(--text-faint); font-size: var(--fs-sm); max-width: 62ch }
+.page-head .grow { flex: 1 }
+.page-head .acts { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap }
+.toolbar { position: sticky; top: calc(var(--sp-5) * -1); z-index: 6; display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; padding: 10px var(--sp-4); margin: calc(var(--sp-2)) 0; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--sh-1) }
+.split { display: flex; gap: var(--sp-4); align-items: center; flex-wrap: wrap }
+.split .grow { flex: 1; min-width: 240px }
+details.acc { border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); padding: 0; overflow: hidden; transition: border-color var(--dur-fast), box-shadow var(--dur-fast) }
+details.acc + details.acc { margin-top: 6px }
+details.acc:hover { border-color: color-mix(in oklab, var(--accent) 28%, var(--border)) }
+details.acc[open] { box-shadow: var(--sh-1) }
+details.acc > summary { list-style: none; cursor: pointer; display: flex; gap: var(--sp-3); align-items: baseline; padding: 10px var(--sp-4); font-size: var(--fs-base); transition: background-color var(--dur-fast) }
+details.acc > summary::-webkit-details-marker { display: none }
+details.acc > summary::before { content: ''; width: 0; height: 0; flex: 0 0 0; border-left: 5px solid var(--text-faint); border-top: 4px solid transparent; border-bottom: 4px solid transparent; transition: transform var(--dur) var(--ease-out); translate: 2px -1px }
+details.acc[open] > summary { background: var(--surface-2) }
+details.acc[open] > summary::before { transform: rotate(90deg) }
+details.acc > summary:hover { background: color-mix(in oklab, var(--accent) 5%, var(--surface)) }
+details.acc .acc-body { padding: var(--sp-3) var(--sp-4) var(--sp-4); border-top: 1px solid var(--border); animation: rise var(--dur) var(--ease-out) both }
+
+/* ---------- 11. Command palette ---------- */
+.cmdk-mask { position: fixed; inset: 0; background: var(--scrim); backdrop-filter: blur(3px); z-index: 60; display: grid; justify-items: center; align-items: start; padding-top: 12vh; opacity: 1; transition: opacity var(--dur-exit) var(--ease-exit) }
+/* 关闭走「常驻节点 + class」而非 v-if，这样退出有 120ms 淡出，也不碰 Vue transition（dev HMR 会挂） */
+.cmdk-mask.leaving { opacity: 0 }
+.cmdk { width: min(620px, 92vw); background: var(--glass-solid); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: var(--r-xl); box-shadow: var(--sh-4); overflow: hidden; animation: cmdk-in var(--dur) var(--ease-enter) both }
+@keyframes cmdk-in { from { opacity: 0; transform: translateY(-6px) scale(.985) } }
+.cmdk input { width: 100%; border: 0; background: transparent; color: var(--text); font: inherit; font-size: var(--fs-md); padding: var(--sp-4) var(--sp-5); outline: none }
+.cmdk .list { max-height: 46vh; overflow: auto; padding: 0 var(--sp-2) var(--sp-2); display: grid; gap: 2px }
+.cmdk .grp { padding: var(--sp-2) var(--sp-3) 4px; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); font-weight: 620 }
+.cmdk .it { display: flex; align-items: center; gap: var(--sp-3); padding: 9px var(--sp-3); border-radius: var(--r-md); cursor: pointer; color: var(--text-dim); font-size: var(--fs-base) }
+.cmdk .it .ic { width: 18px; text-align: center }
+.cmdk .it.on { background: color-mix(in oklab, var(--accent) 12%, transparent); color: var(--text) }
+.cmdk .it .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.cmdk .foot { display: flex; gap: var(--sp-4); padding: var(--sp-2) var(--sp-5); border-top: 1px solid var(--border); color: var(--text-faint); font-size: var(--fs-xs) }
+
+/* ---------- 12. Responsive ---------- */
+@media (max-width: 1240px) { :root { --side-w: 200px } }
+/* 顶栏在窄窗下会被 omni（min-width 撑住）压到与待办 chip 重叠（机检抓到 path 盖住 pill），
+   先收缩 omni，再让位给主操作：1000px 以下隐藏 kpi-strip（同样信息在首页 hero 里都有） */
+@media (max-width: 1180px) {
+  .omni { min-width: 140px }
+  .omni kbd { display: none }
+}
+@media (max-width: 1000px) {
+  :root { --side-w: 62px }
+  .side .brand .meta, .side .nav a .lbl, .side .nav-label { display: none }
+  .side .nav a { justify-content: center; padding: 9px 0 }
+  /* 折叠成 62px 图标栏后，页脚那几行（考点点亮 / Electron 版本）会竖排折成三四行，很难看；
+     整块隐藏，同样的信息在数据面板与设置页都有 */
+  .side-foot { display: none }
+  .page { padding: var(--sp-4) }
+  .kpi-strip { display: none }
+  .topbar .sub { display: none }
+}
+@media (max-width: 720px) {
+  .hero { padding: var(--sp-4); gap: var(--sp-4) }
+  .topbar { padding: 0 var(--sp-3); gap: var(--sp-2) }
+  .g2, .g3, .g4 { grid-template-columns: minmax(0, 1fr) }
+  .drawer { width: 100%; max-width: 100% }
+}
+/* 窄窗口下长 placeholder 会溢出输入框（naive 结构 div.n-input__placeholder > span），两层都约束 */
+.n-input__placeholder, .n-input__placeholder > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100% }
+.n-card, .n-modal, .n-drawer-content { overflow-wrap: anywhere }
+.n-data-table-th { font-weight: 620 !important; letter-spacing: .02em }
+
+/* ---------- 13. Motion preferences ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important }
+}

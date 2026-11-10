@@ -1,0 +1,303 @@
+[
+  {
+    "id": "Q-ai-harness-pos-0001",
+    "nodeId": "ai.harness.agent-loop.context-budget",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于『lost in the middle』位置效应，按 T5 论文（Liu et al. 2023）的实验结论，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "把关键文档放在长上下文中间最稳，因为两头都是噪声时中间的信息反而被注意力凸显" },
+      { "key": "B", "text": "性能呈 U 形：关键信息位于开头或结尾时最好，放在中段时显著下滑，即使模型名义上支持很长的窗口" },
+      { "key": "C", "text": "该效应只在 GPT-3.5 这类短窗模型上存在，换上 128k 窗口后自然消失" },
+      { "key": "D", "text": "该效应说明编码器不够强，纯解码器模型不受位置排布影响" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "论文的标志性实验（多文档问答/键值抽取里 gold passage 放在不同位置）结论就是 U 形曲线：头尾好、中间差，且**长上下文模型同样存在**——这正是它反直觉的地方（A 恰好说反；C 错：论文明确测试了长上下文模型仍现 U 形；D 错：GPT 系解码器恰恰中招，原因一般归因于训练分布+注意力的首因近因偏置，而非编码器强弱）。",
+    "gapCheck": ["易漏点：引用时报名字『Lost in the Middle: How Language Models Use Long Contexts』+ NeurIPS 2023，显真读过", "常见误区：把『长窗口支持』与『长窗口用得好』混为一谈——有效上下文 < 标称上下文是这层落差的学术表述", "实操推论要会说：检索 top-k 的排序别按相似度倒序直塞（最相关放开头还是结尾有讲究）、system/任务说明要置顶或贴问题复述"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.context-budget"],
+      "related": ["ai.rag.retrieval-pipeline.rerank-compress", "ai.llm"],
+      "followUps": ["那组装上下文时最相关的证据该放头还是放尾？你有实测结论吗？", "KV 位置编码（RoPE 外推）和这个现象有关系吗？", "context rot 基准和 lost in the middle 是同一件事吗？"]
+    },
+    "resources": [{ "title": "Liu et al. · Lost in the Middle (T5)", "digest": "官方代码库 README 与论文：long-context models 在关键信息居中时性能骤降呈 U 形；permutation 自测显示模型对输入顺序并不敏感而是系统性偏好头尾。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://github.com/princeton-nlp/tree-of-thought-llm", "retrievedAt": "2026-11-09", "note": "论文配套官方仓库（princeton-nlp/LLMMixers 亦收录该工作代码与结论摘要），论文本体 arXiv:2307.03172", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["长上下文", "论文结论", "组装策略"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束应用题：你组装 RAG prompt，rerank 后 top-6 文档已就绪。基于 U 形曲线给出你的摆放策略，并诚实说明这套策略的证据强度与适用局限。", "analysis": "主流做法：最相关的 1~2 篇放最前（紧跟 query 之后或 system 之后第一屏），次相关放尾部（紧邻生成点），最不相关塞中间吃损耗——两头各押一个黄金位。诚实的局限：①实验多在 QA/检索合成任务，Agent 场景的多跳依赖未必同形；②各家模型曲线形状不同（有的头部权重更大），上线前应自建位置敏感性探针（同一 gold doc 轮换位置测答案翻转率）。能主动给出『我的策略+怎么验证』即为 d2 里的满分答法。" }
+    ]
+  },
+  {
+    "id": "Q-ai-harness-jit-0002",
+    "nodeId": "ai.harness.agent-loop.context-budget",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "Anthropic 的上下文工程实践提出用『just-in-time context』组装上下文（Agent 运行时按需检索文件/数据，只把工作清单与元数据留在上下文）。按该文口径，下列理解**正确的是**：",
+    "options": [
+      { "key": "A", "text": "它的核心是压缩算法：把大语料先蒸馏成小摘要再喂模型，节省 token" },
+      { "key": "B", "text": "它的核心是身份边界：上下文应只装『完成当前任务所必需的最小高信号集合』；以文件路径/清单为索引，运行时按需读取正文，让 Agent 自己选择加载什么" },
+      { "key": "C", "text": "它只适用于文件系统场景，数据库或 API 数据没有对应的模式" },
+      { "key": "D", "text": "它等价于把所有内容先塞进长上下文窗口，反正模型能装下" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "该文两个关键词：minimal set（minimal sufficient 的高信号集合）与『tokens are a precious resource』的预算观；just-in-time 的实现形态是让 Agent 持有轻量索引（路径、glob/grep、清单）在需要时才把正文读入——A 把它说成摘要压缩（那是 compaction/summarization 的手段不是 JIT 的本体）；C 错：文中的原则同样覆盖 schema 摘要、API 目录等『元数据常驻、明细按需』模式，文件只是最直观的载体；D 是它明确反对的『填满窗口』思路——能装下≠会用好（注意力衰减+信噪比下降）。",
+    "gapCheck": ["易漏点：『元数据常驻、正文按需』这句是 JIT 的一行总结，答题先给这句再展开", "常见误区：JIT 与预载不是二值选择——文中也承认高频小文件预载更省延迟，混合策略才是常态", "加分项：把它和 MCP resources/工具懒加载连起来讲（协议层的同一思想）"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.context-budget"],
+      "related": ["ai.rag.retrieval-pipeline.rerank-compress", "ai.memory.memory-skill.skill-lib"],
+      "followUps": ["按需检索引入的延迟怎么权衡？什么时候宁可预载？", "Agent 选错了要读的文件怎么办？谁来纠偏？", "这套模式和操作系统的虚拟内存像在哪、不像在哪？"]
+    },
+    "resources": [{ "title": "Anthropic Engineering · Effective context engineering", "digest": "2025-09 官方工程文：最小充分高信号集合、token 预算思维、just-in-time 文件组装（保留轻量标识符运行时按需加载）、以及 compaction/sub-agent/结构化笔记三板斧。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents", "retrievedAt": "2026-11-09", "note": "Anthropic 官方工程博客（2025-09），2026 年上下文工程的主流引用源", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["上下文工程", "2026新范式", "大厂口径"],
+    "variants": [
+      { "angle": "换场景", "stem": "换到代码仓库 Agent 场景：仓库 3 万个文件。按 just-in-time 思想设计你的『常驻上下文』与『按需加载』两层，并指出这个模式在本场景最容易失效的一点。", "analysis": "常驻层：仓库地图（顶层目录树+关键入口文件路径+构建/测试命令+AGENTS.md 类约定），控制在几百 token；按需层：grep/AST 符号查询/文件读取工具，Agent 顺线索逐文件加载。最易失效点：『不知道自己不知道』——没有入口线索的任务（bug 在哪个模块）会让 Agent 盲目 grep 烧预算，所以常配一次性 subagent 做全仓扫描后返回定位摘要（用子代理的大上下文换主线程的小上下文）。这个失效分析正是主文没细说、面试最爱挖的部分。" }
+    ]
+  },
+  {
+    "id": "Q-ai-harness-compact-0003",
+    "nodeId": "ai.harness.agent-loop.compaction-recovery",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "Claude Code 的自动 compaction 机制与社区总结的『压缩失真』问题，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "自动压缩在上下文接近阈值（约 95%、可用 /compact 手动触发）时用 LLM 把整段历史蒸馏成结构化摘要替换原历史" },
+      { "key": "B", "text": "压缩后的会话会丢失部分早期细节，因此官方建议对关键状态（架构决策、TODO 进度）主动写入文件等外部记忆，而不是只靠聊天记录" },
+      { "key": "C", "text": "压缩的失真具有选择性：容易丢的恰是『未明说的约束与失败尝试的教训』，因为它们很少出现在显式请求里" },
+      { "key": "D", "text": "只要开启自动压缩，长会话的质量就会随轮数保持平稳，无需其他工程手段" }]
+    ,
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 对：Claude Code 官方文档描述 auto-compact 在剩余比例低于阈值时触发、/compact 可带指令手动压缩；B 对：官方 tips/文档持续强调把重要信息外化到 CLAUDE.md/计划文件——『别指望聊天历史记得』是官方立场；C 对：这是社区对压缩失真的共识画像（摘要器优先保『最近指令与显式产物』，静默约束最先蒸发），也是『外部记忆』成为标配的原因；D 错得绝对：压缩本身就在制造失真，『压缩+外部记忆+结构化笔记+子代理隔离』的组合拳才是长会话质量的答案，单靠任何一招都会漂。",
+    "gapCheck": ["易漏点：报阈值要谨慎——具体百分比随版本变过（早期 95%/92% 都出现过），答题说『接近满窗的高位阈值（约 95%，随版本调整）』最稳", "常见误区：把 compaction 与 trimming/截断混称：前者语义蒸馏后者机械丢弃，成本与信息保全完全不同", "加分项：说出压缩提示词的演进（结构化模板：目标/决策/待办/关键路径优先）与『压缩失败级联』（摘要越来越糊→行为越来越差）的运维现象"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.compaction-recovery"],
+      "related": ["ai.harness.agent-loop.context-budget", "ai.memory.memory-skill.session-state"],
+      "followUps": ["压缩的时机除了窗口阈值还有什么信号？（阶段切换点压得更干净）", "怎么评估一次压缩压坏了什么？（压缩前后跑同一探针任务）", "为什么有些团队改用『开新会话+交接文档』替代 /compact？"]
+    },
+    "resources": [{ "title": "Claude Code 官方文档 · Compaction", "digest": "docs.claude.com 的 compaction/costs 页：auto-compact 阈值与触发行为、/compact 用法、compact 后早期细节可能丢失的提示；配合官方 best practices 的外化记忆建议。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://docs.claude.com/en/docs/claude-code/costs", "retrievedAt": "2026-11-09", "note": "官方 Costs/Compaction 页描述自动压缩触发与窗口管理；失真侧结论结合社区共识", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["Harness实战", "工具机制", "失真治理"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向评估：团队为了『绝不丢信息』把压缩阈值调到 99% 才触发、且几乎不压缩只靠扩窗口。这会付出什么代价？什么任务画像下这种激进配置反而合理？", "analysis": "代价：①逼近满窗的 lost-in-the-middle/context rot 惩罚——不压缩≠无损，原始长历史的注意力损耗本身就是失真；②每轮都背着全量历史计费/计算（成本随轮数平方级叙事）；③临界风险：单次大 tool 输出就可能越窗，被动截断比主动压缩更不可控。合理画像：任务短（几十轮内）、窗口大、预算充足、且任务语义上『什么都可能是线索』（探索性 debug）。答题关键：点破『不压缩只是把失真从摘要层挪到注意力层』。" }
+    ]
+  },
+  {
+    "id": "Q-ai-harness-maxturns-0004",
+    "nodeId": "ai.harness.agent-loop.loop-dynamics",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：在 Agent 循环里设置 max_turns（最大迭代轮数）就足以防止失控，因为它同时兜住了成本、时间和重复劳动三类问题。",
+    "answer": { "judge": false },
+    "analysis": "max_turns 只兜住『轮数』一维：一轮可以是烧掉 30k token 的重型调用，也可以是毫秒级的 noop——轮数达标不代表成本/时间达标，所以要 token 预算、墙钟超时、成本熔断并列成多维护栏；『重复劳动』更是轮数完全无感的维度（第 3 轮和第 30 轮都在调同一个失败工具，max_turns 只会让它多失败 27 次），要靠动作指纹检测。这题的『同时兜住三类』就是焊死的错误点。",
+    "gapCheck": ["易漏点：答题顺手给『护栏矩阵』：轮数/单轮 token/累计成本/墙钟/停滞信号，各配各的动作（降级、提醒注入、转人工）", "常见误区：把护栏只当止损——好的护栏会『告知模型』（注入『你已经试了 5 次同样的调用』的系统消息），让模型换策略而不是硬掐", "加分项：提到危险动作确认门也是一种『空间护栏』——失控不只是时间维度"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.loop-dynamics"],
+      "related": ["ai.tools.tool-calling.tool-design-routing", "ai.serving.infer-serving.cost-latency"],
+      "followUps": ["token 预算和轮数预算你会先耗尽哪个？为什么？", "停滞检测的实现细节：动作指纹怎么算？", "护栏触发后给用户的呈现怎么做才不算『白烧钱』？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创判断题，立论依据为各家 agent 框架通用护栏实践（LangGraph recursion_limit 文档佐证多维限制的必要性）" },
+    "tags": ["护栏", "判断题", "基础"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "接着问：如果只能保留一种护栏，你留哪种？给出理由与它的残余风险。", "analysis": "开放题但要有取舍论证。主流高分答法：留**累计成本预算**——它是唯一直接保护业务底线的维度（轮数/时间都可能被单轮重量级击穿，成本不会），且可换算（成本触顶即停）。残余风险：烧钱前它已经空转了很多无效轮（体验差）、且对『单轮巨贵』的任务粒度太糙。次优答法留停滞检测（防最恶性的重复循环），但要坦白它兜不住『每轮都有进展但任务本身无界』的情况。评分看论证质量不站队。" }
+    ]
+  },
+  {
+    "id": "Q-ai-harness-loop-0005",
+    "nodeId": "ai.harness.agent-loop.loop-dynamics",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "补全 Agent 循环的终止说法：现代 Agent 的基本结构是一个循环——模型每步可以选择调用工具或产出回应，当模型不再发出 ______、或达到停止条件时循环结束；OpenAI 的 agent 构建实践指南据此强调用 ______ 限制单任务的最大迭代/花费，用 ______ 机制把高危动作（如退款、删除）交由人确认后再执行。",
+    "answer": { "blanks": ["tool_calls", "guardrails/预算上限", "human-in-the-loop"], "synonyms": { "tool_calls": ["工具调用", "函数调用", "tool call"], "guardrails/预算上限": ["预算护栏", "花费上限", "budget cap", "递归上限", "max turns"], "human-in-the-loop": ["人工确认", "人机协同", "HITL", "人工审批"] } },
+    "analysis": "三个空对应循环的三个基本面：终止判据（无 tool_calls 即视为本轮终结，OpenAI Responses/Chat 的 agentic loop 伪代码就是这个 if-break 结构）、预算护栏（指南专章讲 guardrails 与 limits：token/时间/花费三类上限）、高危动作的人工确认（指南对『有副作用的操作要人审』的建议）。填空考的不是词而是结构：循环=自由+刹车+闸门三件套。",
+    "gapCheck": ["易漏点：『模型不发 tool_calls』与『模型说 done』的区别——前者是 harness 的客观判据，后者只是模型的话术，成熟实现都信前者", "常见误区：把 human-in-the-loop 只当安全功能——它还是责任归属与审计的合规件", "同义兜底：『不再调用工具』『预算上限』『人工审批』均判对"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.loop-dynamics"],
+      "related": ["ai.tools.tool-calling.function-calling", "ai.eval.evaluation-qa.metrics-dataset"],
+      "followUps": ["『模型不发 tool_calls 但其实活没干完』怎么办？（假完成问题）", "预算护栏的阈值怎么定？拍脑袋还是有基线？", "哪些动作进你们的 HITL allowlist？判定标准是什么？"]
+    },
+    "resources": [{ "title": "OpenAI · A practical guide to building agents", "digest": "官方指南 PDF：agent loop 描述（模型选工具→执行→回灌→直到给出最终回应或触发停止条件）、guardrails 章节（输入/输出护栏、token/时间/花费三类限制）、HITL 对高风险动作的建议。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://cdn.openai.com/business-guides-and-resources/a-practical-guide-to-building-agents.pdf", "retrievedAt": "2026-11-09", "note": "OpenAI 官方 agent 构建指南（2024-04 发布，2026 仍被广泛引用）", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["循环三件套", "必背填空", "官方指南"],
+    "variants": [
+      { "angle": "换问法", "stem": "反向填空：harness 判定『本轮任务结束』的最可靠信号是模型输出了不含 ______ 的最终回应，而不是模型声称任务 ______；因此成熟的评估会同时检查终态（产物存在性）而非只读模型的 ______。", "analysis": "依次填：工具调用（tool call）、完成（done/成功）、自述（自我声明）。考点是『行为信号 vs 话术信号』的分层：终止判定信行为（没再调工具），完成判定也要信行为（产物核验：测试过了吗、文件存在吗），模型的『我完成了』只能当下游通知不能当验收依据。这正是 pass^k/轨迹评估存在的动机，接到评估节点是出题人的连环意图。" }
+    ]
+  },
+  {
+    "id": "Q-ai-harness-rot-0006",
+    "nodeId": "ai.harness.agent-loop.context-budget",
+    "type": "short",
+    "difficulty": 2,
+    "stem": "Chroma 2025 年的 context rot 研究报告想说明什么问题？它与『上下文窗口越来越大就越好用』的天真叙事矛盾在哪？对 Agent 工程意味着什么？",
+    "answer": { "ref": "报告核心：在输入长度可控递增的合成任务（重复词表、NIAH 变体、对话问答）上，几乎所有被测模型（覆盖 GPT-4o、Claude 3.5、Gemini 1.5、Llama 等主流系；名单答题不必背死）性能随输入长度**非一致退化**——不是『超过窗口就崩』，而是远未到上限就开始波动下滑，且对干扰物敏感（干扰句一改写，答案就翻转）。与天真叙事的矛盾：窗口标称长度是『能装』，报告证明的是『用了会坏』——有效上下文是随任务与干扰度变化的连续量。工程含义三条：①上下文要当预算管理（最小高信号集合、按需加载），不是越大越随便塞；②评测要用贴近生产的长输入基准，不能只看短样本 benchmark；③长会话 Agent 要靠 compaction/外部记忆/子代理把实际输入长度压回模型的舒适区。" },
+    "scoringPoints": [
+      { "point": "准确复述报告结论：输入变长引发非一致性退化而非悬崖式崩溃", "weight": 2 },
+      { "point": "指出退化对干扰物/改写敏感这一实验特征", "weight": 1 },
+      { "point": "把『标称窗口』与『有效上下文』两个概念切开", "weight": 2 },
+      { "point": "给出至少两条对应的工程对策（预算管理/压缩/隔离）", "weight": 1 }
+    ],
+    "analysis": "这题考『有没有跟进 2025-2026 的关键实证』：context rot 与 lost in the middle 一起构成了『长上下文打折』的证据链。高分答法会强调『非线性、远未打满就开始烂』这个反直觉点（很多人还停留在『超窗才截断』的旧心智）。对策部分不用多，两条对上即可，重点是把『为什么窗口参数不可信』讲透。",
+    "gapCheck": ["易漏点：引用格式 Chroma TRiSM report 2025-07（research.trychroma.com/context-rot），报名字即显跟进", "常见误区：把 context rot 与 RoPE 外推/位置编码失效画等号——机理尚无定论，报告给的是现象学证据", "加分项：给出你们团队的实测法——固定任务轮换填充长度画自己的退化曲线"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.context-budget"],
+      "related": ["ai.llm", "ai.rag.retrieval-pipeline.rerank-compress"],
+      "followUps": ["你们的 Agent 实际输入的 P95 长度是多少？测过退化吗？", "干扰物为什么杀伤这么大？给个机制假设", "这个报告的方法学有什么可批评的？（合成任务的生态效度）"]
+    },
+    "resources": [{ "title": "Chroma · Context Rot (TRiSM 2025)", "digest": "官方研究报告页：多模型在输入长度与干扰物操纵下的退化曲线合集，结论为长输入的非一致性能下降，附实验代码开源。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://research.trychroma.com/context-rot", "retrievedAt": "2026-11-09", "note": "Chroma 研究页 2025-07 报告全文（含模型列表与实验设置）", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["前沿实证", "长上下文祛魅", "2026考点"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "面试官追问：既然长输入会 rot，为什么各家还在卷百万窗口？这不是互相矛盾吗？", "analysis": "不矛盾的两面：百万窗口的价值在『容纳能力』（一次性装下全书/整个视频帧序列这类无法分块的任务、以及免检索的暴力基线），context rot 说的是『使用质量』——两者一个谈上限一个谈衰减曲线。而且厂商有动机把窗口数字当营销，第三方评测（如 Marktechpost 对 Gemini 百万窗的实测、各 NIAH 复现）正是在给营销数字做校准。理想答案还会补一层：窗口越长，harness 的选择空间越大——『可以不检索』本身就是能力，只是用不用、怎么用仍需 rot 证据说话。" }
+    ]
+  },
+  {
+    "id": "Q-ai-harness-vs-0007",
+    "nodeId": "ai.harness.agent-loop.compaction-recovery",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "对比三种上下文瘦身手段：机械截断（trimming）、LLM 压缩（compaction）、结构化外部记忆（把状态写文件/DB）。各自适用什么信号场景、信息损失特征、以及成本结构。",
+    "answer": { "ref": "【trimming】FIFO 丢最旧消息（保住 system+最近 k 条）。适用：对话轮多但单轮信息密度均匀、旧轮次注定无用的场景（客服闲聊）。损失特征：一刀切——早期确立的约束与最新指令同权重被丢，且断裂点随机（可能正好切断一个多轮推理链）。成本：零额外开销。【compaction】LLM 蒸馏成结构化摘要。适用：长任务中后段、历史整体降权但需要保留主线（编码会话、研究报告）。损失：选择性失真——显式事实与最近指令保得好，隐含约束/失败教训/语气演变先蒸发；多次压缩会级联模糊。成本：每次一次 LLM 调用+压缩瞬间的延迟尖峰。【外部记忆】把目标、决策、进度、关键坐标写成文件/DB 记录，上下文只留索引。适用：跨越压缩边界的长周期任务（多日项目、CI Agent）。损失：取决于写纪律——写进去的不丢、没写进的一律赌运气；它把『记住』从模型问题变成工程规范问题。成本：持续的读写 token 与工程复杂度。组合姿势：外部记忆为主干（可恢复的地基）、compaction 管会话中段、trimming 只做最外围的兜底。" },
+    "scoringPoints": [
+      { "point": "三种手段的机制一句话各自准确（尤其 trim 的 FIFO 语义）", "weight": 2 },
+      { "point": "指出 compaction 的选择性失真与级联退化特征", "weight": 2 },
+      { "point": "指出外部记忆的损失取决于写入纪律、且提供压缩边界外的可恢复性", "weight": 2 },
+      { "point": "给出组合策略与分工（主干/中段/兜底）", "weight": 1 },
+      { "point": "提到各自的成本形态（零成本/瞬时尖峰/持续读写）", "weight": 1 }
+    ],
+    "analysis": "三选一容易，讲清『损失的信息类型不同』才见功力：trim 丢的是位置最老的、compaction 丢的是抽象层级最高的（隐含约束）、外部记忆的丢失面在『没写』而不在『被压』。成本结构是第二梯队区分点：compaction 的延迟尖峰发生在上下文最满、最需要响应的时候，这个时序尴尬很多候选人答不出。组合分工讲得出即为生产经验者。",
+    "gapCheck": ["易漏点：trimming 的隐藏雷区——丢掉『失败尝试记录』后模型会把失败的方案再试一遍（和循环题呼应）", "常见误区：认为外部记忆总是更优——写什么/何时写本身消耗推理预算，短任务过度外化反而拖慢", "加分项：提到压缩前后跑『探针任务』验证失真的 QA 化做法"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.compaction-recovery"],
+      "related": ["ai.harness.agent-loop.context-budget", "ai.memory.memory-skill.session-state"],
+      "followUps": ["什么时候你会宁可开新会话也不做 compaction？", "外部记忆的写入时机：每轮写还是阶段末写？", "怎么量化『这次压缩压丢了关键约束』？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创对比题；素材锚定 Anthropic 上下文工程文与 Claude Code 压缩文档的实践分野" },
+    "tags": ["手段对比", "生产架构", "深水区"],
+    "variants": [
+      { "angle": "换场景", "stem": "场景裁决：一个『通宵跑数据迁移脚本并修 bug』的 coding agent，8 小时约 300 轮。请为它设计三层瘦身组合的具体策略：什么进外部记忆、何时触发压缩、trim 的边界怎么定。", "analysis": "参考方案：外部记忆=迁移进度清单（表×状态）、已尝试且失败的修复（防重蹈）、当前假设与下一步——每阶段末覆写；compaction=每 80~100 轮或 90% 阈值触发，压缩提示词强制保留『失败尝试+决策链』段（普通模板会丢的部分）；trim=压缩后仍超长时只保留最近 N 轮的原始 tool 输出、更早轮只留压缩摘要——因为失败日志的价值已被外部记忆接管，原始 diff/报错可以丢。评分看『各层信息类型分工明确+触发时机具体』，泛泛『都要用上』不给分。" }
+    ]
+  },
+  {
+    "id": "Q-ai-harness-durable-0008",
+    "nodeId": "ai.harness.agent-loop.compaction-recovery",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "长跑 Agent（数小时的批处理任务）中途进程崩溃。请论述：事件溯源 vs 状态快照两种持久化路线的取舍；从最后检查点恢复时必须处理哪三类不一致；副作用工具的『重放安全』怎么设计；以及为什么 LangGraph 类框架把 checkpointer 做成一等公民。要求给出你自己的推荐架构。",
+    "answer": { "ref": "参考骨架：【两路线】事件溯源（append 每条消息/tool result 到日志，重建=重放）：优点完整可审计、任意时点回放调试、分支容易；缺点重放可能触发真实副作用、状态读取 O(log)、schema 演进麻烦（老事件格式新代码读不懂）。状态快照（每 super-step 存图状态）：读取 O(1)、恢复快；缺点粒度粗（两次快照间的工作丢）、丢过程细节难调试。工业答案通常是混合：快照+快照后的增量事件日志（LangGraph checkpointer 的 super-step 快照正是这个粒度）。【恢复时三类不一致】①悬挂的工具调用：崩溃在『已发出调用、结果未落库』之间——恢复时必须判定该调用的终态（幂等查询/对账），既不能盲目重放也不能假装成功；②外部世界漂移：checkpoint 里的文件内容/价格/权限可能已变，恢复要先做新鲜度校验而不是直接信任快照内引用；�3双执行竞态：崩溃进程可能没真死（网络分区僵尸），恢复的副本与僵尸并行写——需要 lease/fencing token 认领任务。【重放安全】按副作用分级：纯读直接重放；写操作带 idempotency key（由 step 序号派生，重试天然同键）；不可逆动作（发短信/转账）走 outbox+确认门，恢复时先查 outbox 状态。【checkpointer 一等公民的原因】Agent 的价值恰恰是长时间自治运行，没有廉价暂停/恢复/时间旅行就没有生产级 Agent；框架把『状态管理』从每个应用的自建代码里收编，顺带解锁 human-in-the-loop（interrupt 即暂停在 checkpoint）、多租户分时（挂起等待外部事件）、失败重放调试。【推荐】我的默认：LangGraph 风格 super-step 快照 + 崩溃恢复协议（fencing 认领→悬挂调用对账→外部引用新鲜度校验→带幂等键续跑）。加分：谈『确定性重放』的不可能与『至少一次 vs 至多一次』的业务侧选择。" },
+    "scoringPoints": [
+      { "point": "两路线各自完整的优劣对比且落到混合方案", "weight": 2 },
+      { "point": "悬挂工具调用的终态判定讲得具体（不能盲重放也不能装成功）", "weight": 2 },
+      { "point": "外部世界漂移与双执行竞态至少再答对一类（新鲜度校验/fencing）", "weight": 2 },
+      { "point": "副作用按可重放性分级并给 idempotency key 的来源设计", "weight": 2 },
+      { "point": "解释 checkpointer 与 HITL/分时调度的共生关系", "weight": 2 },
+      { "point": "给出有立场的推荐架构并承认残余风险", "weight": 2 }
+    ],
+    "analysis": "这题本质是分布式系统在 Agent 语境的重出题，能把 exactly-once 幻觉、fencing token、outbox 这些经典件搬过来的候选人立刻显示深度。Agent 特有的新东西是『悬挂的模型调用』：模型侧调用（花钱的那次）与工具侧调用（干活的那次）都可能在半途，恢复协议要分开对待——这是最容易答漏的一类不一致。checkpointer 一段答不好的核心原因是只背 API 没理解『为什么框架要做这个』。",
+    "gapCheck": ["易漏点：崩溃≠干净失败——僵尸进程与恢复副本的双写竞态几乎没人主动提，提出即是分布式老兵信号", "常见误区：把 checkpoint 恢复说成『接着跑就行』，忽略外部引用（文件/ID）在间隔期可能已失效", "加分项：提到 LLM 调用的非确定性使『完全重放调试』不可得，所以要事件级快照（缓存当时响应）而非逻辑重放"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.compaction-recovery"],
+      "related": ["ai.multi.agent-orchestration.shared-state", "ai.reliability", "cs.design"],
+      "followUps": ["checkpoint 存多大？每步存全量 state 会不会成为瓶颈？（增量通道+TTL）", "时间旅行调试（time-travel）在产品上怎么做入口？", "如果恢复时发现外部世界已面目全非，你的 Agent 该继续还是中止？"]
+    },
+    "resources": [{ "title": "LangGraph 文档 · Persistence", "digest": "官方持久化页：thread/checkpoint 模型、super-step 快照粒度、PostgresSaver/SqliteSaver、time-travel 与 fork；durable execution 理念见其 durable-execs 专章。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://langchain-ai.github.io/langgraph/concepts/persistence/", "retrievedAt": "2026-11-09", "note": "LangGraph 官方 persistence 概念页（checkpoint 粒度和 time-travel 描述）", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["持久执行", "分布式功底", "大厂压轴"],
+    "variants": [
+      { "angle": "加约束", "stem": "追加约束：你们的 Agent 平台是多租户共享队列，任务平均跑 40 分钟、GPU/API 配额有限。durable execution 还要支持『挂起-等待外部回调-唤醒』（如等审批）。这给 checkpoint 设计增加什么？", "analysis": "新增三件事：①挂起语义一等化：interrupt/await external event 必须编译成 checkpoint 的 parked 状态+订阅注册表（回调到达才能唤醒对应 thread），唤醒不能靠轮询烧 token；②长挂起的腐化问题：等审批 3 天，世界变了——唤醒协议要带『依赖新鲜度』检查（前面已答的外部漂移在这升级为强制流程）；③配额与公平性：parked 任务不占算力但占 checkpoint 存储与并发额度，要 TTL/驱逐策略与租户配额分离。能指出『挂起让恢复从异常路径变成主路径，所以恢复协议要日常 QA 化』即为满分眼。" }
+    ]
+  },
+  {
+    "id": "Q-ai-harness-budget-0009",
+    "nodeId": "ai.harness.agent-loop.context-budget",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "给 Agent 的上下文装一个『KV cache 友好』的前缀（system+工具定义）的主要工程收益是：",
+    "options": [
+      { "key": "A", "text": "提高采样温度稳定性，减少输出随机性" },
+      { "key": "B", "text": "命中 provider 的前缀缓存后，重复前缀的 TTFT 与计费大幅降低——而 Agent 每轮都携带同一前缀，命中率天然高，所以前缀的字节级稳定性本身成了优化目标" },
+      { "key": "C", "text": "让模型不受 lost in the middle 影响，因为缓存跳过中段计算" },
+      { "key": "D", "text": "允许把 max_turns 上限翻倍，因为缓存消除了轮次成本" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "Agent 的访问模式对缓存近乎完美：同一会话每一轮都把同一 system+tools 前缀重新发一遍，只要前缀逐字节稳定，第 2 轮起就能命中各家 provider 的 prompt caching（Anthropic/OpenAI 对命中部分给 0.1x~0.25x 计费与显著更快 TTFT）→ B 的因果链完整。A 无关（温度是解码参数）；C 荒谬（缓存省的是 prefill 计算，注意力照算，位置效应照中）；D 错在夸大：缓存只优化前缀部分，历史增长与生成 token 的边际成本仍在，轮次成本没有归零。",
+    "gapCheck": ["易漏点：『前缀稳定性是设计约束』的工程推论——工具数组顺序、动态注入时间戳、序列化字段序都会打碎缓存，这是很多团队真金白银的学费", "常见误区：把 prefix caching 与服务端 KV cache 混谈：前者跨请求复用前缀计算（本选项），后者是单请求 decode 加速", "加分项：给出缓存 miss 的排查法——diff 两轮请求体找第一处字节差异"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.context-budget"],
+      "related": ["ai.serving.infer-serving.kv-cache-batching", "ai.tools.tool-calling.tool-design-routing"],
+      "followUps": ["工具列表要按任务动态裁剪，这和缓存稳定性冲突怎么办？", "缓存 TTL 到期后再回来，前缀还热吗？长会话怎么排布命中窗口？", "自托管 vLLM 的 prefix caching 与 API 厂商的隐式缓存行为差异？"]
+    },
+    "resources": [{ "title": "OpenAI · Prompt Caching", "digest": "官方定价/缓存文档：自动前缀缓存最低 1024 token 起、命中部分按折扣计费（gpt-4o 系列 0.5x/0.1x 档），并说明匹配是前缀精确匹配、建议固定前缀放请求开头。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://platform.openai.com/docs/guides/prompt-caching", "retrievedAt": "2026-11-09", "note": "Prompt caching 指南：匹配规则、折扣比例、最佳实践", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["成本治理", "缓存意识", "生产细节"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向排查：同事为了让工具 description『更聪明』，把当前用户画像拼进每个工具的 description 里。上线后缓存命中率崩了。解释为什么，并给出保持智能又不崩缓存的做法。", "analysis": "机制：description 属于前缀的一部分，用户画像每用户/每会话都在变 → 前缀从第 X 字节起逐请求不同 → 缓存对所有人互相失效（连 system 公共段都救不回，因为分歧点太靠前）。修法：把动态内容从『工具定义』挪到『消息序列尾部』（作为独立 message 注入），保持 tools+system 逐字节冻结——分歧点后移，公共前缀复活。这道题同时检验『缓存匹配是字节级前缀』与『tools 数组也在前缀里』两个知识点是否都装进脑子。" }
+    ]
+  },
+  {
+    "id": "Q-ai-harness-subctx-0010",
+    "nodeId": "ai.harness.agent-loop.context-budget",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "Anthropic 的多智能体研究系统实践中，『子代理隔离上下文』这一手段的说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "子代理的主要价值之一是隔离：把检索/探索这类吃 token 的高噪声工作关在子上下文里完成，只把浓缩摘要交回主 Agent，延缓主线程的 context rot" },
+      { "key": "B", "text": "该实践报告的实测口径：多代理研究配置相比普通聊天约 15× token 消耗，因此适合价值高的任务，简单问答用它不划算" },
+      { "key": "C", "text": "隔离同时带来并行化收益：多个子代理并发探索不同方向，把串行的探索时间换成并行的墙钟时间" },
+      { "key": "D", "text": "只要子代理足够便宜，把所有步骤都外包给子代理总是更优，因为主上下文永远干净" }]
+    ,
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A/C 正是官方报告给多代理的两大理由（隔离与并行），B 是报告里被反复引用的数字（多代理 ≈ 普通聊天 15× token、比单代理再高一档），并配了『token 用量解释 95% 性能方差』的成本观——所以『高价值任务才上多代理』是官方结论。D 错在『总是』：高频小步骤全外包会让协调开销（交接摘要的撰写与理解、指令衰减、结果拼接）吞掉收益，还会把『该在主线程沉淀的经验』隔离在一次性子上下文里蒸发——上下文干净不是目的，决策质量才是。",
+    "gapCheck": ["易漏点：报 15× 时补一句出处语境（research 系统、多代理 vs chat 对比），数字+边界一起给才可信", "常见误区：把『隔离』与『分工』混为一谈——隔离是上下文卫生手段，分工是能力路由，两者正交", "加分项：说出交接契约的重要性——子代理返回要是结构化摘要而非原始 transcript，否则隔离白做"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.context-budget"],
+      "related": ["ai.multi.agent-orchestration.topology-selection", "ai.rag.retrieval-pipeline.rerank-compress"],
+      "followUps": ["什么样的任务信号提示该 spawn 子代理？你有 checklist 吗？", "子代理结果回传前要不要再过一遍压缩？谁写摘要？", "主线程干净的另一面是关键信息没沉淀——你们怎么处理这个张力？"]
+    },
+    "resources": [{ "title": "Anthropic Engineering · Multi-agent research system", "digest": "官方工程文：多代理架构动机（隔离/并行/分工）、token 消耗实测（chat 15×、agent 15×+）、性能方差 95% 由 token 用量解释、以及子代理摘要交接的工程细节。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.anthropic.com/engineering/built-multi-agent-research-system", "retrievedAt": "2026-11-09", "note": "官方工程博客（2025-06），多代理成本论证的标准引用源", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["多代理", "成本实测", "隔离模式"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "追问：既然多代理烧 token，为什么报告还说『值得』？他们的性能提升是怎么测出来的？这套评估方法对你的 Agent 项目有什么可抄的？", "analysis": "报告的测法：给研究代理一组自建的真实研究问题，用『outcome 评分+人工盲评』双轨对比单/多代理（多代理在广度与事实准确率上显著胜出），并把提升折算成『相当于多少小时的人工研究』来对齐业务价值。可抄的方法论：①评估要按任务的『规模维度』（广度/多跳）切片——多代理赢的场景集中在高杠杆任务；②成本要换算成人时而非 token 绝对值；③LLM-as-judge+人工抽验的组合。答题落点：『不是多代理贵不值，而是你的任务池里高价值占比多少』——把技术选型转成组合管理问题。" }
+    ]
+  },
+  {
+    "id": "Q-ai-harness-budget-0011",
+    "nodeId": "ai.harness.agent-loop.loop-dynamics",
+    "type": "code",
+    "difficulty": 3,
+    "stem": "手写题：实现 Agent 主循环 `runAgent(task)` 的最小护栏版：循环调用模型与工具，直到模型不再发 tool_calls；要求内置三重预算——最大轮数 maxTurns、累计 token 上限 maxTokens、墙钟时限 maxMs——任一触顶即以『部分结果+超限原因』收尾而不是抛异常；并在连续 3 轮出现相同 (toolName, argsHash) 时注入一条提醒消息后继续。写出核心循环并口述每重预算各自的触发画像。",
+    "answer": {
+      "ref": "得分骨架：while(true){ 时限检查 → callModel(messages) → 若无 tool_calls 返回 done；有则执行并 append tool 消息；turn++；token 累计（用 API usage 字段而非本地估算）；停滞计数 map[(name,argsHash)]，连续命中 ≥3 次 append system 提醒并重置计数 }。触顶路径统一走 finalize(partial, reason)，保留已得成果与最后状态供上层利用。追问必答：轮数防无界、token 防烧钱、墙钟防卡死供应商慢响应——三者不可互相替代；usage 数字要回写成本账本接可观测性。坑：把提醒无限注入形成提醒风暴、token 只算输入漏输出。",
+      "code": "async function runAgent(task, tools, { maxTurns = 25, maxTokens = 400_000, maxMs = 300_000 } = {}) {\n  const t0 = Date.now()\n  const messages = [{ role: 'user', content: task }]\n  let usedTokens = 0, turns = 0\n  const stall = new Map() // name|argsHash -> 连续次数\n  const finish = (outcome, reason) => ({\n    outcome, reason, turns, usedTokens,\n    partial: lastAssistantText(messages), // 部分结果永远保留\n  })\n  while (true) {\n    if (Date.now() - t0 > maxMs) return finish('partial', 'wallclock')\n    if (turns >= maxTurns) return finish('partial', 'max_turns')\n    const resp = await callModel(messages, tools)\n    usedTokens += resp.usage.total_tokens // 信 API 的 usage，别自己估\n    if (usedTokens > maxTokens) return finish('partial', 'token_budget')\n    messages.push(resp.message)\n    const calls = resp.message.tool_calls ?? []\n    if (!calls.length) return finish('done', 'model_final')\n    const key = calls.map(c => `${c.function.name}|${hash(c.function.arguments)}`).join('+')\n    const n = (stall.get(key) ?? 0) + 1; stall.set(key, n)\n    if (n >= 3) messages.push({ role: 'system',\n      content: `你已经第 ${n} 次重复同样的工具调用且没有新进展：换策略（改参数/换工具），或向用户报告障碍。` })\n    messages.push(...await executeToolCalls(calls, tools)) // 见 tools 节点手写题\n    turns++\n  }\n}"
+    },
+    "scoringPoints": [
+      { "point": "三重预算逐项检查且各自独立生效（时限检查在调用前、token 用 usage 累计、轮数自增）", "weight": 3 },
+      { "point": "触顶统一走 finalize 保留部分结果——讲出『抛异常等于丢弃已得价值』", "weight": 2 },
+      { "point": "停滞检测按 (name,argsHash) 连续计数，提醒注入后重置或有上限（防提醒风暴）", "weight": 2 },
+      { "point": "无 tool_calls 即终止的判据正确（行为信号而非模型话术）", "weight": 1 },
+      { "point": "三预算的触发画像口述清晰（无界任务/长上下文烧钱/供应商慢卡死）", "weight": 2 },
+      { "point": "主动补充：预算数字要进 trace/成本账本，否则护栏是黑盒", "weight": 1 }
+    ],
+    "analysis": "循环人人会写，分差全在护栏的工程细节：①token 计量口径——本地 tokenizer 估算会漏掉工具结果与服务端注入，API usage 字段才是计费真相（面试官会用『你估的准吗』试探）；②触顶的收尾语义——生产事故里最气人的是跑了 4 分钟触顶后什么都没留下，partial+reason 的降级契约体现产品思维；③停滞提醒的注入纪律——只提醒一次不够（模型可能无视）、无限提醒又烧预算，连续计数+封顶提醒次数是折中。三预算画像段是口述重点：能说『墙钟兜的是 callModel 不返回』这种具体场景（网络挂起/供应商排队）立刻与背书选手区分。",
+    "gapCheck": ["易漏点：提醒消息本身占 token 且每轮都在历史里——提醒要有过期清理策略（起效后即从下轮上下文剔除）", "常见误区：把 maxMs 检查放在 callModel 之后——单次调用卡死 10 分钟时形同虚设，要在调用前预判剩余时间并可加 timeout race", "加分项：提到 per-tool 预算（某工具累计耗时占比超 50% 单独告警）与全局预算的分层结构"],
+    "knowledgeLinks": {
+      "prereq": ["ai.harness.agent-loop.loop-dynamics"],
+      "related": ["ai.tools.tool-calling.function-calling", "ai.serving.infer-serving.cost-latency", "ai.eval.evaluation-qa.metrics-dataset"],
+      "followUps": ["预算触顶的会话占比是你该盯的指标——定多少算健康？你怎么定基线？", "停滞提醒文案怎么 A/B？给模型的指令怎么写最不引发对抗式回复？", "如果要支持『暂停-恢复』，这个循环要怎么重构？（协程化/每步落 checkpoint）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创手写题；护栏组合参考各家开源 harness（pi-agent/OpenHands）的通用实现常识" },
+    "tags": ["手写题", "护栏工程", "生产直觉"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向拷问：有人把这版实现里的三重预算简化成一个『总成本 $X 封顶』，说钱管住了一切。反驳他：给出三个只有原三重预算各自能拦、成本上限拦不住的场景。", "analysis": "①墙钟独有能力：callModel 卡在半路（流断开但连接不关），一分钱没扣但任务停摆——成本上限对它无感，只有墙钟+调用级超时可救；②轮数独有能力：每轮都便宜地失败（每次 $0.02 的空转循环），成本封顶要烧到 $X 才叫停，期间用户体验已经崩——maxTurns 更早止血；③token 独有能力：单轮巨无霸（工具吐 300k token 塞进上下文），一轮就击穿预算，轮数毫无感知——token 上限是唯一能在它进下一轮前拦截的闸门。结论：三维各堵一类失败模式，成本只是其中一维的投影。能把『失败模式×防护维度』画成矩阵即为满分结构。" }
+    ]
+  }
+]

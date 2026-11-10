@@ -1,0 +1,245 @@
+[
+  { "id": "fe.vue.reactivity", "title": "响应式原理", "level": 3, "domain": "fe", "stack": "vue", "topic": "reactivity", "mustMaster": true, "estMinutes": 60, "summary": "Proxy 懒代理、effect/dep 链路演进（3.4 数组 / 3.5 双链表）、computed 惰性缓存、ref 家族边界" },
+
+  { "id": "fe.vue.reactivity.proxify", "title": "Proxy 拦截与懒代理（对比 defineProperty）", "level": 4, "domain": "fe", "stack": "vue", "topic": "reactivity",
+    "prerequisites": ["fe.vue.reactivity"],
+    "related": ["fe.vue.reactivity.effect-dep", "fe.vue.ecosystem.vue-vs-react"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 reactive 对 5 种 target 类型的处理、get/set/deleteProperty/has/ownKeys 各自收集或触发什么依赖、为什么是嵌套访问时才转代理的懒代理，以及 defineProperty 方案在 Vue2 中的具体痛点与 Proxy 自身的局限（toRaw 快照、markRaw、原始对象陷阱）" },
+
+  { "id": "fe.vue.reactivity.effect-dep", "title": "effect 与 dep：从 Set 到双链表演进及迭代依赖", "level": 4, "domain": "fe", "stack": "vue", "topic": "reactivity",
+    "prerequisites": ["fe.vue.reactivity", "fe.vue.reactivity.proxify"],
+    "related": ["fe.vue.scheduler.flush-jobs", "fe.vue.reactivity.computed-watch"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲 3.4 及以前 effect→deps Set 的内存与遍历成本、3.5 Link/Sub/Dep 双链表如何 O(1) 插删与靠版本计数免深拷贝、activeLink 如何支持嵌套 effect、分支依赖自动清理与 computed 失效传播；也要能说清 ITERATE_KEY/ARRAY_ITERATE_KEY、MAP_KEY/VALUE_ITERATE 等特殊 key 的收集触发、3.5 Reactive Iterator 让对象迭代按 key 精确触发而数组迭代仍是粗粒度，并能手写最小 reactive/effect" },
+
+  { "id": "fe.vue.reactivity.computed-watch", "title": "computed 惰性缓存与 watch 家族", "level": 4, "domain": "fe", "stack": "vue", "topic": "reactivity",
+    "prerequisites": ["fe.vue.reactivity", "fe.vue.reactivity.effect-dep"],
+    "related": ["fe.vue.scheduler.watcher-flush", "fe.vue.reactivity.ref-family"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲 computed 惰性求值+脏检查+_dirtyLevels 链失效传播、computed 的 setter、watch 的 source 归一化与递归/深度句柄、immediate/once/flush、3.4 onWatcherCleanup 替代 onCleanup、watch 与 watchEffect 选型" },
+
+  { "id": "fe.vue.reactivity.ref-family", "title": "ref 家族：shallowRef/toRef/customRef 与解包规则", "level": 4, "domain": "fe", "stack": "vue", "topic": "reactivity",
+    "prerequisites": ["fe.vue.reactivity", "fe.vue.reactivity.proxify"],
+    "related": ["fe.vue.perf.granularity-tools", "fe.vue.composition.setup-lifecycle"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 ref 本质是带 get/set 的 ObjectImpl、RefUnwrapSource 解包规则与 .value 丢失场景、shallowRef 触发靠整体替换或 triggerRef、customRef 手控 track/trigger 实现防抖 ref、toRef/toValue/3.5 toReactive/toRefs 区别、unref/toRaw/markRaw 使用边界" },
+
+  { "id": "fe.vue.scheduler", "title": "更新调度与 nextTick", "level": 3, "domain": "fe", "stack": "vue", "topic": "scheduler", "mustMaster": true, "estMinutes": 40, "summary": "job 队列去重排序、微任务批处理、nextTick 时序、pre/post flush 与 watcher 时机" },
+
+  { "id": "fe.vue.scheduler.flush-jobs", "title": "job 队列：去重、id 排序与批量更新", "level": 4, "domain": "fe", "stack": "vue", "topic": "scheduler",
+    "prerequisites": ["fe.vue.scheduler", "fe.vue.reactivity.effect-dep"],
+    "related": ["fe.vue.runtime.update-flow", "fe.vue.scheduler.nexttick"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲组件更新 job 以 id（组件 uid）排序保证父先于子、flag 区分 pre/post 队列、queued 去重、flush 中新 job 的插入与 index 回退、同一 tick 多次赋值只渲染一次的真正原因" },
+
+  { "id": "fe.vue.scheduler.nexttick", "title": "nextTick 原理与 DOM 更新时序", "level": 4, "domain": "fe", "stack": "vue", "topic": "scheduler",
+    "prerequisites": ["fe.vue.scheduler"],
+    "related": ["fe.vue.scheduler.flush-jobs", "fe.browser"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲 currentFlushPromise 复用 Promise.then 微任务、nextTick 回调挂在 flush 之后、宏微任务混排下读 DOM 的时机判断、改状态后立刻读 DOM 为何拿不到新值、轮询里 nextTick 的误用" },
+
+  { "id": "fe.vue.scheduler.watcher-flush", "title": "watch 的 flush 时机：sync/pre/post 与 watcher 队列", "level": 4, "domain": "fe", "stack": "vue", "topic": "scheduler",
+    "prerequisites": ["fe.vue.scheduler", "fe.vue.reactivity.computed-watch"],
+    "related": ["fe.vue.lifecycle.keepalive"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲组件 watcher 是 pre-flush、watch 默认 pre 但晚于 setup 内同步代码、watchEffect 立即执行一次、post watcher 在 mounted/updated 语义、flush:sync 的栈内同步触发风险与适用场景" },
+
+  { "id": "fe.vue.compiler", "title": "编译与编译优化", "level": 3, "domain": "fe", "stack": "vue", "topic": "compiler", "mustMaster": true, "estMinutes": 60, "summary": "parse/transform/codegen、block tree+patchFlag、静态提升、tree-shaking 符号、slot 编译产物" },
+
+  { "id": "fe.vue.compiler.ast-pipeline", "title": "三阶段编译流水线与 render 产物", "level": 4, "domain": "fe", "stack": "vue", "topic": "compiler",
+    "prerequisites": ["fe.vue.compiler"],
+    "related": ["fe.vue.compiler.block-tree", "fe.vue.runtime.custom-renderer"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能画出 parse→AST→transform→codegen 流程、认出 _createVNode/_createBlock/_createElementVNode 何时出现、setup(_:_) 参数含义、with(this) 浏览器即时编译、hydration 优化开关节点、_ctx/_cache/_component 前缀含义；也要能讲 _createVNode 兜底与 importSource 如何让未用的 Transition/v-show/Teleport 被 tree-shake、compilerOptions 的 hoistStatic/prefixIdentifiers 与运行时编译差异" },
+
+  { "id": "fe.vue.compiler.block-tree", "title": "Block Tree 与 PatchFlag 靶向更新", "level": 4, "domain": "fe", "stack": "vue", "topic": "compiler",
+    "prerequisites": ["fe.vue.compiler", "cs.algo"],
+    "related": ["fe.vue.runtime.diff-key", "fe.vue.compiler.static-hoist"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能背 PatchFlag 主要位值（TEXT=1/CLASS=2/PROPS=4/KEY=8/STABLE_CLASS=2048 等）、explain isBlockNode 判定的动态节点类型、dynamicChildren 扁平数组如何跳过静态子树、v-for 根 fragment 也是 block、patchFlag 与 diff 的关系" },
+
+  { "id": "fe.vue.compiler.static-hoist", "title": "静态提升、hoistStatic 与预字符串化", "level": 4, "domain": "fe", "stack": "vue", "topic": "compiler",
+    "prerequisites": ["fe.vue.compiler", "fe.vue.compiler.block-tree"],
+    "related": ["fe.vue.compiler.ast-pipeline"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲 hoistStatic 判定什么是静态（无插值/无动态指令/不在 v-if v-for 内）、提升后 vnode 复用导致 isSameVNodeType 引用相等秒过 diff、canHoist 在 patchFlagData 之前执行导致 patchFlag 丢失的坑、SSR 预字符串化条件" },
+
+  { "id": "fe.vue.compiler.slot-compile", "title": "slot 编译：稳定/内联/动态与 _withCtx", "level": 4, "domain": "fe", "stack": "vue", "topic": "compiler",
+    "prerequisites": ["fe.vue.compiler", "fe.vue.communication.slot-advanced"],
+    "related": ["fe.vue.runtime.builtin-components"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 3.3 起按内容把 slot 编成 _c(slot,{stable:true})/普通/带 _withCtx 的动态三档及各自导致的子组件更新行为、3.3 统一 slot 优化让 stable slot 也走 block 收集、v-slot 编译出 $slots 访问与 _renderCached 缓存键、作用域插槽为何不能 hoist" },
+
+  { "id": "fe.vue.runtime", "title": "渲染器与 diff", "level": 3, "domain": "fe", "stack": "vue", "topic": "runtime", "mustMaster": true, "estMinutes": 50, "summary": "mount/update 流程、双端指针+LIS diff、key 复用策略、自定义渲染器分层、内置组件机制" },
+
+  { "id": "fe.vue.runtime.update-flow", "title": "mount 与 update：render effect 驱动组件更新", "level": 4, "domain": "fe", "stack": "vue", "topic": "runtime",
+    "prerequisites": ["fe.vue.runtime", "fe.vue.reactivity.effect-dep", "fe.vue.scheduler.flush-jobs"],
+    "related": ["fe.vue.lifecycle.mount-unmount", "fe.vue.runtime.diff-key"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 setupRenderEffect 创建 pre-flush 组件 effect、instance.update 即 job、subTree 新旧 vnode 对比入口 patch、组件 effect 与渲染 effect 关系、异步组件/Suspense 下 pendingBranch 的暂停恢复" },
+
+  { "id": "fe.vue.runtime.diff-key", "title": "diff 算法：双端指针 + LIS 与 key 的作用", "level": 4, "domain": "fe", "stack": "vue", "topic": "runtime",
+    "prerequisites": ["fe.vue.runtime", "cs.algo", "fe.vue.compiler.block-tree"],
+    "related": ["fe.vue.ecosystem.vue-vs-react", "fe.vue.runtime.update-flow"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲 3.4 起统一 sequence 算法取代旧双端的条件分支、isSameVNodeType 看 type+key 为何无 index 兜底、乱序移动最小化为何归结为 LIS、无 key 时复用错位引发 input 状态串位、Vue2 双端与 Vue3 的差异" },
+
+  { "id": "fe.vue.runtime.custom-renderer", "title": "自定义渲染器：runtime-core 与 runtime-dom 分层", "level": 4, "domain": "fe", "stack": "vue", "topic": "runtime",
+    "prerequisites": ["fe.vue.runtime", "fe.vue.compiler.ast-pipeline"],
+    "related": ["fe.vue.runtime.builtin-components", "fe.vue.compiler.ast-pipeline"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 rendererOptions 必须实现哪些节点操作、createRenderer 如何产出独立 runtime、平台专属的 patchProp/nodeOps 注入、compilerOptions 拼写归一化与 insertStaticContent 字符串快速路径、canvas/SDL/终端渲染器的差异点" },
+
+  { "id": "fe.vue.runtime.builtin-components", "title": "内置组件：KeepAlive/Teleport/Suspense/Transition", "level": 4, "domain": "fe", "stack": "vue", "topic": "runtime",
+    "prerequisites": ["fe.vue.runtime", "fe.vue.lifecycle.keepalive"],
+    "related": ["fe.vue.lifecycle.mount-unmount", "fe.vue.compiler.block-tree"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 Teleport defer/deferred 挂载与 disabled 移动节点、Suspense pendingBranch 与 fallback 超时、Transition 状态类与 appear、内置组件都是特殊 type 走 process* 而非 mountComponent、它们的 vnode 在 block tree 里的角色" },
+
+  { "id": "fe.vue.composition", "title": "组合式 API 与 SFC 编译器宏", "level": 3, "domain": "fe", "stack": "vue", "topic": "composition", "mustMaster": true, "estMinutes": 45, "summary": "选项式痛点与组合式动机、setup 执行时机与 this 缺失、composable 设计、defineProps/defineModel/3.5 props 解构" },
+
+  { "id": "fe.vue.composition.setup-lifecycle", "title": "setup() 执行时机与组件实例初始化", "level": 4, "domain": "fe", "stack": "vue", "topic": "composition",
+    "prerequisites": ["fe.vue.composition", "fe.vue.reactivity.ref-family"],
+    "related": ["fe.vue.lifecycle.mount-unmount", "fe.vue.runtime.update-flow"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 setup 在 beforeCreate 与 created 之间执行且此时无 data/computed/methods、返回值编译成 render 的原因、getCurrentInstance 的 ctx/proxy 区别与不该滥用、async setup 返回 Promise 只有 Suspense 能处理、<script setup> 编译后顶层绑定挂在哪" },
+
+  { "id": "fe.vue.composition.options-vs-composition", "title": "选项式 vs 组合式：动机、this 坑与 mixins 冲突", "level": 4, "domain": "fe", "stack": "vue", "topic": "composition",
+    "prerequisites": ["fe.vue.composition"],
+    "related": ["fe.vue.composition.composable-design", "fe.vue.ecosystem.vue-vs-react"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲选项式按选项切分关注点的碎片化、this 丢失/类型推断困难、mixins 命名冲突与来源不清、组合式按逻辑聚合+显式导入可 tree-shake、两者共存策略与迁移判断" },
+
+  { "id": "fe.vue.composition.composable-design", "title": "composable 设计与副作用回收", "level": 4, "domain": "fe", "stack": "vue", "topic": "composition",
+    "prerequisites": ["fe.vue.composition", "fe.vue.composition.setup-lifecycle"],
+    "related": ["fe.vue.reactivity.computed-watch", "fe.vue.lifecycle.mount-unmount"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 composable 必须在 setup 同步期调用（inject/生命周期注册依赖当前实例）、effectScope 手动管理批量停止、onScopeDispose 与 onUnmounted 差别、props 解构 3.5 默认响应式对 composable 传参的影响、返回 ref 还是 reactive 的取舍" },
+
+  { "id": "fe.vue.composition.sfc-macros", "title": "<script setup> 编译器宏：defineProps/defineModel 与 3.5 props 解构", "level": 4, "domain": "fe", "stack": "vue", "topic": "composition",
+    "prerequisites": ["fe.vue.composition", "fe.vue.composition.setup-lifecycle"],
+    "related": ["fe.vue.communication.props-emit", "fe.vue.compiler.ast-pipeline"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲宏是编译期产物不能放条件语句、3.5 起 props 解构保持响应性需 compilerPropsDestructure 关闭项、defineModel 编译成 modelValue prop+update 事件与局部读写、defineSlots 纯类型、defineExpose 与默认封闭、optionsAPI 混用 defineOptions" },
+
+  { "id": "fe.vue.communication", "title": "组件通信体系", "level": 3, "domain": "fe", "stack": "vue", "topic": "communication", "mustMaster": true, "estMinutes": 35, "summary": "props/emit/defineModel/v-model 家族、attrs/expose/ref、provide-inject 响应式陷阱、slot 进阶与通信选型" },
+
+  { "id": "fe.vue.communication.props-emit", "title": "props / emit / defineModel / v-model 家族", "level": 4, "domain": "fe", "stack": "vue", "topic": "communication",
+    "prerequisites": ["fe.vue.communication", "fe.vue.composition.sfc-macros"],
+    "related": ["fe.vue.communication.attrs-expose"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲 props 单向数据流与 shallowReactive 存储、emit 声明式 emits 选项过滤落到 attrs、v-model 参数/修饰符编译、defineModel 的 local 读写与 .exact 等修饰符透传、多 v-model 组合" },
+
+  { "id": "fe.vue.communication.attrs-expose", "title": "$attrs / expose / templateRef：实例通道", "level": 4, "domain": "fe", "stack": "vue", "topic": "communication",
+    "prerequisites": ["fe.vue.communication", "fe.vue.reactivity.ref-family"],
+    "related": ["fe.vue.composition.setup-lifecycle", "fe.vue.compiler.slot-compile"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲 setup 绑定默认不暴露给模板外$refs 访问需 defineExpose、useTemplateRef 3.5 替代字符串 ref 且支持动态名、函数 ref 时机、fallthrough attrs 与 inheritAttrs:false 多根处理、$parent/$refs 逃生舱代价" },
+
+  { "id": "fe.vue.communication.provide-inject", "title": "provide/inject：Symbol key 与响应式陷阱", "level": 4, "domain": "fe", "stack": "vue", "topic": "communication",
+    "prerequisites": ["fe.vue.communication", "fe.vue.reactivity.ref-family"],
+    "related": ["fe.vue.state.pinia-internals"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲注入沿组件树 appContext fallback、非响应式 provide 导致子组件永不更新的机制原因、官方推荐 provide 一个包含 readonly(ref) 与 mutation 方法的对象、Symbol key 防冲突、与 Pinia/store composable 的边界" },
+
+  { "id": "fe.vue.communication.slot-advanced", "title": "slot 进阶：作用域插槽与 slot 类型", "level": 4, "domain": "fe", "stack": "vue", "topic": "communication",
+    "prerequisites": ["fe.vue.communication", "fe.vue.runtime.builtin-components"],
+    "related": ["fe.vue.compiler.slot-compile"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲作用域插槽 props 求值发生在子组件渲染时、slot 内容 renderContext 归属父组件作用域但更新由子组件驱动、3.3 slot unification 后编译差异、defineSlots 类型约束、fallback 与 v-if $slots.x 检测" },
+
+  { "id": "fe.vue.lifecycle", "title": "生命周期与 keep-alive", "level": 3, "domain": "fe", "stack": "vue", "topic": "lifecycle", "mustMaster": true, "estMinutes": 35, "summary": "完整钩子时序、beforeUnmount/unmounted 拆分、3.5 rendered、keep-alive 激活失活与缓存上限" },
+
+  { "id": "fe.vue.lifecycle.mount-unmount", "title": "挂载/卸载钩子时序与 Vue2 对照", "level": 4, "domain": "fe", "stack": "vue", "topic": "lifecycle",
+    "prerequisites": ["fe.vue.lifecycle", "fe.vue.composition.setup-lifecycle"],
+    "related": ["fe.vue.runtime.update-flow", "fe.vue.scheduler.watcher-flush"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能排出 setup→created→beforeMount→mounted 时序与 DOM 可见性、beforeUnmount/unmounted 拆分动机、updated 里改状态的递归守卫上限 100、3.5 onServerPrefetch/renderTracked 与 SSR 钩子、beforeDestroy 改名原因" },
+
+  { "id": "fe.vue.lifecycle.keepalive", "title": "keep-alive：失活缓存、activated 与 include/max", "level": 4, "domain": "fe", "stack": "vue", "topic": "lifecycle",
+    "prerequisites": ["fe.vue.lifecycle", "fe.vue.runtime.builtin-components"],
+    "related": ["fe.vue.perf.dom-reuse", "fe.vue.scheduler.watcher-flush"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲失活只移 DOM 不 unmount、组件实例与 effect 保留导致 watch 仍在跑、move vnode 保留位置、include/exclude 匹配 name 或组件对象、LRU max 驱逐、嵌套 keep-alive 与 deactivated 里状态续命、和自己缓存 DOM 的方案对比" },
+
+  { "id": "fe.vue.state", "title": "Pinia 状态管理", "level": 3, "domain": "fe", "stack": "vue", "topic": "state", "mustMaster": true, "estMinutes": 35, "summary": "Pinia vs Vuex、storeToRefs/HMR、setup store、插件与持久化、响应式存储内核" },
+
+  { "id": "fe.vue.state.pinia-vs-vuex", "title": "Pinia 为什么取代 Vuex", "level": 4, "domain": "fe", "stack": "vue", "topic": "state",
+    "prerequisites": ["fe.vue.state", "fe.vue.composition.composable-design"],
+    "related": ["fe.vue.state.pinia-internals"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲 Vuex 的 mutation 双轨制与模块 namespaced 样板、组合式上下文天然模块化后 Pinia 去 mutation 的推理、TS 推断无需手写类型增强、无全局 id 直接 import store、体积与 devtools time-travel 保留" },
+
+  { "id": "fe.vue.state.pinia-internals", "title": "Pinia 内核：reactive store、storeToRefs 与 HMR", "level": 4, "domain": "fe", "stack": "vue", "topic": "state",
+    "prerequisites": ["fe.vue.state", "fe.vue.reactivity.ref-family"],
+    "related": ["fe.vue.communication.provide-inject", "fe.vue.state.setup-store"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 store 是 mergeReactiveObjects 后的 reactive 加 ref 自动解包、action 是 Promise 包裹的 $patch 封装、storeToRefs 丢 state 上的函数/丢 action、hotUpdate 保留订阅、pinia.use 插件加属性与 $subscribe 实现" },
+
+  { "id": "fe.vue.state.setup-store", "title": "Setup Store 与持久化、SSR 水合", "level": 4, "domain": "fe", "stack": "vue", "topic": "state",
+    "prerequisites": ["fe.vue.state", "fe.vue.composition.composable-design"],
+    "related": ["fe.vue.state.pinia-internals"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲 setup store 返回对象里 ref/computed/action 如何映射、watch 写在 store 里的实例作用域回收、persist 插件 pick/serializer/when 钩子、SSR 每请求新 pinia 实例与 action 等待水合、跨 tab 广播同步的坑" },
+
+  { "id": "fe.vue.router", "title": "Vue Router 路由体系", "level": 3, "domain": "fe", "stack": "vue", "topic": "router", "mustMaster": true, "estMinutes": 35, "summary": "history 抽象与 hash/history 模式、导航守卫全序、动态路由与权限、懒加载与滚动/过渡" },
+
+  { "id": "fe.vue.router.history-mode", "title": "history 抽象层与 hash/history 模式", "level": 4, "domain": "fe", "stack": "vue", "topic": "router",
+    "prerequisites": ["fe.vue.router"],
+    "related": ["fe.vue.router.navigation-guard"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲 createWebHistory 基于 pushState/popstate + history.state 恢复滚动与 forward/back 检测、createHashHistory 兼容与 # 内 query 编码、memory history 测试用途、base 与前缀剥离、Electron file:// 下为何常用 hash" },
+
+  { "id": "fe.vue.router.navigation-guard", "title": "导航守卫执行顺序与取消导航", "level": 4, "domain": "fe", "stack": "vue", "topic": "router",
+    "prerequisites": ["fe.vue.router", "fe.vue.lifecycle.mount-unmount"],
+    "related": ["fe.vue.router.dynamic-routes"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能背出 beforeRouteLeave→全局 beforeEach→组件 beforeRouteEnter(仅 next 回调拿实例)→beforeResolve→afterEach→挂载更新 的完整顺序、三种取消方式返回值差异、query/hash 变化也触发守卫、重定向死循环排查与 afterEach 里 push 的竞态" },
+
+  { "id": "fe.vue.router.dynamic-routes", "title": "动态路由、权限控制与懒加载", "level": 4, "domain": "fe", "stack": "vue", "topic": "router",
+    "prerequisites": ["fe.vue.router", "fe.vue.router.navigation-guard"],
+    "related": ["fe.vue.state.pinia-internals"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 addRoute/removeRoute 幂等 add 语义与刷新丢失需持久化 name、登录流程中先拉权限再 addRoute 再 replace 的原因、catch-all 与动态插入顺序冲突、component:()=>import() 懒加载与 webpackChunkName/Vite 等价物、scrollBehavior 与过渡动画衔接" },
+
+  { "id": "fe.vue.perf", "title": "Vue3 性能手段与瓶颈排查", "level": 3, "domain": "fe", "stack": "vue", "topic": "perf", "mustMaster": true, "estMinutes": 40, "summary": "shallowRef/v-once/v-memo 粒度控制、虚拟列表窗口计算、ref 成本与大列表实测" },
+
+  { "id": "fe.vue.perf.granularity-tools", "title": "shallowRef / v-once / v-memo 的适用边界", "level": 4, "domain": "fe", "stack": "vue", "topic": "perf",
+    "prerequisites": ["fe.vue.perf", "fe.vue.reactivity.ref-family", "fe.vue.compiler.block-tree"],
+    "related": ["fe.vue.perf.virtual-list", "fe.vue.reactivity.computed-watch"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 shallowRef 只触发整体替换需 triggerRef 做深层、v-once 一次性渲染失去后续响应、v-memo 依赖数组比较类似 memo 但缓存的是 vnode 子树、三者各自失效场景（v-memo 依赖漏项导致 UI 不更新）、何时根本不该用它们" },
+
+  { "id": "fe.vue.perf.virtual-list", "title": "虚拟列表：窗口切片与动态高度", "level": 4, "domain": "fe", "stack": "vue", "topic": "perf",
+    "prerequisites": ["fe.vue.perf", "cs.algo", "fe.vue.reactivity.computed-watch"],
+    "related": ["fe.vue.scheduler.nexttick", "fe.vue.perf.granularity-tools"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 startIndex/endIndex 计算与 overscan、transform translateY 补偿或绝对定位两种方案、动态高度预估+ResizeObserver 修正与滚动锚点、上拉加载更多与 splice 合并、vueuc/useVirtualList 源码要点" },
+
+  { "id": "fe.vue.perf.dom-reuse", "title": "DOM 复用策略与 ref 成本、大列表实测", "level": 4, "domain": "fe", "stack": "vue", "topic": "perf",
+    "prerequisites": ["fe.vue.perf", "fe.vue.runtime.diff-key", "fe.vue.lifecycle.keepalive"],
+    "related": ["fe.vue.perf.virtual-list", "fe.vue.ecosystem.vue-vs-react"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 key 复用错位导致的隐性 bug 与性能收益权衡、shallowRef 存大对象避免 ref 深层代理与 markRaw 组件对象、组件实例内存实测、组件拆分降 update 范围的原理（effect 粒度）、Performance 面板定位长任务" },
+
+  { "id": "fe.vue.ecosystem", "title": "版本演进与框架机制对比", "level": 3, "domain": "fe", "stack": "vue", "topic": "ecosystem", "mustMaster": false, "estMinutes": 35, "summary": "3.4/3.5 特性清单与迁移、Vapor/Alien Signals 路线、Vue 与 React 机制级对比" },
+
+  { "id": "fe.vue.ecosystem.vue-versions", "title": "3.4/3.5 新特性清单与破坏性变更", "level": 4, "domain": "fe", "stack": "vue", "topic": "ecosystem",
+    "prerequisites": ["fe.vue.ecosystem", "fe.vue.reactivity.effect-dep", "fe.vue.composition.sfc-macros"],
+    "related": ["fe.vue.ecosystem.vapor-signals"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能列 3.4 重写 parser/effect 数组化/onWatcherCleanup/defineModel 稳定、3.5 双链表/props 解构响应/useTemplateRef/defer Teleport/rendered，以及依赖解构行为、watch 深层源 once 等破坏面与 codemod 策略" },
+
+  { "id": "fe.vue.ecosystem.vapor-signals", "title": "Vapor Mode 与 Alien Signals 路线", "level": 4, "domain": "fe", "stack": "vue", "topic": "ecosystem",
+    "prerequisites": ["fe.vue.ecosystem", "fe.vue.reactivity.effect-dep"],
+    "related": ["fe.vue.ecosystem.vue-vs-react", "fe.vue.compiler.ast-pipeline"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 Vapor 跳过 vnode 直接生成 DOM 操作代码、与 signals 细粒度更新的配合、vue-vapor 渐进采用方式、3.6 alien-signals 替换 dep 图的收益与风险、对现有组件库兼容性影响、面试怎么答『Vue 会不会变』" },
+
+  { "id": "fe.vue.ecosystem.vue-vs-react", "title": "Vue 与 React 机制对比：响应式粒度与 diff 哲学", "level": 4, "domain": "fe", "stack": "vue", "topic": "ecosystem",
+    "prerequisites": ["fe.vue.ecosystem", "fe.vue.runtime.diff-key", "fe.vue.reactivity.proxify"],
+    "related": ["fe.vue.composition.options-vs-composition", "fe.vue.perf.dom-reuse"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能从『编译器是否理解模板』『依赖收集粒度』『更新传播 pull/push』『不可变 vs 可变』四维对比，讲清 Vue 自动追踪的代价与 React memo 显式优化的代价、hook 闭包陷阱对应 Vue 的什么优势、两边 list key 语义一致性" }
+]

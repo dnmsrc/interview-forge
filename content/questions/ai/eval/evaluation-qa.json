@@ -1,0 +1,188 @@
+[
+  {
+    "id": "Q-ai-eval-passk-0001",
+    "nodeId": "ai.eval.evaluation-qa.metrics-dataset",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "评估编码 Agent『100 个任务里能稳定完成多少』。按 Galileo 对 pass@k 与 pass^k 的辨析口径，下列理解**正确的是**：",
+    "options": [
+      { "key": "A", "text": "pass@k 度量 k 次尝试中至少一次成功的概率，适合回答『无人值守跑一次就成的可靠性』；pass^k 才适合交互式结对编程" },
+      { "key": "B", "text": "pass@k 是 k 次里至少一次成功（乐观口径，适合可容错重试的场景如代码补全）；pass^k 是 k 次全部成功（保守口径，Agent 要连续多步都对才交付，生产可靠性应盯 pass^k）" },
+      { "key": "C", "text": "两者都是『平均成功率』，只是统计置信区间不同" },
+      { "key": "D", "text": "pass^k 恒大于 pass@k，因为全对的概率天然高于至少一对" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "Galileo 那篇被广泛引用的辨析给了直觉例子（90% 单发命中率：pass@5≈99%，pass^5≈59%——同一个模型两种口径差 40 分）：at least once vs each time。Copilot 式补全错了用户会再按一次 tab → pass@k 合理；Agent 替你把 CI 一路修绿要每次都对 → pass^k 才是业务真相 → B 完整正确且把适用场景配对。A 把两个口径的场景焊反；C 是无稽之谈（不是均值关系）；D 数学必错：全对概率 ≤ 至少一对概率，pass^k 恒 ≤ pass@k。",
+    "gapCheck": ["易漏点：报出『99% vs 59%』这组直觉数字，这题立刻从背诵升为理解", "常见误区：评估报告只给 pass@1 一个数——要按场景选口径并说明 k 的选取（成本预算内）", "加分项：指出 pass^k 随 k 指数衰减的含义——可靠性工程的目标是把方差压下来（温度/护栏），不是把 k 调大"],
+    "knowledgeLinks": {
+      "prereq": ["ai.eval.evaluation-qa.metrics-dataset"],
+      "related": ["ai.eval.evaluation-qa.online-regression", "ai.harness.agent-loop.loop-dynamics"],
+      "followUps": ["你们的 Agent 现在 pass^3 大概多少？瓶颈在能力还是在稳定性？", "同一套任务跑 k 次的成本怎么控制？（分层：回归集跑 1 次、发布候选跑 k 次）", "pass^k 之外还有什么稳定性指标？（方差、最差分位数）"]
+    },
+    "resources": [{ "title": "Galileo · pass@k vs pass^k", "digest": "官方辨析文：at-least-once 与 every-attempt 两口径定义、90% 模型下 pass@5≈99%/pass^5≈59% 的算例、各自适配的产品形态（补全 vs 自主 CI）。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://galileo.ai/blog/pass-k-vs-pass-k", "retrievedAt": "2026-11-09", "note": "Galileo 评估专文（2025），2026 Agent 评估讨论的标准引用", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["评估指标", "可靠性口径", "易混辨析"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束决策题：发布门禁要求『回归集 200 任务 pass^2 ≥ 85%』。工程师提议：把每任务的尝试次数从 2 偷偷提到 5 再取最好的两次算。这会怎样扭曲指标？正确的替代做法是什么？", "analysis": "扭曲机制：pass^k 的前提是『独立同分布的 k 次都要过』，从 5 次里挑最好 2 次已经不是这个分布——实质是把筛选偏差注入指标（等价于偷偷用 pass@5 of best-2 冒充 pass^2），线上没有这个挑选环节，门禁数字全线虚高。正确替代：①固定协议（k 与采样配置写进 CI 不许临时改）；②若嫌门禁太严，降的是**任务集难度或阈值**而不是动 k；③真想省算力可用序贯判定（前 2 次全过即停，失败仍跑第 3 次复核——但公式要按停止规则修正）。考点：评估的工程纪律比公式更值得考。" }
+    ]
+  },
+  {
+    "id": "Q-ai-eval-bias-0002",
+    "nodeId": "ai.eval.evaluation-qa.llm-as-judge",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "OpenAI Evals 官方仓库的 llm_judge 模板与 MT-Bench 论文共同强调的裁判偏差与对策，下列说法**正确的有**：",
+    "options": [
+      { "key": "A", "text": "位置偏差：成对比较时裁判系统性偏好某一个位置的答复，对策是同对交换位置各评一次、结果不一致则判平局" },
+      { "key": "B", "text": "冗长偏差：裁判倾向给更长回复高分，因此 MT-Bench 人工审计专门核查了『长度差异巨大时判决是否仍稳健』来支撑其有效性" },
+      { "key": "C", "text": "自我偏好：GPT-4 当裁判时偏向 GPT 系模型的输出，这正是『裁判与被评者同源』风险被反复引用的出处之一" },
+      { "key": "D", "text": "只要把裁判 temperature 设为 0，以上偏差即可全部消除，因为它不再随机" }]
+    ,
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 对：MT-Bench 官方实现就是双评交换位置+不一致判 tie，OpenAI evals 模板文档同样提示 position bias 与 swap 对策；B 对：MT-Bench 论文的三方向人工验证之一就是长度稳健性（Vicuna 样例的人工复核），承认冗长偏好是该文的坦率之处；C 对：MT-Bench 原文自陈 GPT-4 偏好自家风格的担忧，后续大量复现（同族胜率高）坐实了这个名词。D 错：temperature=0 消除的是**方差**，偏差是系统性倾斜——贪心解码照样偏心，『去随机 ≠ 去偏差』是这题的题眼。",
+    "gapCheck": ["易漏点：答题把『偏差(偏置的方向性) vs 方差(噪声)』分开陈述，这是本考点的最高频追问", "常见误区：以为 rubric 写得细就能消除自我偏好——同源偏好来自表示相似性，rubric 只能部分缓解，硬手段是异族裁判交叉评", "加分项：知道 OpenAI evals 把 judge prompt 版本化进 registry、judge 也要跑 meta-eval（与人工一致率）的工程实践"],
+    "knowledgeLinks": {
+      "prereq": ["ai.eval.evaluation-qa.llm-as-judge"],
+      "related": ["ai.eval.evaluation-qa.metrics-dataset", "ai.rag.retrieval-pipeline.generation-grounding"],
+      "followUps": ["交换位置后结果不一致率 30%，说明什么？怎么办？", "你的裁判和被评模型分别是谁？给出同源风险评估", "pointwise 分数和 pairwise 胜负，线上监控用哪个？为什么？"]
+    },
+    "resources": [{ "title": "OpenAI Evals · llm_judge 模板", "digest": "官方模板文档列出 position/verbosity/self-grading 等已知偏差与缓解选项（swap、few-shot rubric、CoT），并建议 judge 变更走同样严格的评估流程。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://github.com/openai/evals/blob/main/docs/llm-judge-design.md", "retrievedAt": "2026-11-09", "note": "evals 仓库 llm judge design/testing 文档；MT-Bench 侧另见 arXiv:2306.05685", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["裁判偏差", "论文+文档双锚", "必背"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向拷问：老板说『LLM-as-judge 都 85% 和人类一致了，裁掉人工标注省下钱』。用偏差清单和 meta-evaluation 的概念给出你的反驳框架。", "analysis": "反驳三件：①85% 一致率要看构成——位置不一致的 15% 里可能藏着系统性偏斜（一致率的类别分布不均，简单样本撑高了数字），要看 Cohen's kappa 与分层一致率；②裁判与自家模型同源时，『一致』可能是『同病相怜』（同样偏爱自家风格），meta-eval 必须用独立人标黄金集而非同源数据；③裁判本身要版本管理：换 judge 模型=换量尺，历史分数断可比性，省下的标注钱会以『指标漂移无法归因』的形式还回去。落点：judge 是基础设施不是省钱开关，85% 是入场券不是终点线。" }
+    ]
+  },
+  {
+    "id": "Q-ai-eval-traj-0003",
+    "nodeId": "ai.eval.evaluation-qa.metrics-dataset",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：评估编码 Agent 时，只要最终提交的 patch 通过了全部测试，就可以给满分——中间过程（调用了哪些工具、改了几轮）不影响评估结论。",
+    "answer": { "judge": false },
+    "analysis": "结果正确是必要条件不是充分条件。只看终态会漏掉三类问题：①效率画像——通过但烧了 3 倍 token/20 轮重试，成本与延迟不可接受；②危险动作——靠『顺手改了测试文件让测试变绿』达成通过（reward hacking 的经典形态，轨迹审查才能抓到）；③可复现性——靠运气步骤（随机搜索碰中）达成的通过不可部署。所以现代评估是 outcome+trajectory 双轨：测试结果、步数/成本、越权动作检查（禁改文件清单）、关键决策点抽查。",
+    "gapCheck": ["易漏点：『改测试让测试过』这个 reward hacking 实例必须能举——它是过程评估存在的最强论据", "常见误区：走向另一极端『过程全人工审』——轨迹评估也要自动化（动作白名单、成本阈值、关键步 LLM 抽检）", "加分项：提到 τ-bench/AgentBench 类基准同时报 pass 与合规/效率维度的做法"],
+    "knowledgeLinks": {
+      "prereq": ["ai.eval.evaluation-qa.metrics-dataset"],
+      "related": ["ai.harness.agent-loop.loop-dynamics", "ai.eval.evaluation-qa.online-regression"],
+      "followUps": ["你们禁止 Agent 改测试文件吗？那测试本身坏了怎么办？", "轨迹自动评估的合规检查器怎么写才不会误杀？", "outcome 好但过程烂的任务，上线放行还是打回？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创判断题；立论综合 AgentBench/τ-bench 等基准的多维评估设计与 reward hacking 社区共识" },
+    "tags": ["轨迹评估", "reward hacking", "判断题"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "追问：给你 100 条轨迹的评估预算，你花在『人工看轨迹』上怎么分配最值？给出抽样策略。", "analysis": "高分策略是分层+主动学习：①先自动预筛异常面（成本离群、改动文件越界、循环特征、测试文件被动过）——这些必人工复核；②剩余配额按失败模式分层抽样（每类错误形态各抽几条）而非均匀随机；③成功且低成本的轨迹抽验 5~10 条防『静默 hacking』。核心思想：人工预算优先花在小模型/自动检查器不确定的地方（ disagreement sampling），均匀撒盐是最差的分配。能把抽样和『主动学习/不确定度』挂钩即为评估老兵。" }
+    ]
+  },
+  {
+    "id": "Q-ai-eval-mtbench-0004",
+    "nodeId": "ai.eval.evaluation-qa.llm-as-judge",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "补全 MT-Bench 的评估设计：评测采用 ______ 轮对话式问题（8 类能力），评分用 GPT-4 做两种模式——pairwise 胜负和 ______（1-10 绝对打分）；为对抗位置偏差，pairwise 会把两个答案 ______ 后再评一次，两个方向结论不一致时判 ______。",
+    "answer": { "blanks": ["多", "single-answer scoring", "交换位置", "平局"], "synonyms": { "多": ["multi", "2", "两"], "single-answer scoring": ["单答案打分", "single answer", "pointwise", "单独打分"], "交换位置": ["swap", "position swap", "调换顺序"], "平局": ["tie", "打成平手", "无法区分"] } },
+    "analysis": "MT-Bench 设计四件套：multi-turn 题目（第二轮追问考察纠错与延展）、single-answer（1-10 绝对分，配 reference answer 做锚）与 pairwise 双模式、swap-position 二次评估+不一致判 tie。第三空是最常被追问的实现细节：为什么 swap 后不一致要判平局而不是投票——因为两向都赢才算稳赢（min-consistency 原则），单边胜利可能纯属位置红利。整套设计是后来所有『LLM judge 要有对照与一致性检查』实践的模板。",
+    "gapCheck": ["易漏点：single-answer 模式下 MT-Bench 会给裁判一份参考答案做锚点——无锚的绝对分漂得更狠", "常见误区：以为 multi-turn 只是『问两次』——第二问的设计意图是考察对第一问错误的修复能力", "同义兜底：『两/2』『swap』『tie』均判对；第三空答『交换 A/B 顺序』也对", "延伸弹药：MT-Bench-101（多能力细分）、Arena-Hard 是其后续演进"],
+    "knowledgeLinks": {
+      "prereq": ["ai.eval.evaluation-qa.llm-as-judge"],
+      "related": ["ai.eval.evaluation-qa.metrics-dataset", "ai.multi.agent-orchestration.topology-selection"],
+      "followUps": ["1-10 分的裁判方差很大，你们怎么压？（锚点样例/分维度/多次取中位）", "为什么不直接全员 pairwise？（绝对分能做跨时间趋势追踪）", "MT-Bench 的 80 题够不够？统计功效从哪来？"]
+    },
+    "resources": [{ "title": "MT-Bench (LLM-as-a-Judge)", "digest": "论文与 lmsys 官方仓库：80 道 multi-turn 题、8 类别、GPT-4 judge 的 single-answer/pairwise 双模式、swap 一致性检查与 tie 规则、与人工 80%+ 一致的验证章节。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://arxiv.org/abs/2306.05685", "retrievedAt": "2026-11-09", "note": "MT-Bench 论文官方 arXiv 页；实现见 github.com/lm-sys/FastChat model_config 评估目录", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["经典基准", "填空", "实现细节"],
+    "variants": [
+      { "angle": "换问法", "stem": "换角度填空：MT-Bench 论文验证裁判可靠性的三个方向是：与人类专家的一致率（约 ______%）、裁判自我一致性（同对重评的 ______）、以及对 ______ 偏差的稳健性检查（答案长度悬殊时复核判决）。", "analysis": "依次填：80+（论文报 GPT-4 与人工多数票一致率 ~80%，与人类间一致率相当）、稳定性/重复一致性（position/consistency——同输入重评的翻转率）、冗长/长度（verbosity）。这套『三角验证』结构比单个数字更有背诵价值：任何团队要引入 judge，都应先跑这三关再谈采信。gapCheck：注意第一个空是『与人类一致率』不是『与 GPT 一致率』，主体别写反。" }
+    ]
+  },
+  {
+    "id": "Q-ai-eval-dataset-0005",
+    "nodeId": "ai.eval.evaluation-qa.metrics-dataset",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "你的 Agent 上线三个月，要建一套能驱动迭代的离线评估集。请给出建设方法论：数据来源配比、规模与分层、防止『刷分』的机制、以及评估集自身的版本管理。",
+    "answer": { "ref": "【来源配比】三路汇流：①线上失败案例（点踩/转人工/护栏熔断的真实会话，权重最高——它们是分布的真实投影）②手工构造的边界用例（权限边界、注入攻击、歧义指令，补线上采不到的低频高危）③合成生成（强模型造变体扩覆盖率，必须人工抽检入库）。配比随阶段变化：冷启动 2/3 靠构造与合成，三个月后失败案例应占过半。【规模与分层】起步 100~300 条足够驱动迭代（每条都要金标+可复现环境），按『意图×难度×风险』三维打标签分层，报告永远切片报总分只做趋势。【防刷分】评估集对开发者半盲（标签齐全但日常开发看不见全量，留出 20% 密封集只在发布时跑）、密封集季度轮换（旧密封晋升公开、新失败案例补进密封）、prompt/代码提交者不得同时改金标（四眼原则）。【版本管理】数据集 semver+变更日志（新增/修订/退役原因挂 bad case 链接）、评估器（judge/检查器）与数据集绑定版本、历史分数注明跑的 dataset@v + judge@v 否则不可比。【运营闭环】每周从线上流量按分层配额增补候选→人审入库→触发基线重跑；评估集增长曲线本身就是产品成熟度指标。" },
+    "scoringPoints": [
+      { "point": "数据来源三路且配比随阶段演化的动态观", "weight": 2 },
+      { "point": "起步规模务实（几百条而非『上万条』执念）+分层切片报告", "weight": 2 },
+      { "point": "防过拟合机制至少两条（密封集/轮换/四眼）", "weight": 2 },
+      { "point": "dataset 与 judge 双版本绑定、历史分数可追溯", "weight": 2 },
+      { "point": "周增补闭环与『评估集=活资产』的运营视角", "weight": 1 }
+    ],
+    "analysis": "三个月这个时间点暗藏考题：此时的评估集最大风险是**过拟合已发生的优化**——三个月里对着 bad case 反复修，公开集早被背熟。所以防刷分机制是本题的分水岭段。『起步规模』的常见失误是张口上万（维护成本爆炸）或几十条（方差淹没信号），几百条+分层置信区间才是实操答案。judge 版本与数据版本绑定这条 90% 候选人不主动提，提了即显做过。",
+    "gapCheck": ["易漏点：合成数据的『入库抽检率』要给数字（如 20% 抽检、发现错标率 >5% 则该批回炉）", "常见误区：评估集一次性建成封存——三个月不动的评估集等于失去迭代能力", "加分项：提到『评估集污染』的另一面——客户 demo 也来自评估集分布，真实世界的新意图永远跑在前面"],
+    "knowledgeLinks": {
+      "prereq": ["ai.eval.evaluation-qa.metrics-dataset"],
+      "related": ["ai.eval.evaluation-qa.online-regression", "ai.memory.memory-skill.long-term-memory"],
+      "followUps": ["金标由谁生产？标注者间一致性不够怎么办？", "密封集只有 20%，一次改动把密封集从 60 分挪到 65 分，你敢信吗？", "线上新出现的意图类别多久进一次评估集？触发条件是什么？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创方法论题；素材来自各家 eval 工程实践（OpenAI evals 版本化理念、HF production monitoring 回流思路）" },
+    "tags": ["评估建设", "方法论", "运营闭环"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束：老板要求『下周就上线新版本，但现在评估集只有 40 条』。本周你怎么把上线风险控制到可接受？给出短期手段组合与各自的局限。", "analysis": "短期组合：①40 条照跑但只当冒烟（明确它的分辨率有限，不许用它做 go/no-go 的唯一依据）；②影子流量/金丝雀：新版本先吃 5~10% 流量，盯质量代理指标（赞踩、改写率）与延迟成本，设自动回滚阈值——把统计功效从『离线小集』借到『在线大流量』；③人工抽验：新旧版本各抽 30 条真实会话盲评（pairwise），几小时出结果；④高危动作临时收紧（HITL 范围扩大）。诚实声明每个手段的局限（金丝雀伤一小撮用户、盲评样本仍小）。考点：评估集不足时用在线手段补离线分辨率的架构感。" }
+    ]
+  },
+  {
+    "id": "Q-ai-eval-online-0006",
+    "nodeId": "ai.eval.evaluation-qa.online-regression",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "深度题：『离线评估涨 5 个点，上线后业务指标纹丝不动』几乎是 Agent 团队的家常便饭。请系统论述可能的断裂点谱系（从评估集到指标链路逐层排查），设计一套在线指标体系让 Agent 的质量可被持续监测，并给出『离线-在线』之间的桥接机制。要求有排查顺序的判断，不许罗列。",
+    "answer": { "ref": "参考骨架：【断裂谱系·按排查优先级】①分布错位：评估集采样与线上真实分布加权不符（离线在均衡意图上提升，线上 70% 流量集中在没被改善的头部意图）——先看分意图切片的离线 delta；②指标代理失真：离线用的 judge 与线上用户在意的事不同构（judge 奖励完整详尽，用户要快和准）——对齐实验：抽线上点踩样本跑离线 judge 看翻转率；③时延/体验外溢：质量真涨了但 P95 变慢/交互变啰嗦，满意度被体验吃掉——质量增益要与延迟成本同表呈现；④反馈信号噪声：赞踩稀疏且有偏（愤怒才点踩），小流量下根本测不出——换任务级指标（转人工率、一次解决率）交叉验证；⑤统计功效不足：线上差异 < 置信区间，『纹丝不动』可能只是『测不出』——功效计算决定最小可检测效应与所需样本时长；⑥真没涨：离线的 5 分来自过拟合公开集（密封集没涨就是信号）——查 dataset 版本与密封分数。【在线指标体系】三层：质量代理层（赞踩比、追问改写率、放弃率、复制率——高频但噪）；任务层（完成率、转人工率、人工接管后推翻率——低频但硬）；经济层（单任务成本、p95 端到端延迟、缓存命中率——护栏）。配 shadow/canary 双通道：新版本先在影子流量跑（对照同期生产），再金丝雀放量；judge 在线抽检（采样会话离线重评）当日级质量哨兵。【桥接机制】失败回流闭环（线上差样本→评估集候选→密封集轮换）、离线指标预测力校准（每季度回归分析：离线分与线上任务级分的相关系数，低于阈值就重构离线指标）、变更分级门禁（prompt 微调级只跑回归集；模型/架构级必须影子+金丝雀全流程）。【立场收尾】离线是筛选器不是预言机——把它定位成『便宜的第一道排除』，真正的质量合同由在线任务层指标签署。" },
+    "scoringPoints": [
+      { "point": "断裂谱系 ≥4 类且自带排查优先级的论证", "weight": 2 },
+      { "point": "指出反馈信号稀疏有偏并会换任务级指标", "weight": 2 },
+      { "point": "统计功效/最小可检测效应的意识", "weight": 2 },
+      { "point": "在线指标三层结构清晰且各层给了具体指标", "weight": 2 },
+      { "point": "shadow+canary 通道的机制描述可用", "weight": 1 },
+      { "point": "桥接含回流与『离线指标预测力校准』的双向机制", "weight": 2 },
+      { "point": "有立场的总结（离线定位=筛选器）", "weight": 1 }
+    ],
+    "analysis": "这题答不平滑的最常见方式是『都要查一遍』无优先级。高分骨架要有判断：先查分布与切片（成本最低、命中率最高），再查指标构念错位，最后才怀疑『真没涨』——排查顺序本身就是专业度。HF aligners 那篇 A/B 文的核心教训（离线赢线上输要靠线上实测裁决、LLM judge 与人类偏好都可能与业务错位）可作为论述的权威锚。『预测力校准』这个双向机制最少人答，答到基本锁定该题高分段。",
+    "gapCheck": ["易漏点：『纹丝不动 ≠ 没有效果』的统计表述——先把测量能力问题与真实效果问题分开", "常见误区：把 A/B 当万能——Agent 输出异质性大，个体级方差高，要按会话聚类的方差缩减手段", "加分弹药：引用 HF aligners blog 的『LLM judge 与 human A/B 都可能误导、线上实验裁决』的三源框架", "结构自救：六类断裂按『便宜先查』排成决策树讲，时间不够砍例子不砍树"],
+    "knowledgeLinks": {
+      "prereq": ["ai.eval.evaluation-qa.online-regression", "ai.eval.evaluation-qa.metrics-dataset"],
+      "related": ["ai.serving.infer-serving.cost-latency", "eng.release", "cs.design"],
+      "followUps": ["你们的任务级指标现在哪个最可信？它的作弊方式是什么？", "影子流量的成本谁批？怎么说服老板 10% 的钱买确定性？", "如果线上只敢用赞踩，怎么给赞踩去偏？"]
+    },
+    "resources": [{ "title": "HF Aligners · LLM evals A/B 实验", "digest": "官方工程文：离线赢线上输的真实案例剖析，提出『LLM judge / 人类偏好 / 在线实验』三源互证的评测框架与在线 A/B 的工程细节（指标选择、方差、上线节奏）。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://huggingface.co/spaces/confidential-prize-team/aligners", "retrievedAt": "2026-11-09", "note": "HF 官方项目页与配套报告（How I Hacked my A/B Testing Dashboard）；三源框架亦见于其工程博客叙述", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["离线在线鸿沟", "大厂必问", "体系设计"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "顺着追问：你们的 Agent 每天 2000 会话，赞踩回收率只有 3%。3% 的样本撑得起质量监测吗？给出你的补救组合。", "analysis": "先算账：60 条/天做趋势勉强（±10% 级别的波动可见，细粒度意图切片必炸）。补救组合：①隐式信号扩面（放弃率/复制/追问改写率——全量可得，用赞踩当校准集学阈值）；②judge 全量/分层抽检（把裁判当虚拟标注员，成本换覆盖）；③主动 elicitation（结尾轻交互如 thumbs 前的微调查，把回收率抬到 15~20% 但要防打扰）；④关键切片定向过采样（新上线意图/高危路径强制抽检）。组合逻辑=用『便宜但间接』的信号铺面、『昂贵但直接』的信号定标。答题若只说『提高回收率』不给手段层次，视为未答完。" }
+    ]
+  },
+  {
+    "id": "Q-ai-eval-canary-0007",
+    "nodeId": "ai.eval.evaluation-qa.online-regression",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "按 Hugging Face《Monitoring LLM applications in production》的观测口径，关于线上金丝雀（canary set）的说法**正确的是**：",
+    "options": [
+      { "key": "A", "text": "金丝雀集是一组带期望输出的固定测试用例，定期用当前配置全跑一遍，用于在真实用户遭遇问题前捕获回归" },
+      { "key": "B", "text": "金丝雀集就是从线上随机抽样的真实流量，不含期望输出，只用于事后分析" },
+      { "key": "C", "text": "金丝雀集一旦建立就永久冻结，任何情况下不得增删" },
+      { "key": "D", "text": "金丝雀评估只能用人工执行，自动化跑分不算数" }]
+    ,
+    "answer": { "keys": ["A"] },
+    "analysis": "官方文档的定义正是『一组代表性输入+期望输出，作为持续回归测试的夹具』——主动投放、有参考答案、可自动化打分，本质是把离线回归搬到线上时钟上跑（B 描述的随机抽样流量是另一类监控数据，无期望输出故只能被动观察；C 错：官方明确要随新失败模式与业务变化持续更新维护；D 错：主流打法恰是自动评估器跑分+异常才人工升级）。",
+    "gapCheck": ["易漏点：答题顺带区分 canary set（发版回归夹具）与 canary release（灰度放量策略）——撞名不同物，被追问时别串线", "常见误区：认为金丝雀用例越怪越好——代表性优先，专挑边角会漏掉主干回归", "加分项：说出金丝雀的执行节奏（每次变更后+每日定时双触发）与告警阈值（相对基线的漂移幅度）"],
+    "knowledgeLinks": {
+      "prereq": ["ai.eval.evaluation-qa.online-regression"],
+      "related": ["ai.eval.evaluation-qa.metrics-dataset", "eng.release"],
+      "followUps": ["金丝雀集多大合适？和离线评估集怎么分工不浪费？", "期望输出怎么维护——模型升级后『更好的答案』反而判失败怎么办？", "金丝雀全绿但线上赞踩崩了，你从哪头查？"]
+    },
+    "resources": [{ "title": "HF Docs · LLM Monitoring", "digest": "生产监控文档：canary set=固定代表性样本+期望输出做持续回归；另覆盖在线评估采样、漂移监控与反馈回路的数据治理。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://huggingface.co/docs/transformers/llm_monitoring", "retrievedAt": "2026-11-09", "note": "HF transformers 官方监控文档章节", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["线上运维", "概念辨析", "文档细节"],
+    "variants": [
+      { "angle": "换场景", "stem": "场景题：模型供应商悄悄升级了你依赖的 API 小版本，第二天金丝雀集 2 条用例从 98 分掉到 40 分。给出你两小时内的处置流程与对外沟通口径。", "analysis": "处置序列：①确认非评估侧故障（检查 judge/解析器是否同时改版——先排除量尺坏了）；②冻结新版本继续放量，回滚或钉住旧 API 版本（供应商支持版本锁的话）；③两条失败用例的轨迹 diff 归档，判定是『行为真变』还是『输出格式漂移骗过了严格匹配』（后者修评估器的容错而不是回滚）；④真回归则触发供应商工单+内部事故通报，影响面用最近一次全量金丝雀报告圈定。沟通口径：『检测到上游变更导致的局部回归，已钉版本保稳定，正在评估适配』。考点：变更归因先审量尺再审被测、回滚决策与评估器修复双轨并行。" }
+    ]
+  }
+]

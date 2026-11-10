@@ -1,0 +1,264 @@
+[
+  {
+    "id": "Q-fe-vue-comp-0001",
+    "nodeId": "fe.vue.compiler.ast-pipeline",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "`@vue/compiler-sfc` 编译 `<template><div>{{ msg }}</div></template>`（SFC、无 SSR 插件）后，render 函数体核心是：",
+    "options": [
+      { "key": "A", "text": "with(this) { return _c('div', [_v(_s(msg))]) } —— 所有编译产物都带 with" },
+      { "key": "B", "text": "return (_ctx, _cache) => _createBlock('div', null, _toDisplayString(_ctx.msg), 1 /* TEXT */)" },
+      { "key": "C", "text": "return function render(h) { return h('div', [h('span', this.msg)]) }" },
+      { "key": "D", "text": "const vnodes = createVNodeTree('div'); vnodeTree.patch(el); return vnodes" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "SFC 走 AOT 编译：prefixIdentifiers 开启后不再需要 with，setup 返回 `( _ctx, _cache ) => ...`（第二参是解构缓存/SSR 场景才用到的 extras）；div 因 TEXT patchFlag 成为 block → _createBlock，末位 1 是 PatchFlags.TEXT。A 只属于浏览器运行时即时编译（runtime compile 用 with(this)）；C 是 Vue2 的 h 风格混入；D 发明的 vnodeTree.patch API 不存在。",
+    "gapCheck": ["易漏点：_createBlock vs _createVNode 的切换条件是『该节点是否 isBlockNode』，静态 div+插值因 TEXT flag 成为 block", "常见误区：背过 with(this) 就以为所有产物都有——Vite 项目里几乎看不到 with", "细节加分：能顺嘴说 _toDisplayString 就是 Vue2 _s 的改名"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.compiler.ast-pipeline"],
+      "related": ["fe.vue.compiler.block-tree", "fe.vue.composition.setup-lifecycle"],
+      "followUps": ["什么时候会退回运行时编译？（CDN 直用 template 选项/DynamicComponent 字符串模板）", "_cache 数组是谁注入的？（compilerOptions.cacheHandlers，仅当有 cache 访问时）", "SSR 编译同一个模板产物有什么不同？（ssrRender + _push，无 patchFlag）"]
+    },
+    "resources": [{ "title": "Vue 官方 guide·渲染机制", "digest": "介绍编译期 patchFlag/block tree 优化与编译产物形态；运行时编译使用 with(this)，AOT 编译使用 prefixIdentifiers 并携带 patchFlag 数值。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/guide/extras/rendering-mechanism.html", "retrievedAt": "2026-11-09", "note": "Virtual DOM Diff + 编译产物示例段" },
+    "tags": ["编译产物", "必考", "识图题"],
+    "variants": [
+      { "angle": "换场景", "stem": "换场景：同一模板但项目走 CDN 版 vue.global.js 并在组件里写 `template: '<div>{{ msg }}</div>'`。写出你预期产物的大致形态，说明为什么这个场景反而需要 with，以及该场景损失了哪些优化。", "analysis": "产物形如 `function render(_ctx) { with(_ctx){ return _createElementVNode(\"div\",null,_toDisplayString(msg),1)} }`（运行时 baseCompile+with）。需要 with 的原因：表达式里的标识符无法预知是 setup 绑定还是全局，prefixIdentifiers 关闭时只能靠 with 动态解析作用域。损失：with 阻止 V8 部分优化、每次渲染多一层 scope 查找；更重要的是运行时编译发生在浏览器（首屏 CPU 峰值）、产物不带 hoist 提升带来的字节级复用差异不大但 with 场景下 cacheHandlers 等高级特性默认也不开。加分：提到 vue.esm-bundler + vite 才走 AOT。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comp-0002",
+    "nodeId": "fe.vue.compiler.block-tree",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "`<p :class=\"cls\">{{ name }}</p>` 编译后该元素的 patchFlag 与 dynamicProps 是：",
+    "options": [
+      { "key": "A", "text": "patchFlag = 3（TEXT|CLASS），dynamicProps = ['class']" },
+      { "key": "B", "text": "patchFlag = 1（仅 TEXT），class 走通用 props diff" },
+      { "key": "C", "text": "patchFlag = 2048（STABLE_CLASS），因为 class 绑定的是变量名而非字面量" },
+      { "key": "D", "text": "patchFlag = -1（FULLY_DIFF），p 标签需整棵子树比较" }]
+    ,
+    "answer": { "keys": ["A"] },
+    "analysis": "文本插值 → TEXT(1)；:class 动态绑定 → CLASS(2)；按位或得 3，transformElement 会把对应 prop 名收进 dynamicProps=['class']。patchElement 见 CLASS flag 调 patchClass、见 TEXT 只更新 text 节点，全程不进完整 props diff。B 漏了 CLASS flag；C 混淆：STABLE_CLASS(2048) 只在 **SSR** 编译里对稳定 class 出现，客户端没有这个 flag；D 的 -1(CAN_OPEN_BLOCK? 实际 -1=HOISTED 标记静态)语义完全不对——-1 是 hoisted 节点的 patchFlag，代表无需 diff。",
+    "gapCheck": ["易漏点：flag 是按位或可叠加，答题报出 1|2=3 的推导过程比背数字可信", "常见误区：把 2048/8192（SSR 的 stable/hoist class）当成客户端 flag", "延伸：:class 若绑常量对象且开了 hydration 优化才会出现 STABLE_CLASS"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.compiler.block-tree"],
+      "related": ["fe.vue.runtime.diff-key", "fe.vue.compiler.static-hoist"],
+      "followUps": ["CLASS(2) 和 STYLE(4→PROPS 系) 为什么要从 PROPS 里单拆两位？（有专属 fast path：patchClass/patchStyle 跳过其余 props）", "KEY=8 什么时候被设置？（v-for key 变化触发块内重排信号）", "NEED_PATCH=16 与 ref 的关系？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://jishuzhan.net/article/1996080726907879425", "retrievedAt": "2026-11-09", "note": "Vue3 Diff/PatchFlags 面试题解，flag 数值表核对自 packages/runtime-core/src/vnode.ts PatchFlagTypes" },
+    "tags": ["数字记忆", "编译优化", "高频"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束：把上题改成 `<p :class=\"cls\" @click=\"go\">{{ name }}</p>`，请给出新的 patchFlag 数值组合，并解释事件为何不并入普通 PROPS 而是走 NEED_PATCH 路线、diff 时事件如何比较。", "analysis": "flag = TEXT(1)|CLASS(2)|NEED_PATCH(16)=19，dynamicProps ['class','onClick']。事件是带 invoker 的函数 props：codegen 上归入 PROPS 但 patchProp 走 event 模块；NEED_PATCH 来源于 transformElement 检测到 ref 或带动态指令/缓存事件等『非纯 props』信号时对 props diff 的补充标记（不同版本细节略异，面试答到『事件函数引用每轮新建，diff 靠 invoker 包装比对真实 handler 避免重复 addEventListener』这一层即可得分）。加分：patchEvent 比对 value!==oldValue 后更新 invoker.value，DOM 监听器只挂一次。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comp-0003",
+    "nodeId": "fe.vue.compiler.static-hoist",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "以下四个节点，Vue 编译器**不会**将其提升到 render 作用域外（hoistStatic 失效）的是：",
+    "options": [
+      { "key": "A", "text": "<img src=\"./logo.png\" alt=\"logo\" />（构建工具启用了资源 URL 改写）" },
+      { "key": "B", "text": "<span class=\"tag hot\">限时特惠</span>" },
+      { "key": "C", "text": "<ul><li v-for=\"i in 10\" :key=\"i\">{{ i }}</li></ul> 里的 li 节点" },
+      { "key": "D", "text": "<hr />" }]
+    ,
+    "answer": { "keys": ["C"] },
+    "analysis": "v-for 内部的节点每轮迭代都要重建（要携带当轮 item/index 上下文），canHoist 明确排除 v-for 内的元素（源码 hasDynamicKeys/inVForScope 判定），li 反而是 block。A 的资源 URL 被 transformAssetUrls 编译成 import 引用后视为**静态常量**，可 hoist（这正是『静态』判定跟的是编译后语义而非模板原文的细节）；B 纯静态文本+class、D 空元素都可 hoist。",
+    "gapCheck": ["易漏点：asset URL 改写后可 hoist 是冷门但真实的点，答对即 3 分档", "常见误区：以为 hoist 只提『标签』，实际组件 vnode、事件 handler（无内联表达式时）、整个 class/style 常量对象都在 canHoist 范围", "反向陷阱：v-if 分支本身可以 hoist 为常量分支吗？（不能整体 hoist，但分支内部静态子树可以）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.compiler.static-hoist"],
+      "related": ["fe.vue.compiler.block-tree", "fe.vue.runtime.diff-key"],
+      "followUps": ["hoist 后 patch 遇到新旧 vnode 引用相等时走什么路径？（isSameVNodeType→patchChildren 复用实例，甚至整棵跳过）", "hoistStatic:false 何时值得关？（超长静态串想走预字符串化/调试时）", "v-once 和 hoistStatic 的区别？（once 是运行时首渲染后冻结，hoist 是编译期复用同一对象）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://jishuzhan.net/article/1924042197427671041", "retrievedAt": "2026-11-09", "note": "Vue3 编译优化内建化解析：canHoist 条件与 asset URL 静态化章节" },
+    "tags": ["编译优化", "细节题"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向问：面试官质疑『静态提升听起来很美好，但它会让热更新 HMR 时旧 vnode 引用被复用，是不是可能造成 bug？』请结合 hoisted 节点被存进 render 闭包外的 const、以及 patch 中 sameVNodeType 引用相等直接短路这两点，分析什么情况下 hoist 会引发可见 bug、官方如何兜底。", "analysis": "关键机理：hoisted vnode 是模块级 const 对象，多次渲染复用同一实例；若它的 children/dynamicChildren 在运行时被 patch 逻辑**就地修改**（老版本曾把 component 实例挂 vnode.el/component 字段）就会跨渲染残留状态。官方兜底：cloneIfMounted（mounted 的 hoisted vnode 再 mount 前浅克隆，dev 下防复用挂载脏数据）、hoisted 节点 patch 时走 componentUpdate 的 el 重置。真 bug 高发区是手写 render 里共享 vnode 常量 + keep-alive 移动节点。答出 cloneIfMounted 即源码级证据。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comp-0004",
+    "nodeId": "fe.vue.compiler.block-tree",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 Block Tree 的动态节点收集（openBlock/createBlock），下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "v-for 的根 Fragment 会被当作 block root 生成 openBlock，其 item 渲染函数的根节点同样 openBlock" },
+      { "key": "B", "text": "v-if/v-else 的每个分支根元素都是 block，切换时通过动态子树直接定位变化点" },
+      { "key": "C", "text": "只有带 patchFlag > 0 的节点才是 block 候选，静态元素（patchFlag=-1）永远不会进入 dynamicChildren" },
+      { "key": "D", "text": "组件类型节点（COMPONENT/COMPONENT_WITH_CHILDREN/SLOTS flag）也会被当作 block，因此自定义组件标签总是打断静态分析" }]
+    ,
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A 对：transformFor 给 fragment 开 block，renderList 的 item 回调根也 openBlock（源码 transform.ts createBlockStatement 分支）。B 对：v-if 分支由 transformIf 各自成 block。D 对：isBlockNode 对 COMPONENT 系列 flag 恒真——组件永远动态（props/slots 都可能变），这就是『组件边界打断 hoist』的原因。C 错在『永远不会』：静态元素虽不是 block，但若其内部藏着 block（v-if 分支/组件），它自己会因 shouldBlockWithHoardableProp/含动态子而升格为 block；且 Fragment(64) 也可成 block——『静态元素绝不进 dynamicChildren』过于绝对。",
+    "gapCheck": ["易漏点：Teleport/Suspense/KeepAlive 这些内置组件也是 COMPONENT flag，天然 block", "常见误区：把 block 理解成『动态节点的容器框』——它是编译期形成的**扁平动态后代索引**，运行时无需递归", "延伸：Fragment 何时不开 block（单一静态子树的 fragment 可 unwrap，optimizeDeps?）——答『simple expression 优化』加分"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.compiler.block-tree", "cs.algo"],
+      "related": ["fe.vue.runtime.diff-key", "fe.vue.runtime.builtin-components"],
+      "followUps": ["block 嵌套时内层 block 的动态子为什么不出现在外层 dc 里？（openBlock 时暂停父级采集，防止重复登记）", "如果组件内部全是静态还会重新渲染吗？（props 不变则组件 skip，但 slot 内容变化会推子组件）", "这套机制和 Svelte 编译期消失的 diff 相比缺了什么？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/guide/extras/rendering-mechanism.html", "retrievedAt": "2026-11-09", "note": "Block Tree 小节；isBlockNode 判定核对源码 compiler-core transformElement" },
+    "tags": ["源码向", "多选易错", "大厂"],
+    "variants": [
+      { "angle": "换场景", "stem": "现场推演题：给出模板 `<div><header/><main><foo/></main><footer/></div>`（header/footer 是组件、foo 是组件）。请画出 block 边界：哪几层是 block、dynamicChildren 各登记了谁，并据此回答『改 App.state.title 只让 header 的 prop 变』时 patch 会访问几个 vnode。", "analysis": "div 是 root block；三个子组件全是 block → div.dc=[header,main,footer]；main 自身是 block（含 block 子 foo）→ main.dc=[foo]。patch 从 div 起只遍历 dc 三个 + main 的 dc 一个 = 4 个组件节点，其余静态全跳过；header 因 prop 变触发子组件 update，其余组件 shouldUpdateComponent=false 秒过。这道推演的价值是把『靶向更新』从口号变成可数的节点访问次数。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comp-0005",
+    "nodeId": "fe.vue.compiler.ast-pipeline",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：SFC 编译产物里 render 写成 `( _ctx, _cache ) => ...` 而运行时编译产物写成 `with(_ctx)` 形式，两者的本质差别之一是前者要求编译期就能确定所有标识符归属，因此无法处理『运行时才知道作用域』的字符串模板。",
+    "answer": { "judge": true },
+    "analysis": "对。AOT（SFC/Vite）在编译期做 prefixIdentifiers：把 msg 重写为 _ctx.msg / $setup.msg，前提是所有绑定来自可静态分析的 setup/props；浏览器运行时编译（template 字符串选项）无法预知宿主作用域，只能保留裸标识符交给 with(_ctx) 动态查。也正因如此，with 模式享受不到 _cache 解构缓存等 prefix 依赖的特性。",
+    "gapCheck": ["易漏点：$setup 前缀与 setup(_:_) 参数是同一套机制的两端（绑定归类的白名单化）", "常见误区：以为 with 只是风格差异——with 禁用严格模式部分优化，大模板性能差异可测", "追问延伸：<script setup> 的 inline 模式为何能把模板直接编进 setup 闭包？（绑定全静态可归类，彻底去掉 _ctx）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.compiler.ast-pipeline"],
+      "related": ["fe.vue.composition.setup-lifecycle", "fe.vue.compiler.tree-shaking"],
+      "followUps": ["inline:true 编译模式什么条件下启用？收益是什么？", "with 里的属性链查找失败会落到哪？（全局对象，这也是模板里能直接用 Math 的原理）", "Vite 里 template 选项字符串会发生什么？（vue 插件运行时编译兜底并警告）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "基于 compiler-core codegen with 判定与 docs rendering-mechanism 编写" },
+    "tags": ["编译双形态", "概念辨析"],
+    "variants": [
+      { "angle": "换问法", "stem": "换问法：同事坚持『项目里 Vue 组件都写 template 选项所以跟 SFC 没区别，反正都编译』。请用一句话纠正他，并列出他这种写法在生产环境付出的两笔具体代价。", "analysis": "一句话：template 选项走的是浏览器端运行时编译（runtime-compiler 版才有 compileToFunction），不是构建期 AOT。代价一：每个组件首挂载前现场 parse+transform+codegen，低端机首屏 CPU 尖峰；代价二：必须打包 runtime-compiler 版 vue（体积约 +1/3），且 with 作用域使产物失去 prefixIdentifiers 相关优化（cacheHandlers 等）。若用 Vite+@vue/compiler-sfc 配置 template 也能 AOT，此时前提不成立——能讲清『取决于构建链是否接了 SFC 编译器』最严谨。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comp-0006",
+    "nodeId": "fe.vue.compiler.ast-pipeline",
+    "type": "blank",
+    "difficulty": 1,
+    "stem": "Vue 模板编译器是经典的三段流水线：______ 把模板字符串解析成 AST；______ 遍历改写 AST（打 patchFlag、提静态、建 block）；______ 把 AST 序列化为 render 代码字符串，同时产出可供 sourcemap 消费的 ______ 结构。",
+    "answer": { "blanks": ["parse", "transform", "codegen", "AST"], "synonyms": { "parse": ["解析器", "parser"], "transform": ["转换器", "transformer", "转换"], "codegen": ["代码生成", "code generation", "生成器"], "AST": ["抽象语法树", "ast"] } },
+    "analysis": "@vue/compiler-core 的主干就是 parse（组合式正则手写 tokenizer）→ transform（插件式 visitor，core 提供 transformElement/transformText/transformExpression 等）→ codegen（AST 流式 print + sourceMap chunk）。3.4 重写了 parse 的双模 tokenizer（文本/插值/标签各自小状态机），官方称解析提速 2x。",
+    "gapCheck": ["易漏点：transform 阶段才决定 patchFlag/hoist——问『优化发生在哪一段』标准答案不是 codegen", "常见误区：以为 Vue 模板用 HTML 原生 parser；实际是自研容错解析器，不处理注释外的怪癖标签", "加分：能提 babel 的 parse→transform→generate 同构对比，说明这是编译器通用形态"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.compiler.ast-pipeline"],
+      "related": ["fe.vue.compiler.block-tree", "fe.vue.ecosystem.vue-versions"],
+      "followUps": ["为什么不用现成的 HTML parser？（性能与可控性：需要记录原始 range 供 codegen/HMR sourcemap）", "transform 的插件机制怎么注入自定义指令优化？", "3.4 新 parser 的『双模状态机』指什么？（普通模式与 RCDATA/原始文本模式）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://blog.vuejs.org/posts/vue-3-4", "retrievedAt": "2026-11-09", "note": "3.4 公告：rewritten template parser 2x faster 章节" },
+    "tags": ["送分题", "编译器常识", "d1"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "追问延伸：既然三件套人人会说，请继续口述：自定义指令 v-x-if 想参与编译优化，应该挂进三段的哪一段？defineComponent 的 __scope 属性给谁消费？compiler-dom 与 compiler-core 的分层意义是什么？", "analysis": "①指令展开在 transform 段：compiler 的 nodeTransforms/directiveTransforms 插件数组，v-x-if 这类结构指令要注册 nodeTransform 提前展开成 v-if 等价 AST（vue-use-template 类库就这么做）；②__scope/__file 供 devtools 与 HMR 定位（hmr 段消费 map）；③分层：core 平台无关（tokenizer/transform/codegen 骨架），compiler-dom 注入 DOM 专属 parser 容错、v-html/v-text、资产 URL 改写——自定义渲染器配自定义 compiler 正是这条分层的应用（如 vue-gl）。三问各对应一段流水线的『扩展点』，答对说明真读过架构。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comp-0007",
+    "nodeId": "fe.vue.compiler.static-hoist",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "短答：静态提升后的 vnode 在后续每次渲染中被反复复用。请说明①复用在 patch 阶段带来的直接收益路径；②『已挂载的 hoisted vnode 再次 mount』会踩什么坑、Vue 用什么函数兜底；③SSR 场景与之配套的另一个编译优化叫什么、触发条件是什么。",
+    "answer": { "ref": "①收益：hoisted 节点存于 render 外 const，重渲染时新旧 vnode **引用相等**；patchChildren 的 diff 里 isSameVNodeType(n1,n2) 因 type/key 相同且实为同一对象直接判同，走 patchVNode 快速路径（sameVNode 时 element 连 props/children 都可短路，仅组件按需 shouldUpdate），也不进 block 的动态采集（patchFlag=-1 HOISTED 不参与）→ 真正零成本。②坑：hoisted vnode 已被 mount 过、el 字段指向已存在 DOM，复用再 mount 会把同一个 DOM 搬来搬去甚至挂两处；dev 下 Vue 用 cloneIfMounted（mount 前检测 el 已存在则 shallowClone）兜底，prod 信任不克隆换性能。③SSR：预字符串化（stringifyStatic）——连续 ≥20 个纯静态节点（默认阈值）折叠成一个字符串常量，服务端 _push 直出省去逐节点序列化；客户端配 hydration 时静态节点走 data-v-hydrate? 否——客户端 hoist 的静态串在 hydrate 时按 sameType 快速认领。" },
+    "scoringPoints": [
+      { "point": "说出引用相等→isSameVNodeType 短路→跳过 props/children diff 的路径", "weight": 2 },
+      { "point": "提到 patchFlag=-1(HOISTED) 不参与动态采集", "weight": 1 },
+      { "point": "说清已挂载 vnode 复用的 el 污染坑与 cloneIfMounted 兜底", "weight": 2 },
+      { "point": "答出 stringifyStatic/预字符串化及其连续静态节点阈值条件", "weight": 2 }
+    ],
+    "analysis": "这题把 hoist 从『少创建对象』的记忆抬到『改变 diff 行为』的理解层。第②问的 cloneIfMounted 是区分背过文档与读过 runtime 源码的标志；第③问预字符串化是 SSR 编译三大优化（hoistString、插值转 concat、component render 缓存）中最常被忘的一个。",
+    "gapCheck": ["易漏点：prod 不 clone 的行为差异要在 dev/prod 间说破，否则面试现场会被反问『那生产呢』", "常见误区：把 v-once 当成 hoist 的运行时开关——两者机制层级不同", "SSR 加分：hydration  mismatch 排查时 hoisted 节点是常见盲区（devtools 显示旧值）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.compiler.static-hoist"],
+      "related": ["fe.vue.runtime.diff-key", "fe.vue.runtime.builtin-components"],
+      "followUps": ["预字符串化的节点在客户端 hydrate 时怎么处理？（hoist 的字符串走 innerHTML 快速路径/跳过逐节点 walk）", "为什么不把 v-for 里的静态也 hoist？（闭包捕获 item 上下文）", "手写 render 里把 vnode 常量提到模块顶层，和编译器 hoist 等价吗？（等价但要自己处理 clone）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://segmentfault.com/a/1190000024520877", "retrievedAt": "2026-11-09", "note": "Vue3 Compiler 重写解析：静态提升/预字符串化/codegen 章节" },
+    "tags": ["源码向", "SSR联动"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束排错题：有人在超长营销页把手写 render 的模块级 vnode 常量 `const hero = h('section', [...])` 复用到 3 个列表项里，结果滚动后 section 的背景动画错乱、DOM 位置诡异。请指出根因（提示：mount 与 el 字段），并给出不依赖编译器自动兜底的两种修法。", "analysis": "根因：模块级 vnode 常量被多个消费者 mount 时共用同一份 el/children 引用——第一次 mount 后 vnode.el 已固化，后续 mount 复用同一 DOM 节点导致移动语义（appendChild 会摘下原位置）、事件与动画状态互相踩踏。dev 下编译器产物有 cloneIfMounted 保护但手写 h() 常量没有。修法：①每次渲染调用工厂函数 `const hero=()=>h(...)`；②共享结构处手动 cloneVNode(hero)（或 shallowClone）再挂载。考点：hoist 之所以安全是因为编译器知道何时该 clone，手写复用缺这份自觉。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comp-0008",
+    "nodeId": "fe.vue.compiler.slot-compile",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "短答（slot 编译三档）：Vue 3.3+ 编译器按 slot 内容把子组件的 slots 对象分别编成 `{ stable: true }`、无标记普通函数、`{ fn, key: 'slot-0', _withCtx: true }` 三种形态。请说明：①三档各自的判定条件；②各自导致子组件 re-render 的行为差异；③为什么动态 slot 必须带 key。",
+    "answer": { "ref": "①stable：slot 内容不含任何动态绑定（全静态或仅静态 class/style 等 hoistable），且无 v-if/v-for 根、无插槽 props 使用中的动态上下文；普通（非 stable 非 withCtx）：内容有动态绑定但作用域确定、不读 slot props？更准确口径——_withCtx 判定于 slot 内容是否使用了 slot props 或指令/事件等需绑定父组件实例上下文的场景（读 scope 后内容无法在子组件作用域安全求值，需 withCtx 绑 $stable 语境）；stable 档则连上下文都不需要（纯静态）。②行为：stable slot 编译后 slots 对象引用恒定，子组件 shouldUpdateComponent 比对 slots 变化为 false → 父刷新不打扰子组件（$stable 语义）；普通 slot 每轮新建函数 → slots 变、子被迫渲染；withCtx 动态 slot 除每轮新建外还带 key，进 block 动态采集，slot 增删/条件切换可被 patchSlots 精确定位。③key：slots 的渲染结果以 Fragment 子节点参与 patch，无 key 时条件分支切换（v-if 包 slot）会按 index 复用错位（两个分支内容互串）；key 保证 sameVNodeType 正确配对、并让 withCtx 包装的 render 缓存（_renderCached）按 key 失效。" },
+    "scoringPoints": [
+      { "point": "stable 判定：无动态绑定+可用 hoist 内容，slots 引用跨渲染恒定", "weight": 2 },
+      { "point": "_withCtx 判定：读取了 slot props 或需要父作用域/指令事件上下文", "weight": 2 },
+      { "point": "行为差异：stable 不触发子组件更新；动态 slot 每轮新建函数触发子渲染", "weight": 2 },
+      { "point": "key 的作用：slot Fragment patch 的正确复用与缓存失效", "weight": 2 }
+    ],
+    "analysis": "slot 编译是『Vue3 编译优化』叙事里最容易露馅的一环。核心记忆轴：stable→不重渲、normal→每轮重渲子、dynamic→带 key 进 block。3.3 的 slot unification 让 stable 也走统一 block 收集（配合 hoist），答出版本号即加分。key 一问最能区分深度：slot 渲染产物是 Fragment，patchFragment 对动态分支必须 key。",
+    "gapCheck": ["易漏点：$stable 不是『内容不变』而是『编译器证明其跨渲染恒定』——含组件引用也算动态", "常见误区：以为 slot props 让 slot 永远动态；实际上报作用域插槽后 withCtx 包装仍可能 stable（内容无动态）", "实践钩子：看到组件莫名重渲先查 slot 是否被内联事件/对象字面量污染成动态"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.compiler.slot-compile", "fe.vue.communication.slot-advanced"],
+      "related": ["fe.vue.runtime.builtin-components", "fe.vue.communication.props-emit"],
+      "followUps": ["为什么 slot 内容的作用域属于父组件但更新时机属于子组件？（编译成闭包+子渲染驱动）", "defineSlots 的类型体操与编译产物有关系吗？（纯类型，无运行时）", "keep-alive 里 slot 内容会随失活冻结吗？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/guide/components/slots.html", "retrievedAt": "2026-11-09", "note": "Slots 文档『Compiled Slots Unification』『Configuring Slot Openness』；3.3 release note slot 优化" },
+    "tags": ["编译进阶", "组件性能", "大厂"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向排查题：父组件只有一个纯展示 default slot，但父组件每次 state 变化时子组件 Card 也跟着重渲染。检查发现 slot 内容里写了 `<button @click=\"() => doIt(row.id)\">`。请解释编译器为何放弃 stable 标记，并给出两种保住 stable 的改写。", "analysis": "内联箭头函数每轮渲染新建引用，slot 内容含动态表达式 → 编译器不能证明跨渲染恒定 → 弃 stable，slots 对象每轮新引用，shouldUpdateComponent 判 slots 变 → Card 重渲。改写一：把 handler 提为稳定引用（setup 里的具名函数/methods，或缓存后传入）——若其余仍静态可回到 stable；改写二：把易变数据挪进 Card 的 props（slot 内容保持静态），用 :class 等 patchFlag 局部更新。加分：提到 compiler 对 cacheHandlers 的缓存只作用于组件事件处理器，救不了 slot 恒定判定。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comp-0009",
+    "nodeId": "fe.vue.compiler.ast-pipeline",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "论述题：面试官说『给我们讲讲 Vue 模板编译吧，从写下 <template> 到浏览器里 DOM 长出来，中间每一步都可能被追问』。请按『编译期三段 + 运行时挂载/更新』的全链路论述，覆盖：产物形态示例、block tree/patchFlag 如何改变 diff、一次点击改 ref 后到 DOM 变化的完整链条，最后评价这套『编译器与运行时协作』设计的得与失。",
+    "answer": { "ref": "参考骨架（应覆盖两条时间线）：【编译期】parse：自研 tokenizer（3.4 双模状态机）出带 loc 的 AST；transform：transformElement 递归打 patchFlag（TEXT/CLASS/PROPS…）、canHoist 提静态、openBlock/createBlock 织 block tree、transformExpression 归类绑定（setup/props/global→_ctx/$setup/全局）、transformIf/For 产 codegenNode；codegen：print 出 ( _ctx,_cache )=>_createBlock(...)，带 sourcemap。示例贴一小段真实产物最佳。【运行时首次】createApp.mount→_createVNode(root)→renderComponentRoot(setupResult)→setupRenderEffect→componentUpdateFn(efffect.run)→patch→mountElement/mountComponent，effect 执行期间 get trap 收集 _ctx 上的读取到 render effect。【更新链】点击 handler 里 count.value++ → MutableRef set → trigger dep → render effect 的 scheduler queueJob(pre-flush,id=uid) → 微任务 flushJobs 排序跑 instance.update → renderComponentRoot 重新读依赖（cleanup 重收集）→ patch(n1=subTree,n2) 沿 n2.block/dc 只走动态节点：TEXT flag 改 text、PROPS+dynamicProps 只比这些 key、组件节点 shouldUpdateComponent 决定是否下钻 → DOM 变更完成；post 队列跑 updated；nextTick 回调随后。【评价】得：编译期掌握全部信息（静态性/动态性/迭代结构），运行时 diff 退化为 O(动态数) 的靶向执行，兼得模板声明性与接近手写的更新成本；tree-shaking 友好。失：模板语言与编译器的耦合成为演进负担（v-if/for 优先级、TS 表达式语法子集、vue-tsc 双轨维护）；AOT/RUNTIME 双编译形态复杂；编译优化收益在小 app 不明显却增加心智（面试八股本身即副作用）；对比 React 无编译器全靠纪律(memo)、对比 Solid signals 彻底消灭 diff——Vue 处在光谱中间且 Vapor 正在向后者滑动。加分：能画一张 ASCII 流程或明确点名 3.4 parser 重写/3.6 vapor 作为演进注脚。" },
+    "scoringPoints": [
+      { "point": "编译三段职责清晰，patchFlag/hoist/block 发生在 transform 的定位准确", "weight": 2 },
+      { "point": "能贴出或准确口述一段带 _createBlock 与 flag 数字的产物", "weight": 2 },
+      { "point": "更新链完整：ref set→trigger→scheduler→flushJobs→render effect→patch 沿 block 靶向", "weight": 3 },
+      { "point": "讲到 patch 内部按 flag/dynamicProps 分发的具体粒度", "weight": 2 },
+      { "point": "评价部分给出真实的『失』（演进负担/双形态/Vapor 动机任一深入展开）", "weight": 2 },
+      { "point": "横向对比 React/Solid 至少一方且落在机制而非口号", "weight": 1 }
+    ],
+    "analysis": "满分叙事必须同时有条理（时间线）有细节（flag 分发、shouldUpdateComponent）有观点（得失）。多数考生死在只有编译期没有运行时链，或运行时链停在『diff 一下』。评价层的『失』要说真话：编译器红利=模板 DSL 债务，这是 Vapor 存在的理由，能把这句讲圆基本锁定 offer 级表现。",
+    "gapCheck": ["易漏点：render effect 的依赖是『渲染期间读了什么就订阅什么』，与编译期 flag 无关——两套机制别缝合错", "常见误区：说 patchFlag 让 diff『O(1)』；准确说是 O(每层动态节点数)", "结构技巧：先 30 秒报大纲再展开，防被打断后只见细节不见结构"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.compiler.ast-pipeline", "fe.vue.compiler.block-tree", "fe.vue.runtime.update-flow"],
+      "related": ["fe.vue.scheduler.flush-jobs", "fe.vue.ecosystem.vapor-signals", "fe.vue.ecosystem.vue-vs-react"],
+      "followUps": ["Vapor 模式下今天讲的哪几个环节整体消失了？（vnode/patch/patchFlag——编译直出 DOM op）", "sourcemap 断点在模板表达式里怎么做到的？（loc→offset map→vue-loader/vue-tsc）", "如果编译器只能保留一个优化你选哪个？开放题看论证"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://jishuzhan.net/article/1996080726907879425", "retrievedAt": "2026-11-09", "note": "综合：Diff/PatchFlags/BlockTree 全链路题解 + 官方 rendering-mechanism 交叉验证" },
+    "tags": ["压轴", "全链路", "大厂二面"],
+    "variants": [
+      { "angle": "换场景", "stem": "白板约束版：不许提 patchFlag 三个字，用『给 DOM 更新写一份快递分拣系统类比』向产品经理解释 Vue 编译优化，然后再补一段『类比哪里失真』的技术修正。", "analysis": "合格类比：编译期=出厂时给每件商品贴好标签并只把易碎品放进专用周转筐（block），派送（patch）只扫筐清单，静态商品整柜不动；flag=商品种类标签决定验收动作（只看贴纸还是开箱）。失真修正：①真实粒度是每层 block 的扁平清单而非整棵树一张表；②『标签』是可叠加的位掩码且对应运行时不同的 patch 函数族；③周转筐是编译期嵌套运行时无状态——不存在跨请求共享可变清单。此变体考察 F 型沟通场景下的模型保真度：类比要像但必须自曝边界，只给类比不给修正封顶 1 分。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comp-0010",
+    "nodeId": "fe.vue.compiler.block-tree",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：简化版编译器 transform 核心——给定如下 JSON AST（type:0 root / 1 element / 2 text / 3 interpolation），实现 transform 函数：①给含插值的元素节点标 patchFlag（TEXT|PROPS 规则：有 {{}} 记 TEXT=1，有 prop 值为 null（动态绑定）记 PROPS=4，按位或）；②把 patchFlag<=0 的纯静态元素移入 hoisted 数组并从父 children 原位替换为引用。写出代码并说明与 Vue 真实 canHoist 的两处差异。",
+    "answer": { "ref": "递归 post-order：walk(node,parent,index)；element：先 walk children；props 扫描（value===null → dynamic=true 记 name）；hasInterp 由 children 含 type3 得出；flag=(hasInterp?1:0)|(dynamic?4:0)；flag===0 且不在 v-for 模拟上下文时 hoist：hoisted.push(node)，parent.children[index]=node（引用占位，真实 Vue 生成 HoistNode 换 Memo/常量引用）。差异两处：①Vue 的静态判定还排除指令(v-show 等)、事件监听、key、ref、组件子树等大量条件且区分 prop 类型（class/style 单拆 flag）；②Vue 遇到 block 边界（v-for/v-if/组件）会 openBlock 停止上提并把动态后代收进 dynamicChildren，而不是简单 hoist 整元素。", "code": "function transform(root, ctx = { inVFor: false }) {\n  const hoisted = []\n  function walk(node, parent, idx) {\n    if (node.type === 0 || node.type === 1) {\n      // post-order：先处理孩子（自底向上才能整体判定静态）\n      for (let i = 0; i < (node.children || []).length; i++)\n        walk(node.children[i], node, i)\n    }\n    if (node.type !== 1) return\n    let flag = 0, dynNames = []\n    for (const p of node.props || []) {\n      if (p.value === null) { flag |= 4; dynNames.push(p.name) } // 动态绑定\n      else if (p.name === 'key') return // key 节点不可 hoist（Vue 真实规则示意）\n    }\n    if ((node.children || []).some((c) => c.type === 3)) flag |= 1\n    node.patchFlag = flag || undefined\n    node.dynamicProps = dynNames.length ? dynNames : undefined\n    if (!flag && !ctx.inVFor && parent && parent.type === 1) {\n      hoisted.push(node)\n      parent.children[idx] = node // 真实 Vue：hoist 后原位留 HOISTED 引用(-1)\n      node.patchFlag = -1\n    }\n  }\n  walk(root)\n  return { ast: root, hoisted }\n}" },
+    "scoringPoints": [
+      { "point": "post-order 递归顺序正确（先子后父才能聚合判定）", "weight": 2 },
+      { "point": "flag 按位或合成且 dynamicProps 与 PROPS 同步登记", "weight": 2 },
+      { "point": "hoist 时给节点打 -1 并从语义上断开与父的动态关系", "weight": 2 },
+      { "point": "说出与真实 canHoist 的两处以上差异（指令/事件/ref/flag 细分/block 边界/上下文限制）", "weight": 2 },
+      { "point": "主动限定范围：本实现无 v-if/v-for 上下文传播、无组件 flag", "weight": 1 }
+    ],
+    "analysis": "这题考的是『你能不能把编译器黑盒拆成 30 行』。post-order 是隐藏考点——pre-order 无法在访问父之前知道子树是否全静态。hoist 后 patchFlag=-1 与『原位替换』的细节对应真实 transform 的 hoistChildren/Memo 化占位。差异陈述要具体：泛泛说『Vue 更完善』不给条目减半分。",
+    "gapCheck": ["易漏点：props 数组里 key 必须阻断 hoist——漏了就会把 v-for 的 li 提走，现场反例立刻构造", "常见误区：把 dynamicProps 与 patchFlag 分开算导致二者不一致（Vue 里 PROPS flag 与 dynamicProps 共生）", "延伸亮点：真实 Vue 还有 hoistStatic 之外的 hoistVNodeCache（cacheHandlers）同属『常量外提』思想"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.compiler.block-tree", "cs.algo"],
+      "related": ["fe.vue.compiler.static-hoist", "fe.vue.runtime.diff-key"],
+      "followUps": ["如果要支持 v-if 分支成 block，你的 walk 需要加什么上下文？（shouldUseBlock 标志与 openBlocks 栈）", "插值里 `{{ a ? b : c }}` 是纯表达式，Vue 为何还能 hoist 它的兄弟文本节点？（simple expression 降级）", "给这个迷你 transform 加个插件机制你怎么设计？（visitor 数组 reduce）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "仿 compiler-core transformElement/canHoist 逻辑裁剪的白板题" },
+    "tags": ["手写题", "编译器", "区分度"],
+    "variants": [
+      { "angle": "换问法", "stem": "口头代码审查版：不给写码，贴一段同事的 transform 草稿：他在 pre-order 阶段就把 patchFlag===0 的元素 push 进 hoisted 并在父 children 里删除该位置。请当场指出两个 bug 并给出修复思路（口述即可）。", "analysis": "bug①：pre-order 时子树尚未遍历完，无法确认『所有后代静态』——含动态孙子的元素会被误 hoist；修复：post-order 聚合返回值（static=true/false 向上传播）。bug②：直接 splice 删除改变索引——v-for 的 key/index 语义和 codegen 的 children 位置都要求原位占位；修复：替换为 hoisted 引用节点（HOISTED patchFlag=-1）而非删除。加分项：还会漏判 props 动态（value===null）与指令存在，三个洞全揪出即源码级评审能力。" }
+    ]
+  }
+]

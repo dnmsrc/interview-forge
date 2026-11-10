@@ -1,0 +1,58 @@
+[
+  {
+    "id": "Q-ai-train-lora-0001",
+    "nodeId": "ai.train.finetune-vs-rag.lora-peft",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 LoRA 的原理（Hu et al., ICLR 2022），下列说法**正确的是**：",
+    "options": [
+      { "key": "A", "text": "LoRA 冻结预训练权重 W，用 ΔW = BA（B∈R^{d×r}, A∈R^{r×k}, r≪min(d,k)）的低秩增量做训练目标，只训 A/B，推理时 ΔW 可直接合并回 W 零额外延迟" },
+      { "key": "B", "text": "LoRA 对每一层都加一个可训练的小型 Adapter MLP，串行插在层间，因此推理时必然引入额外前向开销" },
+      { "key": "C", "text": "LoRA 的 rank 越大效果单调提升，所以永远选最大 rank" },
+      { "key": "D", "text": "LoRA 的本质是量化方法，通过把 FP16 权重压到 INT4 实现省显存" }]
+    ,
+    "answer": { "keys": ["A"] },
+    "analysis": "论文核心假设：模型适配任务时权重变化具有低『内在秩』，故用两个瘦矩阵乘积近似 ΔW 即可；训练只碰 A/B（参数量千分之几），推理时 (W+BA)x 可选择合并进 W → 零延迟增量 → A 全对。B 描述的是 Houlsby adapter 一脉（串行旁路 MLP），LoRA 恰以『可合并的并行分支』区别于它；C 错：rank 过大等于放开自由度，小数据反而过拟合，且论文报告 r=1~8 常已够用（成本还线性上涨）；D 把 LoRA 与量化混为一谈——省显存的是 QLoRA 里 NF4 量化那一半，LoRA 本体管的是『训谁』不是『怎么存』。",
+    "gapCheck": ["易漏点：『内在秩假设』这个词要说出来——它是 LoRA 有效性的理论叙事，也是面试的深挖点", "常见误区：忘讲 alpha（缩放系数）的作用：ΔW=BA·α/r，调 alpha 等价调有效学习率，与 rank 不是一回事", "加分项：说出 target modules 选择的实操结论（attention 投影 vs 全 linear 层的收益差异）与 LoRA 合并后多适配器热切换要放弃合并的取舍"],
+    "knowledgeLinks": {
+      "prereq": ["ai.train.finetune-vs-rag.lora-peft"],
+      "related": ["ai.train.finetune-vs-rag.finetune-decision", "ai.serving.infer-serving.quantize-accel"],
+      "followUps": ["QLoRA 三件套（NF4/paged optimizer/影子求值）各解决什么？", "LoRA 训完 loss 很降但生成退化，你怎么办？", "多租户 SaaS 上 100 个客户各一个 LoRA，怎么服务化？（batched multi-adapter）"]
+    },
+    "resources": [{ "title": "LoRA: Low-Rank Adaptation of Large Language Models", "digest": "arXiv:2106.09685（ICLR 2022）：内在低秩假设、ΔW=BA 参数化、GPT-3 上 10,000× 更少可训练参数超过全量微调、r 与 alpha 的行为分析、推理合并零延迟增量。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://arxiv.org/abs/2106.09685", "retrievedAt": "2026-11-09", "note": "论文官方 arXiv 页；QLoRA 另见 arXiv:2305.14314", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["微调核心", "论文口径", "必考"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束实操：只有 2×4090 和 3000 条指令数据，要微调 7B 做领域问答。给出 LoRA 配置的关键决策（rank/target modules/epoch/lr 起点）并说明每个旋钮拧错的信号。", "analysis": "参考决策：r=8~16 起步（3000 条撑不起大 rank）、target 全选 linear（含 MLP，数据少时广覆盖换适应面）、lr 1e-4~2e-4 区间起步、epoch 2~3 上限（小数据多 epoch 必背数据）、bf16+gradient checkpointing 塞下 batch。拧错信号：loss 趋 0 但自由生成胡言=过拟合背数据（减 epoch/加 dropout 看数据）；loss 平台很高=欠拟合（升 lr/rank 查数据格式 bug）；通用能力明显萎缩=灾难性遗忘（混 5~10% 通用数据或减步数）。评分眼：每个决策后面挂一个『失败信号』才算真会调。" }
+    ]
+  },
+  {
+    "id": "Q-ai-train-decide-0002",
+    "nodeId": "ai.train.finetune-vs-rag.finetune-decision",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "按 NVIDIA 官方《When Should You Fine-Tune an LLM?》的四维判断框架，下列情形与其首选方案对应**正确的有**：",
+    "options": [
+      { "key": "A", "text": "模型知识已过时、且知识还在持续更新 → RAG：更新检索源即可，无需反复重训" },
+      { "key": "B", "text": "需要模型稳定输出特定格式/遵循固定话术风格 → 微调：行为改变靠示范数据比靠加长 prompt 更稳更省 token" },
+      { "key": "C", "text": "需要模型具备它原本没有的新技能/深层领域行为模式 → 继续预训练或 SFT 这类真正改变权重的路线，RAG 做不到" },
+      { "key": "D", "text": "只是想让答案带上出处引用 → 微调：把『引用习惯』训进权重是最省事的方案" }]
+    ,
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "该文四问框架：知识过时且在变→RAG（A 对）；要改变行为/格式→微调（B 对，few-shot 顶到一定长度后被 FT 反超是其给出的经验规律）；要教全新技能/深层模式→continue-pretraining/SFT（C 对，RAG 只能喂上下文改不了能力）；『带引用』恰恰是 D 的陷阱——引用来自**检索层的出处指针**，微调让模型『模仿引用的样子』会背出编造的出处（权重记页码是幻觉温床），正确解法是 RAG+引用校验。",
+    "gapCheck": ["易漏点：D 的反例逻辑要能现场展开：『为什么微调学不会可靠引用』（出处是动态外部事实而非稳定行为）", "常见误区：把 B 与 C 混淆——格式是浅层行为（SFT/LoRA 足够），新技能是深层能力（可能要继续预训练），该文对此分层明确", "加分项：报出该文的组合结论『多数项目应从 prompt+RAG 起步，被证不够再升级到 FT』"],
+    "knowledgeLinks": {
+      "prereq": ["ai.train.finetune-vs-rag.finetune-decision"],
+      "related": ["ai.rag.retrieval-pipeline.generation-grounding", "ai.train.finetune-vs-rag.lora-peft"],
+      "followUps": ["你的场景四维各打几分？现场过一遍", "few-shot 什么时候开始不如微调？给个经验拐点", "微调后模型引用格式漂亮但页码全错，责任在谁？"]
+    },
+    "resources": [{ "title": "NVIDIA 开发者博客 · When Should You Fine-Tune?", "digest": "官方四问决策树：知识新且在变→RAG；要新能力→继续预训练；要改变行为→SFT/FT；都不是→prompt 就够。附成本与迭代速度视角对比。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://developer.nvidia.com/blog/when-should-you-fine-tune-an-llm/", "retrievedAt": "2026-11-09", "note": "NVIDIA 官方决策框架文（与 rag 节点的 RAG-or-FT 问答是姊妹篇）", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["决策框架", "取舍题", "高频开场"],
+    "variants": [
+      { "angle": "换场景", "stem": "现场裁决：律所想要『用合伙人的行文风格改写诉状，并确保引用判例库原文』。按四维框架拆成两条需求分别给方案，并指出把两件事捆在一起微调会发生什么。", "analysis": "拆解：行文风格=稳定行为→SFT/LoRA（拿合伙人修改前后配对数据训风格迁移，效果远好于巨型 few-shot）；判例引用=动态外部事实→RAG（检索判例原文注入，引用由检索层给指针）+格式约束输出。捆绑微调的事故：判例库在长，模型权重里的判例引用会过时且编造——正是 D 陷阱的放大版；还会为迁就引用行为破坏风格训练的稳定性（两种目标互相拉扯）。答题结构『拆-配-反证』三段齐全即满分。" }
+    ]
+  }
+]

@@ -1,0 +1,112 @@
+[
+  {
+    "id": "Q-fe-vue-comm-0001",
+    "nodeId": "fe.vue.communication.props-emit",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "子组件声明了 `emits: ['update']`，父组件使用 `<Child :title=\"t\" data-x=\"1\" @click=\"onClick\" />`（Child 内部根元素是单个 div，未写 inheritAttrs）。关于落到子组件根 div 上的属性，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "title、data-x、onClick 全部透传，因为 emits 只影响 $attrs 不影响事件监听" },
+      { "key": "B", "text": "title 与 data-x 透传；@click 因未声明在 emits 也作为 onClick 进 attrs 透传——若 Child 又声明了 emits:['click'] 则不会重复挂原生监听" },
+      { "key": "C", "text": "只有 data-x 透传，props 一律不会 fallthrough" },
+      { "key": "D", "text": "@click 永远不透传，Vue 会把所有 on* 都当作组件 emit 处理" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "fallthrough 规则：声明过的 props（title）被 props 系统消费不进 attrs；未在 **emits** 声明的监听器（onClick）留在 attrs 一并透传到单根元素（等于给根元素 addEventListener）；声明进 emits 的事件名会从 attrs 剔除，避免『自定义 emit + 原生 click』双触发。A 错在 title 是被消费的 prop；C 错在 prop 之外的一切才叫 attrs? 表述颠倒；D 错在未声明的事件监听默认按 attr 透传。",
+    "gapCheck": ["易漏点：声明 emits 不只是文档作用——运行时它直接决定 attrs 内容与根元素监听数", "常见误区：多根 fragment 组件必须显式 inheritAttrs:false + 手动 v-bind=\"$attrs\" 到某一层，否则控制台警告且透传失败", "追问延伸：class/style 的合并策略（fallthrough 时 class 拼接而非覆盖，mergeProps 语义）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.communication.props-emit", "fe.vue.communication.attrs-expose"],
+      "related": ["fe.vue.compiler.slot-compile", "fe.vue.composition.sfc-macros"],
+      "followUps": ["v-model 编译后到底产生什么 prop 和事件？（modelValue + onUpdate:modelValue，参数变体带修饰符名）", "defineEmits 的类型声明能校验修饰符吗？（3.3 起可元组语法带 modifiers）", "inheritAttrs 与 useAttrs() 的组合用法？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/guide/components/attrs.html", "retrievedAt": "2026-11-09", "note": "Attribute Inheritance / Declaring Emits Effects 章节" },
+    "tags": ["通信基础", "必考", "attrs"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束排错题：封装 Button 组件（多根：icon span + label span）的同事发现传入的 class 没生效且控制台报『Extraneous non-emits event listeners...』类警告，他还把 @mouseenter 同时写在 emits 里并期待它既触发 emit 又触发根元素原生 hover。请指出两处问题并给出修法。", "analysis": "问题①：多根 fragment 无法自动决定 attrs 落点 → class/监听全悬空，需 inheritAttrs:false 并把 class 手动 v-bind 到外层包裹（或改单根）。问题②：事件名一旦声明进 emits 就从 attrs 剔除，根元素不会再挂原生 mouseenter，emit 是唯一出口——想要『emit+原生』双通道就撤出 emits 声明（接受透传）或在 emit 回调里手动操作 DOM。诊断文案里的 Extraneous 警告正是 attrs 悬空的运行时指纹。考点：attrs/emits/多根三者的联动矩阵。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comm-0002",
+    "nodeId": "fe.vue.communication.provide-inject",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 provide/inject，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "provide(value) 传普通值时，祖先后续更新该值，后代**不会**重新渲染——注入不是 props，没有『提供者重渲就推倒注入方』的机制" },
+      { "key": "B", "text": "官方推荐 provide 一个 `{ state: readonly(ref), actions }` 形态的对象，兼得响应式与单向数据流" },
+      { "key": "C", "text": "inject 沿组件链向上找不到时永远返回 undefined，且无法探测 key 是否存在" },
+      { "key": "D", "text": "provide 发生在 setup 之外的 app.provide()，作用于全局，且优先级低于组件级 provide（就近原则）" }]
+    ,
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A 对且最反直觉：注入的普通值是一次性快照，提供者自己状态变了不会广播给 inject 方（要响应必须 provide ref/reactive/computed）。B 是官方文档原文建议：readonly 防子改、方法集中改。D 对：解析顺序是 组件实例 provides 链 → appContext.provides，组件级遮蔽应用级，app.provide 是全局 DI 容器。C 错：inject(key, defaultValue, treatDefaultAsFactory) 支持兜底，且 Vue 提供 hasInjectionContext?（3.3+ 探测函数）与 dev 警告，『永远 undefined』不成立。",
+    "gapCheck": ["易漏点：provide 的响应式依赖的是『inject 方读取时经过代理』，readonly(ref) 包一层仍保留 get trap", "常见误区：拿 provide/inject 当轻量 Pinia——缺 devtools 时间旅行/persist/HMR，团队项目慎用自造 DI 总线", "加分：知道 provide 链是原型继承创建（Object.create(parentProvides)），所以早期版本改旧值会断链的坑"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.communication.provide-inject"],
+      "related": ["fe.vue.state.pinia-internals", "fe.vue.composition.composable-design"],
+      "followUps": ["为什么 inject 到的 ref 修改不会触发 provider 组件重渲但会触发 inject 方重渲？", "Symbol key 与字符串 key 在 SSR 序列化场景的差别？", "hasInjectionContext 的真实用例是什么？（通用 composable 双模式降级）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/guide/components/provide-inject.html", "retrievedAt": "2026-11-09", "note": "『Follow the Convention of Wrapping the Mutations』『Provide/Inject Reactivity』小节原文场景" },
+    "tags": ["通信全集", "易错合集"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向追问：面试官质疑『Vue 官方一面教人用 Pinia，一面又在 provide-inject 页写这套 readonly+actions 的手搓 store，是不是精神分裂？』请给出你的裁决标准：什么信号出现时你从 provide/inject 升级到 Pinia，反过来呢？", "analysis": "裁决轴：①状态要不要跨路由持久/devtools 调试/时间旅行→要就 Pinia；②依赖注入的作用域是不是『组件树局部』（主题、表单上下文、复合组件内部）→是就 provide/inject，天然随组件卸载释放；③SSR 每请求隔离：Pinia 要建实例，provide 天然隔离——微前端局部态反而适合 DI；④团队协作规模：DI 总线无类型集中注册表，三人以上失控。反向降级信号：store 里出现大量只在单页面用的 transient 状态时把它收回 provide/composable。答『非此即彼』的直接扣分——考的是灰度决策。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comm-0003",
+    "nodeId": "fe.vue.communication.attrs-expose",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "短答（实例通道三件套）：①<script setup> 组件默认对外暴露什么？父组件 $refs.myChild.xxx 想访问内部方法要怎么做？②useTemplateRef('input') 与旧写法 ref=\"input\" + setup 同名变量相比解决了什么问题？③函数 ref 与模板 ref 数组（v-for 内）在卸载时的清理语义是什么？",
+    "answer": { "ref": "①默认**封闭**：setup 顶层绑定只供模板编译用，不暴露给外部 $refs（这是 <script setup> 的封装红利）；需 defineExpose({ method, publicState }) 显式开口，暴露内容经 proxyRefs 包装。$parent/$refs 属逃生舱，跨组件调用方法在 3.x 被视为需要代码评审的模式。②旧写法 ref=\"input\" 要求 setup 里同名 ref 变量、静态分析才能绑定，且同名冲突时行为微妙（3.5 起解构/重命名受限）；useTemplateRef('input') 把绑定改为运行时显式查询：名字可与任意变量名配合、支持动态名（传 computed 返回当前 tab 名）、composable 内可用（不再依赖当前 setup 绑定表），并在卸载时置 null 语义统一。③v-for 的 ref=\"arr\" 收集为数组：Vue 按 mount 顺序 push、unmount 时**置 null 保留占位**（3.x 起不再 splice，防止索引错位），需要过滤 Boolean(arr) 使用；函数 ref 每实例调两拍：mount 后 fn(el)、unmount 前 fn(null)，cleanup 责任在用户函数（旧函数引用丢失场景要用内联箭头）。" },
+    "scoringPoints": [
+      { "point": "①说出默认封闭 + defineExpose 显式开口及其封装动机", "weight": 2 },
+      { "point": "②讲出 useTemplateRef 的动态名/composable 可用两大痛点", "weight": 2 },
+      { "point": "③数组 ref 卸载置 null 不删位的细节", "weight": 2 },
+      { "point": "③函数 ref 的 el/null 两拍语义", "weight": 1 },
+      { "point": "顺带给出『能不碰 $refs 就不碰』的工程立场", "weight": 1 }
+    ],
+    "analysis": "attrs/expose/ref 是通信题里最不性感但事故率最高的一组。①的『默认封闭』是 <script setup> 与 defineExpose 存在意义的同一句话；②要答到 useTemplateRef 的**动态名**才算摸到 3.5 设计意图（官方 release note 原例就是 tabs 面板切换 ref）；③数组 ref 的 null 占位是最多人踩的坑（遍历时 undefined.length 炸）。",
+    "gapCheck": ["易漏点：useTemplateRef 必须在 setup 同步期调用（同样吃 currentInstance）", "常见误区：以为 defineExpose 暴露的 ref 会被解包两次（expose 对象本就 proxyRefs）", "追问延伸：defineExpose 与 TS 的 InstanceType<typeof Comp> 推断联动——模板 ref 类型怎么来的"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.communication.attrs-expose", "fe.vue.reactivity.ref-family"],
+      "related": ["fe.vue.composition.setup-lifecycle", "fe.vue.ecosystem.vue-versions"],
+      "followUps": ["useTemplateRef 拿到的元素什么时候保证非 null？（onMounted 后；SSR 水合前呢？）", "为什么 ref 放 v-if 分支卸载会置 null？设计理由？", "expose('') 完全隐藏是干什么的？（组件实例仍可被 keep-alive 管理但外部零接口）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://blog.vuejs.org/posts/vue-3-5", "retrievedAt": "2026-11-09", "note": "useTemplateRef 公告（含动态名示例）；defineExpose 语义另见 sfc-script-setup 文档" },
+    "tags": ["3.5特性", "实操向"],
+    "variants": [
+      { "angle": "换场景", "stem": "场景重构题：老代码用 `this.$refs.form.validate()`（Element Plus Form 实例方法）驱动提交，现在迁 <script setup> 后有人直接把 el-form 的 validate 抄成自己组件的方法再 defineExpose 转发。请给出更优的两层结构（谁持有 form ref、暴露什么接口），并说明为什么『转发式 expose』在大型组件库是负资产。", "analysis": "更优：业务组件内部 useTemplateRef('formRef') 持有实例，submit 逻辑就地调 formRef.value.validate()；对外只暴露语义化接口如 defineExpose({ submit, reset }) 或直接不发事件 promise 化。转发式 expose（validate 一层层往上抄）是负资产：①接口面随内部结构漂移，破坏封装演进；②类型上每层都要手抄签名（库升级即雪崩）；③调用方拿到的是命令式大泥球，退化成 jQuery 时代。加分：提到官方对模板 ref 的定位『尽量优先用 ref 变量直连子组件』以及 Element Plus 自身 expose 的类型导出策略。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-comm-0004",
+    "nodeId": "fe.vue.communication.slot-advanced",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：实现 `<DataTable>` 的 renderless 核心——接收 default 作用域插槽，内部自己管理排序状态并调用外部传入的 fetcher，最终把 { rows, sort, toggleSort, loading } 作为 slot props 交给插槽。要求：①用 <script setup> 写法；②插槽调用处正确使用 withCtx/slot children 语义（模板版即可，不必手写 _withCtx）；③说明这个组件的 slot 会被编译器编成哪一档、为什么。",
+    "answer": { "ref": "模板要点：`<slot name=\"default\" v-bind=\"{ rows, sort, loading, toggleSort }\" />`；script setup 管状态（shallowRef 存 rows 防深代理、sort 变化重排 computed）。第三问答案：使用了 slot props 的 default slot 编译为带 _withCtx 的动态档（内容在子组件渲染期求值、需绑定父作用域），若内容还含事件/条件则必然非 stable——意味着 DataTable 每次 re-render，插槽内容的 vnode 也随之重建（这正是作用域插槽的性能税来源），缓解靠把昂贵展示拆成独立组件（props 传入享受 shouldUpdateComponent 短路）。", "code": "<!-- DataTable.vue -->\n<script setup>\nimport { shallowRef, computed, onMounted } from 'vue'\nconst props = defineProps<{ fetcher: () => Promise<any[]> }>()\nconst emit = defineEmits<{ error: [e: unknown] }>()\nconst rows = shallowRef<any[]>([])\nconst loading = shallowRef(false)\nconst sort = computed(() => ({ key: sortKey.value, dir: sortDir.value }))\nconst sortKey = shallowRef<string | null>(null)\nconst sortDir = shallowRef<1 | -1>(1)\nconst sorted = computed(() => {\n  if (!sortKey.value) return rows.value\n  const k = sortKey.value\n  return [...rows.value].sort((a, b) => (a[k] > b[k] ? 1 : -1) * sortDir.value)\n})\nfunction toggleSort(key: string) {\n  if (sortKey.value === key) sortDir.value = (sortDir.value * -1) as 1 | -1\n  else { sortKey.value = key; sortDir.value = 1 }\n}\nonMounted(async () => {\n  loading.value = true\n  try { rows.value = await props.fetcher() }\n  catch (e) { emit('error', e) }\n  finally { loading.value = false }\n})\ndefineExpose({ reload: () => { /* 同上 */ } })\n</script>\n<template>\n  <slot :rows=\"sorted\" :sort=\"sort\" :loading=\"loading\" :toggle-sort=\"toggleSort\" />\n</template>\n\n<!-- 使用 -->\n<DataTable :fetcher=\"loadUsers\" v-slot=\"{ rows, toggleSort, loading }\">\n  <table v-if=\"!loading\">\n    <th @click=\"toggleSort('name')\">Name</th>\n    <tr v-for=\"r in rows\" :key=\"r.id\"><td>{{ r.name }}</td></tr>\n  </table>\n</DataTable>" },
+    "scoringPoints": [
+      { "point": "slot props 用动态绑定下发完整渲染参数（v-bind 或逐个 :x）", "weight": 2 },
+      { "point": "状态设计合理：浅代理存行集、排序走 computed 不污染源数据", "weight": 2 },
+      { "point": "异步边界：loading/error/emit 与 finally 收口", "weight": 1 },
+      { "point": "第三问答对档位：用了 slot props → 非 stable（withCtx 动态），并解释性能税", "weight": 2 },
+      { "point": "缓解方案具体（拆组件传 props 借 shouldUpdateComponent）", "weight": 2 }
+    ],
+    "analysis": "renderless 组件是作用域插槽的设计目标形态，本题三层合一：API 设计（slot props 形状）、状态卫生（shallowRef/computed 习惯）、编译认知（档位判定）。第三问是灵魂：能把『slot 内容每轮重建』与『拆成子组件传 props 就能短路』串起来，说明编译知识真的用来写代码了。",
+    "gapCheck": ["易漏点：rows 用 ref 深代理万行数据的成本与 triggerRef 替换整数组的取舍要主动讲", "常见误区：把 toggleSort 定义在插槽侧造成状态回流混乱——renderless 的原则是状态归提供者", "加分：给 slot props 加 defineSlots 类型约束；提到 fallback 内容检测用 #default=\"{ rows }\" 判空"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.communication.slot-advanced", "fe.vue.compiler.slot-compile"],
+      "related": ["fe.vue.perf.virtual-list", "fe.vue.composition.sfc-macros"],
+      "followUps": ["如果插槽内容还要保持滚动位置，拆组件会不会丢状态？（v-memo/独立组件 ref 提状态）", "defineSlots 能否禁止额外 slot 与动态 slot？（类型上可以约束名字与 props）", "把这道题改成 TSX render 函数版你怎么写 withCtx？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://vuejs.org/guide/components/slots.html", "retrievedAt": "2026-11-09", "note": "Renderless Components 官方示例范式 + 3.3 slot 编译档位交叉验证" },
+    "tags": ["手写题", "组件设计", "slot"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束：给 DataTable 增加『列定义也走插槽』需求——header/cell 两个具名作用域插槽，且要求表头插槽尽量 stable 以免大表重渲染时表头抖动。请问你会怎么设计 slot props 划分来最大化 stable 概率？写出判定依据。", "analysis": "设计：把『每行都变的』数据（cell 的 row/value）留在 cell 插槽（必然动态），把『一次性的』header 插槽的 props 收窄为纯静态结构（columns 常量数组 + 稳定的 toggleSort 引用），内容若无事件/条件即可能编成 stable——但注意一旦 header 里写 @click=toggleSort(...) 内联箭头就破功，需在 setup 里预绑 handler 或用 defineExpose 的稳定方法引用。判定依据就是编译器三档规则：内容有无动态表达式/是否读 slot props? 读 props 必 withCtx。满分句：stable 是编译器证明出来的，不是许愿出来的——slot props 越少越稳，事件引用越静越好。" }
+    ]
+  }
+]

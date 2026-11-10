@@ -1,0 +1,184 @@
+[
+  {
+    "id": "Q-fe-vue-compo-0001",
+    "nodeId": "fe.vue.composition.setup-lifecycle",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 setup() 的执行时机，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "在 created 之后执行，因此可以访问 this.data 与已初始化的 methods" },
+      { "key": "B", "text": "在 beforeCreate 与 created 之间、组件实例 initialResolveCache 之后执行；此时 data/computed/methods 尚未挂载到实例，this 为 undefined" },
+      { "key": "C", "text": "与 beforeMount 同时机，因为 setup 返回值就是 render 函数所以要等模板编译完" },
+      { "key": "D", "text": "每次组件重渲染时都会重新执行一次，以收集最新依赖" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "组件初始化顺序：instance 创建 → beforeEachCreateHook → appContext mixins/props/slots 解析 → **callSetup(setupState)** → handleSetupResult → instance.setupState 挂好 → 选项式 data/computed/methods 初始化（created 前后）。所以 setup 里没有 this、没有 data()。D 是最大迷惑项：setup 只跑一次，重渲染跑的是它返回的 render（<script setup> 编译产物同理），依赖收集发生在 render effect 而非 setup。",
+    "gapCheck": ["易漏点：<script setup> 里 await 会把 setup 变 async，只有 Suspense 能处理——顶层 await 是时机题的隐藏分支", "常见误区：把『setup 里能 inject』误推成『setup 晚于 created』（inject 在 callSetup 前已 resolve）", "追问延伸：为什么 setup 返回值给模板用还要经过 proxyRefs？（自动解包 ref，见 setupState 包装）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.composition.setup-lifecycle"],
+      "related": ["fe.vue.lifecycle.mount-unmount", "fe.vue.runtime.update-flow"],
+      "followUps": ["async setup 返回 Promise 时组件如何渲染？（Suspense 包裹 + pendingBranch）", "<script setup> 的绑定编译后放在 setup 返回对象的哪个位置？（inline 模式直接闭包，非 inline 才暴露 setupState）", "getCurrentInstance 为什么不建议业务滥用？"]
+    },
+    "resources": [{ "title": "Vue 官方 guide·setup 语法糖", "digest": "setup() 在 props 解析后、组件选项初始化前调用；接收 props(reactive)/context(expose/attrs/slots/emit)；<script setup> 等价且更封闭。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/guide/introduction.html", "retrievedAt": "2026-11-09", "note": "Getting Started 组件生命周期图 + API composition-api-helpers setup 签名" },
+    "tags": ["必考", "setup时机"],
+    "variants": [
+      { "angle": "换场景", "stem": "场景排查：同事在 setup 顶层写了 `const { userId } = defineProps(['userId'])`（未开 3.5 解构保持响应性前的老项目），watch(() => props.userId) 正常但直接 watch(userId) 无效。请从 setup 返回值与 props 存储结构解释为什么，并给出三种修法。", "analysis": "props 本身是 shallowReactive 对象；解构拿到的是普通值快照，脱离响应源。老版本 setup 顶层解构=一次性拷贝（这正是当年 lint 规则 no-setup-props-destructure 的动机），3.5 起编译器把解构重写为 __props.userId 访问才保住响应。修法：①watch(()=>props.userId)；②toRef(props,'userId')；③升级 3.5 开 reactive props destructure。加分：指出 watch 传原始值 source 会被当 getter? 否——非函数非 ref 的 source watch 会警告且永不触发。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-compo-0002",
+    "nodeId": "fe.vue.composition.options-vs-composition",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "重构一个 800 行的选项式『商品编辑器』组件时，面试官问『你为什么迁组合式』。下列**不属于**组合式 API 真实优势的说法是：",
+    "options": [
+      { "key": "A", "text": "同一逻辑关注点的状态与方法可以聚合进 composable，而不是按选项劈成三块来回横跳" },
+      { "key": "B", "text": "composable 是普通模块导入导出，冲突可显式改名，比 mixins 的隐式合并与命名覆盖更可预测" },
+      { "key": "C", "text": "组合式 API 让组件**跳过 diff**直接更新 DOM，因为 setup 里建立了细粒度订阅" },
+      { "key": "D", "text": "类型工具对 setup 闭包的推断远好于选项式 this 聚合类型（$refs/this.$props 的声明地狱）" }]
+    ,
+    "answer": { "keys": ["C"] },
+    "analysis": "C 是把『细粒度响应式』偷换成『跳过 diff』——组合式的收益在**订阅粒度**（render effect 只读用到的字段），diff 流程照走（patchFlag/block 优化属于编译层，与 setup 写法无关）。A/B/D 分别对应：逻辑聚合、显式复用替代 mixins、TS 友好——正是官方列的三大动机。",
+    "gapCheck": ["易漏点：迁移收益还有『按需引入的 tree-shaking』（全量注册 vs 用到什么打包什么）常被漏", "常见误区：把 Vue3 性能提升全部记在组合式头上（大头是 Proxy+编译优化）", "反向诚实：组合式的代价——心智门槛、闭包 .value 噪音、新手更易写出失控 effect，面试敢讲代价更加分"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.composition.options-vs-composition"],
+      "related": ["fe.vue.composition.composable-design", "fe.vue.ecosystem.vue-vs-react"],
+      "followUps": ["mixins 的合并策略你知道哪些？同名钩子/数据字段各怎么处理？（钩子数组串行、data 深合并且组件优先）", "为什么说组合式是 React Hooks 的『有响应式版』？两者何时趋同何时分道？", "大型团队混合使用选项式与组合式的边界你怎么定？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://jishuzhan.net/article/1893391699909021697", "retrievedAt": "2026-11-09", "note": "Vue 与 React 异同长文：组合式动机与 this 类型痛点章节" },
+    "tags": ["动机辨析", "高频"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束决策题：老板只给你两周，要求『迁移一个 30 组件的老后台系统到组合式』。请给出你的迁移范围裁剪（哪些迁哪些不迁）与两条硬规则，并说明你如何量化『迁移收益』以免被质疑白干。", "analysis": "参考答案走向：只迁『高频改动 + 含跨组件逻辑复用』的组件（git churn × 圈复杂度选前 5），纯 CRUD 展示组件不动；硬规则一：新组件一律 <script setup>；硬规则二：禁止新增 mixin，存量 mixin 就地封装为 composable 前先补测试。量化：改动人天回归对比、bundle 变化、bug reopen 率。这题不给标准答案，考的是工程判断与止损意识——上来『全量迁完』的直接追问成本曲线。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-compo-0003",
+    "nodeId": "fe.vue.composition.sfc-macros",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：<script setup> 中 defineProps 之类的宏只能在顶层语句使用、不能放进条件分支或回调里调用，因为它们不是运行时函数而是 @vue/compiler-sfc 在编译期识别并就地展开的语法标记。",
+    "answer": { "judge": true },
+    "analysis": "对。宏的实现是 compiler-sfc 的 AST 改写：defineProps 的调用点被删除、参数求值结果注入编译产物（props 选项 + 运行时声明）、返回的 props 对象绑定到 setup 变量。放条件里会造成『分支语义无法静态展开』，编译器直接报宏使用错误（EXPERMACRO_BAD_CALL... 系列诊断）。衍生约束同源：宏参数只能是字面量对象/引用编译期可见的本地类型（类型导出要 import('...').T 内联）。",
+    "gapCheck": ["易漏点：defineModel 也是宏——3.4 稳定后编译成 props+emit 对，别把它当运行时 API 找 import", "常见误区：以为 <script setup> 默认 expose 所有顶层绑定——实际默认封闭，需 defineExpose", "追问延伸：为什么宏不需要 import？（compiler 保留名识别；unimport/auto-import 场景要配 resolver）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.composition.sfc-macros"],
+      "related": ["fe.vue.composition.setup-lifecycle", "fe.vue.compiler.ast-pipeline"],
+      "followUps": ["defineProps 的类型参数怎么变成运行时校验？（编译器把类型接口反解成 type/required 声明，复杂类型退化为 unknown）", "defineOptions 出现前怎么声明 name？（额外一个普通 <script> 块）", "两个 <script> 块共存时哪个能写副作用？（普通块可 run 一次，setup 块 per-instance）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/api/sfc-script-setup.html", "retrievedAt": "2026-11-09", "note": "Type-Only Props Declaration / define 宏规则章节；宏限制原文『can only be used in <script setup> 且 top-level』" },
+    "tags": ["SFC机制", "概念精确性"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向问：既然宏是编译期展开，那 defineProps 里的类型声明在运行时到底留下什么？请说出编译器为 `interface Props { a: string; b?: number; c: 'x'|'y' }` 生成的运行时 props 声明形态，以及哪些类型会退化失效。", "analysis": "生成大致为 `{ a: { type: String, required: true }, b: { type: Number }, c: { type: String, validator: v=>['x','y'].includes(v) } }`——联合字面量转 validator、可选转 required:false。失效面：交叉/工具类型(Pick/Omit)、外部文件导入的类型（volar 时代可解析但运行时曾长期退化为 null）、函数类型推断保守——vue-tsc 管编译时、运行时声明只是尽力而为的双轨制。答出『双轨且不对等』即到位；只会背『类型声明更爽』的是用户视角不是工程师视角。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-compo-0004",
+    "nodeId": "fe.vue.composition.sfc-macros",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "Vue 3.5 起 `<script setup>` 里 `const { count = 0, title } = defineProps()` 的解构不再丢失响应性，编译器把模板中的 title 重写为对 ______ 的访问；需要旧行为时用编译选项 ______ 关闭；想在 setup 里把 prop 安全地交给异步回调，应使用 3.5 新增的 ______（从 vue/macros 导入）保持响应式访问。",
+    "answer": { "blanks": ["__props", "propsDestructure", "toRef/toValue"], "synonyms": { "__props": ["props.__prop?", "编译器临时变量"], "propsDestructure": ["compilerPropsDestructure", "reactivePropsDestructure:false"], "toRef/toValue": ["toRef", "toValue", "toRefs"] } },
+    "analysis": "3.5 的 transform 把解构后的绑定编译为 __props.title（带默认值的走 withDefaults 等价合成），模板与 setup 内读写都指向 __props 保持 live binding；watch(props.x)? watch 解构源需 getter 形式仍是考点。关闭项叫 propsDestructure:true/false（experimental 转正）。toValue/toRef/toReactive/toRefs（vue/macros）统一处理 ref/getter/普通值三种来源，是把 prop 交出去做延迟读取的标准工具。",
+    "gapCheck": ["易漏点：解构保持响应但**默认值参与 HMR 更新**的行为变化是破坏面之一（3.5 migration note）", "常见误区：以为解构后 `const {a}=props` 传给 setTimeout 还能 live——toValue 每秒读才行，捕获的值依旧静态", "同义兜底：『toRef』『toValue』任一都算第三空正确"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.composition.sfc-macros"],
+      "related": ["fe.vue.ecosystem.vue-versions", "fe.vue.reactivity.ref-family"],
+      "followUps": ["为什么解构默认值会让 HMR 语义复杂？（默认值是 prop 缺省回退，热更时新旧默认值混叠）", "defineModel 与 3.5 解构能配合吗？（modelValue 解构同样保响应）", "toValue 和 unref 的差别？（toValue 支持 getter 源）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://blog.vuejs.org/posts/vue-3-5", "retrievedAt": "2026-11-09", "note": "Reactive Props Destructure 转正段 + vue/macros 工具集公告" },
+    "tags": ["3.5特性", "文档细节", "填空"],
+    "variants": [
+      { "angle": "换场景", "stem": "场景实战：设计系统组件 `<FancyInput v-model:msg.debounce=\"text\" />` 想把 v-model 修饰符 debounce 透传给内部 useDebounce。写出 defineModel 一行签名，说明修饰符落到哪、defineModel 的 local 参数什么时候必须用。", "analysis": "签名：`const model = defineModel({ local: true, modifiers: ['debounce'] })`，编译器把 modelModifiers 里的 debounce 暴露为 model.modifiers（3.4+ 约定），useDebounce(model, model.modifiers) 消费。local:true 时机：需要本地暂存（输入防抖期间不回写父级、表单草稿）——它编译出局部 ref + watch 同步，避免每次敲键 emit。反面：不用 local 却手搓 localRef+watch 是 defineModel 出现前的老写法。加分：提到 .exact 修饰符与自定义 modifier 的 emit 事件名 modelModifiers 归一化。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-compo-0005",
+    "nodeId": "fe.vue.composition.composable-design",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "短答：`useMouse()` 这个 composable 里注册了 mousemove 监听和一条 watch。请回答：①为什么它必须在 setup 同步阶段调用而不能在 onMounted 的异步回调里调用；②组件卸载时它的 watch 靠什么自动回收；③若调用方把 useMouse 放进 `onMounted(async () => { ... await fetch(); useMouse() })` 里，你会怎么补救（两种方案）。",
+    "answer": { "ref": "①watch/effect 的自动清理依赖『当前活跃实例或活跃 scope』：doWatch 拿 getCurrentInstance()/getCurrentScope() 注册 unload/onScopeDispose；await 之后的代码已脱离 setup 同步栈——实例的 scope 已 close（setup 结束即关 activeEffectScope? 准确说 setup 同步完成后 instance.scope 停止接收新注册? Vue 在 mount 完成时不会关 scope，但 getCurrentInstance 依赖的 currentInstance 在异步回调里已被 finally 还原为 null），注册不到宿主就退化成全局 effect（永不回收/泄漏警告）。②组件实例的 effect scope（instance.scope.run(callSetup)）统一持有这些 watcher，unmount 时 scope.stop() 批量停。③补救一：调用方用 effectScope 手动建域：`const scope=new EffectScope(true); scope.run(()=>useMouse())`，并在自己组件 onUnmounted 里 scope.stop()；补救二：useMouse 内部对『无宿主』容错——检测 getCurrentInstance()==null 时自持清理句柄返回 cleanup，或改用 addEventListener+onBeforeUnmount 的显式注册版本供异步场景。" },
+    "scoringPoints": [
+      { "point": "①指出注册依赖 currentInstance/currentScope，异步后上下文丢失", "weight": 2 },
+      { "point": "②说出 instance.scope 与 scope.stop 的统一回收模型", "weight": 2 },
+      { "point": "③给出 effectScope 手动域方案并提 stop 责任", "weight": 2 },
+      { "point": "③给出库侧容错方案（自持 cleanup 或显式 API）", "weight": 1 },
+      { "point": "顺带区分 onScopeDispose 与 onUnmounted 的适用面", "weight": 1 }
+    ],
+    "analysis": "这组追问是 composable 设计的照妖镜：第①问考『响应式系统的注册机制』（不是背 API），第②问考 EffectScope 架构，第③问考你会不会造轮子的兜底层。『await 后 getCurrentInstance 为 null』这句话必须说准，含糊成『生命周期没了』会被追击。",
+    "gapCheck": ["易漏点：scope 不止 watcher——provide、注册指令、生命周期钩子都吃 currentInstance", "常见误区：以为 onMounted 里同步调 useXxx 也危险（其实 mounted 钩子执行时 currentInstance 已设好，安全）——危险仅在脱离微任务/宏任务的续体", "加分：知道 vueuse 很多函数支持传 target ref/maybeReadRef 以适配非常规调用位点"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.composition.composable-design", "fe.vue.composition.setup-lifecycle"],
+      "related": ["fe.vue.reactivity.computed-watch", "fe.vue.lifecycle.mount-unmount"],
+      "followUps": ["effectScope 除了异步注册还有什么用法？（store 懒域/Vapor 每 app 一 scope/批量暂停响应）", "onScopeDispose 和 onBeforeUnmounted 在 keep-alive 失活时谁触发？（都不，deactivate 不是 dispose）", "如果让你写 useWebSocket 支持共享单连接，scope 怎么用？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://github.com/xstongxue/best-skills/blob/main/skills/dev-workflow/reference/review-kit/guides/vue.md", "retrievedAt": "2026-11-09", "note": "Vue 代码审查指南：composable 调用位点与副作用回收条目" },
+    "tags": ["composable", "副作用回收", "大厂"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束设计题：现在要把 useMouse 升级成『全局共享一只 mousemove、N 个组件各自订阅』的 useMouseShared，要求任意时刻组件卸载都正确减计数、最后一个退订才摘监听。写出计数与回收的关键设计（伪码即可），并指出用 refCount 与用 Set 订阅者两种实现各自的坑。", "analysis": "骨架：模块级 listeners Set + 首次订阅时 addEventListener、delete 后 size===0 时 remove；每个调用方拿到的 unsubscribe 挂进自己的 onScopeDispose（不是 onUnmounted——keep-alive 失活要不要退订是产品语义，scope 语义天然对齐实例销毁）。坑：refCount 手工加减漏配 throw 路径就负数；Set 方案若调用方重复注册同一 handler 引用会被去重漏计。加分：提到 SSR 下 window 判空、passive 监听、以及 VueUse useShare 的 eventHub 复用思路。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-compo-0006",
+    "nodeId": "fe.vue.composition.options-vs-composition",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "论述题：『组合式 API 是不是就是 Vue 抄 React Hooks？setup 和函数组件有什么本质区别？』请从：①执行模型（per-instance 一次 vs per-update 多次）；②状态存储（ref 显式容器 vs state/闭包捕获）；③依赖追踪（自动收集 vs 手动 deps 数组）；④异步与竞态（async setup/Suspense vs useEffect 竞态手写守卫）；⑤什么场景 React 反而占优——五个维度展开，结尾给出你对『两套范式会互相融合吗』的判断。",
+    "answer": { "ref": "参考骨架：①setup 每实例一次（created 之前），返回闭包 render；React 函数体每次渲染整体重跑——所以 React 里『每次渲染都是新闭包』是特性而 Vue 的 setup 闭包只建一次结构。②Vue 状态是显式容器（ref/reactive 挂在 setupState，跨渲染稳定），DOM 事件处理器永远读最新值；React state 不可变+每次渲染快照，旧闭包读旧值→stale closure 是 React 特产 bug，Vue 无此病但多了 .value 税。③Vue 编译期+运行时自动追踪（render effect 读到啥订阅啥，watch 的 source 也是 effect），不存在『忘写 deps』；React memo/useCallback/useEffect 全靠 deps 数组纪律，漏一项就陈旧闭包——两边『心智负担』位置不同。④异步：Vue async setup 必须 Suspense 包裹、await 后 setupState 延迟 resolve，资源等待是一等公民（defineAsyncComponent/top-level await）；React 数据获取三代演进（Suspense 实验→use()）仍在路上，竞态要 AbortController/清理函数手挡。⑤React 占优场景：需要并发优先级（startTransition/TTL）、Server Components 流式、生态规模（RSC/Next 成熟度）、以及团队偏好纯函数心智；Vue 占优：中后台高密度表单、模板约束带来的可维护性与新人一致性。⑤判断：正在融合——React 补编译器(React Compiler 自动 memo)与 signals 提案、Vue 补 Vapor(signals 直编 DOM)+defineResource 草案；终局大概率收敛到『signals 内核 + 各自 DX 外壳』，因为细粒度响应是物理最优解，框架差异上移到路由/RSC/生态。加分：引 React Compiler 官方口径（自动 memo 取代手动 deps）与 Vue Vapor RC 时间线做证据。" },
+    "scoringPoints": [
+      { "point": "①执行模型差异准确（setup 一次/函数体重跑）且不把 setup 说成每次渲染", "weight": 2 },
+      { "point": "②讲清 stale closure 的成因并对照 Vue 的 ref 容器免疫机制", "weight": 2 },
+      { "point": "③deps 纪律 vs 自动追踪的『负担位置』表述", "weight": 2 },
+      { "point": "④Suspense/async setup 与 useEffect 竞态守卫的对照具体", "weight": 2 },
+      { "point": "⑤给出 React 真实占优场景而非精神胜利法", "weight": 1 },
+      { "point": "融合判断有证据（React Compiler/signals 提案、Vapor/alien 任二）", "weight": 1 }
+    ],
+    "analysis": "这题的暗桩在第①问：大量候选人把 setup 类比成『函数组件体』当场翻车——setup 是构造器语义，函数体是渲染语义。第②③问若能各举一个自己踩过的 bug（stale closure、忘 deps）说服力翻倍。第⑤问诚实度计分：否认 React 优势的人会被认为没写过 React。结尾融合论要有 2025-2026 的事实锚（React Compiler GA、Vapor RC、Signals TC39 Stage1），否则是空谈。",
+    "gapCheck": ["易漏点：『Vue 没有脏检查』要说成立论基于可变数据+代理，React 的 diff 便宜靠不可变浅比较——两条哲学线别混在一处讲", "常见误区：把 defineModel/useMemo 类比成受控组件互译时忽略双向 vs 单向的流派差", "证据更新：面试前查一遍 signals 提案最新 stage 与 React Compiler 状态，说旧版本号会被真玩家抓"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.composition.options-vs-composition", "fe.vue.ecosystem.vue-vs-react"],
+      "related": ["fe.vue.reactivity.proxify", "fe.vue.ecosystem.vapor-signals"],
+      "followUps": ["React Compiler 自动 memo 之后，Vue 的编译优化还领先吗？（信息源不同：模板静态性 vs AST+rules of hooks 前提）", "为什么 Vue 不做 Server Components？（响应式跨序列化边界难，官方明确观望）", "signals 进 TC39 对两家意味着什么？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://zhuanlan.zhihu.com/p/1997984549074923943", "retrievedAt": "2026-11-09", "note": "Vue3 vs React19 面试对比文（含话术框架）；事实锚另见 releaserun.com 2026 框架指南" },
+    "tags": ["对比压轴", "观点题", "高频追问"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向布道题：面试官是 Vue 死忠，偏过头问你『React 那边是不是连 useState 更新都会丢、全靠 useEffect 缝合？』请用三句话以内替 React 正名（每句一个硬机制），再补一句 Vue 阵营对这个对比最常见的夸大。", "analysis": "正名三连：①useState 批处理是队列语义不丢更新（updater 函数串行基于 prev，3.5 后连 Promise/setTimeout 都自动批）；②effect 竞态有官方清理函数协议 + AbortController 组合，StrictMode 双调用就是暴露它的探针；③并发特性（useTransition/useDeferredValue）把『卡顿』变成可调度的优先级问题，这是 Vue 目前给不了的。Vue 阵营常见夸大：『Vue 性能必然更好』——忽略细粒度收益只在特定形态成立、大型列表两边都靠虚拟化、React Compiler 抹平 memo 差距。三句+自嘲的结构，测的是立场弹性。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-compo-0007",
+    "nodeId": "fe.vue.composition.setup-lifecycle",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "源码短答：`<script setup>` 有两种 codegen 模式——inline（模板编进 setup 内部）与非 inline（setup 返回 render 函数）。请回答：①inline 模式的启用条件与收益；②为什么非 inline 模式要生成 `setup(__props,{expose}){ ... return (_ctx,_cache)=>... }` 而模板里绑定要通过 _ctx/$setup 两层前缀；③两层前缀的归类规则是什么决定的。",
+    "answer": { "ref": "①条件：无外联需求时默认 inline——SFC 有 <script> 额外块? 否：判定在 compiler-sfc：存在普通 <script> 伴生块、或 setup 顶层 await（非 async 编译目标）、或 devtools/hmr 需要稳定导出名等会退回 non-inline（不同版本开关 compileScript inline option，vite 生产默认 inline）。收益：绑定直接闭包引用（msg 就是局部变量），产物无 _ctx 解构、无 proxyRefs 包装、V8 单态性好、体积略小。②non-inline 时 render 在 setup 返回值位置，执行时 setup 局部变量已不可见，只能经实例代理 ctx 取 setupState/data/props——(_ctx,_cache) 参数由 runtime 的 render 调用注入；$setup 前缀用于显式指向 setupState 命名空间避免与 data/props 撞名，_ctx 是通用兜底代理。③归类规则：transform 阶段对每个自由标识符查 setup 绑定表（bindingMetadata：SETUP_REF/PROPS/OTHER/LIT/...）：props→$props? 实际编译为 _props/__props，setup ref→_ctx.x（proxyRefs 解包）或 inline 模式直接 x，全局白名单(Math/Date/模板注册的组件)不加前缀——这张 map 由 compileScript 产出，with(withDefaults...) 等宏改写都在此汇入。" },
+    "scoringPoints": [
+      { "point": "①inline 启用条件说出至少一条（伴生 script 块/await/配置强制）", "weight": 2 },
+      { "point": "②讲清 render 作用域与 setup 作用域分离导致的 _ctx 必要性", "weight": 2 },
+      { "point": "③点名 bindingMetadata/bindingTypes 的归类机制", "weight": 2 },
+      { "point": "提到 inline 的性能动机（闭包直访、免 proxyRefs）", "weight": 1 },
+      { "point": "边界诚实：承认版本间行为漂移（如 dev 保 non-inline 利于 hmr sourcemap 的取舍）", "weight": 1 }
+    ],
+    "analysis": "compiler-sfc 的双模 codegen 是『会用 <script setup>』和『懂它怎么编』的分界线。第③问的 bindingMetadata 是全部模板前缀谜题的唯一答案源——能讲出 SETUP_Maybe_REF 之类枚举名的属稀缺样本。第①问的『inline 何时关』连不少核心贡献者都要想两秒，答出 vite plugin 的 isProduction/DEV 差异即顶级。",
+    "gapCheck": ["易漏点：dev 与 build 的 inline 策略不同（HMR 粒度与 sourcemap 权衡），答题要分环境", "常见误区：以为 <script setup> 一定生成 setup() 函数——inline 模式根本没有独立 render 导出", "自查法：vite 项目开 vueCompilerOptions.script?.inline 实验开关亲手验证过再来答"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.composition.setup-lifecycle", "fe.vue.compiler.ast-pipeline"],
+      "related": ["fe.vue.composition.sfc-macros", "fe.vue.runtime.update-flow"],
+      "followUps": ["inline 模式下 HMR 怎么做热替换？（整 setup 函数级替换的边界）", "defineExpose 在 inline 模式如何生效？（expose() 调用注入）", "top-level await 为什么天然适合 inline？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "基于 compiler-sfc compileScript(codegenAs/Setups) 与 compiler-core transformExpression 绑定归类逻辑撰写" },
+    "tags": ["源码深水区", "SFC编译", "区分度"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "追问延伸：既然 inline 更优，为什么 dev 环境长期倾向 non-inline？请从 HMR 的两个粒度（模板热更 vs setup 热更）与 sourcemap 调试体验解释取舍，并说说你遇到 <script setup> 断点错乱时的排查顺序。", "analysis": "理由：non-inline 把 render 拆成独立函数，模板改动可以只换 render（vue-loader/vite plugin 的 template-only hmr 走 rerender 通道保留组件 state），inline 模式模板与 setup 熔为一体，模板一改整个 setup 重建、state 保不住；调试上 non-inline 的产物行号与 SFC 行映射更直。排查顺序：①确认 vite optimizeDeps 缓存与 @vue/compiler-sfc 版本对齐；②看插件是否走了 template-only hmr（改动类型决定）；③关 inline 实验项复现；④vue-tsc/volar 的映射与运行时 sourcemap 是两套，分别验。能把『HMR 粒度』讲到 rerender 通道的属于踩过坑的人。" }
+    ]
+  }
+]

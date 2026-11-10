@@ -1,0 +1,21 @@
+[
+  { "id": "ai.train.finetune-vs-rag", "title": "微调与 RAG 的取舍", "level": 3, "domain": "ai", "stack": "train", "topic": "finetune-vs-rag", "mustMaster": false, "estMinutes": 60, "summary": "SFT/LoRA/DPO 的工程定位：什么时候该动权重而不是动检索，数据从哪来、怎么评、怎么不训坏" },
+
+  { "id": "ai.train.finetune-vs-rag.lora-peft", "title": "LoRA/QLoRA 机制与超参实务", "level": 4, "domain": "ai", "stack": "train", "topic": "finetune-vs-rag",
+    "prerequisites": ["ai.train.finetune-vs-rag", "ai.llm"],
+    "related": ["ai.train.finetune-vs-rag.finetune-decision", "ai.serving.infer-serving.quantize-accel"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 LoRA 低秩增量 ΔW=BA 的假设来源、rank/alpha/target modules/dropout 各调什么、QLoRA 用 4bit NF4+paged optimizer 省显存的三件套、LoRA 合并与多适配器热切换、过拟合小数据的信号（loss 降但生成退化）、灾难性遗忘的观测方法与混入通用数据的对策" },
+
+  { "id": "ai.train.finetune-vs-rag.alignment-preference", "title": "偏好对齐：RLHF 与 DPO 的选型", "level": 4, "domain": "ai", "stack": "train", "topic": "finetune-vs-rag",
+    "prerequisites": ["ai.train.finetune-vs-rag.lora-peft"],
+    "related": ["ai.eval.evaluation-qa.llm-as-judge", "ai.train.finetune-vs-rag.finetune-decision"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 SFT→奖励模型→PPO 三段式 RLHF 的数据形态（K 维排序、chosen/rejected pair）、DPO 把 RL 问题化为二分类损失闭式解的动机与 β 的作用、IPO/KTO 差异一句话能说清、对齐税现象、何时偏好数据比示范数据更值钱（拒绝采样回流闭环）" },
+
+  { "id": "ai.train.finetune-vs-rag.finetune-decision", "title": "微调 vs RAG vs Prompt 的决策框架与数据构造", "level": 4, "domain": "ai", "stack": "train", "topic": "finetune-vs-rag",
+    "prerequisites": ["ai.train.finetune-vs-rag.lora-peft", "ai.rag.retrieval-pipeline.chunking-strategies"],
+    "related": ["ai.rag.retrieval-pipeline.generation-grounding", "ai.serving.infer-serving.cost-latency"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能用『知识时效/私域规模/格式遵循/能力边界』四维给微调-RAG-prompt 划界、讲合成数据构造管线（种子→强模型生成→校验过滤→多样性去重）、数据量经验档位与质量>数量的证据、微调改风格与格式最稳而改事实最不稳的原因、上线后权重版本与评估集版本锁定的必要性" }
+]

@@ -1,0 +1,21 @@
+[
+  { "id": "ai.memory.memory-skill", "title": "记忆分层与技能沉淀", "level": 3, "domain": "ai", "stack": "memory", "topic": "memory-skill", "mustMaster": false, "estMinutes": 70, "summary": "会话内状态、跨会话长期记忆、技能库：让 Agent 从一次性问答变成有积累的工作系统" },
+
+  { "id": "ai.memory.memory-skill.session-state", "title": "会话状态与短期记忆：todos、scratchpad 与恢复", "level": 4, "domain": "ai", "stack": "memory", "topic": "memory-skill",
+    "prerequisites": ["ai.memory.memory-skill", "ai.harness.agent-loop.context-budget"],
+    "related": ["ai.harness.agent-loop.compaction-recovery", "ai.multi.agent-orchestration.shared-state"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲短期记忆的三种载体（消息历史、结构化 todo/scratchpad、外部文件工作区）、把计划写回上下文对长任务的锚定作用、会话状态的持久化粒度（事件日志 vs 状态快照）、多轮指代消解失败的真实原因、清空/重置时机的设计" },
+
+  { "id": "ai.memory.memory-skill.long-term-memory", "title": "长期记忆：抽取、存储、检索与遗忘", "level": 4, "domain": "ai", "stack": "memory", "topic": "memory-skill",
+    "prerequisites": ["ai.memory.memory-skill.session-state", "ai.rag.retrieval-pipeline.hybrid-retrieval"],
+    "related": ["ai.rag.retrieval-pipeline.generation-grounding", "ai.eval.evaluation-qa.online-regression"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲记忆管线的四段（抽取候选→去重/冲突消解→存储为向量+图+结构化混合→检索注入）、semantic/episodic/procedural 分类的工程含义、MemGPT/Letta 分页式记忆与 Mem0 类抽取管道的差异、遗忘与降权策略、记忆污染（错误事实被反复强化）与用户级隔离/隐私边界" },
+
+  { "id": "ai.memory.memory-skill.skill-lib", "title": "技能库与程序性记忆：SKILL.md 与工作流复用", "level": 4, "domain": "ai", "stack": "memory", "topic": "memory-skill",
+    "prerequisites": ["ai.memory.memory-skill.long-term-memory", "ai.tools.tool-calling.tool-design-routing"],
+    "related": ["ai.harness.agent-loop.context-budget", "ai.eval.evaluation-qa.metrics-dataset"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲技能=「按需加载的程序性记忆」的定位、渐进式披露（元数据常驻、正文按需读、附件再下钻）对抗上下文膨胀的设计、技能与工具/RAG 文档的边界、技能粒度与可组合性、技能腐化（环境变了说明没变）的检测与更新机制" }
+]

@@ -1,0 +1,21 @@
+[
+  { "id": "ai.tools.tool-calling", "title": "工具调用与 MCP", "level": 3, "domain": "ai", "stack": "tools", "topic": "tool-calling", "mustMaster": true, "estMinutes": 80, "summary": "Function Calling 协议细节、结构化输出容错、MCP 开放协议与工具面设计——Agent 的手和脚" },
+
+  { "id": "ai.tools.tool-calling.function-calling", "title": "Function Calling 协议与结构化输出", "level": 4, "domain": "ai", "stack": "tools", "topic": "tool-calling",
+    "prerequisites": ["ai.tools.tool-calling", "ai.llm"],
+    "related": ["ai.harness.agent-loop.loop-dynamics", "ai.tools.tool-calling.tool-design-routing"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲 tools/tool_calls 消息格式的往返闭环、tool_choice 各取值语义、parallel tool calls、流式下 arguments 增量拼接、strict 结构化输出与 JSON mode 的区别、Schema 子集限制（required/enums/additionalProperties:false）、args 解析失败的容错策略，以及为何『模型输出 JSON』不等于『JSON 可靠』" },
+
+  { "id": "ai.tools.tool-calling.mcp-protocol", "title": "MCP 协议：原语、传输与安全边界", "level": 4, "domain": "ai", "stack": "tools", "topic": "tool-calling",
+    "prerequisites": ["ai.tools.tool-calling.function-calling", "ai.tools.tool-calling.tool-design-routing"],
+    "related": ["ai.tools.tool-calling.tool-design-routing", "ai.reliability"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 40,
+    "summary": "要能讲 MCP 三原语（tools/resources/prompts）与采样/ elicitation 反向通道、JSON-RPC 2.0 消息层与 stdio/Streamable HTTP 两种传输、生命周期协商与能力声明、host-server-client 信任模型、prompt injection 与工具投毒的攻击面、与原生 function calling 的分工边界，以及 2026 年生态采纳现状（OpenAI/Google/Microsoft 等接入）" },
+
+  { "id": "ai.tools.tool-calling.tool-design-routing", "title": "工具面设计与工具路由", "level": 4, "domain": "ai", "stack": "tools", "topic": "tool-calling",
+    "prerequisites": ["ai.tools.tool-calling.function-calling"],
+    "related": ["ai.harness.agent-loop.context-budget", "ai.multi"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲工具描述即 prompt 的写法原则（命名空间、动词清晰、正反例、返回契约）、工具数量膨胀导致选错率上升与 token 成本、工具路由手段（分组挂载、动态发现、programmatic tool calling、语义索引）、幂等与副作用分级（只读/可重试/危险需确认）、错误信息回灌给模型的格式设计" }
+]

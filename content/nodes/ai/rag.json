@@ -1,0 +1,27 @@
+[
+  { "id": "ai.rag.retrieval-pipeline", "title": "RAG 全链路", "level": 3, "domain": "ai", "stack": "rag", "topic": "retrieval-pipeline", "mustMaster": true, "estMinutes": 90, "summary": "切块→嵌入→混合检索→重排→生成引用→评估的完整工程链路，2026 年 Agent 落地的第一主战场" },
+
+  { "id": "ai.rag.retrieval-pipeline.chunking-strategies", "title": "切块与嵌入：粒度、元数据与语义完整性", "level": 4, "domain": "ai", "stack": "rag", "topic": "retrieval-pipeline",
+    "prerequisites": ["ai.rag.retrieval-pipeline", "ai.llm"],
+    "related": ["ai.rag.retrieval-pipeline.hybrid-retrieval", "ai.context"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲固定长度/重叠窗口的取舍、按结构切（标题/段落/代码函数）与语义切块的差异、parent-child（small-to-big）与 contextual retrieval 的思路、元数据过滤设计、嵌入模型选型维度（MTEB、维度、上下文长度、领域微调），以及切块粒度如何同时影响召回率与生成上下文质量" },
+
+  { "id": "ai.rag.retrieval-pipeline.hybrid-retrieval", "title": "混合检索：BM25+向量、RRF 融合与元数据过滤", "level": 4, "domain": "ai", "stack": "rag", "topic": "retrieval-pipeline",
+    "prerequisites": ["ai.rag.retrieval-pipeline", "ai.rag.retrieval-pipeline.chunking-strategies"],
+    "related": ["ai.rag.retrieval-pipeline.rerank-compress", "cs.design"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲稀疏与稠密检索各自擅长的 query 类型、为什么两路分数不可直接加权而 RRF 只用名次、k 常取 60 的作用、pre-filter 与 post-filter 对命中与性能的影响、ANN 索引（HNSW/IVF）参数 recall-latency 权衡、query 改写/HyDE 与多查询扩展的位置，以及生产上何时根本不该上向量检索" },
+
+  { "id": "ai.rag.retrieval-pipeline.rerank-compress", "title": "重排、上下文压缩与 Agentic RAG", "level": 4, "domain": "ai", "stack": "rag", "topic": "retrieval-pipeline",
+    "prerequisites": ["ai.rag.retrieval-pipeline.hybrid-retrieval", "ai.rag.retrieval-pipeline.generation-grounding"],
+    "related": ["ai.harness.agent-loop.context-budget", "ai.serving.infer-serving.cost-latency"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 bi-encoder 与 cross-encoder 的结构差异和延迟成本、rerank 放在漏斗哪个位置、top-k 从百到几的漏斗设计、contextual compression 与长上下文『中间迷失』的关系、Agentic RAG（检索作为工具由模型自主调用）与固定 pipeline 的边界、GraphRAG 类方案适合什么查询、以及 rerank 阶段怎么量化收益" },
+
+  { "id": "ai.rag.retrieval-pipeline.generation-grounding", "title": "生成侧幻觉抑制：引用、核验与忠实度", "level": 4, "domain": "ai", "stack": "rag", "topic": "retrieval-pipeline",
+    "prerequisites": ["ai.rag.retrieval-pipeline", "ai.eval.evaluation-qa.llm-as-judge"],
+    "related": ["ai.rag.retrieval-pipeline.rerank-compress", "ai.tools.tool-calling.function-calling"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲幻觉的分类（事实性/忠实性/检索失配）、faithfulness 怎么定义与测、引用粒度（chunk 级 vs 句级 citation）与核验流程、RAGAS faithfulness/answer relevancy/context precision 各自衡量链路的哪一段、拒答与置信度设计、端到端指标和分段归因怎么拆开『检索没找到』与『生成瞎说』" }
+]

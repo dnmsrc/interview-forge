@@ -1,0 +1,21 @@
+[
+  { "id": "ai.harness.agent-loop", "title": "Agent 循环与上下文工程", "level": 3, "domain": "ai", "stack": "harness", "topic": "agent-loop", "mustMaster": true, "estMinutes": 90, "summary": "模型之外的工程外壳：循环控制、预算分配、压缩恢复——2026 年区分『会调 API』与『能造 Agent』的分水岭" },
+
+  { "id": "ai.harness.agent-loop.loop-dynamics", "title": "Agent 循环动态：终止条件、停滞与护栏", "level": 4, "domain": "ai", "stack": "harness", "topic": "agent-loop",
+    "prerequisites": ["ai.harness.agent-loop", "ai.tools.tool-calling.function-calling", "ai.llm"],
+    "related": ["ai.harness.agent-loop.compaction-recovery", "ai.eval.evaluation-qa.metrics-dataset"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲 ReAct  Thought→Action→Observation 到现代 tool-use loop 的演化、循环的四种终止路径（任务完成/预算耗尽/护栏熔断/人工升级）、停滞检测（重复动作、震荡、noop 计数）、max turns 与 token/时间/成本三类预算的实现点、危险动作的确认门，以及为什么『给模型更多自由』需要更强护栏配对" },
+
+  { "id": "ai.harness.agent-loop.context-budget", "title": "上下文预算：组装、截断策略与性能衰减", "level": 4, "domain": "ai", "stack": "harness", "topic": "agent-loop",
+    "prerequisites": ["ai.harness.agent-loop", "ai.context"],
+    "related": ["ai.rag.retrieval-pipeline.rerank-compress", "ai.memory.memory-skill.session-state"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能算一笔上下文账（system+工具 schema+历史+检索块+输出预留各占多少）、讲 lost in the middle 位置效应与 context rot 长上下文退化、just-in-time 按需加载 vs 预载全量、子代理隔离脏上下文的动机、工具结果落盘只留引用、缓存命中友好的前缀稳定性设计，以及何时该用摘要/结构化笔记代替原始历史" },
+
+  { "id": "ai.harness.agent-loop.compaction-recovery", "title": "会话压缩、持久执行与崩溃恢复", "level": 4, "domain": "ai", "stack": "harness", "topic": "agent-loop",
+    "prerequisites": ["ai.harness.agent-loop.context-budget", "ai.harness.agent-loop.loop-dynamics"],
+    "related": ["ai.memory.memory-skill.session-state", "ai.multi.agent-orchestration.shared-state"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲自动 compaction 的触发阈值与保留清单（目标/决策/未闭合 TODO/关键路径优先于聊天记录）、压缩失真与可恢复性权衡、检查点与状态快照设计、进程崩溃后从最后检查点续跑的条件、副作用幂等与重放安全、长时间任务的 heartbeat/人工接管通道" }
+]

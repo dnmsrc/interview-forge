@@ -1,0 +1,85 @@
+[
+  {
+    "id": "Q-fe-vue-perf-0001",
+    "nodeId": "fe.vue.perf.granularity-tools",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "```vue\n<ul>\n  <li v-for=\"item in list\" :key=\"item.id\" v-memo=\"[item.selected]\">\n    <HeavyRow :item=\"item\" />\n  </li>\n</ul>\n```\n关于这段 v-memo，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "deps 比较是深比较，item 内任意字段变化都会重渲染该行" },
+      { "key": "B", "text": "deps 浅比较未变时复用上次缓存的 vnode 子树——即使 item 其他字段变了，HeavyRow 也不会收到新 props，可能产生 UI 与数据不一致" },
+      { "key": "C", "text": "v-memo 等价于给 HeavyRow 包一层 memo，缓存粒度是组件实例而非 vnode 子树" },
+      { "key": "D", "text": "v-memo 只在 SSR 生效，客户端因为 block tree 已经优化所以被忽略" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "v-memo 的语义是**缓存整棵子树的 vnode**（编译成 _cache 判断 + deps 浅比较），deps 没变直接复用旧 vnode → patch 见 sameVNodeType+引用相同整段跳过；风险正如 B：漏依赖时 item.name 改了 UI 仍显示旧值（经典『v-memo 后列表不更新』事故）。A 错在浅比较（Object.is 逐项）；C 混淆 React memo（组件级、props 不可变前提）与 Vue 的 vnode 级缓存；D 完全错——v-memo 是纯客户端优化，SSR 反而不支持。",
+    "gapCheck": ["易漏点：v-memo 还有个隐藏失效条件——所在块带 key 变化或外部 forceUpdate 会连缓存一起作废", "常见误区：给每行都套 v-memo 期待『无脑快』；deps 数组本身每轮要分配比较，小行反而更慢", "选型诚实：3.5 之后多数场景 shallowRef+拆组件已够，v-memo 是『拆无可拆』的最后手段，官方原文就是『use sparingly』"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.perf.granularity-tools", "fe.vue.compiler.block-tree"],
+      "related": ["fe.vue.perf.virtual-list", "fe.vue.reactivity.ref-family"],
+      "followUps": ["v-memo 和 v-once 的本质区别？（once 无条件冻结首渲，memo 有 deps 逃逸口）", "为什么 v-memo 不能替代虚拟列表？（DOM 数量没减，只是省 patch）", "它和 React memo 谁的心智负担大？（React 需不可变纪律，Vue 需 deps 完备性——两种失配形态）"]
+    },
+    "resources": [{ "title": "Vue 官方 API·v-memo", "digest": "v-memo 缓存子树 vnode，deps 浅比较；明确『谨慎使用』定位、与 v-for 配合的用法及 deps 遗漏导致陈旧 UI 的警告。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/api/built-in-directives.html", "retrievedAt": "2026-11-09", "note": "v-memo 小节全文（含 v-for 内使用示例与 stale UI 提示）" },
+    "tags": ["性能三件套", "易错", "高频"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向排查题：客服反馈勾选列表中一项后，**相邻行**的价格标签偶尔不刷新（后端轮询更新了价格）。代码里行上有 `v-memo=\"[item.selected]\"`。请一句话说清病根，给出两种修法并说明各自的性能代价。", "analysis": "病根一句话：价格变了但 deps 只有 selected，该行 vnode 被缓存复用，新 price 到不了 HeavyRow。修法①补 deps：v-memo=\"[item.selected, item.price]\"——正确但缓存命中率下降，趋近全量重渲时 v-memo 白加；修法②撤 v-memo，改把行内昂贵子块拆独立组件+精确 props（靠 shouldUpdateComponent 自然短路）。代价对比：①维护成本随字段数线性涨（漏一个字段=一个隐性 bug），②一次性重构成本高但错误模式少——生产系统通常选②，v-memo 只留给确认过的热点行。能讲『deps 完备性是手工维护的不变式，编译器不校验』即满分句。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-perf-0002",
+    "nodeId": "fe.vue.perf.dom-reuse",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "某报表页要把 5 万行接口数据渲染进表格（用户滚动浏览，行内含可展开详情）。下列优化手段**合理**的有：",
+    "options": [
+      { "key": "A", "text": "数据源用 shallowRef 持有，翻页/刷新时整体替换数组引用，避免 5 万行被深层代理" },
+      { "key": "B", "text": "虚拟滚动只渲染视口 ±overscan 缓冲区，行绝对定位或 translateY 补偿偏移，展开高度变化时用 ResizeObserver 修正该项预估高" },
+      { "key": "C", "text": "给行内每个单元格都 defineComponent 拆开，配合 v-memo 让任意一格变化都只 patch 那一格" },
+      { "key": "D", "text": "行 key 用稳定业务 id 而非 index，重排/过滤时保住 DOM 复用与展开状态" }]
+    ,
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A 对：ref 深层代理 5 万行会在首次访问时逐层建 Proxy（内存+时间双重税），shallowRef 整替触发一次更新即可；B 对：这就是 vueuc/useVirtualList/自研三件套的标准构成，动态高度靠预估+实测回写+锚点保持；D 对：有重排交互时 index key 会让展开状态串位（呼应 key 专题）。C 过度工程：单元格级组件拆分带来 **5 万个组件实例**的创建/订阅开销，往往比省下的 patch 更贵——『拆组件降 update 范围』的收益曲线在千级实例就翻转，v-memo 再叠加更是双重缓存复杂度。",
+    "gapCheck": ["易漏点：shallowRef 行内对象若被就地 mutate（row.expanded=true）不会触发更新——要么整体替换该行、要么该行单独用 ref、要么 triggerRef", "常见误区：以为虚拟列表之后就不需要 key——窗口切片本身就是 v-for，key 语义照常生效且更重要", "加分：提到列虚拟化（横向超宽表）、content-visibility: auto 这类 CSS 级替代品的适用边界"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.perf.dom-reuse", "fe.vue.perf.virtual-list"],
+      "related": ["fe.vue.reactivity.ref-family", "fe.vue.lifecycle.keepalive"],
+      "followUps": ["实测你怎么做？（Performance 面板 Long Task 定位 + Vue devtools performance 录制对比前后）", "组件实例的成本具体由哪几部分组成？（instance 对象/effect scope/DOM/监听器）", "为什么 markRaw 组件定义对象能省代理？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://jishuzhan.net/article/1996080726907879425", "retrievedAt": "2026-11-09", "note": "2025-2026 大列表优化实践合集交叉核对；组件实例成本结论与 VueUse/Vue Melt 论坛实测一致" },
+    "tags": ["性能实战", "多选", "大厂"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束追问：上题的表格还要求『滚动到任意位置都能瞬间跳回之前展开的那一行且状态不丢』。请指出这对虚拟列表实现的两处额外要求（状态存放位置 + 高度累计结构），并说说为什么把 expanded 存在行组件 ref 里必翻车。", "analysis": "要求①：展开态必须外置到**窗口无关的数据层**（Map<id,expanded> 或直接回写数据行+triggerRef），存行组件 ref 会随组件卸载销毁（虚拟列表本质是组件回收池）；要求②：瞬时跳转依赖 O(log n) 的高度前缀和（平衡树/Fenwick 树维护累计高），纯线性累加在 5 万行×随机跳时会卡——vueuc 后期版本正是往这个方向演进。翻车原因一句话：虚拟列表里『组件实例的生命周期 ⊂ 行的可见区间』，任何实例内状态都是临时的。这句总结是本题满分句。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-perf-0003",
+    "nodeId": "fe.vue.perf.virtual-list",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "手写前置短答（虚拟列表核心数学）：容器高 H=600px，行均高 h=40px，当前 scrollTop=S，缓冲区 overscan=3。①写出 startIndex/endIndex 公式并解释 overscan 防的是什么；②窗口切片后用 transform:translateY 定位时偏移量怎么算、与绝对定位方案相比优劣？③行高不一时『预估高+实测修正』会产生滚动条跳动与内容跳跃，各给出一个缓解策略。",
+    "answer": { "ref": "①start=max(0, floor(S/h)-overscan)，end=min(N-1, ceil((S+H)/h)+overscan)；overscan 防两件事：快速滚动时渲染跟不上露白底、以及边缘行 hover/focus 半截闪烁（浏览器合成层预取不到）。②偏移 = start*h（前缀高度和）；transform 方案只动一个节点的合成属性、不触发 layout，但所有行都在同一文档流里高度占位需撑高层（spacer）；绝对定位方案每行 style.top 各自写，自由度高但 top 变化触发 layout thrash、且无法用 will-change 单点优化——现代实现多用 translateY+spacer 或 position:absolute+transform 混合。③滚动条跳动：修正后总高变化→用『比例保持』或把 scrollHeight 变化补偿到 scrollTop（以视口顶行为锚点重算 S）；内容跳跃：修正发生在视口上方时其高度差要加到 offset 上、下方则不动，锚点选择永远以**当前视口第一行**为准（react-window/tanstack-virtual 的 measureElement 同款逻辑），并对『尚未测过的行』统一用同值预估减少连锁修正次数。" },
+    "scoringPoints": [
+      { "point": "①公式含 clamp 边界与 ceil/floor 语义正确", "weight": 2 },
+      { "point": "①说清 overscan 的两个防护对象", "weight": 1 },
+      { "point": "②偏移=start*h 并对比两方案的 layout 成本差异", "weight": 2 },
+      { "point": "③给出 scrollTop 补偿（上方变化才补）这一关键不变式", "weight": 2 },
+      { "point": "③提到统一预估/锚点行/前缀和任一结构性缓解", "weight": 1 }
+    ],
+    "analysis": "虚拟列表的面试深度就在这三个数学细节。①看似简单但 clamp 漏写、ceil/floor 反了的人过半；②要能落到 transform 不触发 layout 而 top 触发的渲染原理层；③是『用过 vueuc 』与『读过 virtual-scroller 源码』的分界：上方修正必须同步补 scrollTop 否则视口内容瞬间跳——这是所有虚拟滚动库最核心的稳定不变式。",
+    "gapCheck": ["易漏点：水平虚拟列表/瀑布流的双列锚点更复杂（两条前缀和），答题时可主动圈定单列范围", "常见误区：以为 ResizeObserver 逐行观察就行——5 万行 observer 本身开销大，通常只测视口内+缓冲行", "加分：报得出 tanstack-virtual/vueuc/react-window 任意两家在『测量回写队列』（rAF 批量）上的差异"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.perf.virtual-list", "cs.algo"],
+      "related": ["fe.vue.perf.dom-reuse", "fe.vue.scheduler.nexttick"],
+      "followUps": ["jumpToIndex(i) 在动态高度下为什么要『近似+迭代修正』两阶段？", "IntersectionObserver 方案（content-visibility）能替代虚拟列表吗？边界？", "窗口大小变化 resize 时你的公式哪些项要重算、要不要防抖？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://certificates.dev/blog/vapor-mode-in-practice", "retrievedAt": "2026-11-09", "note": "主来源为自研推演；滚动锚点不变式与 tanstack-virtual 官方 measureElement 文档、vueuc VirtualList 源码交叉验证（检索于 2026-11-09）" },
+    "tags": ["手写前置", "性能深水区", "区分度"],
+    "variants": [
+      { "angle": "换场景", "stem": "换场景设计题：聊天窗口是『倒序虚拟列表』（最新消息在底部、向上滚加载历史），消息气泡高度完全不且图片陆续 load。请说出与正向列表不同的三个难点及对应机制（初始锚点、prepend 时的位置保持、load 完成的高度回填）。", "analysis": "难点①初始锚点：挂载时不是 scrollTop=0 而是『贴底』——需先渲染末屏估算高、setScrollTop(scrollHeight-clientHeight)，图片 load 后再迭代贴底（ResizeObserver 监听直到稳）。难点②prepend 位置保持：历史消息插到**视觉上方**，若不补偿 scrollTop 用户视角内容会整体下坠（正是 perf-0003③不变式的倒序应用：上方新增高度=scrollTop 增量）；实现上 prepend 后下一帧读 diff 补偿或用 scroll-anchor 库。难点③图片异步回填：load 完成时机与滚动位置解耦，回填只允许作用于『视口外』区域（视口内气泡变化要 defer 到用户停止滚动），否则阅读焦点被推走。加分：提 reverse:true CSS 翻转容器的流派及其与 scrollTop 语义混乱的代价。" }
+    ]
+  }
+]

@@ -1,0 +1,100 @@
+[
+  {
+    "id": "Q-fe-vue-life-0001",
+    "nodeId": "fe.vue.lifecycle.mount-unmount",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 onMounted，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "onMounted 执行时子组件的 mounted 一定都已执行完，方便父统一汇总子数据" },
+      { "key": "B", "text": "onMounted 在元素 vnode 插入容器后由 post-flush 队列回调；子组件 mounted 先于父 mounted 触发" },
+      { "key": "C", "text": "onMounted 等价于 nextTick 回调，两者时序完全相同可互换" },
+      { "key": "D", "text": "SSR 环境也会触发 onMounted，只是 el 为 null" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "挂载链：componentUpdateFn(true) mount 时 queuePostRenderEffect(mounted钩子) 入 postQueue；patch 递归 mount 子组件时子的 post 回调**先入队**，flushPostFlushCbs 按队列序执行 → 子 mounted 先跑（官方 FAQ『父 mounted 时子 ref 可用』正是这个保证）。nextTick 在整条 flush（含全部 post cb）之后，C 错在把两个不同槽位混同；SSR 只跑 setup/serverPrefetch，created 都跳过更无 mounted，D 错。A 恰好说反。",
+    "gapCheck": ["易漏点：mounted 自底向上是队列序而非『约定』，keep-alive activated 复用队列同理", "常见误区：把 onMounted 当『DOM 就绪』——它只保证本组件树插入完成，图片/字体的 load 另说", "追问延伸：onBeforeMount 与 mounted 之间发生了什么？（首渲 patch+insert 真实 DOM）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.lifecycle.mount-unmount", "fe.vue.composition.setup-lifecycle"],
+      "related": ["fe.vue.runtime.update-flow", "fe.vue.scheduler.watcher-flush"],
+      "followUps": ["为什么没有 beforeUpdated？（3.x 直接砍，pre-flush watcher 顶替其位）", "onServerPrefetch 与 SSR 流式的配合方式？", "onMounted 里同步改状态会二次渲染吗？（不会——job 去重）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/guide/essentials/lifecycle.html", "retrievedAt": "2026-11-09", "note": "生命周期图 + 『parent mounted after children』FAQ（vuejs guide rendering-lists? 实为 lifecycle 页注记）" },
+    "tags": ["必考", "时序题"],
+    "variants": [
+      { "angle": "换场景", "stem": "换场景判断题：有人说『既然子 mounted 先于父 mounted，那父想在 mounted 里读 this.childrenRefs 做瀑布流布局就绝对安全了』。请指出一个仍然可能读到 ref.value===null 的真实场景（提示：v-if 或异步组件），并给出稳妥写法。", "analysis": "反例：v-if 控制的子组件此刻根本未渲染（ref 恒 null）；异步组件 defineAsyncComponent/Suspense pending 期只有 fallback，真实子实例还没 mount。稳妥写法：await nextTick() 后再测、或用 ResizeObserver/对 ref 做 watch(() => panelRef.value)（ref 本身可被 watch，3.5 起 even null→el 变化会触发）。这题拆穿『顺序保证』被误用成『存在性保证』——mounted 只管已 mount 的东西。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-life-0002",
+    "nodeId": "fe.vue.lifecycle.keepalive",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：组件被 KeepAlive 失活（deactivated）时，它的 DOM 会被移出页面、组件实例保留，但它内部注册的 watch/effect 也随之暂停，直到 activated 才恢复订阅。",
+    "answer": { "judge": false },
+    "analysis": "前半句对后半句错：deactivate 走 unmount 分支但按 move 语义处理（shallowUnmount 只摘 DOM 不销毁实例），**effect scope 不停止**——watch 照常响应数据变化、定时器照常跑（这正是 keep-alive 页里 setInterval 后台狂跑的著名泄漏源）。activated 时 insert 回原位并重放部分钩子。要真正暂停副作用得自己写：在 deactivated 里停表、activated 恢复，或用 onScopeDispose 手工 stop 再重建。",
+    "gapCheck": ["易漏点：Vue 官方明确『失活不影响 effect』是设计选择（数据保鲜），代价全甩给业务自律", "常见误区：把『DOM 不在文档』误推成『组件死了』——document.contains(el)===false 但实例活得好好的", "追问延伸：失活期间收到 WebSocket 更新会怎样？（watch 回调照跑、状态更新但不可见，activated 后一次呈现）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.lifecycle.keepalive", "fe.vue.runtime.builtin-components"],
+      "related": ["fe.vue.reactivity.computed-watch", "fe.vue.perf.dom-reuse"],
+      "followUps": ["activated/deactivated 与 mounted/unmounted 的四象限语义怎么背？", "嵌套两层 KeepAlive 时 deactivate 触发顺序？（由内向外）", "KeepAlive 与 Suspense 组合时失活的 pending 态怎么处理？"]
+    },
+    "resources": [{ "title": "Vue 官方 built-ins·KeepAlive", "digest": "缓存策略 include/exclude/max；activated/deactivated 语义；明确失活组件仍保持响应式订阅；嵌套 keep-alive 与缓存 DOM 但不 unmount 的行为。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/guide/built-ins/keep-alive.html", "retrievedAt": "2026-11-09", "note": "『Cached Component Instance Lifecycle』小节原文：watchers remain active" },
+    "tags": ["高频", "泄漏元凶", "keep-alive"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束实战题：路由级 KeepAlive 下，列表页有一个 useWebSocket composable（内部 new WebSocket + watch 心跳）。产品要求：离开页面时必须断连省流量，回来自动重连且保留已收到的消息缓冲。请给出 composable 内的最小改造（钩子选型 + 代码走向），并解释为什么不能图省事写在 onUnmounted 里。", "analysis": "改造：onActivated → connect()（幂等守卫防重复连）；onDeactivated → ws.close()+清心跳 timer；消息缓冲存 setup 闭包 ref 天然跨失活保留。写 onUnmounted 的错误在于失活根本不触发它——只有被 LRU 驱逐或路由 exclude 真卸载才跑，届时缓冲也随实例销毁，『保留缓冲』落空。加分：提到 StrictMode 式重复 activate 的防抖、以及 deactivated 里 close 的异步 onclose 与快速切回的竞态（旧 socket 事件要用代际 token 过滤）。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-life-0003",
+    "nodeId": "fe.vue.lifecycle.mount-unmount",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "卸载链填空：Vue3 把 Vue2 的 beforeDestroy/destroyed 分别改名为 ______ 与 ______；拆分的一个关键动机是异步卸载——unmount 过程中需要移除过渡动画/Teleport 节点时要基于 DOM 的 ______ 状态判断，因此 beforeUnmount 必须严格在摘除动作之前、unmounted 在子树完全摘除后触发。KeepAlive 达到 max 上限驱逐最久未用缓存时，被驱逐组件走的是完整的 ______ （填钩子名）链而非 deactivate。",
+    "answer": { "blanks": ["beforeUnmount", "unmounted", "实时(仍在文档)", "unmount"], "synonyms": { "beforeUnmount": ["beforeunmount 钩子", "onBeforeUnmount"], "unmounted": ["onUnmounted", "卸载后钩子"], "实时(仍在文档)": ["真实DOM状态", "此时DOM还在", "live DOM"], "unmount": ["unmounted", "onBeforeUnmount+onUnmounted", "完整卸载"] } },
+    "analysis": "改名理由（提案原文）：destroy 语义与 Web Components 的 disconnectedCallback 对不齐，且 Transition 出场动画期间组件其实已 unmount（hook 名暗示还活着误导心智）；unmount 过程含异步分支（Suspense 内、Teleport defer、Transition leave），钩子时序必须锚定 DOM 摘除的前后。LRU 驱逐是真正的 unmount（scope.stop + post cb 全套），不是 deactivate——很多人以为缓存淘汰只是『收起来』。",
+    "gapCheck": ["易漏点：beforeUnmount 里 DOM **仍可访问**（做测量清理/canvas dispose 就在这层）", "常见误区：以为 keep-alive 驱逐只删 DOM——实例与 effect 一并销毁，setup 闭包全回收", "追问延伸：unmounted 与 nextTick 谁先？（post 队列内 unmounted 先，nextTick 最后）"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.lifecycle.mount-unmount", "fe.vue.lifecycle.keepalive"],
+      "related": ["fe.vue.runtime.builtin-components", "fe.vue.scheduler.watcher-flush"],
+      "followUps": ["Transition 的 leave 完成后 unmounted 才跑吗？（是——leave 挂在 remove 钩子里延迟执行）", "为什么 SSR 完全没有卸载钩子？", "defineExpose 的实例在 unmounted 后还能被外部调用吗？（能但危险，scope 已停）"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "official", "url": "https://vuejs.org/guide/essentials/lifecycle.html", "retrievedAt": "2026-11-09", "note": "钩子更名说明；异步卸载动机参照 RFC rename 提案（vuejs/rfcs lifecycle rename）" },
+    "tags": ["版本演进", "卸载语义"],
+    "variants": [
+      { "angle": "换问法", "stem": "换问法（排查向）：线上偶现报 `Cannot read properties of null (reading '$el')`，栈指向一个第三方指令的 unmounted 里访问 el.parentNode。请基于『unmounted 时 DOM 已被摘除』与『父级 removeChild 先于子级钩子』两条时序事实解释崩溃成因，并给出指令作者的修法。", "analysis": "成因：unmounted 触发时该节点已从父 removeChild 完成（parentNode 为 null 是摘除的结果而非异常），若指令作者把它当 teardown-before 现场用就炸；异步分支（Transition leave/Teleport）还会让 remove 延迟、顺序更飘。修法：unmounted 只做**与 DOM 无关**的资源释放（observer disconnect、Map 删除），需要 DOM 上下文的操作前移到 beforeUnmount 或在 remove 钩子（directive 的 removed）里做——removed 恰好在摘除前调用。加分：区分 directive 生命周期(mounted/beforeUpdate/updated/unmounted/removed)与组件生命周期的错位映射。" }
+    ]
+  },
+  {
+    "id": "Q-fe-vue-life-0004",
+    "nodeId": "fe.vue.lifecycle.keepalive",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "短答（KeepAlive 内核四连）：①KeepAlive 的缓存 key 默认用什么？什么时候必须手动给被包裹组件加 key？②include/exclude 匹配的是什么值、优先级顺序？③max 驱逐为什么用 LRU、数据结构上怎么实现？④嵌套在 KeepAlive 里的组件用了 v-for 且无 key，会造成什么缓存事故？",
+    "answer": { "ref": "①cacheKey = vnode.key ?? vnode.type（组件选项对象），name 只用于 include 匹配不参与 key——同类型不同实例（如同一路由不同 query、v-for 里多个动态组件）共享一个 type key 会互相顶掉缓存，此时必须 :key。②匹配对象是组件的 name（选项名或 <script setup> 文件名推断）或组件对象本身；判定顺序：先查缓存命中与否再看 match(pattern,name)——exclude 优先于 include（源码 match patterns 先 exclude 短路），都不匹配的直接走普通渲染不缓存。③max 用 Map 的天然插入序模拟 LRU：命中时 delete+set 把它挪到队尾，超限删 map.keys().next()（最久未重用）；deactivate 的组件 DOM 进 _hiddenContainer 隐藏库。④无 key 的 v-for 多实例会让 cacheKey 全等于同一 type → 整个列表共用一份缓存，第一个实例失活后其余切换全部『复活』同一实例，状态串位；官方文档为此专门警告要给动态组件或 v-for 分支加 key。" },
+    "scoringPoints": [
+      { "point": "①cacheKey 默认 type 兜底 + 何时必须 key", "weight": 2 },
+      { "point": "②匹配 name/组件对象、exclude>include 顺序", "weight": 2 },
+      { "point": "③Map 插入序 LRU 实现（delete+set 上浮，keys().next() 淘汰）", "weight": 2 },
+      { "point": "④串位事故描述具体", "weight": 2 },
+      { "point": "顺带提到 _hiddenContainer 或 move vnode 保序细节之一", "weight": 1 }
+    ],
+    "analysis": "KeepAlive 的八股浓度极高但多数停在『include/exclude/max』名词层。①的『key 兜底是 type』与④的事故链是最能区分用过/懂过的两点；③能写出 delete+set 上浮的属于读过 KeepAlive.ts 源码。隐藏容器 _hiddenContainer（3.2+）与 move vnode 用于保序这两个细节任选其一即加分。",
+    "gapCheck": ["易漏点：<script setup> 组件的 name 来自文件名——目录化命名（src/views/User/List.vue）推断出的 name 可能与预期不符导致 include 失效", "常见误区：include 用字符串数组忘了它支持正则/函数（matcher 签名）", "实测建议：说『我一般用 devtools 的 keep-alive 面板验证』比空谈可信"],
+    "knowledgeLinks": {
+      "prereq": ["fe.vue.lifecycle.keepalive"],
+      "related": ["fe.vue.runtime.builtin-components", "fe.vue.router.dynamic-routes"],
+      "followUps": ["缓存的 DOM 藏在哪、会不会被 CSS :display-none 影响测量？", "KeepAlive 内组件的 onMounted 第二次进入还跑吗？", "如果产品要『缓存但数据每 5 分钟刷新』你怎么组合方案？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://vuejs.org/guide/built-ins/keep-alive.html", "retrievedAt": "2026-11-09", "note": "官方文档 + keepAlive.ts 源码 cacheKey/LRU 段交叉核对（v3.5 分支）" },
+    "tags": ["大厂追问", "源码向", "keep-alive"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向设计题：有人提出『KeepAlive 太黑盒，我用 v-show + 手动挂 DOM 自己实现一个页面级缓存池，性能一样且可控』。请说出他自己实现必然要处理的三个 KeepAlive 已解决的深层问题（涉及 move vnode、activated 队列、effect 保活语义），并裁决什么时候自研反而划算。", "analysis": "三个深坑：①DOM 摘而复挂的**顺序**——KeepAlive 用 move 类型 vnode 携带 target/anchor 让 patch 知道往哪插，手搓 v-show 不摘 DOM 则内存常驻全部节点（大表单页 OOM 元凶）；②激活/失活钩子的**队列化**（queueActivateDeactivateHook 保父子序与 flush 时机），手搓直接调会导致父子钩子乱序、和 post 队列竞态；③与路由/Suspense/Transition 的协作（leave 动画中的组件被 deactivate 的边界）。自研划算场景：缓存语义非 LRU（如固定两 tab）、或需要跨路由持久化页面状态到外部 store 再水合的混合模式。裁决句：KeepAlive 难的不是缓存本身，是缓存×并发钩子时序。" }
+    ]
+  }
+]

@@ -1,0 +1,199 @@
+[
+  {
+    "id": "Q-ai-mem-comp-0001",
+    "nodeId": "ai.memory.memory-skill.session-state",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "按 Anthropic《Effective context engineering》给出的长程 Agent『三板斧』口径，关于记忆手段的说法**正确的是**：",
+    "options": [
+      { "key": "A", "text": "三板斧指结构化压缩（compaction）、结构化笔记/外部记忆（agentic note-taking）、子代理隔离（sub-agent 探索+摘要回传），三者按任务形态组合使用" },
+      { "key": "B", "text": "三板斧指 RAG、微调、prompt 工程，按成本从低到高选用" },
+      { "key": "C", "text": "文中主张笔记必须放在向量库里检索，文件系统方案被明确否定" },
+      { "key": "D", "text": "压缩（compaction）只适用于对话产品，编码 Agent 不适用" }]
+    ,
+    "answer": { "keys": ["A"] },
+    "analysis": "该文对长 horizon 工作的原话结构就是：先 compaction（接近窗口上限时把历史蒸馏续跑）、再 note-taking（to-do/进度/关键事实写进 MEMORY.md 类文件，「交互之间维护会话之外的心智地图」）、必要时 sub-agent 把脏活隔离在独立上下文——并给了 Claude Code 的 to-do 更新与 Claude Playwright 的截图存档两个实例 → A。B 把『上下文工程』和『模型能力来源』两域混接；C 错反了：文中恰恰力推文件系统存笔记（路径即索引、grep 即检索、Agent 自己选加载什么）；D 无此限定，编码会话正是 compaction 的主战场。",
+    "gapCheck": ["易漏点：三种手段各自的触发时机要顺带说全（满窗压、跨阶段记、高噪声隔），只报名词是 1 分相", "常见误区：把 note-taking 当『让模型写日记』——它的本质是把状态从上下文迁移到可版本化的外部存储，服务于恢复与审计", "加分项：指出三者共同的前提假设——模型输出质量取决于输入卫生，而不是模型本身"],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.session-state"],
+      "related": ["ai.harness.agent-loop.compaction-recovery", "ai.harness.agent-loop.context-budget"],
+      "followUps": ["笔记文件写多细算过界？（每步都记等于没压缩）", "子代理隔离和笔记谁先上？你的顺序判据？", "这套三板斧和 MemGPT 的分页记忆是什么关系？"]
+    },
+    "resources": [{ "title": "Anthropic · Effective context engineering", "digest": "长程 Agent 三法：compaction（含『保留架构决策与未闭合问题』的压缩提示建议）、note-taking（文件化笔记、小步持久化）、sub-agent 探索隔离；附文件系统优于向量库的论证。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents", "retrievedAt": "2026-11-09", "note": "官方工程博客 2025-09；与 harness 节点共用此源但考点不同（那里问 JIT，这里问记忆三板斧）", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["记忆三板斧", "大厂口径", "组合观"],
+    "variants": [
+      { "angle": "换场景", "stem": "场景设计题：为一个『跨周推进重构』的编码 Agent 落地这三板斧。给出笔记文件的结构草案、compaction 触发策略、以及你会 spawn 子代理的一个具体时机。", "analysis": "参考：笔记至少分四段——目标与验收标准（很少改）、决策日志（含否决理由，防重议）、进度清单（机器可读勾选）、当前假设/下一步（高频覆写）；compaction 在每日收尾或 90% 阈值触发，压缩前强制先把『失败尝试』写入决策日志（防失真）；spawn 子代理的典型时机：『全局搜索某 API 的所有调用点』这种会刷爆主上下文的只读探索。评分看四段结构与触发时机是否具体，套模板不给细节最多 1 分。" }
+    ]
+  },
+  {
+    "id": "Q-ai-mem-layers-0002",
+    "nodeId": "ai.memory.memory-skill.long-term-memory",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "对照 Letta（MemGPT 后继）的官方记忆设计，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "核心隐喻是 OS 式分页：core memory 常驻上下文（persona/user 两个 block 可自编辑），历史消息放外部 storage，靠 archive 工具按需调回" },
+      { "key": "B", "text": "记忆改写工具（如 core_memory_replace）由模型自己调用——记忆的维护是 Agent 的主动动作，不是后台管道独占" },
+      { "key": "C", "text": "recall memory 与 archival memory 的分工是：前者面向会话历史的检索回放，后者面向长期沉淀的知识型存储" },
+      { "key": "D", "text": "该设计保证常驻 core memory 永不过期，因此完全不需要任何遗忘或清理机制" }]
+    ,
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 对：MemGPT 论文的 LLM-as-OS 类比与 Letta 文档一致——context window 当主存、外部存储当磁盘、self-editing tools 当系统调用；B 对：编辑记忆是模型的工具调用行为（heartbeat 驱动），这是它与抽取管道的哲学分野；C 对：Letta 把 memory blocks（core）、recall（message history 检索）、archival（长期向量/结构化库）三层明确分开。D 错：core memory 容量固定且更小（几百 token 级），满了必须重写/合并/降级到 archival——『常驻』不等于『无限』，遗忘恰恰靠模型的 rewrite 完成。",
+    "gapCheck": ["易漏点：『self-editing』这个词要出现——它是 MemGPT 系区别于 RAG 外挂的记忆第一人称性", "常见误区：把 archival 当『更大的向量库』就完了——它的写入也要模型决策（何时值得永久化）", "加分项：对比 Mem0 的第三方抽取管道——模型驱动 vs 管道驱动两种范式的取舍（可控性 vs 吞吐）"],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.long-term-memory"],
+      "related": ["ai.rag.retrieval-pipeline.hybrid-retrieval", "ai.harness.agent-loop.compaction-recovery"],
+      "followUps": ["模型自己改记忆，改错了谁发现？（记忆也要评估集）", "core memory 的 block 大小怎么定？", "多用户共享 Agent 时 core memory 怎么隔离？"]
+    },
+    "resources": [{ "title": "Letta Docs · Agent Memory", "digest": "官方文档：memory blocks（core persona/user）、sleep-time 计算、recall/archival 分层与 self-editing 工具；MemGPT 论文 arXiv:2310.08560 为分页隐喻原始出处。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://docs.letta.com/concepts/memgpt", "retrievedAt": "2026-11-09", "note": "Letta 官方文档 MemGPT 概念页；论文原文另见 arxiv.org/abs/2310.08560", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["记忆分层", "MemGPT", "范式对比"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向评估：Mem0 这类『旁路抽取-去重-存储』管道和 MemGPT『模型自编辑』相比，各自在什么场景更合适？给出你的选型判据。", "analysis": "管道派（Mem0）优势：高并发助手（大量短会话）、记忆质量要稳定可回归（抽取逻辑集中可测试）、不想让记忆操作消耗主 Agent 轮次与 token；代价：抽取器看不见完整语境，冲突消解靠批处理滞后。自编辑派（Letta）优势：长任务单体 Agent（记忆与推理深度耦合，改记忆是决策的一部分）、需要即时写入零延迟；代价：占用注意力、模型不勤快就漏记。判据一句话：记忆是『服务别人的资产』走管道，是『它自己的器官』走自编辑。能给出这个抽象层级的对比即为高分。" }
+    ]
+  },
+  {
+    "id": "Q-ai-mem-vsrag-0003",
+    "nodeId": "ai.memory.memory-skill.long-term-memory",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：给助手接一个 RAG 管道（用户相关文档向量化后按需检索），就等于拥有了长期记忆，因为两者底层都是向量检索。",
+    "answer": { "judge": false },
+    "analysis": "底层技术重叠 ≠ 系统等价——这是本题的题眼。长期记忆是一个**闭环系统**：写入有决策（什么值得记、和旧记忆冲突时覆盖还是共存）、存储有身份与时效维度（这条属于谁、什么时候失效）、读取有相关性之外的优先级（用户刚说的话 > 三个月前的偏好）、还要有遗忘与纠错回路。RAG 管道只有『读』这一段：文档是被别人喂进来的静态语料，没有『谁决定写入』『何时作废』的所有权语义。把『记得』外包给向量库的结果通常是没有记忆的系统（经典批评原文口径）。",
+    "gapCheck": ["易漏点：答完补一句『RAG 是记忆的检索层候选实现之一，不是记忆系统』显示概念边界清晰", "常见误区：被题目『底层都是向量检索』的技术正确性骗到而判真——机制相同、系统层级不同", "加分项：引用 Letta 博客原话『没有记忆的 agent 是无状态的状态机』级别的定性"],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.long-term-memory"],
+      "related": ["ai.rag.retrieval-pipeline.generation-grounding", "ai.rag.retrieval-pipeline.hybrid-retrieval"],
+      "followUps": ["那记忆的写入决策具体怎么做？举一个冲突消解的例子", "时效性怎么建模？（『他以前喜欢 X，上个月改口了』这类新旧交替）", "记忆检索和普通 RAG 检索在排序信号上有什么不同？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://www.letta.com/blog/memory-agents", "retrievedAt": "2026-11-09", "note": "Letta 官方博客对『vector store ≠ memory』的系统级论述", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["概念辨析", "判断题眼", "记忆vs检索"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "接着追问：如果要给你们的客服助手加『用户级长期记忆』，写出你比 RAG 多出来的四个组件，每个一句话说明职责。", "analysis": "标配四件：①抽取器——从会话流里判定候选记忆（事实/偏好/历史工单结论）并结构化；②冲突消解与合并——新记忆对旧记忆 UPSERT/OVERRIDE/COEXIST 的裁决（时间戳+置信度加权）；③作用域路由——用户级/租户级/全局三级作用域与 ACL 硬隔离；⑤遗忘与回流——过期降权、错误记忆的人工举报→删除→评估集回归。能点出『冲突消解』为最难最核心的一环即为内行（记忆系统真正的事故源是旧偏好压住新声明）。" }
+    ]
+  },
+  {
+    "id": "Q-ai-mem-skill-0004",
+    "nodeId": "ai.memory.memory-skill.skill-lib",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "Agent Skills 规范用『渐进式披露（progressive disclosure）』解决技能库的上下文膨胀。请描述它的三级加载结构，说明每级的 token 量级与设计意图，并指出这种延迟加载带来的两类失败模式。",
+    "answer": { "ref": "【三级】L1 元数据：每个技能的 name+description 拼进 system prompt（每技能几十~百来 token），作用是『可发现性』——模型据此知道世界上有这个技能、什么时候该想起；L2 指令：SKILL.md 正文，仅在被判定相关时由模型读入（几千 token 封顶，规范建议 <5k），是技能的操作手册；L3 资源：references/、scripts/、assets/ 等附属文件，SKILL.md 里只留指针，按需再读或直接执行脚本（脚本执行本身零 token——代码不需要被读进上下文）。【设计意图】把『常驻成本』压到 L1、把『使用成本』推到按需，技能数从几个扩到上百时主上下文几乎不受冲击；同时 SKILL.md 保持通用性（不绑定特定产品）。【失败模式】①触发失败：L1 description 写得含糊/与邻近技能重叠，模型压根不去读 L2——发现率是技能库的头号 KPI；②半加载/越权展开：模型读了 SKILL.md 却漏掉它指向的关键 reference（或反过来把 reference 全量读爆上下文），以及『看了说明没照做』的执行漂移——所以技能作者要把硬性步骤写成 checklist、把易错点前置。【加分】提到技能与工具的边界：改变模型行为的程序性知识进技能，改变世界的能力进工具。" },
+    "scoringPoints": [
+      { "point": "三级结构每级内容与量级正确（尤其 L1 常驻、L2 按需、L3 可执行零 token）", "weight": 2 },
+      { "point": "讲出『常驻成本 vs 使用成本分离』的设计动机", "weight": 2 },
+      { "point": "触发失败模式归因到 description 质量与发现率", "weight": 2 },
+      { "point": "半加载/执行漂移第二类失败模式成立", "weight": 1 },
+      { "point": "技能-工具边界或版本/腐化管理任一延伸", "weight": 1 }
+    ],
+    "analysis": "这题的区分度在『失败模式』段：规范文档只给正面结构，两类失败（找不到技能、用了技能但用歪）全是生产体感。L3 脚本执行的『零 token 计算』是规范里最少被人复述的一句（脚本输出才进上下文，代码本体不进）。能自然带出『description 即 SEO』这个比喻（技能要在模型脑内被检索命中）说明真运营过技能库。",
+    "gapCheck": ["易漏点：L1 的 description 不只是介绍，它是模型唯一的检索信号——写作要求接近『何时不该用我』也要写", "常见误区：把 progressive disclosure 当 RAG 的 chunk 分层——技能加载是离散决策（整篇读入），不是相似度打分连续注入", "加分项：提到规范的跨平台性（同一技能包多宿主兼容）与 name 唯一性约束"],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.skill-lib"],
+      "related": ["ai.harness.agent-loop.context-budget", "ai.tools.tool-calling.tool-design-routing"],
+      "followUps": ["技能库上百个后 L1 也膨胀，怎么办？（分组挂载/语义索引/两级路由）", "技能腐化（环境变了说明过时）怎么检测？", "技能能不能自我改进？谁来 review 它的改动？"]
+    },
+    "resources": [{ "title": "Agent Skills 规范文档", "digest": "agentskills.io 规范：目录结构（SKILL.md frontmatter+body+scripts/references/assets）、三级渐进披露、正文建议 <5000 词、name/description 的格式与唯一性约束、脚本『可执行而不必读入』的定位。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://agentskills.io/home", "retrievedAt": "2026-11-09", "note": "Agent Skills 官方规范站（结构章节）；Claude 侧 docs.claude.com/agent-skills 为同规范实现", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["技能库", "规范细节", "2026新热点"],
+    "variants": [
+      { "angle": "加约束", "stem": "加约束实操：公司要给数据团队做 80 个技能（SQL 风格、看板规范、各业务口径）。按渐进披露设计后，估算 L1 常驻开销并给出发现率优化手段三条。", "analysis": "账：80×~100 token ≈ 8k 常驻——已不可忽略（约一个中型工具的代价），必须做二级组织：按域分组动态挂载（数据治理任务才挂 governance 组）、给技能做语义索引用工具检索加载、把高度重叠的技能合并。发现率手段：description 写触发条件与反例（『查数不要用本技能，用 adhoc-query』）、跑真实任务集测触发混淆矩阵迭代文案、命名空间统一（data-sql-style/data-metrics-caliber）降低互相干扰。能先算账再给治理手段即为满分节奏。" }
+    ]
+  },
+  {
+    "id": "Q-ai-mem-pipe-0005",
+    "nodeId": "ai.memory.memory-skill.long-term-memory",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "系统设计论述：为一款个人助理 App（百万 DAU，单用户日均 20 轮对话）设计跨会话长期记忆子系统。要求覆盖：写入管线、存储模型、检索注入、遗忘与一致性、评估与隐私五个面，给出具体机制与参数级取舍，并诚实指出该设计的最大风险。",
+    "answer": { "ref": "参考骨架：【写入管线】会话结束/里程碑事件触发抽取：LLM 从对话中抽候选记忆（类型标签：fact/preference/procedure/episode + 置信度）→ 与既有记忆做相似召回 → 裁决器判 ADD/UPDATE/NOOP/CONFLICT（冲突时新证据时间戳+来源权重优先，留冲突对进人工/后台复核队列）→ 落库。关键取舍：在线抽取（新鲜但费算力、看不见用户长期模式）vs 夜间批处理（省且可做聚类，但当天说了明天才记住）——主流混合：高显著度即时写+批量整理。【存储模型】三层混合：结构化 KV/关系表（姓名、时区、订阅计划——可精确覆盖）、向量库（软偏好、事例摘要——模糊召回）、轻图（人物关系/项目归属——多跳）；每条记忆带作用域（user/team/global）、时间有效性与来源指针（哪次会话哪句话）。【检索注入】注入发生在 system 之后的固定小节而非任意拼接：查询改写后按作用域过滤→向量+关键词混合→时效/置信度重排→top-8 上限硬卡（宁缺勿滥）；注入内容标注『记忆，可能过时』防模型当圣旨。【遗忘与一致性】访问计数+时间衰减双因子降权，低于阈值归档不删（审计可回溯）；用户可见可编辑（『忘掉这件事』入口既是产品功能也是合规件）；矛盾检测定时跑（同 key 多值=一致性告警）。【评估】记忆质量三维：抽取准确（抽样人审 precision/recall）、注入有用性（有记忆 vs 无记忆的 A/B：会话满意度/重复提问率）、检索准确（金标 probe 集定期跑）；负面指标盯『记忆引发的投诉率』。【隐私】作用域+加密+留存策略分级（显式记忆长留、推断记忆默认 TTL）、导出与删除的 GDPR 通路。【最大风险自选示范】『推断记忆的错误固化』：把一次口误升格为长期偏好并被反复注入强化（feedback loop），错误变得不可撤销——缓解：推断类置信度封顶、连续 N 次未被引用自动降权、高危类别（健康/财务）不做主动推断。" },
+    "scoringPoints": [
+      { "point": "写入管线含抽取-冲突裁决环节且给出在线/批处理的取舍", "weight": 2 },
+      { "point": "存储模型体现『不同类型不同介质』而非单一向量库", "weight": 2 },
+      { "point": "检索注入有作用域过滤、排序信号与条数上限的具体设计", "weight": 2 },
+      { "point": "遗忘机制可运营（衰减+归档+用户可控入口）", "weight": 2 },
+      { "point": "评估覆盖抽取/注入/检索三层并有负面指标意识", "weight": 2 },
+      { "point": "隐私合规是设计的一等公民而非补丁", "weight": 1 },
+      { "point": "诚实指出一个真实风险（如反馈回路固化）并给缓解", "weight": 2 }
+    ],
+    "analysis": "百万 DAU 的量级暗含两条约束要答出来：写入不能每轮都过强模型（成本），注入不能无限堆（延迟与注意力预算）——参数取舍（抽取时机、top-k 上限）要围着这两条转。最常见的平庸答案是『向量库存记忆』一句话带过存储层；最拉开差距的是冲突消解与『推断记忆反馈回路』的讨论深度。评估层只答『用户满意度』不给三拆的，说明没做过记忆系统的 QA。",
+    "gapCheck": ["易漏点：注入要带『这是记忆不是事实』的措辞框架——防模型把过时偏好当圣旨执行", "常见误区：忘记多语言/多设备一致性（同一用户两设备的记忆写入竞态）", "加分弹药：引用 LoCoMo/LongMemEval 作为长程记忆评估基准名、Mem0 论文的 ADD/UPDATE 裁决设计", "节奏：五面各 70 秒，风险段最后 90 秒必须保住——那是考官的埋点"],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.long-term-memory", "ai.rag.retrieval-pipeline.hybrid-retrieval"],
+      "related": ["ai.eval.evaluation-qa.online-regression", "ai.reliability", "cs.design"],
+      "followUps": ["记忆和 RAG 语料冲突时（用户说法 vs 官方文档）听谁的？", "百万 DAU 的抽取成本怎么压到可接受？（小模型初筛+分级触发）", "如果记忆要跨产品共享（App+语音助手），架构上要改哪里？"]
+    },
+    "resources": [{ "title": "综合参考", "digest": "可引锚点：Mem0 官方 blog《Memory in AI: solutions…》与 mem0.ai/research（抽取-裁决管线与 LoCoMo 上的对比数字）、Letta memory-agent blog（架构谱系）、LongMemEval 论文（arXiv:2410.10813）作评估基准。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创系统设计题；各机制的佐证分散于 Mem0/Letta 官方博客与长程记忆评估论文，评分标准自拟" },
+    "tags": ["系统设计", "记忆工程", "大厂终面"],
+    "variants": [
+      { "angle": "换场景", "stem": "换场景重答卷：同样的子系统搬到 B 端『企业销售助理』（记忆对象是客户/商机/团队约定，多人共享视角）。哪些原设计会被推翻？新增什么难点？", "analysis": "被推翻项：①单用户作用域失效——记忆主体变成『客户实体』与『团队』，user 级私有偏好反而是要隔离的敏感项；②『忘掉这件事』的删除权归属复杂化（销售的私人备注 vs CRM 共享事实，删除要分权）；③推断风险升级：把某客户的报价习惯记错会污染同事的跟进决策——共享记忆的写入门槛要更高（双人确认或只对本人可见）。新增难点：视角消解（谁说的/对谁说）、跨人一致性（两人说法冲突的仲裁）、实体对齐（同客户在不同人口中的别名归一）。答题看『意识到作用域模型要从 user-centric 改成 entity+audience-centric』这一刀切得对不对。" }
+    ]
+  },
+  {
+    "id": "Q-ai-mem-todo-0006",
+    "nodeId": "ai.memory.memory-skill.session-state",
+    "type": "code",
+    "difficulty": 3,
+    "stem": "手写题：实现一个最小的『计划外置』记忆件 `TodoStore`：支持 add/update/done/list，并要求 (1) 每次变更后自动渲染成 markdown 清单文本（供 harness 注回上下文）；(2) 提供 `staleHint()` 返回『超过 5 步未触碰的 pending 项』列表（停滞信号）。写出类与关键方法，口述为什么『让模型持续维护 todo』能提升长任务表现。",
+    "answer": {
+      "ref": "得分要点：条目 {id,title,status,stepTouched}；每次变更刷新 lastTouchedStep（harness 的全局步计数器注入）；render() 产出 - [ ]/- [x] markdown；staleHint 用 currentStep - stepTouched > 5 过滤 pending。机制解释：todo 清单是『注意力锚+进度外骨骼』——把目标拆成可勾选的外部状态，对抗长会话中的目标漂移与重复劳动；模型重写清单的行为本身就是一次目标重申（Anthropic 记录的 Claude Code to-do 实践）。坑：把整个对话塞进 todo、勾了没同步渲染。",
+      "code": "class TodoStore {\n  constructor(){ this.items = new Map(); this.step = 0 }\n  tick(){ this.step++ } // harness 每轮调用\n  add(id, title){ this.items.set(id, {title, status:'pending', touched:this.step}) }\n  update(id, patch={}){ const it=this.items.get(id); if(!it) return false\n    Object.assign(it, patch, {touched:this.step}); return true }\n  done(id){ return this.update(id,{status:'done'}) }\n  render(){ // 每次变更后由 harness 取用注入\n    const g = s => [...this.items.entries()]\n      .filter(([,it])=>it.status===s)\n      .map(([id,it])=>`- [${s==='done'?'x':' '}] ${it.title} (#${id})`)\n    return ['## Plan', ...g('in_progress'), ...g('pending'), ...g('done')].join('\\n') }\n  staleHint(window=5){ const now=this.step\n    return [...this.items.entries()]\n      .filter(([,it])=>it.status!=='done' && now-it.touched>window)\n      .map(([id,it])=>({id, title:it.title, idleSteps: now-it.touched})) }\n}\n// 用法：harness 每轮 todoStore.tick(); 变更后 context.append(todoStore.render());\n// 循环护栏处：if (todoStore.staleHint().length) 注入『这些任务已 N 步无进展，继续还是阻塞？』"
+    },
+    "scoringPoints": [
+      { "point": "数据结构含 touched 步数标记且 tick 机制与 harness 步数耦合", "weight": 2 },
+      { "point": "render 输出为稳定格式的 markdown 且顺序确定（防注入抖动打碎缓存）", "weight": 2 },
+      { "point": "staleHint 逻辑正确且主动接到护栏用途（注入提醒而非静默）", "weight": 2 },
+      { "point": "机制解释到位：外部化状态对抗目标漂移 + 重写即重申", "weight": 2 },
+      { "point": "边界自觉：todo 膨胀控制（条数上限/层级）、done 项归档", "weight": 1 }
+    ],
+    "analysis": "代码只是载体，考点有三：①touched 与全局步数的耦合方式（自己计步还是 harness 注入——后者才对，因为『步』的定义权在循环）；②render 的**确定性输出**（Map 插入序即可，别用随机序——清单每轮微调会打碎前缀缓存，呼应缓存题）；③staleHint 的落点是『注入给模型的提醒』而不是日志。机制解释段引 Claude Code 的 to-do 实践（官方文档与 Anthropic 博客都有记载）即为实证加分。",
+    "gapCheck": ["易漏点：stale 判定要排除 in_progress 当前项——正在推进的不算停滞，否则误报刷屏", "常见误区：todo 更新只写内部状态不回注上下文——模型自己都不知道清单变了，锚定效应为零", "加分项：提出 todo 变更事件流进 trace，事后可以分析『计划了什么 vs 实际做了什么』的偏差"],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.session-state"],
+      "related": ["ai.harness.agent-loop.loop-dynamics", "ai.harness.agent-loop.context-budget"],
+      "followUps": ["todo 要不要做成工具暴露给模型（write_todos）还是 harness 自动渲染？利弊？", "清单太长（200 项）时 render 策略怎么降级？", "多个并行子任务的 todo 树怎么合并展示？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创手写题；原型来自 Claude Code to-do 实践与各家 harness 的 write_todos 工具常识" },
+    "tags": ["手写题", "小而深", "状态外化"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "面试官加码：把 staleHint 升级为完整的『进展度量』——你要给长跑 Agent 定义一个可计算的 progress score。给出你的信号组合与反作弊考量。", "analysis": "候选信号加权：todo 完成增量（最直接但可刷——乱勾）、上下文净新增信息量（新文件引用/新符号出现）、动作多样性（近期窗口内 tool+args 指纹的去重率）、外部世界断言变化（diff 行数、测试通过数——最硬）、模型自评（最软只能当辅助）。反作弊核心：一切『模型自己写的东西』都可能表演（勾完又改回、造无用 diff），所以高分答案必然掺入**外部可验证信号**（测试结果、CI 状态）当权重最高的锚。能把『进展度量』与评估节点的轨迹指标接起来（同一套信号两用）即为贯通。" }
+    ]
+  },
+  {
+    "id": "Q-ai-mem-types-0007",
+    "nodeId": "ai.memory.memory-skill.long-term-memory",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "把人类记忆分类（episodic / semantic / procedural）映射到 Agent 记忆系统：各对应什么工程形态？各自的写入与检索有何差异？",
+    "answer": { "ref": "【episodic 情景记忆】『哪天发生了什么』：会话事件流、操作日志、成败案例。工程形态=时间线存储+向量/时间混合检索（查询常带『上次/上周』的时间约束，检索要 temporal filter）。写入=自动捕获全量或摘要（量大、低加工）。典型用法：few-shot 复用成功轨迹、『上次这个报错你是怎么修的』。【semantic 语义记忆】『世界的稳定事实』：用户偏好、领域知识、实体关系。工程形态=KV/关系表+向量库+轻图谱，写入要**加工与裁决**（抽取-去重-冲突消解，高加工低成本高），检索以模糊语义为主。【procedural 程序记忆】『怎么做的事』：技能库/SKILL.md、工作流模板、学到的 SOP。与前两者的根本差异：它不是『被查出来背』而是『被执行/被遵循』——检索是选择器（选中哪个技能），正确性靠 eval 不靠相似度；写入=人工沉淀或 agent 自我总结（需 review）。三者的管线参数完全不同：episodic 拼吞吐与时效、semantic 拼准确与一致性、procedural 拼发现率与执行保真——用一套向量库通吃是三件套共同的失败起点。" },
+    "scoringPoints": [
+      { "point": "三类各自定义与对应工程形态准确", "weight": 2 },
+      { "point": "指出写入加工深度差异（episodic 自动捕获 vs semantic 需裁决）", "weight": 2 },
+      { "point": "procedural 的本质是执行不是背诵（检索=选择器）", "weight": 2 },
+      { "point": "检索差异至少两处（时间约束/模糊语义/选择器）", "weight": 1 },
+      { "point": "落到『一套通吃必坏』的系统结论", "weight": 1 }
+    ],
+    "analysis": "认知科学分类在 Agent 语境常被背成名词三连，本题的分在『管线参数差异』这一层：episodic 的检索天然带时间谓词（纯向量检索答不了『上个月』）、semantic 的写入必须有裁决器（否则自相矛盾的偏好并存）、procedural 的质量靠 eval 回归（相似度再高也可能执行失败）。三选二讲透即高分；能把 episodic→semantic 的蒸馏路径（反复出现的事例固化为事实/规则）讲出来属于神经认知与工程的贯通分。",
+    "gapCheck": ["易漏点：episodic 与 semantic 之间存在固化管道（经验→规律），多数系统缺一环", "常见误区：把 procedural 简单等同『技能=RAG 文档』——文档是被引用的，程序是被遵循的，违反成本不同", "加分项：提到 CoALA 论文（arXiv:2309.02427）对这三类记忆与检索/工作记忆的框架化梳理"],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.long-term-memory"],
+      "related": ["ai.memory.memory-skill.skill-lib", "ai.rag.retrieval-pipeline.generation-grounding"],
+      "followUps": ["你们系统里 episodic 到 semantic 的固化是自动的还是人工的？", "procedural 记忆（技能）能不能被 Agent 自己改写？风险？", "三类记忆的 token 预算怎么分配？"]
+    },
+    "resources": [{ "title": "CoALA · Cognitive Architectures for Language Agents", "digest": "Sumers 等的框架论文：working/episodic/semantic/procedural 四路记忆与三种检索类型的系统化分类，是 2025-2026 Agent 记忆讨论的标准引用框架。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://arxiv.org/abs/2309.02427", "retrievedAt": "2026-11-09", "note": "CoALA 论文（arXiv 永久页）；工程映射部分为自创推演", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["记忆分类", "框架引用", "映射能力"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向砍需求：预算只允许先建一类记忆（episodic/semantic/procedural 三选一）给一个客服 Agent。你选哪个？给出业务收益论证与它单独运行的天花板。", "analysis": "开放题但论证要有据。常见高分选择是 episodic：『上次这客户遇到过/上次这问题怎么解的』直接压低重复工单成本、写入零裁决最快上线、且能为后两类积累原料（先有事例才好抽偏好与规则）。天花板：单条事例不可泛化——没有 semantic 就答不好『这个客户的套餐是什么』、没有 procedural 就做不到『按公司 SOP 退款』，且事例检索随规模噪音上升。选 semantic 的论证走『个性化与合规事实』路线也成立。评分看收益是否绑定具体业务动作、天花板是否诚实。" }
+    ]
+  }
+]

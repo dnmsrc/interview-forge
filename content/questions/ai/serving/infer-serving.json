@@ -1,0 +1,111 @@
+[
+  {
+    "id": "Q-ai-serv-kv-0001",
+    "nodeId": "ai.serving.infer-serving.kv-cache-batching",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "vLLM 论文（PagedAttention）解决的核心痛点，按论文口径最准确的是：",
+    "options": [
+      { "key": "A", "text": "注意力算得太慢，PagedAttention 用稀疏化把 O(n²) 降为 O(n log n)" },
+      { "key": "B", "text": "既有系统把每序列 KV Cache 存进连续显存造成严重碎片与预留浪费（实测有效利用率仅 20~40%），PagedAttention 把 OS 分页思想搬进来用块表管理 KV，近乎零浪费地提升批量容量与吞吐" },
+      { "key": "C", "text": "多请求的 KV 互相污染，PagedAttention 给每个 token 单独加密解决隔离" },
+      { "key": "D", "text": "PagedAttention 通过丢弃远历史 token 的 KV 来省显存，本质是无损窗口截断" }]
+    ,
+    "answer": { "keys": ["B"] },
+    "analysis": "论文的立论就是显存管理而非算法加速：连续分配按最大可能长度预留→实际生成长度未知导致内部碎片、free 显存被切成无法利用的小块，KV 有效占用仅两至四成；借鉴虚拟内存分页把 KV 切成固定 size 块+块表映射，浪费降到 <4%，于是同卡能塞更大 batch→吞吐 2~4×（对比当时 SOTA）→ B 完整。A 张冠李戴（PagedAttention 不改复杂度，FlashAttention 才优化注意力计算本身）；C 编造（污染问题不存在，序列间本就分开寻址）；D 混淆了 PagedAttention 与滑窗/驱逐类方案（前者精确保留全部 KV，只是换个存法）。",
+    "gapCheck": ["易漏点：『Prefill 算力受限、Decode 访存受限』的两阶段画像要顺带给出——这是理解 KV 为何值钱的前提", "常见误区：把 PagedAttention 与 prefix caching 混谈：前者是存储布局，后者是跨请求复用 KV（vLLM 里两者叠加使用）", "加分项：报出『碎片导致 20~40% 有效利用』的论文数字，并说出块大小（block size）对碎片与注意力的权衡"],
+    "knowledgeLinks": {
+      "prereq": ["ai.serving.infer-serving.kv-cache-batching"],
+      "related": ["ai.serving.infer-serving.cost-latency", "ai.llm"],
+      "followUps": ["KV 公式手推：70B 模型 GQA 下每 token 多少字节？", "continuous batching 和 PagedAttention 谁贡献的吞吐大？它们解决的是同一问题吗？", "chunked prefill 为什么会把 TTFT 变差又变好？"]
+    },
+    "resources": [{ "title": "vLLM / PagedAttention 论文", "digest": "arXiv:2309.06180：量化连续 KV 管理的碎片浪费（60~80% 显存被浪费），提出分页 KV+块表与 copy-on-write 共享，报告吞吐 2~4× 提升；vLLM 官方 docs 有 block size/prefix caching 实现细节。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://arxiv.org/abs/2309.06180", "retrievedAt": "2026-11-09", "note": "论文官方 arXiv 页；实现佐证见 docs.vllm.ai 的 PagedAttention/自动缓存章节", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["推理核心", "论文口径", "必考"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "追问：Agent 工作负载（超长 prompt+多轮复用前缀）对 vLLM 这类引擎最友好的特性组合是什么？给出你的部署配置与理由。", "analysis": "组合拳：automatic prefix caching 开满（Agent 每轮重复 system+tools+历史前缀，命中即免重算，TTFT 与成本双降）+chunked prefill（长 prompt 的 prefill 与 decode 混批，防止新请求的巨型 prefill 饿死在跑的 decode，稳 TPOT）+足够大的 gpu_memory_utilization 与合理 block size 提高缓存驻留+必要时 KV offload/分层缓存（HBM→CPU→SSD 按命中率）撑住多会话并发。理由链要闭环：Agent 负载的瓶颈是前缀重复计算与 KV 驻留量，不是 FLOPS。能指出『prefix cache 命中率是你最该监控的推理指标』即为生产级认知。" }
+    ]
+  },
+  {
+    "id": "Q-ai-serv-quant-0002",
+    "nodeId": "ai.serving.infer-serving.quantize-accel",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：模型在 MMLU 上量化前后只差 0.5%，就可以安全地把 INT4 量化版替换到生产——因为通用基准的微小差距意味着所有下游任务都近似无损。",
+    "answer": { "judge": false },
+    "analysis": "聚合基准掩盖任务敏感性差异：MMLU 是多选题平均，对格式遵循、精确数值生成、长尾代码符号这类『一个 token 错就全盘崩』的任务分辨率极低——INT4 常见现象恰是选择题几乎不掉、生成式代码/结构化输出掉得多（误差在自回归中复利放大）。另外 MMLU 的 0.5% 本身可能在噪声区间内（评测方差就有这个量级）。正确姿势：量化评估必须任务化——用业务自己的评估集测 pass^k/格式合规率/代码通过率，并测长尾（罕见语言、长上下文）。",
+    "gapCheck": ["易漏点：『量化误差在自回归解码里复利』这句机制解释是关键——首个坏 token 污染后续全部条件", "常见误区：只在短样本上测量化版——长上下文下 KV 量化+累积误差的组合惩罚要单独测", "加分项：给出安全的替换流程——影子评估→金丝雀流量→按任务风险分级放量（低风险先行）"],
+    "knowledgeLinks": {
+      "prereq": ["ai.serving.infer-serving.quantize-accel"],
+      "related": ["ai.eval.evaluation-qa.metrics-dataset", "ai.train.finetune-vs-rag.finetune-decision"],
+      "followUps": ["AWQ/GPTQ/bitsandbytes 各自的适用面？", "FP8 训练和 W4A16 推理可以同时用吗？分别省哪头？", "你们的哪个任务最先扛不住量化？你测过吗？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "自创判断题；依据为量化文献共识（任务相关退化）与各推理栈文档的『按任务评估量化』建议" },
+    "tags": ["量化祛魅", "判断题", "评估素养"],
+    "variants": [
+      { "angle": "换场景", "stem": "场景计算题：预算固定 $2000/月。方案 A：旗舰大模型 API 标准价，月支撑约 80 万次调用；方案 B：开源 70B 的 INT4 自托管+量化 KV，同预算支撑约 400 万次但小任务质量约等于上一档。你要服务 300 万次调用的需求，怎么定方案？给出决策要素而不是直接选 B。", "analysis": "要素清单：①任务分布拆分——那 300 万里有多少比例属于『B 的质量也够』的（分类/抽取/短问答），多少必须 A（复杂推理/长文写作）？路由混合（70% 走 B+30% 走 A）常是最优解，预算立刻打平；②质量差的钱值：B 掉的那档质量折算成转人工率/返工成本是多少；③运维隐性成本：自托管 400 万次要配 GPU 运维与值班，人力不在 $2000 里；④峰值弹性与 SLA：突发流量 B 能否扩容。满分答案必然给出『路由+按任务分级』而不是二选一，并报出决策所需的关键数据。" }
+    ]
+  },
+  {
+    "id": "Q-ai-serv-latency-0003",
+    "nodeId": "ai.serving.infer-serving.cost-latency",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "按 OpenAI 官方 latency optimization 指南的分层，把降低延迟的手段按 Prefill / Decode / 其他基础设施三层各列至少两条，并说明为什么『优化延迟』要先拆 TTFT 与 TPOT 再谈手段。",
+    "answer": { "ref": "【先拆两指标的理由】TTFT=排队+prefill 全长+缓存命中情况决定——用户感知是『多久开始出字』；TPOT=decode 逐 token 的访存与采样决定——感知是『出字多快』。两病的药不同：流式产品的卡顿多半是 TPOT 病，长文档首屏慢是 prefill 病，混着治会白费招。【Prefill 层】prompt caching（命中前缀免算，指南称可大幅降 TTFT 与成本）、精简/压缩输入（少喂即是少算）、把高频长 system+工具定义做成稳定前缀、必要时用更小的模型做 prefill 密集子任务。【Decode 层】投机解码（官方称 speculative decoding 可降延迟最高约三分之二）、流式输出（感知提速+早停能力）、控制 max_tokens 与让模型说重点、减少采样轮次（一次结构化输出代替多轮追问）。【基础层】低延迟区域/专用部署（如 batch 与大流量分离）、跨区域路由与就近接入、SDK 与网络优化（连接复用、HTTP/2）、以及排队侧的配额与优先级。收尾观点：Agent 场景要先算『全 turn 端到端』（TTFT+轮数×每轮开销）而非单次调用——轮次是最被低估的延迟乘数。" },
+    "scoringPoints": [
+      { "point": "TTFT/TPOT 两分法及各自用户感知讲清", "weight": 2 },
+      { "point": "Prefill 层 ≥2 条且含 prompt caching", "weight": 2 },
+      { "point": "Decode 层 ≥2 条且含投机解码或流式", "weight": 2 },
+      { "point": "基础层 ≥1 条不与前两层重复", "weight": 1 },
+      { "point": "落到 Agent 端到端（轮次乘数）的全局观", "weight": 1 }
+    ],
+    "analysis": "指南原文就是按 prefill/decode/infra 三层组织的，答题照此结构最省力。区分度在两处：①手段与病因配对（『为什么流式是感知优化不是物理提速』——总计算没少但首字提前+可提前打断）；②Agent 语境的自觉——官方指南面向单次调用，面试官等的是你主动补『多轮 Agent 的延迟=Σ每轮，减少轮次优于优化单轮』。丢分大户是把 batching 当延迟手段（它提吞吐反增单请求延迟，方向反了）。",
+    "gapCheck": ["易漏点：batching 的吞吐-延迟张力要主动点破，这是该题最经典的反直觉点", "常见误区：把『降低温度/贪心』当延迟手段——采样策略几乎不影响 TPOT（除非 speculative 接受率变化）", "加分弹药：引用官方『speculative decoding 最高 -2/3 延迟』的原话数字；提到 e2e 预算分配表（TTFT 目标 800ms 时 prefill+排队各留多少）"],
+    "knowledgeLinks": {
+      "prereq": ["ai.serving.infer-serving.cost-latency"],
+      "related": ["ai.serving.infer-serving.kv-cache-batching", "ai.harness.agent-loop.context-budget"],
+      "followUps": ["你们的 p95 TTFT 超标，排查顺序是什么？（排队→缓存 miss→长输入→供应商降级）", "流式下怎么做『中途取消省钱』？取消真的停止生成吗？", "多轮 Agent 里哪一轮的延迟最该优先杀？"]
+    },
+    "resources": [{ "title": "OpenAI Docs · Latency optimization", "digest": "官方指南：speculative decoding（最高约 2/3 延迟降幅）、streaming、prompt caching 降 TTFT、低延迟优化区域/部署选型、SDK 与网络层建议，按 prefill/decode/infra 组织。" }],
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://platform.openai.com/docs/guides/latency-optimization", "retrievedAt": "2026-11-09", "note": "官方延迟优化指南主页面结构与数字以此为准（平台文档随版本更新，答题注明访问日期）", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["延迟治理", "分层清单", "文档锚"],
+    "variants": [
+      { "angle": "反向问", "stem": "反向排查：你们产品反馈『回答开头很快但越出字越慢最后像卡死』。按 TTFT/TPOT 框架定位病因方向（至少两个），并给出各自的验证数据。", "analysis": "症状定性：TTFT 正常、TPOT 恶化——典型方向：①输出越来越长时 KV 驻留增大+并发挤兑，decode 边际变慢（自托管看 KV 池水位与抢占次数；API 看高峰期 TPOT 曲线）；②服务端在长输出尾部插入更多调度中断（排队重入）；③客户端假象：前端渲染逐 token 重排整段 markdown（O(n²) 重渲染）让用户以为模型慢了——用『到达时间戳 vs 渲染时间戳』分离验证。验证数据：分位数拆开画 TPOT-已生成token 关系图、同时抓 SSE 到达间隔。考点：延迟归因要区分『服务端物理慢』与『客户端观感慢』两条链路。" }
+    ]
+  },
+  {
+    "id": "Q-ai-serv-cost-0004",
+    "nodeId": "ai.serving.infer-serving.cost-latency",
+    "type": "essay",
+    "difficulty": 5,
+    "stem": "架构论述（d5）：你接手一个日活 5 万的 Agent 产品，月 LLM 账单 $80k、p95 端到端 45s、质量 NPS 38。老板要求三个月内账单砍半且质量不降。请完整论述：成本解剖的方法论、降本手段的优先级排序与各自的质量风险、哪些钱不该省、以及你如何证明『省下来的钱没有伤质量』。要求给出具体数字与机制，泛泛而谈不及格。",
+    "answer": { "ref": "参考骨架：【解剖】先建成本会计三视图：①按环节（模型调用/嵌入/rerank/工具执行/检索基建）②按功能线（各意图/feature 的调用量×单价，找出头部 20% 功能吃 80% 账单）③按 token 结构（输入 vs 输出 vs 缓存命中比例——Agent 账单第一真相通常是『每轮重复计费的历史』）。$80k 拆完常见发现：缓存命中率 <30%、某重试风暴路径占 15%、三个『顺手加的小模型步骤』合计 $9k 但贡献存疑。【手段优先级（ROI×风险）】第一梯队低风险：prompt caching 治理（前缀冻结，命中率 30→80%，输入费直降 ~75% 于命中部分——这是第一刀）、砍无效轮次（停滞检测+好工具减轮，Agent 成本大头是轮数）、重试与降级策略修正（transient 退避、失败别带全历史重试）；第二梯队中风险：模型路由分级（简单意图走便宜模型，需离线+在线双验证）、输出瘦身（max_tokens+风格约束，输出 token 单价高）、历史压缩（compaction 减每轮携带）；第三梯队高风险压轴：蒸馏/微调小模型替换（只替换已被证明的窄任务）、批量场景走 batch API（非实时路径半价）。【不该省的】高危动作的 HITL 确认成本、评估基建与线上抽检的 judge 费用（那是质量的雷达）、p95 延迟的冗余容量、以及错误恢复的重放预算——省这些的钱会以事故形式加倍偿还。【证明没伤质量】设计『省钱动作↔质量哨兵』配对：每项降本上线自带金丝雀+对照臂（同流量双版本），盯三层——任务层（完成率/转人工率无显著劣化，功效预算提前算）、质量代理（赞踩/改写率）、经济层（真实账单回验预估）；同时保留 5% 不可降的『质量保险田』跑全量旗舰作长期基线，防慢性漂移。【节奏】月度滚动：解剖→Top3 机会立项→A/B→回验→记账，三个月 $80k→$40k 的典型构成：缓存 + 减轮 + 路由各贡献约三分之一。" },
+    "scoringPoints": [
+      { "point": "成本解剖三视图且指出『重复历史计费』这一 Agent 特有大头", "weight": 2 },
+      { "point": "缓存治理作为第一优先级并给出量级（命中率与折扣数字）", "weight": 2 },
+      { "point": "减轮次/重试修正在前列——识别『轮数是成本乘数』", "weight": 2 },
+      { "point": "高风险手段（蒸馏/替换）放压轴且有准入证据要求", "weight": 2 },
+      { "point": "『不该省的钱』清单有原则（雷达类支出不可削）", "weight": 2 },
+      { "point": "质量证明机制完整：对照实验+三层哨兵+保险田", "weight": 2 },
+      { "point": "全程有具体数字与因果叙事，收尾给出三个月路线图", "weight": 2 }
+    ],
+    "analysis": "d5 的成本题考『财务感的工程化』：能不能像 CFO 一样解剖、像科学家一样证明。最常见失败是清单式罗列（缓存/小模型/量化一起端出）没有优先级论证——高分卷必有『先摘低垂果实、伤筋动骨放最后』的排序哲学，且每项标风险。『保险田』设计（保留全旗舰对照组测慢性质量漂移）最少人答，是锁定高分段的暗桩。NPS/p95 两个既有指标要在证明段回收使用，否则说明读题不细。",
+    "gapCheck": ["易漏点：账单解剖要在动手前完成——跳过直接给手段=蒙眼开刀，考官必追问『你怎么知道该砍哪个』", "常见误区：把降本等同于换便宜模型——路由与缓存的收益常大于换模型且风险更低", "加分弹药：引用 Anthropic 延迟博客的『先定目标场景再定优化路线』框架、以及各家定价页的缓存折扣/batch 半价数字", "数字纪律：所有百分比都要给出处或测量方式（内部实测/文档承诺/社区基准），含糊数字在此题是减分项"],
+    "knowledgeLinks": {
+      "prereq": ["ai.serving.infer-serving.cost-latency", "ai.eval.evaluation-qa.online-regression"],
+      "related": ["ai.serving.infer-serving.kv-cache-batching", "ai.harness.agent-loop.context-budget", "eng.perf"],
+      "followUps": ["路由分级的『简单意图』误判成难意图，质量损失怎么兜底？（低置信升级回路）", "缓存命中率涨但账单没降——可能哪里漏了？（输出 token/新工具定义打碎前缀）", "老板下一步要 $40k 砍到 $20k，你的第二刀切哪里？"]
+    },
+    "resources": [{ "title": "Anthropic Engineering · Reduce latency LLMs", "digest": "官方：优化须先对齐产品目标场景（吞吐 vs 单响应延迟）、手段按 prefill/decode 归类、并行与缓存策略的收益量化；配合 OpenAI/Anthropic 定价页的缓存折扣数字构成本题的数字弹药库。" }],
+    "openBookAllowed": false,
+    "source": { "kind": "web", "url": "https://www.anthropic.com/engineering/reducing-latency-llm-applications", "retrievedAt": "2026-11-09", "note": "官方工程文（目标先行方法论）；具体折扣比例以各 provider 定价页当日值为准", "reviewedBy": "agent+人工审核规则" },
+    "tags": ["成本治理", "CFO思维", "大厂压轴"],
+    "variants": [
+      { "angle": "追问延伸", "stem": "顺着追问三个月后账单真到 $40k，但客服团队投诉『复杂问题的回答变笨了』。你的哨兵指标却没报警。解释可能的原因，并给出诊断路径。", "analysis": "矛盾的可能解释：①切片盲区——哨兵看全局均值，『复杂问题』只占流量小头被摊平，要按意图/难度分层重看（这正是当初必须分层报告的回响）；②慢性漂移——每次 A/B 都在显著性阈值下的小幅劣化累计三次后越过体验临界（单灯不亮总账超支），需要『累计劣化预算』制（每项变更的质量 delta 记账合并审计）；③投诉的可能是新引入的路由误判个案（低置信该升没升），查升级回路触发日志；④基线腐化——省钱后 judge 也换便宜版了，尺子变了显不出。诊断路径：投诉会话聚类→分层对照（同会话在新旧版本重放）→检查路由/缓存命中的个案归因→累计质量账本复盘。考点：质量治理的时间维度与粒度维度是成本题的真正收官。" }
+    ]
+  }
+]

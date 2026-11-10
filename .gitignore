@@ -1,0 +1,11 @@
+node_modules/
+out/
+data/*.db*
+# QA 产物：CDP 截图与报告（7MB+，本机看即可，不入库）
+data/qa/
+data/backups/
+# Electron 运行时用户数据（Cache / leveldb / Cookies 会被进程锁住，git add 会直接报 Permission denied）
+data/electron-userData/
+.DS_Store
+*.log
+.env
