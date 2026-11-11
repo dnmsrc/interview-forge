@@ -1,0 +1,171 @@
+[
+  {
+    "id": "Q-be-mysql-jdbcmap-0001",
+    "nodeId": "be.mysql.jdbc-type-mapping.type-mapping",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "在 Spring + JdbcTemplate 项目里，把 MySQL 列类型映射成 Java 实体字段，下列对应**正确**的是：",
+    "options": [
+      { "key": "A", "text": "VARCHAR 字段用 char 类型接收" },
+      { "key": "B", "text": "BIGINT 主键用 Long 类型接收" },
+      { "key": "C", "text": "DECIMAL(12,2) 金额用 double 接收，写库前四舍五入即可" },
+      { "key": "D", "text": "DATETIME 用 java.util.Date 接收" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确：BIGINT 是 64 位大整数，Java 用包装类型 Long 接，主键 id 一律 Long（不用 int，防溢出、也能表达 NULL）。A 错：Java 没有独立的字符串基本类型，VARCHAR/TEXT 一律用 String（char 只是 String 里的一个字符）。C 错：double 是二进制浮点，无法精确表示十进制小数，金额必须用 BigDecimal、库列用 DECIMAL。D 错：java.util.Date 老旧、可变且时区混乱，Java 8 之后新项目 DATETIME→LocalDateTime、DATE→LocalDate、TIME→LocalTime。对照 JS：JS 里 number 一把梭、字符串是 string，但 Java 是强类型，整型/小数/精确小数/时间各有专门类型，不能混用。",
+    "gapCheck": [
+      "易漏点：Long 是大写的包装类型，小写 long 是基本类型；可空列必须用 Long",
+      "常见误区：以为 DECIMAL 和普通小数一样能用 double 接",
+      "追问延伸：LocalDateTime、LocalDate、Instant 三者分别对应什么场景？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [],
+      "related": ["be.mysql.jdbc-type-mapping.bigdecimal-precision", "be.mysql.jdbc-type-mapping.rowmapper-naming"],
+      "followUps": ["为什么主键推荐用 Long 而不是 Integer？", "TINYINT(1) 在 Java 里用什么接？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "结合无人机派单系统 venues/orders 表真实映射整理" },
+    "tags": ["JDBC", "类型映射", "Java 基础", "必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-11", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-jdbcmap-0002",
+    "nodeId": "be.mysql.jdbc-type-mapping.bigdecimal-precision",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：订单金额在 Java 实体里用 double 存储，只要每次计算后四舍五入保留两位小数，就能保证长期对账准确。",
+    "answer": { "judge": false },
+    "analysis": "错误。double/float 是 IEEE-754 二进制浮点，像 0.1、0.2 这种十进制小数在二进制里是无限循环小数，存储时就已产生近似误差（经典的 0.1+0.2=0.30000000000000004）。单笔四舍五入看似没问题，但一个系统里金额要经过计价、分期、退款、累加等大量运算，误差会逐笔累积放大，最终导致对账差几分钱、金额守恒被破坏。正确做法是：数据库用 DECIMAL(12,2)，Java 用 java.math.BigDecimal，取整显式调用 setScale(2, RoundingMode.HALF_UP)。对照 JS：JS 的 number 也是 IEEE-754 双精度，所以前端算钱同样不可靠——这正是本项目『价格永远服务端算、前端传的价只做展示』这条底线的根本原因。",
+    "gapCheck": [
+      "易漏点：误差不是四舍五入能根治的，误差在每次运算中累积",
+      "常见误区：以为保留两位小数显示就等于计算精确",
+      "追问延伸：BigDecimal 做加减乘除分别用什么方法？除法除不尽时为什么必须传 scale 和 RoundingMode？"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.jdbc-type-mapping.type-mapping"],
+      "related": ["be.mysql.jdbc-type-mapping.type-mapping"],
+      "followUps": ["DECIMAL(12,2) 的 12 和 2 分别表示什么？", "为什么退款要校验『可退+扣除=已付』金额守恒？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "结合项目六条生产级底线之金额用 BigDecimal" },
+    "tags": ["BigDecimal", "金额精度", "浮点误差", "必考", "判断题"],
+    "status": "active",
+    "meta": { "created": "2026-11-11", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-jdbcmap-0003",
+    "nodeId": "be.mysql.jdbc-type-mapping.bigdecimal-precision",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "已有 `BigDecimal a = new BigDecimal(\"1.0\");` 和 `BigDecimal b = new BigDecimal(\"1.00\");`，要判断二者代表的金额数值是否相等，正确写法是：",
+    "options": [
+      { "key": "A", "text": "a.equals(b)" },
+      { "key": "B", "text": "a.compareTo(b) == 0" },
+      { "key": "C", "text": "a.doubleValue() == b.doubleValue()" },
+      { "key": "D", "text": "a == b" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确：BigDecimal 实现了 Comparable，compareTo 只比较数值大小，1.0 与 1.00 数值相等返回 0，这是金额比较的标准做法。A 是高频坑：BigDecimal 的 equals 同时比较『数值 + 小数位 scale』，1.0 的 scale 是 1、1.00 的 scale 是 2，equals 返回 false，而业务上这两笔钱显然相等。C 错：转成 double 又退回浮点误差场景，前功尽弃。D 错：== 比较的是对象引用地址，两个 new 出来的对象必不相等。补充：构造 BigDecimal 时优先用 new BigDecimal(\"0.1\") 或 BigDecimal.valueOf(0.1)，不要用 new BigDecimal(0.1)，后者会把 double 的误差原样带进去。",
+    "gapCheck": [
+      "易漏点：equals 把 scale 也纳入比较，这是和 compareTo 最关键的区别",
+      "常见误区：用 == 比较对象、或转回 double 比较",
+      "追问延伸：BigDecimal.valueOf(0.1) 和 new BigDecimal(0.1) 结果有什么不同？"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.jdbc-type-mapping.type-mapping"],
+      "related": ["be.mysql.jdbc-type-mapping.type-mapping"],
+      "followUps": ["setScale(2, RoundingMode.HALF_UP) 里的 HALF_UP 是什么取整？", "BigDecimal 是不可变对象，做加法后为什么要接收返回值？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "BigDecimal 经典面试题，结合项目金额比较" },
+    "tags": ["BigDecimal", "equals 与 compareTo", "高频坑", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-11", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-jdbcmap-0004",
+    "nodeId": "be.mysql.jdbc-type-mapping.type-mapping",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "对照 venues 表写实体：表示启用状态的 `enabled TINYINT`（取值 1/0）在 Java 里用 ______ 类型接收；表演日期 `perform_date DATE` 用 ______ 接收；创建时间 `created_at DATETIME(3)` 用 ______ 接收。",
+    "answer": {
+      "blanks": ["Integer", "LocalDate", "LocalDateTime"],
+      "synonyms": {
+        "Integer": ["java.lang.Integer", "整型包装类"],
+        "LocalDate": ["java.time.LocalDate"],
+        "LocalDateTime": ["java.time.LocalDateTime", "LocalDateTime（带时分秒）"]
+      }
+    },
+    "analysis": "三个空对应三类最常用映射：① TINYINT 小整数（1/0 状态位）→ Integer，用包装类型是因为列可空且语义是状态而非布尔；② DATE 只有年月日 → LocalDate；③ DATETIME 带年月日时分秒（毫秒精度）→ LocalDateTime，二者都在 java.time 包下，是 JDK8 取代 Date/Calendar 的新时间 API，不可变、线程安全、API 清晰。记忆主线：整数看大小选 Integer/Long，精确小数 BigDecimal，字符串 String，日期时间在 Local* 家族里按『有没有时分秒』挑 LocalDate 或 LocalDateTime。对照 TS：TS 里这些往往都是 number/string，Java 必须按列类型精确选类型，选错轻则精度丢失、重则 NULL 取不到。",
+    "gapCheck": [
+      "易漏点：DATE 和 DATETIME 对应两个不同的类，不能都用 LocalDateTime 糊弄",
+      "常见误区：TINYINT 想用 boolean 接——JDBC 默认可用 Boolean，但本项目统一按 Integer 1/0 映射保持与 TINYINT 语义一致",
+      "追问延伸：为什么不用老的 java.util.Date 和 SimpleDateFormat？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [],
+      "related": ["be.mysql.jdbc-type-mapping.rowmapper-naming"],
+      "followUps": ["TIMESTAMP 和 DATETIME 在 MySQL 里有什么区别？", "LocalDateTime 怎么按上海时区取『今天』？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "对应无人机项目 venues/orders 实体真实字段" },
+    "tags": ["类型映射", "LocalDate", "LocalDateTime", "TINYINT", "填空题"],
+    "status": "active",
+    "meta": { "created": "2026-11-11", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-jdbcmap-0005",
+    "nodeId": "be.mysql.jdbc-type-mapping.rowmapper-naming",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "本项目用 JdbcTemplate + 手写 RowMapper 做持久层。关于列名映射与 RowMapper 的职责，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "项目配置了 map-underscore-to-camel-case，数据库列会自动转成驼峰字段，无需手写" },
+      { "key": "B", "text": "列 created_at 对应实体字段 createdAt，在 RowMapper 里用 rs.getObject(\"created_at\", LocalDateTime.class) 手动取值并 set 进实体" },
+      { "key": "C", "text": "RowMapper 里应该写上『enabled=0 就跳过』这类业务过滤判断" },
+      { "key": "D", "text": "实体类名应与表名一致，venues 表对应类名也叫 Venues" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确：本项目没有引入 MyBatis，不存在 map-underscore-to-camel-case 这种自动开关，靠 RowMapper 逐列手动映射，下划线列名 created_at 对应小驼峰字段 createdAt，用 rs.getObject(列名, 类型.class) 取值。A 错：该配置是 MyBatis 的，JdbcTemplate 不自带自动驼峰映射。C 错：RowMapper 的唯一职责是『把 ResultSet 的一行翻译成一个实体对象』，不写业务 if；过滤停用数据是 SQL 的 WHERE 条件（Repository 层）或业务规则（Service 层）的事，混进来会让映射层难以复用。D 错：表名习惯复数（venues，装很多行），实体类名用单数（Venue，一个对象只代表一行）。对照前端：RowMapper 很像你写接口时把后端 snake_case 响应手动转成前端 camelCase 类型的那一层，只不过这里发生在后端、用 Java 写。",
+    "gapCheck": [
+      "易漏点：map-underscore-to-camel-case 是 MyBatis 专属概念，JdbcTemplate 项目里没有",
+      "常见误区：把业务过滤逻辑塞进 RowMapper，破坏单一职责",
+      "追问延伸：为什么实体类用单数、表名用复数？rs.getXxx 和 rs.getObject(列, 类型) 有什么区别？"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.jdbc-type-mapping.type-mapping"],
+      "related": ["be.mysql.jdbc-type-mapping.bigdecimal-precision"],
+      "followUps": ["JdbcTemplate 的 query 和 update 方法分别什么时候用？", "一条 SQL 查多行时 RowMapper 被调用几次？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "对照 AdminUserRepository 真实 RowMapper 写法" },
+    "tags": ["RowMapper", "JdbcTemplate", "命名转换", "分层职责"],
+    "status": "active",
+    "meta": { "created": "2026-11-11", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-jdbcmap-0006",
+    "nodeId": "be.mysql.jdbc-type-mapping.type-mapping",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：对数据库中允许为 NULL 的列，Java 实体推荐声明为 Long/Integer 等包装类型而不是 long/int 基本类型，因为基本类型无法表达 NULL，且 ResultSet.getLong 遇到 NULL 会返回 0，容易和真实值 0 混淆。",
+    "answer": { "judge": true },
+    "analysis": "正确。Java 的基本类型（long/int/boolean…）有默认值且不能为 null：long 默认 0L、int 默认 0。当数据库列是 NULL 时，rs.getLong() 不会报错而是返回 0，你无法区分这是『数据库真存了 0』还是『这里本来是 NULL』，属于隐蔽 bug。包装类型 Long/Integer 默认值是 null，能忠实表达 NULL，rs.getObject(列, Long.class) 遇到 NULL 也会得到 null。因此实体字段、尤其是可空列，统一用包装类型；基本类型只在确定非空的局部计算里用。对照 JS：JS 里 null 和 0、undefined 是分开的，一个变量天然能为 null；Java 基本类型把这条能力砍掉了，所以需要包装类型补回来，这也是后端实体几乎看不到 int/long 基本类型字段的原因。",
+    "gapCheck": [
+      "易漏点：getLong 遇 NULL 返回 0 而非抛错，0 与 NULL 语义被混淆",
+      "常见误区：觉得包装类型性能差就全用基本类型，忽略可空性",
+      "追问延伸：包装类型的自动装箱/拆箱在什么情况下会抛 NullPointerException？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [],
+      "related": ["be.mysql.jdbc-type-mapping.rowmapper-naming"],
+      "followUps": ["自动装箱是什么？Integer 缓存 -128~127 又是什么坑？", "可空金额字段用 BigDecimal，NULL 和 0.00 在业务上有何不同？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "包装类型与可空列，Java 后端高频基础题" },
+    "tags": ["包装类型", "NULL", "基本类型", "装箱拆箱", "闭卷题", "判断题"],
+    "status": "active",
+    "meta": { "created": "2026-11-11", "version": 1, "history": [] }
+  }
+]

@@ -1,0 +1,60 @@
+[
+  {
+    "id": "be.mysql.jdbc-type-mapping",
+    "title": "JDBC 类型映射与实体映射",
+    "level": 3,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "jdbc-type-mapping",
+    "mustMaster": true,
+    "estMinutes": 60,
+    "summary": "SQL 列类型到 Java 类型的映射（BIGINT/VARCHAR/DECIMAL/TINYINT/DATETIME）、为什么金额必须 BigDecimal、下划线列名转小驼峰、手写 RowMapper 的职责"
+  },
+  {
+    "id": "be.mysql.jdbc-type-mapping.type-mapping",
+    "title": "SQL 类型与 Java 类型的对应关系",
+    "level": 4,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "jdbc-type-mapping",
+    "related": [
+      "be.mysql.jdbc-type-mapping.bigdecimal-precision",
+      "be.mysql.jdbc-type-mapping.rowmapper-naming"
+    ],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 25,
+    "summary": "要能讲清 BIGINT→Long、VARCHAR→String、TINYINT→Integer、DATETIME→LocalDateTime、DATE→LocalDate 的对应，以及可空列为什么用包装类型而不是基本类型。本 topic 是另两个 topic 的前置基础"
+  },
+  {
+    "id": "be.mysql.jdbc-type-mapping.bigdecimal-precision",
+    "title": "DECIMAL 与 BigDecimal：金额为什么不能用 double",
+    "level": 4,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "jdbc-type-mapping",
+    "prerequisites": ["be.mysql.jdbc-type-mapping.type-mapping"],
+    "related": ["be.mysql.jdbc-type-mapping.rowmapper-naming"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 25,
+    "summary": "要能讲清 double/float 的二进制浮点误差、DECIMAL→BigDecimal、setScale(2,HALF_UP) 取整、compareTo 与 equals 的区别、valueOf 与 new BigDecimal(double) 的差异"
+  },
+  {
+    "id": "be.mysql.jdbc-type-mapping.rowmapper-naming",
+    "title": "RowMapper 手写映射与下划线转驼峰",
+    "level": 4,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "jdbc-type-mapping",
+    "prerequisites": ["be.mysql.jdbc-type-mapping.type-mapping"],
+    "related": ["be.mysql.jdbc-type-mapping.bigdecimal-precision"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 20,
+    "summary": "要能讲清 JdbcTemplate 手写 RowMapper 怎么把 ResultSet 一行装进实体、本项目为何没有自动驼峰映射、created_at→createdAt 的命名转换，以及 Entity 与表行的一一对应"
+  }
+]
