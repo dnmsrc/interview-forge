@@ -1,0 +1,810 @@
+[
+  {
+    "id": "Q-cs-devops-docker-0001",
+    "nodeId": "cs.devops.docker.namespace-cgroup",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "面试官：都说容器是『受限的普通进程』，Linux 上 Docker 主要靠两类内核能力实现容器化。下列关于 namespace 与 cgroup 分工的描述，**最准确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "namespace 负责隔离进程能『看到什么』（如 PID、网络、挂载点视图），cgroup 负责限制进程能『用多少』资源（CPU、内存、IO 配额）"
+      },
+      {
+        "key": "B",
+        "text": "cgroup 负责隔离视图，namespace 负责限制资源，两者作用刚好相反"
+      },
+      {
+        "key": "C",
+        "text": "namespace 把容器放进独立内核，cgroup 负责在独立内核里调度进程"
+      },
+      {
+        "key": "D",
+        "text": "两者功能完全等价，Docker 只是出于历史原因同时使用"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 准确：namespace 做『视图隔离』，让容器里的进程以为自己独占系统（pid namespace 内 PID 从 1 开始、net namespace 有独立网卡与协议栈、mnt namespace 有独立挂载视图）；cgroup 做『资源限制与计量』，通过子系统（v1 的 cpu/memory/blkio 等，v2 统一层级）限制配额并统计用量，超内存 limit 时内核 OOM killer 会杀容器内进程。B 把两者职责说反。C 错：容器共享宿主机内核，并不存在独立内核，这正是容器与虚拟机的本质区别。D 错：两者正交且缺一不可，只有隔离没有限制会出现单容器吃光整机资源。",
+    "gapCheck": [
+      "易漏点：cgroup v1 是按子系统多层级组织、v2 改为统一层级（unified hierarchy），接口目录不同，答题提一句版本差异更显功底",
+      "常见误区：以为容器里有独立内核——容器进程直接跑在宿主内核上，这也是容器逃逸成为安全议题的根源",
+      "加分项：能讲 user namespace 把容器内 root 映射为宿主普通用户，是缓解提权逃逸的重要手段"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.namespace-cgroup"
+      ],
+      "related": [
+        "cs.os.process.thread-vs-process",
+        "cs.os.memory.virtual-memory"
+      ],
+      "followUps": [
+        "容器内 PID 1 的进程在宿主机上的 PID 为什么不是 1？两套 PID 怎么对应？",
+        "只配了 memory limit 没配 CPU limit，容器在资源竞争时分别会发生什么？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "namespace 与 cgroup 职责区分单选题"
+    },
+    "tags": [
+      "namespace",
+      "cgroup",
+      "容器原理",
+      "隔离"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0002",
+    "nodeId": "cs.devops.docker.namespace-cgroup",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "面试官：关于 Linux namespace 的隔离类别以及容器与虚拟机的对比，下列说法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "pid namespace 隔离进程号视图，net namespace 隔离网卡、IP 与端口，mnt namespace 隔离挂载点与文件系统视图，uts namespace 隔离主机名"
+      },
+      {
+        "key": "B",
+        "text": "容器共享宿主机内核、启动是秒级甚至毫秒级；虚拟机通过 Hypervisor 运行独立 Guest OS，启动分钟级、资源开销更大但内核级隔离更强"
+      },
+      {
+        "key": "C",
+        "text": "同一台宿主机上的容器之间天然强隔离，一个容器内核 panic 绝不会影响其他容器或宿主机"
+      },
+      {
+        "key": "D",
+        "text": "容器的 rootfs（根文件系统）由镜像提供，基于联合文件系统把多个只读层与一个可写层叠加挂载，容器销毁后可写层默认随之删除"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A、B、D 正确。A 列举的 namespace 分工与实际一致（另有 ipc/user/cgroup namespace）。B 抓住本质差异：容器是宿主内核上的受限进程，没有 Guest OS 的内存与启动成本；虚拟机硬件虚拟化、自带完整内核，故障域隔离到内核级别，代价是重。D 描述了 overlay 类联合文件系统（如 overlay2）的分层模型与可写层生命周期。C 错：容器共享同一个宿主内核，内核级 bug、恶意系统调用或容器逃逸可能影响整台宿主机，『隔离强度弱于虚拟机』正是生产环境要配合 seccomp、capability 裁剪、user namespace、运行时沙箱（如 gVisor/Kata）的原因。",
+    "gapCheck": [
+      "易漏点：容器隔离的是视图与资源而非内核，内核漏洞的爆炸半径是整台宿主机",
+      "常见误区：把『容器比 VM 轻』等同于『容器隔离比 VM 强』，实际上安全边界恰恰相反",
+      "加分项：能提 gVisor（用户态内核）、Kata Containers（轻量 VM 承载容器）等强化容器隔离边界的方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.namespace-cgroup"
+      ],
+      "related": [
+        "cs.os.linux.process-states"
+      ],
+      "followUps": [
+        "什么场景下应该用虚拟机而不是容器来承载工作负载？",
+        "overlay2 的『复制上浮（copy-up）』机制对容器内修改文件的性能有什么影响？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "namespace 类别与容器 VM 对比多选题"
+    },
+    "tags": [
+      "namespace",
+      "容器vs虚拟机",
+      "联合文件系统",
+      "rootfs"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0003",
+    "nodeId": "cs.devops.docker.namespace-cgroup",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：容器里运行的进程在宿主机上本质就是一个普通 ______（调度实体），可以用 ps、top 等宿主工具看到；docker exec 进入容器看到的独立进程树（PID 从 1 开始）和独立网卡，是 ______（内核机制）制造出来的隔离视图；限制这个进程能用多少 CPU/内存则靠 ______（内核机制）；因此容器并不是一台真正独立的机器，它与宿主机共享同一个 ______。",
+    "answer": {
+      "blanks": ["进程", "namespace", "cgroup", "内核"],
+      "synonyms": {
+        "进程": ["普通进程", "进程（process）"],
+        "namespace": ["命名空间", "Linux namespace", "namespaces"],
+        "cgroup": ["控制组", "cgroups", "control group"],
+        "内核": ["Linux 内核", "宿主内核", "kernel"]
+      }
+    },
+    "analysis": "容器不引入新的执行模型，容器进程由宿主内核直接调度，在宿主机上以普通进程形态存在（有真实 PID、受 cgroup 配额约束）。docker exec 看到的 PID 1、独立 eth0、独立路由表，分别是 pid/net 等 namespace 提供的『投影』；在宿主视角换个 namespace 看同一进程，PID 与网络视图完全不同。理解这一点才能解释为什么容器资源占用直接体现在宿主负载上、为什么容器内没有 systemd/init 完整体系、为什么信号处理与僵尸进程回收对容器 PID 1 特别重要，也能解释共享内核带来的容器逃逸风险。",
+    "gapCheck": [
+      "易漏点：容器 PID 1 承担 init 角色，需要正确处理 SIGTERM，否则 docker stop 要等超时才被 SIGKILL 强杀",
+      "常见误区：以为 docker 里跑的是一台隐藏的虚拟机，试图在容器内装 systemd 管理服务",
+      "加分项：能用 ls -l /proc/<宿主pid>/ns 查看进程所属 namespace，并用 nsenter 进入目标 namespace 排障"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.namespace-cgroup"
+      ],
+      "related": [
+        "cs.os.linux.process-states",
+        "cs.os.process.context-switch"
+      ],
+      "followUps": [
+        "为什么 docker stop 有时要等 10 秒才真正停掉容器？和 PID 1 的信号处理有什么关系？",
+        "容器内出现僵尸进程时为什么宿主机上也能看到？该怎么治理？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "容器进程本质判断题"
+    },
+    "tags": [
+      "容器原理",
+      "namespace",
+      "PID1",
+      "判断"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0004",
+    "nodeId": "cs.devops.docker.namespace-cgroup",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：容器隔离视图靠 Linux 的 ______（机制名），限制 CPU/内存等资源配额靠 ______（机制名）；镜像的根文件系统基于 ______（一类文件系统的统称，中文名即可）把多个只读层叠加一个可写层挂载；容器与虚拟机在架构上最根本的区别是容器共享宿主机的 ______。",
+    "answer": {
+      "blanks": [
+        "namespace",
+        "cgroup",
+        "联合文件系统",
+        "内核"
+      ],
+      "synonyms": {
+        "namespace": [
+          "命名空间",
+          "Linux namespace",
+          "namespaces"
+        ],
+        "cgroup": [
+          "控制组",
+          "control group",
+          "cgroups"
+        ],
+        "联合文件系统": [
+          "联合挂载文件系统",
+          "union fs",
+          "unionfs",
+          "overlay",
+          "overlayfs",
+          "overlay2"
+        ],
+        "内核": [
+          "Linux 内核",
+          "宿主内核",
+          "kernel"
+        ]
+      }
+    },
+    "analysis": "四个空对应容器技术的四块基石：namespace 管视图、cgroup 管配额、联合文件系统（Docker 默认存储驱动 overlay2 即属此类）管分层 rootfs、共享内核是容器相对 VM 的根本架构特征。联合文件系统的只读层可被多个镜像共享、只在容器运行时加一层薄可写层，这解释了镜像为什么分层复用、启动为什么快，也解释了容器内写操作的 copy-up 开销。",
+    "gapCheck": [
+      "易漏点：cgroup 除了限制还负责资源用量统计（accounting），docker stats 的数据就来自它",
+      "常见误区：把 Dockerfile 分层和联合文件系统分层割裂理解——每条指令产出的层最终就是靠 union fs 叠起来的",
+      "加分项：能讲 cgroup v2 统一层级对内存/IO 控制的增强，以及 rootless 容器对 user namespace 的依赖"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.namespace-cgroup"
+      ],
+      "related": [
+        "cs.os.linux.filesystem-inode"
+      ],
+      "followUps": [
+        "docker history 看到的层和 Dockerfile 指令是一一对应的吗？哪些指令不产生层？",
+        "容器可写层里的数据在什么情况下会丢？怎么持久化？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "容器四大基石填空题"
+    },
+    "tags": [
+      "namespace",
+      "cgroup",
+      "联合文件系统",
+      "填空"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0005",
+    "nodeId": "cs.devops.docker.namespace-cgroup",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "面试官：请从隔离边界、启动速度、资源开销、安全性和适用场景五个维度对比容器与虚拟机，并解释为什么容器普及后虚拟机并没有被淘汰，反而出现了『容器跑在虚拟机里』的主流云上架构。",
+    "answer": {
+      "ref": "参考骨架：\n【隔离边界】容器共享宿主内核，靠 namespace 隔离视图、cgroup 限制资源，进程级隔离；虚拟机经 Hypervisor 硬件虚拟化，自带完整 Guest OS 与独立内核，隔离到内核/硬件级别，故障域更硬。\n【启动速度】容器本质是进程，秒级/毫秒级启动，适合弹性伸缩与快速发布；虚拟机要引导完整操作系统，通常数十秒到分钟级。\n【资源开销】容器无 Guest OS 内存与系统服务开销，密度高，一台物理机可跑几十上百个；每个 VM 都要预留内核与系统守护进程的内存，密度低。\n【安全性】VM 隔离强度更高，容器逃逸（借助内核漏洞或危险挂载）可能波及宿主机与同机容器；容器需配合非 root 运行、capability 裁剪、seccomp、只读根文件系统、user namespace 乃至沙箱运行时加固。\n【适用场景】容器适合微服务、CI/CD、弹性工作负载、同构技术栈；VM 适合强隔离多租户、需要不同内核/操作系统、遗留单体、合规要求硬件级隔离的场景。\n【为什么容器跑在 VM 里】①安全纵深：VM 提供的内核级边界正好补上容器共享内核的短板，云上一个节点（VM）出容器逃逸，影响被限制在这台 VM 内；②资源交付与调度成熟：云厂商用 VM 做弹性资源池、配额与计费单元，容器平台（托管 K8s）在 VM 节点上调度容器，兼顾基础设施成熟度与应用层弹性；③运维体系兼容：VM 快照、安全组、VPC 网络等既有能力可直接复用。代价是多一层虚拟化开销，但硬件辅助虚拟化成熟后该开销通常可接受，安全与工程收益更大。"
+    },
+    "scoringPoints": [
+      {
+        "point": "五个维度对比完整且方向正确，突出共享内核 vs 独立内核的本质差异",
+        "weight": 4
+      },
+      {
+        "point": "讲清容器逃逸与容器安全加固手段，安全边界理解到位",
+        "weight": 3
+      },
+      {
+        "point": "解释 VM+容器 分层架构的安全纵深、资源调度与运维复用三条理由",
+        "weight": 3
+      }
+    ],
+    "analysis": "这是容器原理的高频综合题。常见失分：只背『容器轻、VM 重』给不出机理；把容器隔离说得比 VM 还强；认为 VM 已被淘汰，讲不出云上节点本身就是 VM 的现实。高分回答会落到共享内核这条主线上，由它推出启动快、密度高、隔离弱三个推论，再自然引出 VM 外壳补安全边界的云上架构。",
+    "gapCheck": [
+      "易漏点：容器密度高的根因是省掉了 Guest OS 的固定内存开销，不只是启动快",
+      "常见误区：把容器安全等同于 namespace 隔离，忽视共享内核导致的逃逸面",
+      "加分项：能提 Kata/gVisor 等沙箱运行时用 VM 级或用户态内核隔离单个容器，兼顾两者优点"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.namespace-cgroup"
+      ],
+      "related": [
+        "cs.os.process.thread-vs-process"
+      ],
+      "followUps": [
+        "多租户公有云上直接让不同客户容器共享物理节点有什么风险？业界怎么解？",
+        "沙箱容器（gVisor/Kata）的性能损耗主要来自哪里？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "容器与虚拟机对比简答题"
+    },
+    "tags": [
+      "容器vs虚拟机",
+      "隔离边界",
+      "容器逃逸",
+      "云原生"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0006",
+    "nodeId": "cs.devops.docker.image-dockerfile",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "面试官：一份 Dockerfile 中先 `COPY package.json ./` 再 `RUN npm install`，然后才 `COPY . .`。这样调整指令顺序的主要目的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "利用镜像分层缓存：依赖清单不变时 npm install 层命中缓存，只有业务代码变更导致后续层重建，避免每次改代码都重新装依赖"
+      },
+      {
+        "key": "B",
+        "text": "减少镜像的层数，把两次 COPY 合并成一次"
+      },
+      {
+        "key": "C",
+        "text": "让 npm install 在没有源码的环境下运行，强制依赖全局安装"
+      },
+      {
+        "key": "D",
+        "text": "Dockerfile 语法要求 package.json 必须在业务代码之前复制，否则构建报错"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：Dockerfile 每条指令生成一层、层缓存按指令顺序逐层匹配，一旦某层失效，其后所有层缓存全部失效。先复制变化频率低的依赖清单、单独安装依赖，再复制频繁变化的源码，可让日常改代码时昂贵的 install 步骤稳定命中缓存。B 错：这并没有减少层数，反而是典型的分层缓存优化。C 错：npm install 依据 package.json/lock 文件即可安装，不依赖业务源码，与全局安装无关。D 错：语法上没有该强制顺序，这是工程最佳实践而非语法要求。",
+    "gapCheck": [
+      "易漏点：缓存失效会向后传播——COPY . . 这层一旦失效，后面的 RUN 全部重做，所以易变指令要尽量后置",
+      "常见误区：以为加了缓存就万事大吉，COPY . . 把无关文件带进构建上下文也会让缓存频繁失效，需要 .dockerignore 配合",
+      "加分项：能讲 lockfile（package-lock.json）要一起 COPY，并用 npm ci 保证可重复安装"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.image-dockerfile"
+      ],
+      "related": [
+        "cs.devops.cicd.pipeline"
+      ],
+      "followUps": [
+        "如果把 COPY . . 放到 npm install 前面，CI 构建时间会发生什么变化？",
+        "多阶段构建里每个阶段的缓存是独立的吗？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Dockerfile 层缓存优化单选题"
+    },
+    "tags": [
+      "Dockerfile",
+      "层缓存",
+      "镜像构建",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0007",
+    "nodeId": "cs.devops.docker.image-dockerfile",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "面试官：下列 Dockerfile/镜像工程实践中，属于公认最佳实践的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "基础镜像选用精简且固定版本的标签（如 node:20-alpine 或 distroless），避免使用会漂移的 latest"
+      },
+      {
+        "key": "B",
+        "text": "在同一个 RUN 指令里完成安装与清理（如 apt-get install 后接 rm -rf /var/lib/apt/lists/*），避免清理动作落在下一层导致镜像依然臃肿"
+      },
+      {
+        "key": "C",
+        "text": "把所有构建工具、调试工具和源码都打进运行镜像，方便上线后随时进容器排查问题"
+      },
+      {
+        "key": "D",
+        "text": "用 .dockerignore 排除 node_modules、.git、日志等无关文件，缩小构建上下文并避免缓存被意外击穿"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A、B、D 正确。A 中固定版本保证可重复构建、避免 latest 漂移引入不可控变更，精简基础镜像同时缩小体积与攻击面。B 利用『同一 RUN 内清理才真正减小该层体积』的特性——联合文件系统里删除上一层文件只会在新层留下 whiteout 标记，镜像总大小不会变小。D 的 .dockerignore 控制构建上下文传输内容，既加速构建又防止本地文件污染镜像、稳定缓存。C 错误：编译器、调试工具、包管理器、源码进入生产镜像会拉大体积与攻击面，正确做法是多阶段构建，把工具链留在 builder 阶段，运行阶段只拷产物；排障可用临时调试容器或专用 debug 镜像。",
+    "gapCheck": [
+      "易漏点：在新的一层里 RUN rm 删除上一层文件并不会缩小镜像，删除必须与安装同层完成",
+      "常见误区：图省事用 latest 标签，结果同一 Dockerfile 在不同时间构建出不同镜像，违背不可变制品原则",
+      "加分项：能提 distroless 镜像连 shell 都没有，进容器排障要用 ephemeral debug 容器，安全性更高"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.image-dockerfile"
+      ],
+      "related": [
+        "cs.devops.cicd.artifact"
+      ],
+      "followUps": [
+        "alpine 用 musl libc，对某些原生依赖（如 Node 的部分模块）可能有什么兼容坑？",
+        "镜像漏洞扫描发现基础镜像有 CVE，标准化的修复流程是什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Dockerfile 最佳实践多选题"
+    },
+    "tags": [
+      "Dockerfile",
+      "最佳实践",
+      "镜像瘦身",
+      "攻击面"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0008",
+    "nodeId": "cs.devops.docker.image-dockerfile",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：多阶段构建（multi-stage build）中，最终运行阶段通过 COPY --from=<builder> 只拷贝编译产物与运行时依赖，builder 阶段的编译器、构建缓存和源码不会进入最终镜像，因此能显著缩小运行镜像体积并减少攻击面。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。多阶段构建在一个 Dockerfile 内定义多个 FROM 阶段，每个阶段有独立的层栈，最终镜像只包含最后一个阶段的层加上显式 COPY --from 搬过来的文件。builder 里的 SDK、包管理器缓存、中间产物、源码默认不会出现在运行镜像中，带来三重收益：体积小（拉取快、节点磁盘压力小）、攻击面小（没有编译器和 shell 可被利用）、职责清晰（构建环境与运行环境解耦）。需要注意 COPY --from 的路径要与 builder 的 WORKDIR 对应，运行时动态库依赖也要一并带齐，否则产物在精简镜像里会启动失败。",
+    "gapCheck": [
+      "易漏点：最终阶段若用 distroless 这类无 shell 镜像，COPY 路径错了无法进容器手工排查，要在 builder 阶段先验证产物结构",
+      "常见误区：以为前面阶段的层完全不占空间——本地构建缓存里仍保留 builder 层，只是不进最终镜像",
+      "加分项：能讲多阶段还可用于跨语言/跨基础镜像搬运产物，如在 alpine 构建、distroless 运行"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.image-dockerfile"
+      ],
+      "related": [
+        "cs.devops.cicd.artifact"
+      ],
+      "followUps": [
+        "构建产物依赖的动态链接库在 distroless 里缺失怎么办？怎么自查？",
+        "多阶段构建和在 CI  runner 上直接编译再 docker cp 进镜像，两种方案怎么选？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "多阶段构建原理判断题"
+    },
+    "tags": [
+      "多阶段构建",
+      "镜像瘦身",
+      "攻击面",
+      "判断"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0009",
+    "nodeId": "cs.devops.docker.image-dockerfile",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：为一个 Node.js 后端项目（源码在当前目录，构建命令 `npm run build`，产物输出到 `dist/`，启动命令 `node dist/server.js`，监听 3000 端口）编写一份生产级多阶段 Dockerfile，并配一份 `.dockerignore` 的关键内容。要求：①builder 与 runner 两阶段分离；②利用层缓存优化依赖安装；③运行阶段非 root、仅保留生产依赖；④逐条解释每层作用以及这样做对镜像体积、安全性和构建速度的收益。",
+    "answer": {
+      "ref": "机理与逐层解释：\n【builder 阶段】固定大版本基础镜像保证可重复；WORKDIR 设定工作目录；先 COPY package*.json 再 npm ci，依赖清单不变时该层命中缓存，改源码不重装依赖；COPY . . 搬入源码（.dockerignore 已排除无关文件）；npm run build 产出 dist/。\n【runner 阶段】重新 FROM 一个干净基础镜像，与 builder 的层栈隔离；NODE_ENV=production 让多数框架走生产优化；再次只拷 package*.json 并 npm ci --omit=dev，安装精简后的生产依赖并立即清 npm 缓存（同层清理才真正减小体积）；COPY --from=builder 只搬 dist 产物，编译器/源码/构建缓存全部留在 builder 不进最终镜像；USER node 切换到镜像内置的非 root 用户，限制容器被攻破后的权限；EXPOSE 仅作文档声明；用 exec 形式的 CMD 保证 node 是容器 PID 1、能直接接收 SIGTERM 优雅退出。\n【.dockerignore】排除 node_modules（避免覆盖容器内安装结果、防平台原生依赖不兼容）、.git（缩小上下文、防缓存击穿）、日志与环境变量文件（防泄密）、Dockerfile 本身与构建产物目录。\n收益：体积上运行镜像无编译工具链与 devDependencies；安全上非 root + 最小文件集缩小攻击面；构建速度上依赖层与源码层分离，日常构建大量命中缓存。",
+      "code": "# ---------- 阶段一：构建 ----------\nFROM node:20-alpine AS builder\nWORKDIR /app\n# 先拷依赖清单，充分利用层缓存\nCOPY package*.json ./\nRUN npm ci\n# 再拷源码并构建（源码频繁变化不会使依赖层失效）\nCOPY . .\nRUN npm run build\n\n# ---------- 阶段二：运行 ----------\nFROM node:20-alpine AS runner\nWORKDIR /app\nENV NODE_ENV=production\n# 仅安装生产依赖，同层清理包管理缓存\nCOPY package*.json ./\nRUN npm ci --omit=dev && npm cache clean --force\n# 只从 builder 搬运构建产物\nCOPY --from=builder /app/dist ./dist\n# 以非 root 用户运行（node 镜像内置 uid=1000 的 node 用户）\nUSER node\nEXPOSE 3000\nCMD [\"node\", \"dist/server.js\"]\n\n# ---------- .dockerignore ----------\n# node_modules\n# .git\n# npm-debug.log\n# .env\n# dist\n# Dockerfile\n# .dockerignore"
+    },
+    "scoringPoints": [
+      {
+        "point": "两阶段 FROM 结构正确，COPY --from 只搬产物，工具链与源码不进运行镜像",
+        "weight": 3
+      },
+      {
+        "point": "依赖清单先于源码 COPY、npm ci 层缓存优化到位，--omit=dev 与同层清缓存正确",
+        "weight": 2
+      },
+      {
+        "point": "USER 非 root、固定版本基础镜像、exec 形式 CMD 等安全与信号处理细节到位",
+        "weight": 3
+      },
+      {
+        "point": ".dockerignore 内容合理，并能逐层解释体积/安全/构建速度收益",
+        "weight": 2
+      }
+    ],
+    "analysis": "Docker 工程化的核心手写题。常见失分：只有一个阶段把 devDependencies 全打进生产镜像；先 COPY . . 再装依赖导致缓存形同虚设；用 root 运行且 CMD 写成 shell 形式（PID 1 变成 /bin/sh，信号转发异常）；不知道 npm ci 与 npm install 的区别（ci 严格按 lockfile 安装、适合 CI）；.dockerignore 漏掉 node_modules 造成本地依赖覆盖容器内依赖。能进一步提 distroless、镜像签名与漏洞扫描是加分。",
+    "gapCheck": [
+      "易漏点：CMD 的 shell 形式会多一层 sh 进程，docker stop 的 SIGTERM 可能到不了 node，优雅停机失效",
+      "常见误区：在 runner 里 COPY 整个 builder 的 /app，等于绕过了多阶段瘦身",
+      "加分项：能补充 HEALTHCHECK 指令、镜像 digest 锁定与多架构 buildx 构建"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.image-dockerfile"
+      ],
+      "related": [
+        "cs.devops.docker.network-volume",
+        "cs.devops.cicd.artifact"
+      ],
+      "followUps": [
+        "如果项目依赖需要 node-gyp 编译的原生模块，两阶段的基础镜像选择要注意什么？",
+        "npm ci 和 npm install 在 CI 环境里为什么优先选前者？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "多阶段 Dockerfile 手写代码题"
+    },
+    "tags": [
+      "手写题",
+      "Dockerfile",
+      "多阶段构建",
+      "镜像瘦身",
+      "容器安全"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0010",
+    "nodeId": "cs.devops.docker.image-dockerfile",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "面试官：线上一个服务镜像从 1.2GB 膨胀到了 1.8GB，拉取慢、节点磁盘告急。请给出一套系统性的镜像瘦身方案，并说明每一项为什么能减小体积或带来什么附加收益。",
+    "answer": {
+      "ref": "参考骨架：\n①多阶段构建：编译器、SDK、devDependencies、构建中间产物只留在 builder，运行镜像只拷产物与生产依赖，通常是体积下降最显著的一刀，同时缩小攻击面。\n②换精简基础镜像：从完整发行版（如 debian/fat 镜像）换成 alpine/slim 乃至 distroless；注意 musl libc 兼容性与原生依赖，distroless 无 shell 需配套 debug 容器排障。\n③同层清理包管理缓存：apt-get install 后同 RUN 内 rm -rf /var/lib/apt/lists/*、apk add --no-cache、npm/pip 清缓存；关键认知是联合文件系统中『下一层删除上一层文件』不会缩小镜像，只产生 whiteout 标记。\n④合并 RUN 指令、去除调试工具与文档：减少层数与无用文件，调试工具改用按需启动的临时 sidecar/debug 镜像。\n⑤规范 .dockerignore：排除 node_modules、.git、日志、测试数据、本地构建产物，避免它们进入构建上下文与镜像层。\n⑥依赖治理：npm/pip 只装生产依赖（--omit=dev / requirements 分离），定期移除不再使用的依赖，锁版本避免重复打包。\n⑦构建产物自检：用 docker history 看每层体积定位大头、dive 等工具分析文件分布、镜像漏洞扫描同步看攻击面；CI 里设镜像体积阈值门禁防止回弹。\n附加收益：小镜像拉取快、扩容时节点就绪时间短、磁盘与网络带宽压力小；文件越少潜在 CVE 面越小；分层合理还能提高层缓存命中率、加快流水线。"
+    },
+    "scoringPoints": [
+      {
+        "point": "多阶段构建与精简基础镜像两个最大头手段讲透，含注意事项",
+        "weight": 3
+      },
+      {
+        "point": "正确解释联合文件系统同层清理原理与 whiteout 现象",
+        "weight": 3
+      },
+      {
+        "point": ".dockerignore、生产依赖治理与 history/dive 自检、体积门禁形成闭环",
+        "weight": 3
+      },
+      {
+        "point": "能关联拉取速度、扩容时效与攻击面等工程收益",
+        "weight": 1
+      }
+    ],
+    "analysis": "镜像瘦身高频实战题。常见失分：只答『换 alpine』一招；不知道分层文件系统里删文件不瘦身的原理；把 builder 整个目录 COPY 进运行阶段；没有量化自检手段，瘦完不知道效果。高分回答按『砍阶段、换底座、清缓存、控上下文、治依赖、做度量』的顺序组织，并能说明每项的副作用（如 alpine 兼容坑、distroless 排障难）。",
+    "gapCheck": [
+      "易漏点：docker history 是定位体积大头的第一工具，先度量再优化而不是盲试",
+      "常见误区：以为 RUN rm -rf 在新层执行能减小镜像——删除上一层文件不回收空间",
+      "加分项：能提共享基础镜像让多个服务复用层缓存、按需动态加载替代把资源全打进镜像"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.image-dockerfile"
+      ],
+      "related": [
+        "cs.devops.cicd.pipeline"
+      ],
+      "followUps": [
+        "多个服务共用一个大基础镜像和各自用小镜像，在节点磁盘与拉取链路上各有什么取舍？",
+        "镜像瘦身后启动反而变慢，可能是哪类优化带来的副作用？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "镜像瘦身方案简答题"
+    },
+    "tags": [
+      "镜像瘦身",
+      "多阶段构建",
+      "联合文件系统",
+      "工程实践"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0011",
+    "nodeId": "cs.devops.docker.network-volume",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：某容器需要最大化网络性能、直接使用宿主机网络协议栈与端口、不经过 Docker 虚拟网桥与 NAT，此时应选择 host 网络模式——容器不创建独立 net namespace、直接复用宿主机网络栈，监听端口即宿主端口，但代价是端口冲突风险与网络隔离丧失、攻击面扩大。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。host 模式下容器不创建独立 net namespace，直接复用宿主机网络栈，没有 veth、虚拟网桥、NAT 与 conntrack 带来的转发开销，监听端口即宿主端口，适合性能敏感或需自行管理网络的组件（如部分监控 agent、数据面程序）。对照其他模式：bridge 是默认模式，靠 veth pair 接 docker0 网桥经 NAT 与端口映射通信，隔离性好但有转发路径；none 只有 loopback，用于自定义网络栈场景；container 模式与另一容器共享 net namespace，是 K8s Pod 内容器模型的雏形。host 模式因放弃网络隔离、能力面变大，生产使用需权衡端口冲突与安全。",
+    "gapCheck": [
+      "易漏点：host 模式下端口不能与宿主机已有服务冲突，且网络隔离消失、能力面变大",
+      "常见误区：把 K8s 里 Pod 内容器共享 net namespace 误当成 host 模式——前者是 Pod 级共享、节点仍有隔离",
+      "加分项：能讲 bridge 模式下 veth pair 一端在容器、一端挂网桥，以及 iptables/conntrack 在 NAT 中的角色"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.network-volume"
+      ],
+      "related": [
+        "cs.net.tcpip.layering"
+      ],
+      "followUps": [
+        "bridge 模式下外部请求到容器端口的完整报文路径经过哪些内核组件？",
+        "K8s 的 Pod 网络和 Docker 的 container 网络模式有什么传承关系？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Docker 网络模式单选题"
+    },
+    "tags": [
+      "容器网络",
+      "host模式",
+      "bridge",
+      "net namespace"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0012",
+    "nodeId": "cs.devops.docker.network-volume",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：容器可写层中的数据会随容器删除而丢失，因此数据库等有状态数据必须挂载到 volume 或 bind mount；其中具名卷由 Docker 管理生命周期、适合持久化，bind mount 直接绑定宿主目录、适合开发期热更新代码与配置。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。联合文件系统的可写层与容器实例绑定，docker rm 后即清除，不能承载需要长期保存的数据。三类挂载各有定位：匿名卷（不指定名字）也随容器管理、易产生孤儿卷；具名卷由 Docker 在其存储目录统一管理、可跨容器复用、适合数据库数据目录等生产持久化；bind mount 把宿主指定路径直接映射进容器，宿主侧改文件容器立即可见，开发体验好但路径依赖宿主、可移植性差且存在越权读写风险。生产环境有状态负载还应配合卷插件/网络存储与备份策略，而不是把数据命运绑定在单台宿主机上。",
+    "gapCheck": [
+      "易漏点：匿名卷不会随 docker rm 自动删除，长期运行会积累孤儿卷占用磁盘，需要 prune 治理",
+      "常见误区：把 bind mount 直接用于生产数据库——宿主目录耦合节点，容器漂移到其他节点就看不到数据",
+      "加分项：能讲 volume 内容初始化（空卷挂载时镜像内目录内容会被复制进去）与只读挂载 :ro 的用法"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.network-volume"
+      ],
+      "related": [
+        "cs.os.linux.filesystem-inode"
+      ],
+      "followUps": [
+        "容器删了但数据还要保留，具名卷和 bind mount 分别怎么备份？",
+        "K8s 里的 PV/PVC 与 Docker volume 在职责上是什么关系？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "容器存储卷判断题"
+    },
+    "tags": [
+      "数据卷",
+      "bind mount",
+      "持久化",
+      "判断"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0013",
+    "nodeId": "cs.devops.docker.network-volume",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "面试官：安全评审发现一批容器以 root 运行且挂了 docker.sock。下列加固措施中，**合理且有效**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "Dockerfile 中创建普通用户并 USER 切换，运行时以非 root 身份启动，限制容器被攻破后在容器内的权限"
+      },
+      {
+        "key": "B",
+        "text": "给容器挂只读根文件系统（--read-only），只把确需写入的目录挂为可写卷，防止运行时篡改二进制与配置"
+      },
+      {
+        "key": "C",
+        "text": "按需 drop Linux capabilities、禁止 --privileged，而不是给容器一揽子特权；docker.sock 挂载等同把宿主 root 交出去，默认应禁止"
+      },
+      {
+        "key": "D",
+        "text": "为了排查方便，给所有生产容器默认开 --privileged 并挂载宿主机根目录，安全问题靠网络防火墙兜底"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 是容器安全的标准加固组合。A 落实最小权限：容器内 root 在未做 user namespace 映射时可能对应宿主高权限，非 root 运行显著压缩提权空间。B 的只读根文件系统让攻击者无法落地篡改文件、也削弱部分持久化手段，临时文件用 tmpfs/可写卷定向开放。C 中 capability 机制把传统 root 的全能权限拆成细粒度能力，默认只保留少量网络相关能力，业务不需要的全部 drop；--privileged 会放开几乎所有能力与设备访问；docker.sock 是 Docker 守护进程 API 入口，挂载它等于允许容器以宿主 root 执行任意命令（可直接挂载宿主根目录），是最常见的致命误配置。D 完全相反，属于主动拆除边界，防火墙挡不住容器内部对 socket 的本地调用。",
+    "gapCheck": [
+      "易漏点：docker.sock 挂载的破坏力常被低估——它不是普通文件共享，而是完整的宿主控制权入口",
+      "常见误区：以为容器内 root 天然安全，忽略默认情况下容器 root 与宿主 root 的 uid 相同",
+      "加分项：能补 seccomp 限制系统调用集合、AppArmor/SELinux 强制访问控制、镜像签名与准入控制（禁止特权容器）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.network-volume"
+      ],
+      "related": [
+        "cs.devops.docker.namespace-cgroup"
+      ],
+      "followUps": [
+        "CI 系统需要在容器里构建镜像，又不想挂 docker.sock，有哪些替代方案（如根less 构建、远程 builder）？",
+        "只读根文件系统下，应用的日志和临时文件应该怎么落地？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "容器安全加固多选题"
+    },
+    "tags": [
+      "容器安全",
+      "非root",
+      "capability",
+      "docker.sock",
+      "最小权限"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0014",
+    "nodeId": "cs.devops.docker.network-volume",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：Docker 默认 bridge 网络下，同一台宿主机上的容器通过 docker0 虚拟网桥和 veth pair 互通，容器之间可以直接用容器名互相访问；而用户自定义 bridge 网络才内置 DNS，能用容器名/服务名解析，默认 bridge 只能靠 IP 通信。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。默认 bridge 网络中容器各自通过 veth pair 挂到 docker0 网桥上，靠 NAT 与外界通信、容器间能用 IP 互通，但默认 bridge 不提供名称解析，容器名无法直接解析为 IP。用户用 docker network create 自建的用户定义 bridge 内置嵌入式 DNS（通常解析到 127.0.0.11），同一自定义网络内的容器可直接用容器名或 Compose 里的服务名互访，还支持更好的隔离与按需连接/断开。host 网络模式则直接共享宿主网络栈、不经过 bridge 与端口映射，性能最好但隔离性最弱、端口直接占用宿主。因此 Compose 多服务编排默认就为应用创建自定义网络以获得服务名发现。",
+    "gapCheck": [
+      "易漏点：默认 bridge 能用 IP 互通但不能用容器名解析，名称解析是用户自定义 bridge 才有的内置 DNS 能力",
+      "常见误区：以为所有 bridge 网络都天然支持容器名访问，或把 host 模式的高性能与强隔离混为一谈",
+      "加分项：能讲嵌入式 DNS 127.0.0.11、容器可同时接入多个网络做隔离，以及 none 网络用于彻底自定义网络栈"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.namespace-cgroup"
+      ],
+      "related": [
+        "cs.devops.k8s.network-config",
+        "cs.net.tcpip.layering"
+      ],
+      "followUps": [
+        "Compose 里多个服务为什么直接写服务名就能访问，背后的 DNS 是谁提供的？",
+        "host 模式下容器端口还需要 -p 映射吗，会带来什么冲突风险？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "容器网络模式与 DNS 判断题"
+    },
+    "tags": [
+      "容器网络",
+      "bridge",
+      "DNS 服务发现",
+      "判断"
+    ]
+  },
+  {
+    "id": "Q-cs-devops-docker-0015",
+    "nodeId": "cs.devops.docker.network-volume",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "生产环境要把一个有状态服务（如 PostgreSQL）容器化部署，请系统回答：①为什么不能把数据放在容器可写层，volume 与 bind mount 在这个场景下如何取舍；②容器被调度/重建到另一台宿主机时，本地卷上的数据怎么办，给出至少两种让数据跟着容器走或高可用的方案；③用 Docker Compose 编排依赖数据库的应用时，网络与服务发现、启动依赖、健康检查分别怎么处理。",
+    "answer": {
+      "ref": "参考骨架：\n【为何不能用可写层】容器可写层由联合文件系统（overlay2 等）管理，与容器生命周期绑定，docker rm 即清除，且可写层经存储驱动有额外性能开销、不便备份迁移；数据库这类有状态数据必须落到挂载卷。取舍：具名 volume 由 Docker 统一管理、可跨同机容器复用、适合数据库数据目录的生产持久化；bind mount 直接映射宿主目录，便于开发期热更新与直接查看文件，但强耦合宿主机路径、可移植性差、易有越权读写，生产数据库一般不用裸 bind mount。\n【跨节点数据方案】①网络存储/卷插件：把 volume 后端接到 NFS、Ceph、云盘（EBS/对象存储网关）或 CSI 类卷插件，容器漂移后重新挂载同一份网络存储；②有状态副本与复制：数据库自身做主从/流复制（PostgreSQL 流复制、MySQL 主从），节点故障时提升副本，数据不依赖单机本地盘；③定时备份 + 卷快照：对具名卷做快照或逻辑备份（pg_dump）到对象存储，重建后恢复，容忍一定 RPO；④编排层用 StatefulSet + PV/PVC（K8s）把存储身份与网络身份固定，配合 StorageClass 动态供给。本地盘性能最好但绑定节点，核心是用网络存储或数据库级复制解耦\"容器位置\"与\"数据位置\"。\n【Compose 编排】网络：Compose 自动为同一 compose 项目建自定义 bridge 网络，服务间用服务名（如 db:5432）经内置 DNS 互访，应用配置里直接写服务名而非 IP。启动依赖：depends_on 只保证启动顺序不保证数据库就绪，必须配 healthcheck（如 pg_isready）并在 depends_on 里用 condition: service_healthy，应用侧也要带连接重试。健康检查：在 db 服务定义 test/interval/timeout/retries，让编排器能感知真实可用性而非仅进程存活；数据卷在 db 服务用具名卷挂到 /var/lib/postgresql/data 持久化。"
+    },
+    "scoringPoints": [
+      {
+        "point": "讲清可写层随容器删除且有性能开销，volume vs bind mount 在生产数据库场景的取舍正确",
+        "weight": 2
+      },
+      {
+        "point": "给出至少两种跨节点数据方案：网络存储/卷插件、数据库主从复制、备份快照、StatefulSet+PV/PVC",
+        "weight": 3
+      },
+      {
+        "point": "Compose 自定义网络 + 服务名 DNS 发现讲对",
+        "weight": 2
+      },
+      {
+        "point": "指出 depends_on 不保证就绪、需 healthcheck + condition:service_healthy 与应用重试",
+        "weight": 2
+      },
+      {
+        "point": "具名卷挂数据库数据目录、健康检查命令（pg_isready）等具体落地细节",
+        "weight": 1
+      }
+    ],
+    "analysis": "这题把容器存储、网络、编排三块揉在一起考真实落地能力。常见失分：只背\"数据要挂载\"却讲不出跨节点怎么办；误以为 depends_on 能等数据库 ready（它只管启动顺序）；生产环境用 bind mount 挂数据库导致节点耦合。高分回答能区分容器生命周期与数据生命周期，用网络存储或数据库级复制解耦两者，并给出 healthcheck 与服务名发现的 Compose 具体写法。",
+    "gapCheck": [
+      "易漏点：depends_on 只控制启动顺序不保证服务就绪，必须配合 healthcheck 的 service_healthy 条件",
+      "常见误区：认为本地具名卷能随容器自动漂移到其他宿主机——本地盘绑定节点，需要网络存储或数据库复制",
+      "加分项：提到 StatefulSet + PV/PVC/StorageClass、卷快照、pg_isready 健康检查与 RPO/RTO 取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.devops.docker.image-dockerfile"
+      ],
+      "related": [
+        "cs.devops.k8s.network-config",
+        "cs.devops.k8s.schedule-probe"
+      ],
+      "followUps": [
+        "K8s 的 PV、PVC、StorageClass 三者如何协作实现动态供给？",
+        "数据库容器化后，备份窗口和 RPO/RTO 怎么定？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "有状态容器存储与 Compose 编排综合简答题"
+    },
+    "tags": [
+      "数据卷",
+      "有状态服务",
+      "Compose",
+      "健康检查",
+      "持久化"
+    ]
+  }
+]

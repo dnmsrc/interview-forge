@@ -1,0 +1,41 @@
+[
+  { "id": "eng.warstory.fe", "title": "前端工程难题战例", "level": 3, "domain": "eng", "stack": "fe", "topic": "fe-warstory", "mustMaster": false, "estMinutes": 80,
+    "summary": "把社区高频真实故障（副作用死循环、内存泄漏、跨域预检）还原成可复盘的工程战例，考察定位思路与解决方案，而不是背 API" },
+  { "id": "eng.warstory.be", "title": "后端与并发工程难题", "level": 3, "domain": "eng", "stack": "be", "topic": "be-warstory", "mustMaster": false, "estMinutes": 80,
+    "summary": "HashMap 并发扩容、ThreadLocal 泄漏、线程池参数治理等线上真实事故，考察对 JVM/并发机制的工程化理解与防御性设计" },
+  { "id": "eng.warstory.data", "title": "数据与缓存工程难题", "level": 3, "domain": "eng", "stack": "data", "topic": "data-warstory", "mustMaster": false, "estMinutes": 60,
+    "summary": "深分页、缓存穿透/击穿/雪崩等高并发数据层经典问题，考察在真实流量下保护数据库的架构手段与取舍" },
+  { "id": "eng.warstory.ai", "title": "AI 应用工程难题", "level": 3, "domain": "eng", "stack": "ai", "topic": "ai-warstory", "mustMaster": false, "estMinutes": 40,
+    "summary": "大模型上下文窗口超限、成本与延迟治理等把 LLM 落进生产时绕不开的工程约束，考察 RAG、摘要、截断等组合拳选型" },
+
+  { "id": "eng.warstory.fe.useeffect-loop", "title": "useEffect 依赖导致的无限请求/渲染循环", "level": 4, "domain": "eng", "stack": "fe", "topic": "react",
+    "related": ["eng.warstory.fe.memory-leak"], "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "还原 Stack Overflow/Reddit 常年榜首的 React Hooks 故障：effect 里 setState 一个对象/数组引用，依赖未稳定导致 render→effect→setState 死循环、接口被无限调用。要能讲清依赖比较机制、定位手段与 useMemo/useCallback/函数式更新/数据归一化等解法" },
+  { "id": "eng.warstory.fe.memory-leak", "title": "单页应用定时器/监听/闭包引发的内存泄漏", "level": 4, "domain": "eng", "stack": "fe", "topic": "perf",
+    "related": ["eng.warstory.fe.useeffect-loop"], "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "组件卸载后 setInterval、全局事件监听、未取消的请求与闭包仍持有引用，造成 Detached DOM 越积越多、页面越来越卡。要能讲清泄漏链、Chrome DevTools 内存快照定位法与 useEffect 清理函数/AbortController 解法" },
+  { "id": "eng.warstory.fe.cors-preflight", "title": "跨域 CORS 与预检请求被拦的排查治理", "level": 4, "domain": "eng", "stack": "fe", "topic": "network",
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "前端带自定义头/JSON 的 POST 被浏览器先发 OPTIONS 预检，后端没放行就报 CORS 错误。要能依据 MDN 讲简单请求 vs 需预检请求的边界、OPTIONS 401/重定向坑、Access-Control-* 响应头与带 Cookie 时不能用通配符的约束，以及代理网关层的统一解法" },
+
+  { "id": "eng.warstory.be.hashmap-loop", "title": "HashMap 并发扩容死循环与数据丢失（JDK7 事故）", "level": 4, "domain": "eng", "stack": "be", "topic": "collection",
+    "related": ["eng.warstory.be.threadpool-sizing"], "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "JDK 7 及以前 HashMap 多线程并发 put 触发扩容，头插法反转链表使 Entry 形成环形链，get 命中环时 CPU 100% 死循环。要能画出扩容迁移过程、讲清 JDK8 改尾插+红黑树后的变化，并给出 ConcurrentHashMap 的正确选型" },
+  { "id": "eng.warstory.be.threadlocal-leak", "title": "线程池场景下 ThreadLocal 的内存泄漏", "level": 4, "domain": "eng", "stack": "be", "topic": "concurrency",
+    "related": ["eng.warstory.be.threadpool-sizing"], "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "ThreadLocalMap 的 key 是弱引用、value 是强引用，线程池线程长期存活时 value 无法回收形成泄漏。要能讲清弱引用为何只防住 key 防不住 value、过期 Entry 的探测式清理时机，以及 finally 中 remove() 的强制规范和 InheritableThreadLocal/TransmittableThreadLocal 的延伸" },
+  { "id": "eng.warstory.be.threadpool-sizing", "title": "线程池参数如何设置与动态治理", "level": 4, "domain": "eng", "stack": "be", "topic": "concurrency",
+    "related": ["eng.warstory.be.threadlocal-leak"], "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "核心/最大线程数、队列容量、拒绝策略拍脑袋配置会导致队列积压 OOM 或任务被静默丢弃。要能讲 CPU 密集/IO 密集的估算思路、为何禁用 Executors 固定工厂、美团动态线程池（配置中心热更新+监控告警）的工程实践" },
+
+  { "id": "eng.warstory.data.deep-pagination", "title": "MySQL 超大 OFFSET 深分页性能崩塌", "level": 4, "domain": "eng", "stack": "data", "topic": "mysql",
+    "related": ["eng.warstory.data.cache-trio"], "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "LIMIT 1000000,20 会让 MySQL 扫描并丢弃前一百万行，越翻越慢。要能讲清回表与扫描放大的根因，以及覆盖索引+子查询延迟关联、游标/seek 分页（where id>last）、ElasticSearch 等解法的适用边界" },
+  { "id": "eng.warstory.data.cache-trio", "title": "缓存穿透、击穿、雪崩的区分与防御", "level": 4, "domain": "eng", "stack": "data", "topic": "cache",
+    "related": ["eng.warstory.data.deep-pagination"], "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "三个常被混为一谈的高并发缓存故障：穿透=查不存在的数据、击穿=单个热点 key 过期、雪崩=大批 key 同时过期。要能分别给出布隆过滤器/空值缓存、互斥锁/逻辑过期、过期时间加随机值/多级缓存/限流降级等组合方案并讲清取舍" },
+
+  { "id": "eng.warstory.ai.context-overflow", "title": "大模型上下文窗口超限的工程治理", "level": 4, "domain": "eng", "stack": "ai", "topic": "llm",
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "多轮对话与长文档不断累积 token，超出 context window 直接报错或遗忘早期信息。要能讲清窗口约束本质，以及滑动截断、滚动摘要、RAG 外置检索、分段 map-reduce 的选型，对比『换长上下文模型暴力塞』在成本和中间遗忘上的劣势" }
+]

@@ -1,0 +1,207 @@
+[
+  {
+    "id": "Q-be-mysql-tx-0001",
+    "nodeId": "be.mysql.transaction.isolation-mvcc",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "数据库四种隔离级别与三类并发问题的对应关系，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "读未提交（RU）能解决脏读，读已提交（RC）能解决不可重复读，可重复读（RR）能解决幻读，串行化性能最高" },
+      { "key": "B", "text": "脏读在 RC 及以上被避免；不可重复读在 RR 及以上被避免；InnoDB 在默认的 RR 级别下通过 MVCC+临键锁在很大程度上避免了幻读" },
+      { "key": "C", "text": "MySQL InnoDB 的默认隔离级别是读已提交（RC）" },
+      { "key": "D", "text": "隔离级别越弱，锁冲突越多、并发性能越差" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确梳理了对应关系：RU 什么都不防，会脏读；RC 靠「每次 select 生成新 ReadView」避免脏读但会不可重复读；RR 靠「事务内复用同一 ReadView」让快照读可重复，并对当前读加临键锁，在 InnoDB 下基本避免幻读；Serializable 退化为加锁串行执行，隔离最强但并发最差。A 错在把级别整体抬高了一档（RU 并不能解决脏读），且串行化是性能最低不是最高。C 错：InnoDB 默认是 RR（可重复读），不是 RC；不过不少大厂会主动改成 RC 以减少锁持有、提升并发（配合 binlog row 格式）。D 错：隔离级别越弱，锁越少/快照读越多，并发越好但一致性保障越弱，是一致性与并发性的权衡。三类问题定义：脏读=读到别的事务未提交的数据；不可重复读=同一事务两次读同一行结果不同（被 update 提交）；幻读=两次范围查询行数不同（被 insert/delete）。",
+    "gapCheck": [
+      "易漏点：InnoDB 默认 RR 而非 RC；幻读针对的是范围查询的行数变化",
+      "常见误区：把脏读/不可重复读/幻读三者对应的级别记混，或以为 Serializable 性能高",
+      "加分项：知道大厂为何常把隔离级别降到 RC，以及它与 binlog 格式的关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.index.bplus-tree"],
+      "related": ["be.mysql.transaction.lock-deadlock"],
+      "followUps": ["为什么 RC 级别下 binlog 必须用 row 格式？", "不可重复读和幻读的本质区别是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "隔离级别与并发问题对应关系" },
+    "tags": ["MySQL", "隔离级别", "脏读", "幻读", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-tx-0002",
+    "nodeId": "be.mysql.transaction.isolation-mvcc",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 InnoDB 的 MVCC（多版本并发控制）实现，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "每行有隐藏字段 trx_id（最近修改它的事务 id）和 roll_pointer（指向 undo log 中的上一版本），多个版本串成版本链" },
+      { "key": "B", "text": "ReadView 包含 m_ids（活跃事务 id 列表）、min_trx_id、max_trx_id、creator_trx_id，据此判断版本链上哪个版本对当前快照可见" },
+      { "key": "C", "text": "RC 级别每次普通 select 都生成新 ReadView，RR 级别在事务第一次快照读时生成并复用，这是两者可见性差异的根源" },
+      { "key": "D", "text": "普通 select 是当前读，会读到最新已提交版本并加锁；select ... for update 才是快照读" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：InnoDB 每行隐式含 DB_TRX_ID、DB_ROLL_PTR、DB_ROW_ID，roll_pointer 指向 undo log 里的历史版本，形成版本链。B 正确：ReadView 记录生成瞬间的活跃事务集合，可见性判断规则——版本的 trx_id 小于 min_trx_id 说明在快照前已提交可见；大于等于 max_trx_id 说明是快照后开启的不可见；落在 m_ids 内说明生成快照时还活跃、未提交不可见，否则可见；不可见就沿 roll_pointer 找上一版本继续判断。C 正确：RC 每条 select 重新生成 ReadView，所以能看到期间新提交的改动（不可重复读）；RR 整个事务复用第一个 ReadView，所以快照读始终看到同一快照（可重复读）。D 说反了：普通 select 是快照读（读历史版本、不加锁）；当前读是 select ... for update / lock in share mode、以及 update/delete/insert，读最新版本并加记录锁/临键锁。MVCC 让读不阻塞写、写不阻塞快照读，是 InnoDB 高并发的关键。",
+    "gapCheck": [
+      "易漏点：RC 每次 select 新 ReadView、RR 复用首个 ReadView，是两者唯一实现差异",
+      "常见误区：把快照读和当前读搞反，或不知道 undo log 同时服务于回滚和 MVCC",
+      "加分项：能完整复述 ReadView 四个字段与版本可见性的逐条判断规则"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.transaction.isolation-mvcc"],
+      "related": ["be.mysql.log.redo-binlog-replication"],
+      "followUps": ["undo log、redo log、binlog 各自承担什么职责？", "RR 下为什么快照读防不住当前读场景的幻读？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "MVCC 版本链与 ReadView 深度多选题" },
+    "tags": ["MySQL", "MVCC", "ReadView", "undo log", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-tx-0003",
+    "nodeId": "be.mysql.transaction.isolation-mvcc",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：MVCC 只作用于「快照读」（普通 select），对于 `select ... for update`、`update`、`delete` 这类「当前读」，InnoDB 仍要读取最新版本并加锁，因此在 RR 级别下只靠 MVCC 不能完全防止幻读，还需要临键锁（Next-Key Lock）配合。",
+    "answer": { "judge": true },
+    "analysis": "正确。这是理解 InnoDB 防幻读的关键细节。MVCC 通过 ReadView 让普通快照读看到一致性快照，别的事务插入的新行因为 trx_id 对当前 ReadView 不可见，所以快照读不会出现幻行；但当前读读的是「此刻最新已提交数据」并要加锁，若只锁已有记录，别的事务仍可能在记录间隙插入新行，导致当前读出现幻行。InnoDB 的办法是在 RR 下对当前读加 Next-Key Lock（临键锁 = 记录锁 + 间隙锁），锁住记录及其前面的开区间间隙，使其他事务无法向该间隙插入，从而堵住当前读的幻读。所以准确说法是：RR 下「快照读靠 MVCC、当前读靠临键锁」共同实现了对幻读的防护。间隙锁只在 RR 下存在，RC 下基本退化为记录锁（这也是 RC 并发更好、锁更少的原因之一）。",
+    "gapCheck": [
+      "易漏点：MVCC 管快照读、临键锁管当前读，二者分工不同",
+      "常见误区：以为有了 MVCC 就万事大吉，忽略当前读仍需加锁防幻读",
+      "加分项：能讲清间隙锁为何只在 RR 存在，以及 RC 下降级为记录锁"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.transaction.isolation-mvcc"],
+      "related": ["be.mysql.transaction.lock-deadlock"],
+      "followUps": ["间隙锁锁的是行还是区间？什么情况下会触发？", "RR 和 RC 在加锁行为上还有哪些差异？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "快照读/当前读与防幻读机制" },
+    "tags": ["MySQL", "MVCC", "当前读", "临键锁", "幻读", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-tx-0004",
+    "nodeId": "be.mysql.transaction.lock-deadlock",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "关于 InnoDB 的记录锁、间隙锁、临键锁和意向锁，下列说法**错误**的是：",
+    "options": [
+      { "key": "A", "text": "Record Lock 锁单行索引记录，Gap Lock 锁索引记录之间的开区间（不锁记录本身），Next-Key Lock 是二者之和，锁记录及其前置间隙" },
+      { "key": "B", "text": "意向锁（IS/IX）是表级锁，用于快速判断表里是否已有行被加锁，从而让加表锁时无需逐行检查，意向锁之间互不阻塞" },
+      { "key": "C", "text": "间隙锁之间是兼容的，两个事务可以同时持有同一间隙的 Gap Lock，它只阻止其他事务向该间隙 insert，不阻止别的间隙锁" },
+      { "key": "D", "text": "唯一索引等值查询命中唯一一行时，InnoDB 仍一定会加 Next-Key Lock，绝不可能退化成记录锁" }
+    ],
+    "answer": { "keys": ["D"] },
+    "analysis": "题目选错误项，D 错。InnoDB 有明确的锁降级优化：唯一索引（含主键）做等值查询且精确命中一条存在的记录时，临键锁会退化为记录锁（Record Lock），因为唯一性已经保证该间隙不可能再插入相同键值，无需再锁间隙；若等值查询未命中任何记录，则退化为间隙锁。A 准确描述了三种行锁的范围。B 正确：意向共享锁 IS/意向排他锁 IX 是表级标记，事务在行级加 S/X 锁前先在表上拿对应意向锁，表锁请求看到意向锁即知表内有行锁、直接等待，避免全表扫描行锁；意向锁之间全兼容，只与表级 S/X 锁冲突。C 正确：间隙锁的目的是防插入，两个事务锁同一间隙互不冲突（都只是不让别人 insert），这也是 RR 下容易出现「锁等待但其实不冲突数据」的原因。理解锁范围是排查死锁和锁等待的前提。",
+    "gapCheck": [
+      "易漏点：唯一索引等值命中会从临键锁降级为记录锁，未命中则降为间隙锁",
+      "常见误区：以为任何查询都加临键锁，或以为间隙锁之间互斥",
+      "加分项：能结合具体 SQL 画出加锁范围（索引类型 + 等值/范围 + 命中与否）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.transaction.isolation-mvcc"],
+      "related": ["cs.os.sync.deadlock"],
+      "followUps": ["非唯一索引的等值查询怎么加锁？", "意向锁和行锁的兼容矩阵是怎样的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "InnoDB 锁类型与降级规则" },
+    "tags": ["MySQL", "临键锁", "间隙锁", "意向锁", "锁降级"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-tx-0005",
+    "nodeId": "be.mysql.transaction.lock-deadlock",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "生产环境出现 InnoDB 死锁，下列属于**有效预防或排查手段**的有：",
+    "options": [
+      { "key": "A", "text": "让多个事务以相同的固定顺序访问表和行（如都按 id 升序加锁），破坏循环等待条件" },
+      { "key": "B", "text": "用 show engine innodb status 查看 LATEST DETECTED DEADLOCK 段，定位互相持有/等待的锁和具体 SQL" },
+      { "key": "C", "text": "尽量缩短事务、减少在事务里做 RPC/远程调用，降低锁持有时间和交叉概率" },
+      { "key": "D", "text": "把隔离级别提到 Serializable，并在一个事务里一次性锁全表，彻底杜绝任何锁冲突" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 是最有效的预防手段：死锁四条件之一是循环等待，统一加锁顺序后资源等待图无法成环，从根上消除大多数死锁。B 是标准排查：InnoDB 默认开启 innodb_deadlock_detect，发现死锁会主动回滚代价较小的事务并在 innodb status 里记录最近一次死锁的两个事务、持有锁与等待锁、涉及语句，据此可还原冲突；information_schema.innodb_trx/innodb_locks 也能看实时锁。C 正确：长事务持锁久、与其他事务交叉窗口大，把无关操作（尤其网络调用、消息发送）移出事务、尽快 commit，能显著降低死锁概率。D 不可取：Serializable + 锁全表把并发几乎降为串行，吞吐量崩塌，是因噎废食，且并不能让系统更可用。此外还可：降低隔离级别到 RC（减少间隙锁）、合理用索引避免锁升级到大量行甚至表锁、对热点行更新考虑队列化。应用层还应捕获 DeadlockLoserDataAccessException/1213 错误码做有限次重试。",
+    "gapCheck": [
+      "易漏点：统一加锁顺序破坏的是「循环等待」这一死锁必要条件",
+      "常见误区：以为提隔离级别/锁全表能解决问题，实际摧毁并发",
+      "加分项：知道死锁检测会主动回滚小事务，应用层要对 1213 错误重试"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.transaction.lock-deadlock"],
+      "related": ["cs.os.sync.deadlock", "eng.warstory.be.threadpool-sizing"],
+      "followUps": ["死锁和锁等待（lock wait timeout）有什么区别？", "innodb_deadlock_detect 关闭后会怎样？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "死锁预防与排查工程实践" },
+    "tags": ["MySQL", "死锁", "innodb status", "加锁顺序", "工程实践"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-tx-0006",
+    "nodeId": "be.mysql.transaction.lock-deadlock",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "InnoDB 中，普通 select 不加锁属于 ______ 读；而 `select ... for update` 加 ______ 锁、`select ... lock in share mode` 加 ______ 锁，后两者都属于当前读，读取的是最新已提交版本。",
+    "answer": {
+      "blanks": ["快照", "排他（X）", "共享（S）"],
+      "synonyms": {
+        "快照": ["一致性快照", "快照读", "MVCC"],
+        "排他（X）": ["排他", "X", "写锁", "排他锁"],
+        "共享（S）": ["共享", "S", "读锁", "共享锁"]
+      }
+    },
+    "analysis": "三个空厘清读的分类与锁兼容性。① 普通 select 在 RC/RR 下走 MVCC 快照读，读历史可见版本、不加锁，所以读不阻塞写。② for update 加排他锁（X 锁/写锁），用于「我读完就要改」的场景，其他事务不能再加 S 或 X 锁、不能修改该行。③ lock in share mode 加共享锁（S 锁/读锁），多个事务可同时持有 S 锁一起读，但谁都不能改（要改得等 S 锁全释放）。兼容性口诀：S 与 S 兼容，S 与 X、X 与 X 互斥。当前读还包括 insert/update/delete（默认加 X 锁）。实际开发中 for update 用得最多（扣库存、状态机流转等悲观锁场景），但要注意务必走索引、缩小锁定范围，否则 InnoDB 会对扫描到的大量记录甚至间隙加锁，引发锁等待与死锁。对照前端：这类似读锁=多人可同时看但禁止编辑、写锁=独占编辑，和文档协作里的锁机制同理。",
+    "gapCheck": [
+      "易漏点：快照读不加锁读历史版本；当前读加锁读最新版本",
+      "常见误区：以为普通 select 也会加锁，或分不清 for update 与 lock in share mode",
+      "加分项：能说出 S/X 锁兼容矩阵，并强调 for update 必须命中索引"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.transaction.isolation-mvcc"],
+      "related": ["be.mysql.transaction.isolation-mvcc"],
+      "followUps": ["for update 没走索引会锁多少行？", "悲观锁 for update 和乐观锁 version 字段分别适合什么场景？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "快照读/当前读与 S/X 锁填空" },
+    "tags": ["MySQL", "快照读", "排他锁", "共享锁", "填空题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-tx-0007",
+    "nodeId": "be.mysql.transaction.isolation-mvcc",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "事务 A 执行 `select amount from account where id=1` 读到 100，随后事务 B 把该行更新为 200 并提交；事务 A 在自己尚未提交的情况下再次执行同一条普通 select。关于 A 第二次读到的值，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "在默认的 RR（可重复读）下 A 仍读到 100（复用首个 ReadView，看不到 B 已提交的新版本）；若隔离级别是 RC（读已提交），A 第二次会读到 200（每次 select 生成新 ReadView）" },
+      { "key": "B", "text": "无论 RR 还是 RC，A 第二次都一定读到 200，因为 B 已经提交" },
+      { "key": "C", "text": "无论 RR 还是 RC，A 第二次都只能读到 100，事务期间数据被冻结" },
+      { "key": "D", "text": "RR 下 A 会读到 200，RC 下 A 读到 100，两者正好相反" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确，这道题把 RC/RR 的实现差异落到具体时序。RR 下，事务 A 在第一次快照读时生成一个 ReadView 并在整个事务期间复用，B 提交产生的新版本其 trx_id 对这个旧 ReadView 不可见，于是沿 undo log 版本链找到 A 可见的旧版本 100，保证同一事务内多次读结果一致（可重复读）。RC 下，每条 select 都重新生成 ReadView，A 第二次 select 时 B 已提交、不在新 ReadView 的活跃列表里，因此能读到最新的 200，这也正是 RC 会出现「不可重复读」的原因。关键前提：这里是普通 select（快照读）。如果 A 第二次改成 select ... for update 这类当前读，即使在 RR 下也会读最新已提交值 200 并加锁，因为当前读不走旧 ReadView。还要注意 B 的更新会在版本链上生成新版本并把旧值 100 保存在 undo log，A 才能回溯读到。对照前端：这很像 A 持有一份数据快照不随外部更新而变（RR），而 RC 相当于每次都重新拉取最新数据。",
+    "gapCheck": [
+      "易漏点：RR 复用首个 ReadView 读旧值、RC 每次 select 新 ReadView 读新值这一实现根因",
+      "常见误区：以为只要别的事务提交了，任何隔离级别下当前事务都立刻可见",
+      "加分项：能区分快照读与当前读在该场景下结果不同，并指出 undo log 版本链的作用"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.transaction.isolation-mvcc"],
+      "related": ["be.mysql.transaction.lock-deadlock"],
+      "followUps": ["把第二次 select 改成 for update，结果会变吗？为什么？", "ReadView 里的 m_ids、min_trx_id、max_trx_id 各自如何参与可见性判断？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "RC/RR 下 ReadView 行为对比场景题" },
+    "tags": ["MySQL", "MVCC", "ReadView", "隔离级别", "场景题", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  }
+]

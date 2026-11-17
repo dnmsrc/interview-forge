@@ -1,0 +1,249 @@
+[
+  {
+    "id": "Q-eng-be-hashmap-0001",
+    "nodeId": "eng.warstory.be.hashmap-loop",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "JDK 7 及更早版本中，多个线程并发对同一个 HashMap 执行 put 并触发扩容（resize），可能出现 CPU 占用 100% 的死循环。其直接原因是：",
+    "options": [
+      { "key": "A", "text": "HashMap 内部加了死锁，线程互相等待锁释放" },
+      { "key": "B", "text": "扩容迁移元素采用头插法，多线程交替扩容使链表指针反转并形成环形链，后续 get 命中该环时无限循环" },
+      { "key": "C", "text": "hash 算法在并发下算出相同下标导致无限碰撞" },
+      { "key": "D", "text": "JVM 对非线程安全类做了自旋重试" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确。JDK7 的 transfer 在扩容时用头插法逐个迁移链表节点，头插会把链表顺序反转；两个线程同时扩容、交替执行时，某个节点的 next 指针可能被指回前驱，Entry 链表形成闭环。之后只要 get 的 key 哈希落到这个桶并沿链表查找，就会在环形链上永远 next 下去，表现为 CPU 100% 卡死。A 错，HashMap 根本没有锁，谈不上死锁，这也是它与 HashTable/ConcurrentHashMap 的本质区别。C 错，哈希碰撞是常态且有链表/树兜底，不会自身死循环。D 错，JVM 不会对普通类做自旋。JDK8 把迁移改为尾插法保持原顺序、并在链表长度超过 8 且数组够大时转红黑树，规避了扩容成环，但 HashMap 仍非线程安全，并发下仍可能丢数据，正解是用 ConcurrentHashMap。",
+    "gapCheck": [
+      "易漏点：关键词是『头插法 + 多线程扩容 → 链表成环』，不是死锁（HashMap 无锁）",
+      "常见误区：以为 JDK8 改尾插后 HashMap 就能并发用——只是不再成环，数据覆盖/丢失依然存在",
+      "加分项：能画出迁移前后指针变化，并说出 ConcurrentHashMap 在 7（分段锁）与 8（CAS+synchronized 锁桶）的实现差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.be.hashmap-loop"],
+      "related": ["be.java.core.collection"],
+      "followUps": ["JDK8 用尾插+红黑树后，HashMap 在并发下还会有哪些问题？", "ConcurrentHashMap 1.7 分段锁和 1.8 CAS+桶锁分别怎么保证线程安全？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://developer.aliyun.com/article/838048", "retrievedAt": "2026-11-12", "note": "经典社区题：HashMap 并发 put 扩容头插法导致链表成环死循环" },
+    "tags": ["工程战例", "HashMap", "并发", "死循环", "JDK7"]
+  },
+  {
+    "id": "Q-eng-be-hashmap-0002",
+    "nodeId": "eng.warstory.be.hashmap-loop",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：因为 JDK 8 的 HashMap 扩容改成了尾插法、链表超长还会转红黑树，所以在多线程共享场景下可以直接用 HashMap 替代 ConcurrentHashMap，不会再有并发问题。",
+    "answer": { "judge": false },
+    "analysis": "错误。尾插法只解决了 JDK7 扩容头插导致的链表成环死循环这一个具体问题，并没有让 HashMap 变得线程安全。JDK8 的 put 仍是无锁的『读-改-写』，多线程并发 put 时仍可能：① 两个线程同时算出相同空桶、同时写入，后写覆盖先写，造成数据丢失；② 并发扩容时对 table 的引用更新、节点迁移没有同步，可能读到中间状态、丢节点；③ size 等统计用普通变量累加，并发下计数不准。红黑树化也只是优化单线程下哈希碰撞的查询复杂度，与线程安全无关。因此只要存在多线程共享读写，就应使用 ConcurrentHashMap；只读不可变的场景才可以安全共享普通 HashMap（建议 Collections.unmodifiableMap 固化）。",
+    "gapCheck": [
+      "易漏点：尾插法 ≠ 线程安全，它只消除了成环这一种故障模式",
+      "常见误区：把『不再死循环』误当成『并发正确』，忽略覆盖写和扩容中间态",
+      "加分项：能列举并发 put 丢数据的具体时序，并说明只读共享与读写共享的边界"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.be.hashmap-loop"],
+      "related": ["be.java.core.collection", "eng.warstory.be.threadpool-sizing"],
+      "followUps": ["写一个两个线程并发 put 导致数据丢失的最小复现代码思路。", "ConcurrentHashMap 为什么不允许 key/value 为 null，而 HashMap 允许？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.cnblogs.com/javastack/p/14811764.html", "retrievedAt": "2026-11-12", "note": "Java 技术栈：HashMap 并发死循环与 JDK 版本差异辨析" },
+    "tags": ["工程战例", "HashMap", "线程安全", "ConcurrentHashMap", "判断题"]
+  },
+  {
+    "id": "Q-eng-be-threadlocal-0001",
+    "nodeId": "eng.warstory.be.threadlocal-leak",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于线程池中使用 ThreadLocal 可能导致内存泄漏，下列说法正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "ThreadLocalMap 里 Entry 的 key（ThreadLocal 对象）是弱引用，value 是强引用" },
+      { "key": "B", "text": "弱引用只能让 key 在 GC 后被回收变成 null，value 仍被 Entry 强引用，线程不死就回收不了" },
+      { "key": "C", "text": "线程池的线程长期存活、反复复用，使 value 链一直存在，泄漏比普通线程更严重" },
+      { "key": "D", "text": "只要把 ThreadLocal 变量声明成 static final 就完全不会泄漏，无需任何清理" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。ThreadLocalMap 的 Entry 继承 WeakReference，弱引用持有的是 key；一旦外部不再强引用 ThreadLocal 实例，下次 GC key 就被回收成 null，但 value 是一条强引用链（Thread → ThreadLocalMap → Entry → value），只要线程活着，value 就不可达也不可回收。在线程池里线程被长期复用、不会销毁，这条 value 链持续累积，泄漏被放大。ThreadLocal 自带的 expungeStaleEntry 探测式清理只在 get/set/remove 碰到附近槽位时被动触发，不能指望它兜底。D 错：static final 只是让 ThreadLocal 实例本身不被回收（key 不会变 null），并不会自动清理 value，用完不 remove 在线程复用下照样残留脏数据和内存占用，标准做法是在 finally 里显式 remove()。",
+    "gapCheck": [
+      "易漏点：弱引用包的是 key 不是 value，value 强引用才是泄漏主体",
+      "常见误区：以为用了弱引用就不会泄漏，或以为 static final 能替代 remove",
+      "加分项：能讲清探测式/启发式清理的被动性，以及跨线程传上下文用 TransmittableThreadLocal 的场景"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.be.threadlocal-leak"],
+      "related": ["be.java.concurrent.threadpool-lock"],
+      "followUps": ["为什么标准用法要求 try/finally 中 remove()？写一个正确模板。", "父子线程/线程池间要传递 ThreadLocal 上下文，InheritableThreadLocal 为什么不够，TTL 怎么解决？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://zhuanlan.zhihu.com/p/717079676", "retrievedAt": "2026-11-12", "note": "高赞面试题：ThreadLocal 弱引用 key+强引用 value 与线程池泄漏治理" },
+    "tags": ["工程战例", "ThreadLocal", "内存泄漏", "线程池", "弱引用"]
+  },
+  {
+    "id": "Q-eng-be-threadlocal-0002",
+    "nodeId": "eng.warstory.be.threadlocal-leak",
+    "type": "code",
+    "difficulty": 3,
+    "stem": "手写题：在一个线程池执行的任务里用 ThreadLocal 保存当前用户上下文（UserContext）。请写出不会内存泄漏、也不会把上一个任务的上下文串给下一个任务的标准用法（含线程池声明与任务模板）。",
+    "answer": {
+      "ref": "设计要点：ThreadLocal 声明为 private static final；任务内 set 上下文，业务执行包在 try 中，finally 里无条件 remove()——这是防泄漏和防线程复用串数据的关键。线程池用 ThreadPoolExecutor 显式声明七参而不用 Executors，配合有界队列与命名工厂。remove 保证线程归还池时 ThreadLocalMap 里本任务 Entry 被清掉。",
+      "code": "private static final ThreadLocal<UserContext> CTX = new ThreadLocal<>();\n\n// 显式线程池：有界队列 + 自定义拒绝策略，禁用 Executors 固定工厂\nThreadPoolExecutor pool = new ThreadPoolExecutor(\n    4, 8, 60L, TimeUnit.SECONDS,\n    new ArrayBlockingQueue<>(200),\n    r -> { Thread t = new Thread(r, \"biz-ctx-pool\"); t.setDaemon(true); return t; },\n    new ThreadPoolExecutor.CallerRunsPolicy());\n\nvoid handle(Request req) {\n  pool.execute(() -> {\n    try {\n      CTX.set(buildContext(req));   // 绑定当前任务上下文\n      doBusiness();                  // 任意深层方法可用 CTX.get()\n    } finally {\n      CTX.remove();                  // 必须清理：断 value 强引用，防泄漏 + 防串号\n    }\n  });\n}\n\nUserContext currentUser() { return CTX.get(); }"
+    },
+    "scoringPoints": [
+      { "point": "ThreadLocal 用 private static final 声明，理解 static 是为共享、final 防被替换", "weight": 2 },
+      { "point": "try/finally 中无条件 remove()，并能解释既防泄漏又防线程复用串数据", "weight": 3 },
+      { "point": "线程池用 ThreadPoolExecutor 显式七参 + 有界队列，而非 Executors", "weight": 2 },
+      { "point": "讲清不 remove 时 Thread→Map→Entry→value 的引用链为何阻止 GC", "weight": 2 }
+    ],
+    "analysis": "满分回答要同时抓住两条主线：一是内存安全（finally remove 断掉 value 强引用链），二是业务正确性（线程复用下不 remove 会让下一个任务 get 到上一个任务残留的用户身份，造成越权/串号，这往往比 OOM 更危险）。线程池显式声明体现对队列无界 OOM 和拒绝策略的认知。能主动提到用 TransmittableThreadLocal 解决跨任务传递、或用装饰器统一在任务边界包装 set/remove，属于加分的工程化表达。",
+    "gapCheck": [
+      "易漏点：只 set 不 remove，忽略线程池线程复用带来的上下文串号问题",
+      "常见误区：把 remove 写在 try 正常路径末尾，抛异常时就跳过了，必须放 finally",
+      "加分项：提到 TTL、任务装饰器（Runnable wrapper）统一治理，以及有界队列防 OOM"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.be.threadlocal-leak"],
+      "related": ["eng.warstory.be.threadpool-sizing", "be.java.concurrent.threadpool-lock"],
+      "followUps": ["如果上下文要在嵌套异步任务里传播，TTL 相对 InheritableThreadLocal 解决了什么？", "拒绝策略 CallerRunsPolicy 在过载时起到什么保护作用？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.cnblogs.com/ljbguanli/p/19493849", "retrievedAt": "2026-11-12", "note": "ThreadLocal 内存泄漏挑战与主动 remove 实战" },
+    "tags": ["工程战例", "ThreadLocal", "线程池", "手写题", "防御性编程"]
+  },
+  {
+    "id": "Q-eng-be-pool-0001",
+    "nodeId": "eng.warstory.be.threadpool-sizing",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：估算线程池线程数的经验公式中，CPU 密集型任务线程数通常设为 ______（核心数记为 N）；IO 密集型任务因为线程大量时间在等待 IO，可设为 ______。《阿里巴巴 Java 开发手册》还强制要求线程池必须用 ______ 显式创建，而不是用 Executors 的工厂方法，以规避无界队列 OOM。",
+    "answer": {
+      "blanks": ["N+1", "2N", "ThreadPoolExecutor"],
+      "synonyms": {
+        "N+1": ["核心数+1", "n+1", "CPU核心数+1"],
+        "2N": ["2*N", "2倍核心数", "2n"],
+        "ThreadPoolExecutor": ["ThreadPoolExecutor（七参构造）", "new ThreadPoolExecutor"]
+      }
+    },
+    "analysis": "① CPU 密集型任务线程几乎一直在占用 CPU 跑计算，线程太多反而增加上下文切换，经验值取 N+1（+1 是为在偶发缺页中断/后台任务时仍能保持 CPU 满载）。② IO 密集型任务线程大部分时间阻塞在读写、网络、数据库等待，此时 CPU 空闲，可以靠更多线程提高利用率，经典经验值 2N，更精细的公式是 N × (1 + 等待时间/计算时间)。③ Executors.newFixedThreadPool/newSingleThreadExecutor 用的是无界 LinkedBlockingQueue，任务积压会无限制吃内存直到 OOM；newCachedThreadPool 最大线程数 Integer.MAX_VALUE 可能无限建线程。因此手册要求用 ThreadPoolExecutor 显式给出核心数、最大数、有界队列和拒绝策略，把资源上限握在自己手里。这些只是起点，真实系统要靠压测和监控动态校正（美团动态线程池思路）。",
+    "gapCheck": [
+      "易漏点：公式是经验起点不是银弹，必须结合等待/计算时间比与压测调整",
+      "常见误区：只会背 2N，讲不出 IO 等待时 CPU 空闲所以能堆更多线程的因果",
+      "加分项：能说出 Executors 无界队列/无限线程的 OOM 风险与动态线程池热更新实践"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.be.threadpool-sizing"],
+      "related": ["be.java.concurrent.threadpool-lock", "eng.warstory.be.threadlocal-leak"],
+      "followUps": ["为什么固定公式在微服务里常常失效，压测时应观察哪些指标来校正？", "美团动态线程池是怎么做到不重启调整核心线程数和队列容量的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://tech.meituan.com/2020/04/02/java-pooling-pratice-in-meituan.html", "retrievedAt": "2026-11-12", "note": "美团技术团队：Java 线程池原理与业务实践（参数估算/动态调参/监控）" },
+    "tags": ["工程战例", "线程池", "参数估算", "ThreadPoolExecutor", "填空题"]
+  },
+  {
+    "id": "Q-eng-be-pool-0002",
+    "nodeId": "eng.warstory.be.threadpool-sizing",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "某接口高峰期大量请求超时，排查发现业务线程池用 Executors.newFixedThreadPool(10)，任务队列是无界 LinkedBlockingQueue，高峰期队列里积压了几十万任务、堆内存逼近 OOM，且任务即使排到也早已超时。请给出问题根因，并设计一套包含线程池改造与运行期治理的解决方案。",
+    "answer": {
+      "ref": "根因：① 固定 10 线程处理能力跟不上峰值，无界队列不拒绝、只堆积，导致延迟无上限和堆 OOM；② 缺少拒绝策略与超时兜底，过期任务仍被执行浪费资源；③ 参数写死、不可观测，出问题只能重启。方案：1) 改用 ThreadPoolExecutor 显式七参，按 CPU/IO 比例与压测设核心/最大线程，队列换成有界 ArrayBlockingQueue 给出明确容量上限；2) 选合适拒绝策略（CallerRunsPolicy 背压降速，或自定义快速失败+告警/降级入 MQ），让过载显式化而不是无限堆积；3) 任务层加超时与取消（Future.get(timeout)、可中断），过期请求快速失败；4) 接入监控（活跃线程、队列水位、拒绝次数、RT），结合配置中心做动态线程池，不重启热更新参数并设告警；5) 上游限流/熔断（如 Sentinel）与下游扩容、异步化/MQ 削峰配合，分层保护。"
+    },
+    "scoringPoints": [
+      { "point": "根因准确：无界队列无限积压 + 固定线程能力不足 + 缺拒绝与超时", "weight": 3 },
+      { "point": "线程池改造：ThreadPoolExecutor 七参 + 有界队列 + 合理拒绝策略", "weight": 3 },
+      { "point": "任务超时/快速失败与背压，避免无效执行过期任务", "weight": 1 },
+      { "point": "运行期治理：监控告警 + 配置中心动态调参（动态线程池）", "weight": 2 },
+      { "point": "上游限流熔断/MQ 削峰的分层保护视野", "weight": 1 }
+    ],
+    "analysis": "这是把线程池知识放进真实线上事故的综合题。高分答案不止于『换有界队列』，而要形成闭环：用有界队列+拒绝策略把过载从『静默堆积』变成『显式背压/快速失败』，用任务超时避免做无用功，再用监控+动态调参让容量能随流量演进，最后用限流和 MQ 在系统入口削峰。能引用美团动态线程池（基于配置中心热更新 ThreadPoolExecutor 参数、实时监控告警）说明关注过业界落地，是显著加分项。",
+    "gapCheck": [
+      "易漏点：只盯线程数，忽视无界队列才是 OOM 和无限延迟的直接元凶",
+      "常见误区：把拒绝策略当成坏事想关掉，其实合理拒绝是系统自我保护",
+      "加分项：动态线程池热更新、全链路监控指标、入口限流与 MQ 削峰的组合拳"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.be.threadpool-sizing"],
+      "related": ["eng.warstory.be.threadlocal-leak", "be.java.concurrent.threadpool-lock"],
+      "followUps": ["CallerRunsPolicy 如何把压力反压到调用方？有什么副作用？", "动态线程池修改 corePoolSize 时，JDK 内部是如何让新增/回收线程即时生效的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://heapdump.cn/article/3680013", "retrievedAt": "2026-11-12", "note": "美团动态线程池实践思路：配置中心热更新 + 实时监控告警" },
+    "tags": ["工程战例", "线程池", "线上事故", "动态调参", "限流削峰"]
+  },
+  {
+    "id": "Q-eng-be-hashmap-0003",
+    "nodeId": "eng.warstory.be.hashmap-loop",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "复盘 JDK7 HashMap 并发扩容死循环事故后，团队要在代码评审中建立正确认知。下列关于 HashMap 并发问题及其演进、替代方案的说法，正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "JDK7 死循环的根因是扩容 transfer 采用头插法，并发迁移使链表节点 next 指针回指形成环形链" },
+      { "key": "B", "text": "JDK8 改为尾插法并引入红黑树后，HashMap 在并发 put 时仍可能发生数据覆盖丢失，依旧不是线程安全的" },
+      { "key": "C", "text": "并发场景应使用 ConcurrentHashMap；JDK7 它用分段锁 Segment，JDK8 改为 CAS + synchronized 锁桶节点，并发度更高" },
+      { "key": "D", "text": "只要把 HashMap 用 Collections.synchronizedMap 包一层，就和 ConcurrentHashMap 性能相当且读完全无锁" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 还原了 JDK7 事故的精确机制：头插法在单线程下会反转链表，多线程交替扩容时 next 指针可能回指成环，get 落到该桶即在环上自旋，CPU 打满。B 强调 JDK8 的改进边界——尾插消除成环、红黑树优化长链查询，但无锁的读改写在并发下仍有覆盖写与扩容中间态问题，线程安全性并未获得。C 给出正确选型并点出 ConcurrentHashMap 的代际差异：1.7 的 Segment 分段锁默认 16 段、并发度受段数限制，1.8 放弃分段锁，改用 volatile 表 + CAS 插入空桶 + synchronized 只锁首节点，锁粒度更细、并发度显著提升。D 错：synchronizedMap 是用对象监视器把每个方法整体串行化（连 get 也加锁），高并发下所有读写互斥，性能远低于分段/桶级细粒度锁的 ConcurrentHashMap，更不存在『读无锁』。",
+    "gapCheck": [
+      "易漏点：区分『成环死循环（JDK7 头插）』与『数据覆盖（各版本并发写共有）』是两类不同故障",
+      "常见误区：以为 JDK8 尾插 + 红黑树等于线程安全，或把 synchronizedMap 当成 ConcurrentHashMap 的等价替代",
+      "加分项：能讲清 CHM 1.7 分段锁与 1.8 CAS+桶锁的锁粒度和并发度差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.be.hashmap-loop"],
+      "related": ["be.java.core.collection"],
+      "followUps": ["ConcurrentHashMap 1.8 中 size() 是如何在无全局锁下统计的（baseCount + CounterCell）？", "为什么 ConcurrentHashMap 不允许 null 键值，而 HashMap 允许？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.cnblogs.com/javastack/p/14811764.html", "retrievedAt": "2026-11-12", "note": "HashMap 并发问题与 ConcurrentHashMap 演进辨析" },
+    "tags": ["工程战例", "HashMap", "ConcurrentHashMap", "分段锁", "多选"]
+  },
+  {
+    "id": "Q-eng-be-threadlocal-0003",
+    "nodeId": "eng.warstory.be.threadlocal-leak",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "在线程池里使用 ThreadLocal 保存请求级上下文，下列关于内存泄漏与上下文串号的描述，最准确的是：",
+    "options": [
+      { "key": "A", "text": "ThreadLocalMap 的 key 是弱引用，GC 后 key 变 null 就会自动连带回收 value，不会泄漏" },
+      { "key": "B", "text": "value 被『线程 → ThreadLocalMap → Entry → value』强引用链持有，线程池线程长期存活时 value 无法回收；且不 remove 会让下一个复用该线程的任务读到上一个任务的残留上下文" },
+      { "key": "C", "text": "只要把 ThreadLocal 声明为 static final，key 不会被回收，就彻底杜绝了泄漏" },
+      { "key": "D", "text": "ThreadLocal 的探测式清理（expungeStaleEntry）会有后台线程定时扫描，因此可以不手动 remove" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确且最完整，同时点出两类危害：内存泄漏与业务串号。泄漏根因是 value 走的是强引用链，只要工作线程不销毁（线程池正是长期复用），即使 key 已被弱引用回收成 null，value 仍可达、无法 GC；串号则是同一线程被下一个任务复用时 get 到上一个任务残留的数据，可能导致越权，风险往往比 OOM 更直接。A 错：弱引用只作用于 key，key 置 null 反而留下『key 为 null 但 value 还在』的过期 Entry，并不会级联回收 value。C 错：static final 保证 ThreadLocal 实例不被回收（key 不会变 null），但对 value 的清理毫无帮助，用完不 remove 依旧泄漏和串号。D 错：expungeStaleEntry 是在 get/set/remove 碰到相邻槽位时被动触发的探测式清理，没有任何后台线程定时扫描，不能依赖它兜底。正解是在 finally 中无条件 remove()，需要跨任务传递时用 TransmittableThreadLocal。",
+    "gapCheck": [
+      "易漏点：除了内存泄漏，还要答出线程复用导致的上下文串号/越权这一业务危害",
+      "常见误区：以为弱引用能级联回收 value、static final 能替代 remove、存在后台清理线程",
+      "加分项：能给出 try/finally remove 模板，并说明 TTL 解决线程池上下文传递的原理"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.be.threadlocal-leak"],
+      "related": ["eng.warstory.be.threadpool-sizing", "be.java.concurrent.threadpool-lock"],
+      "followUps": ["TransmittableThreadLocal 相比 InheritableThreadLocal 在线程池场景补了什么能力？", "弱引用、软引用、虚引用在回收时机和典型用途上有什么区别？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://zhuanlan.zhihu.com/p/717079676", "retrievedAt": "2026-11-12", "note": "ThreadLocal 弱引用 key 强引用 value 与线程池泄漏串号治理" },
+    "tags": ["工程战例", "ThreadLocal", "内存泄漏", "线程复用", "单选"]
+  },
+  {
+    "id": "Q-eng-be-pool-0003",
+    "nodeId": "eng.warstory.be.threadpool-sizing",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：线程池参数（核心线程数、最大线程数、队列容量）只要在上线前根据经验公式一次性配好就够了，运行期不需要再调整，也没必要监控队列水位和拒绝次数。",
+    "answer": { "judge": false },
+    "analysis": "错误。经验公式（CPU 密集 N+1、IO 密集 2N 或 N×(1+等待/计算)）只是缺乏数据时的起点，真实流量、下游响应时间、任务构成都会变化，静态配死必然与线上实际失配。线程池必须可观测、可治理：① 监控指标至少覆盖活跃线程数、队列水位/积压量、任务拒绝次数、任务平均/分位 RT、线程池在线时长，设阈值告警；② 参数应支持运行期动态调整，业界做法（如美团动态线程池）是把 corePoolSize/maxPoolSize/队列容量等接到配置中心，修改后热刷新到 ThreadPoolExecutor 而无需重启——JDK 的 setCorePoolSize 等方法本身就会即时生效（扩容时新建线程、缩容时 interrupt 空闲线程）；③ 配合有界队列与明确的拒绝策略，让过载显式背压而非静默堆积 OOM。缺少监控和动态能力，事故时只能靠重启或发版，恢复慢且无法量化容量。因此『一次配好、永不调整、不监控』的认知是典型的工程失职。",
+    "gapCheck": [
+      "易漏点：经验公式只是起点，需结合压测与线上监控持续校正",
+      "常见误区：认为参数不可变、拒绝是坏事、队列无界也无所谓",
+      "加分项：能讲清配置中心热更新 + setCorePoolSize 即时生效的动态线程池落地机制"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.be.threadpool-sizing"],
+      "related": ["eng.warstory.be.threadlocal-leak", "be.java.concurrent.threadpool-lock"],
+      "followUps": ["setCorePoolSize 调小后，JDK 如何让多余线程即时退出？", "动态线程池的监控埋点应采集哪些核心指标，各自的告警阈值如何定？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://tech.meituan.com/2020/04/02/java-pooling-pratice-in-meituan.html", "retrievedAt": "2026-11-12", "note": "美团动态线程池：参数热更新与监控告警的运行期治理" },
+    "tags": ["工程战例", "线程池", "动态调参", "监控告警", "判断"]
+  }
+]

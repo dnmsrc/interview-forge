@@ -6,25 +6,72 @@
     "difficulty": 2,
     "stem": "```js\nconst count = ref(0)\nfunction onClick() {\n  count.value++\n  console.log(el.textContent)      // ①\n  nextTick(() => console.log(el.textContent)) // ②\n  setTimeout(() => console.log(el.textContent), 0) // ③\n}\n```\n点击后 ①②③ 打印的值依次是（初始渲染时 textContent='0'，更新后为 '1'）：",
     "options": [
-      { "key": "A", "text": "0, 0, 0——三处都在 DOM 更新之前" },
-      { "key": "B", "text": "0, 1, 1——②挂在 flush 微任务之后，③宏任务更晚" },
-      { "key": "C", "text": "1, 1, 1——count.value++ 是同步更新 DOM 的" },
-      { "key": "D", "text": "0, 1, 0——setTimeout 回调早于微任务执行" }]
-    ,
-    "answer": { "keys": ["B"] },
-    "analysis": "count.value++ 只把组件更新 job 排进队列并 Promise.resolve(currentFlushPromise).then(flushJobs)，DOM 要到当前同步栈跑完、微任务 flushJobs 执行时才变。①同步读 → '0'；②nextTick 的回调挂在 currentFlushPromise 之后，即 flushJobs 完成后 → '1'；③宏任务在微任务队列清空后 → '1'。C 错在把响应式当同步渲染；D 错在宏微顺序颠倒（微任务先清）。",
-    "gapCheck": ["易漏点：nextTick 不是『下一个 tick』而是『本次 flush 之后』，命名误导是本题考点", "常见误区：以为 nextTick 里还能拿到 mid-update 的中间态；实际一次 flush 内所有 job 都已跑完", "追问延伸：currentFlushPromise 已存在时再 nextTick 会怎样？（挂同一条 promise 链上，仍按入队顺序执行）"],
-    "knowledgeLinks": {
-      "prereq": ["fe.vue.scheduler.nexttick"],
-      "related": ["fe.vue.scheduler.flush-jobs", "fe.browser"],
-      "followUps": ["flushJobs 一个周期最多跑几轮 job 循环？（flushIndex 重扫直到队列空，但有递归上限保护）", "onUpdated 和 nextTick 谁先谁后？（post-flush watcher 也在同一 flush 内，nextTick 回调在其后）", "为什么 Vue 不用 requestAnimationFrame 做默认调度？"]
+      {
+        "key": "A",
+        "text": "0, 0, 0——三处都在 DOM 更新之前"
+      },
+      {
+        "key": "B",
+        "text": "0, 1, 1——②挂在 flush 微任务之后，③宏任务更晚"
+      },
+      {
+        "key": "C",
+        "text": "1, 1, 1——count.value++ 是同步更新 DOM 的"
+      },
+      {
+        "key": "D",
+        "text": "0, 1, 0——setTimeout 回调早于微任务执行"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
     },
-    "resources": [{ "title": "Vue3 架构设计·调度系统", "digest": "Vue 调度基于 microtask：queueJob 触发 queueFlush 复用 currentFlushPromise；flushJobs 按 id 排序遍历 pre/post 队列；nextTick 通过 promise.then 排队在 flush 之后。" }],
+    "analysis": "count.value++ 只把组件更新 job 排进队列并 Promise.resolve(currentFlushPromise).then(flushJobs)，DOM 要到当前同步栈跑完、微任务 flushJobs 执行时才变。①同步读 → '0'；②nextTick 的回调挂在 currentFlushPromise 之后，即 flushJobs 完成后 → '1'；③宏任务在微任务队列清空后 → '1'。C 错在把响应式当同步渲染；D 错在宏微顺序颠倒（微任务先清）。",
+    "gapCheck": [
+      "易漏点：nextTick 不是『下一个 tick』而是『本次 flush 之后』，命名误导是本题考点",
+      "常见误区：以为 nextTick 里还能拿到 mid-update 的中间态；实际一次 flush 内所有 job 都已跑完",
+      "追问延伸：currentFlushPromise 已存在时再 nextTick 会怎样？（挂同一条 promise 链上，仍按入队顺序执行）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.scheduler.nexttick"
+      ],
+      "related": [
+        "fe.vue.scheduler.flush-jobs",
+        "fe.browser"
+      ],
+      "followUps": [
+        "flushJobs 一个周期最多跑几轮 job 循环？（flushIndex 重扫直到队列空，但有递归上限保护）",
+        "onUpdated 和 nextTick 谁先谁后？（post-flush watcher 也在同一 flush 内，nextTick 回调在其后）",
+        "为什么 Vue 不用 requestAnimationFrame 做默认调度？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "Vue3 架构设计·调度系统",
+        "digest": "Vue 调度基于 microtask：queueJob 触发 queueFlush 复用 currentFlushPromise；flushJobs 按 id 排序遍历 pre/post 队列；nextTick 通过 promise.then 排队在 flush 之后。"
+      }
+    ],
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://jishuzhan.net/article/2014159901967826945", "retrievedAt": "2026-11-09", "note": "Vue3 调度系统源码解析（含 flushJobs 时序图）" },
-    "tags": ["高频", "时序题", "必考"],
+    "source": {
+      "kind": "web",
+      "url": "https://jishuzhan.net/article/2014159901967826945",
+      "retrievedAt": "2026-11-09",
+      "note": "Vue3 调度系统源码解析（含 flushJobs 时序图）"
+    },
+    "tags": [
+      "高频",
+      "时序题",
+      "必考"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "换场景：`async function load() { const res = await fetch(url); list.value = res.items; const h = el.scrollHeight; return h }`。这个 h 能反映新列表的高度吗？如果不能，怎么改最小代价？如果 fetch 的 then 和组件 flush 的微任务谁先执行？", "analysis": "不能：await 恢复后的代码仍是普通同步段，list.value 赋值只入队，scrollHeight 读到旧 DOM。改法：`await nextTick()` 后再读（或 async 版 await Promise.resolve().then 不够，必须是 nextTick）。微任务顺序：fetch 的 .then（响应流读取后）与 flushJobs 各自入队，谁先入队谁先执行——数据赋值发生在 fetch 回调之后，所以该次 flush 必然排在其后，h 依旧是旧值。引申考点：DOM 测量类逻辑统一挪进 nextTick/onMounted+nextTick。" }
+      {
+        "angle": "换场景",
+        "stem": "换场景：`async function load() { const res = await fetch(url); list.value = res.items; const h = el.scrollHeight; return h }`。这个 h 能反映新列表的高度吗？如果不能，怎么改最小代价？如果 fetch 的 then 和组件 flush 的微任务谁先执行？",
+        "analysis": "不能：await 恢复后的代码仍是普通同步段，list.value 赋值只入队，scrollHeight 读到旧 DOM。改法：`await nextTick()` 后再读（或 async 版 await Promise.resolve().then 不够，必须是 nextTick）。微任务顺序：fetch 的 .then（响应流读取后）与 flushJobs 各自入队，谁先入队谁先执行——数据赋值发生在 fetch 回调之后，所以该次 flush 必然排在其后，h 依旧是旧值。引申考点：DOM 测量类逻辑统一挪进 nextTick/onMounted+nextTick。"
+      }
     ]
   },
   {
@@ -33,19 +80,44 @@
     "type": "judge",
     "difficulty": 2,
     "stem": "判断正误：Vue 对同一 tick 内多次状态修改只渲染一次，核心机制是对每个组件的更新 job 去重——job 已在队列中（queued 标记）就不会重复入队，flush 期间新产生的 job 也会被并入当前这轮 flush。",
-    "answer": { "judge": true },
+    "answer": {
+      "judge": true
+    },
     "analysis": "对。queueJob 用 job.flags & JOB_QUEUED 去重；flushJobs 边跑边检查 queue.length 继续消化 flush 中新入队的 job（并给 post-flush 队列让路），所以『一次事件处理器里 N 次 setState 只 render 一次』成立。需要辨析的反例：不同 tick（如 setTimeout 里再改）会各自 flush；flush:sync 的 watch 根本不走队列。",
-    "gapCheck": ["易漏点：去重对象是『组件 job』，state 层的变化若没订阅者则连 job 都不会产生", "常见误区：把批处理归因于『diff 快』；批处理发生在调度层，与 diff 无关", "细节加分：flush 中新 job 若 id 小于当前指针会被回退指针重排（保证父先子后）"],
+    "gapCheck": [
+      "易漏点：去重对象是『组件 job』，state 层的变化若没订阅者则连 job 都不会产生",
+      "常见误区：把批处理归因于『diff 快』；批处理发生在调度层，与 diff 无关",
+      "细节加分：flush 中新 job 若 id 小于当前指针会被回退指针重排（保证父先子后）"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.scheduler.flush-jobs"],
-      "related": ["fe.vue.scheduler.nexttick", "fe.vue.runtime.update-flow"],
-      "followUps": ["job 按什么排序？为什么这样能保证父组件先更新？（组件 uid 创建序=父小于子）", "同一个 job 在执行中被再次触发会怎样？（flushIndex 之前的会被回炉）", "React18 的自动批处理和这套机制的本质区别？（事件内外都批、还有优先级 lane）"]
+      "prereq": [
+        "fe.vue.scheduler.flush-jobs"
+      ],
+      "related": [
+        "fe.vue.scheduler.nexttick",
+        "fe.vue.runtime.update-flow"
+      ],
+      "followUps": [
+        "job 按什么排序？为什么这样能保证父组件先更新？（组件 uid 创建序=父小于子）",
+        "同一个 job 在执行中被再次触发会怎样？（flushIndex 之前的会被回炉）",
+        "React18 的自动批处理和这套机制的本质区别？（事件内外都批、还有优先级 lane）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "基于 runtime-core scheduler.ts queueJob/flushJobs 实现编写" },
-    "tags": ["概念精确性", "批处理"],
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 runtime-core scheduler.ts queueJob/flushJobs 实现编写"
+    },
+    "tags": [
+      "概念精确性",
+      "批处理"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "判断正误（反向）：『既然有批处理，那么在 watch 的 flush:'sync' 里连续改 100 次依赖，订阅它的组件也只会更新一次』。", "analysis": "错。flush:'sync' 的 watcher 不走 job 队列，trigger 时同步执行回调；但被它改的**其他**状态仍走正常调度，那些组件确实一次更新。真正容易混淆的是 flush:'post'/pre 的 watch 回调本身在 pre-flush 阶段串行执行，其间同步读 DOM 仍是旧值。一句话：批处理作用于渲染 job，不作用于 sync watcher 的用户回调。" }
+      {
+        "angle": "反向问",
+        "stem": "判断正误（反向）：『既然有批处理，那么在 watch 的 flush:'sync' 里连续改 100 次依赖，订阅它的组件也只会更新一次』。",
+        "analysis": "错。flush:'sync' 的 watcher 不走 job 队列，trigger 时同步执行回调；但被它改的**其他**状态仍走正常调度，那些组件确实一次更新。真正容易混淆的是 flush:'post'/pre 的 watch 回调本身在 pre-flush 阶段串行执行，其间同步读 DOM 仍是旧值。一句话：批处理作用于渲染 job，不作用于 sync watcher 的用户回调。"
+      }
     ]
   },
   {
@@ -54,19 +126,74 @@
     "type": "blank",
     "difficulty": 3,
     "stem": "补全 flush 时机语义：watch 默认 ______ flush，其回调发生在组件重新渲染之 ______；设为 ______ flush 时回调会在 DOM 更新之后执行，语义接近 ______ 钩子；设为 ______ flush 则在依赖变化处 ______ 执行回调（可读到中间态）。",
-    "answer": { "blanks": ["pre", "前", "post", "updated", "sync", "同步立即"], "synonyms": { "pre": ["pre-flush", "刷新前"], "post": ["post-flush", "刷新后"], "sync": ["同步"], "前": ["之前"], "同步立即": ["立即", "当场", "同步地"] } },
+    "answer": {
+      "blanks": [
+        "pre",
+        "前",
+        "post",
+        "updated",
+        "sync",
+        "同步立即"
+      ],
+      "synonyms": {
+        "pre": [
+          "pre-flush",
+          "刷新前"
+        ],
+        "post": [
+          "post-flush",
+          "刷新后"
+        ],
+        "sync": [
+          "同步"
+        ],
+        "前": [
+          "之前"
+        ],
+        "同步立即": [
+          "立即",
+          "当场",
+          "同步地"
+        ]
+      }
+    },
     "analysis": "pre-flush 在渲染 effect 之前：组件 watcher（渲染本身）也是 pre-flush job，watch 默认同为 pre 且按入队顺序先于渲染 job 执行，所以『pre 回调早于新 DOM』。post watcher 排在渲染之后，与 updated 钩子同期（updated 就是 post-flush 注册的）。sync 在 trigger 现场直接跑，栈内可见中间态，代价是失去批处理。官方文档明确：watch 的 pre 回调发生时 DOM 尚未更新，需要操作 DOM 就用 post 或 onUpdated。",
-    "gapCheck": ["易漏点：pre 的 watch 与组件渲染 job 都在 preQueue，先后由 id/入队序决定——watcher 的 id 继承自创建它的组件实例", "常见误区：以为 post watcher 比 nextTick 晚；实际同一 flush 内 postQueue 先跑，nextTick 回调最后", "追问延伸：watchEffect 首次是立即执行的（不管 flush 值），之后才按 flush 调度"],
+    "gapCheck": [
+      "易漏点：pre 的 watch 与组件渲染 job 都在 preQueue，先后由 id/入队序决定——watcher 的 id 继承自创建它的组件实例",
+      "常见误区：以为 post watcher 比 nextTick 晚；实际同一 flush 内 postQueue 先跑，nextTick 回调最后",
+      "追问延伸：watchEffect 首次是立即执行的（不管 flush 值），之后才按 flush 调度"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.scheduler.watcher-flush"],
-      "related": ["fe.vue.reactivity.computed-watch", "fe.vue.lifecycle.mount-unmount"],
-      "followUps": ["为什么 watch 默认选 pre 而不是 post？（多数场景是改派生状态而非读 DOM）", "post watcher 拿到的 props/slots 快照是哪个版本？（post 用 instance 最新值）", "sync watch 的真实用例你能举一个吗？（对昂贵源做节流前置判断/调试断点）"]
+      "prereq": [
+        "fe.vue.scheduler.watcher-flush"
+      ],
+      "related": [
+        "fe.vue.reactivity.computed-watch",
+        "fe.vue.lifecycle.mount-unmount"
+      ],
+      "followUps": [
+        "为什么 watch 默认选 pre 而不是 post？（多数场景是改派生状态而非读 DOM）",
+        "post watcher 拿到的 props/slots 快照是哪个版本？（post 用 instance 最新值）",
+        "sync watch 的真实用例你能举一个吗？（对昂贵源做节流前置判断/调试断点）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "official", "url": "https://vuejs.org/api/reactivity-core.html", "retrievedAt": "2026-11-09", "note": "watch 选项 flush 与『watch callback flush timing』说明段" },
-    "tags": ["时序题", "文档细节"],
+    "source": {
+      "kind": "official",
+      "url": "https://vuejs.org/api/reactivity-core.html",
+      "retrievedAt": "2026-11-09",
+      "note": "watch 选项 flush 与『watch callback flush timing』说明段"
+    },
+    "tags": [
+      "时序题",
+      "文档细节"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "场景判断：需要在某个 ref 变化后把第三方图表库的实例重建（要求 DOM 已经是新结构）。写出应选哪种 flush 或钩子，并给出两种等效写法及各自风险。", "analysis": "答案：post flush watch 或 watchEffect+{flush:'post'}，或 updated 钩子里比对 prev。写法一 `watch(cfg, rebuild, {flush:'post'})`：DOM 已更新，可安全测量重建；风险是 updated 类时机在 keep-alive 失活组件里 activated 前后混排需注意。写法二 onUpdated + JSON 比对：直观但每次 update 都进钩子，成本高。反例 flush:'pre' 里重建会量到旧 DOM 尺寸。考点是把 flush 语义映射到真实副作用选型。" }
+      {
+        "angle": "换场景",
+        "stem": "场景判断：需要在某个 ref 变化后把第三方图表库的实例重建（要求 DOM 已经是新结构）。写出应选哪种 flush 或钩子，并给出两种等效写法及各自风险。",
+        "analysis": "答案：post flush watch 或 watchEffect+{flush:'post'}，或 updated 钩子里比对 prev。写法一 `watch(cfg, rebuild, {flush:'post'})`：DOM 已更新，可安全测量重建；风险是 updated 类时机在 keep-alive 失活组件里 activated 前后混排需注意。写法二 onUpdated + JSON 比对：直观但每次 update 都进钩子，成本高。反例 flush:'pre' 里重建会量到旧 DOM 尺寸。考点是把 flush 语义映射到真实副作用选型。"
+      }
     ]
   },
   {
@@ -75,25 +202,65 @@
     "type": "short",
     "difficulty": 3,
     "stem": "追问连环炮第三问：『你们说批量更新，那 flushJobs 内部到底怎么处理——多个组件同时脏了谁先执行？flush 跑到一半又有新 job 怎么办？死循环怎么防？』请逐条作答。",
-    "answer": { "ref": "①排序：pre-flush 队列按 job.id 升序 binarySearchInsert 插入；组件 job 的 id=组件 uid，uid 在 createAppInstance/setupState 递增分配，父组件实例创建早于子组件故 id 更小 → 天然父先子后，避免子先渲染又被父 patch 的二次更新；pre 队列还会给 HMR 后的组件让位重排。②flush 中新 job：flushJobs 每步 while 检查 queue 长度继续消化；若新 job id < 当前 flushIndex 指向的 job（即应排到已跑过的位置，典型是 flush 期间挂载的新组件），把 flushIndex-- 回退一格重新纳入本轮。③post-flush：pre 队列排空中遇到 post job 就整体转 postQueue，等 pre 完再跑，updated 钩子在此。④防死循环：flushPostFlushCbs/jobs 重入计数 flushDepth；updated 里再触发更新递归超过 MAX_UPDATE_COUNT(100) 报 'infinite loop' 警告中止；nextTick 的 promise 链不因用户异常中断（flush 后 finally 清 currentFlushPromise）。" },
+    "answer": {
+      "ref": "①排序：pre-flush 队列按 job.id 升序 binarySearchInsert 插入；组件 job 的 id=组件 uid，uid 在 createAppInstance/setupState 递增分配，父组件实例创建早于子组件故 id 更小 → 天然父先子后，避免子先渲染又被父 patch 的二次更新；pre 队列还会给 HMR 后的组件让位重排。②flush 中新 job：flushJobs 每步 while 检查 queue 长度继续消化；若新 job id < 当前 flushIndex 指向的 job（即应排到已跑过的位置，典型是 flush 期间挂载的新组件），把 flushIndex-- 回退一格重新纳入本轮。③post-flush：pre 队列排空中遇到 post job 就整体转 postQueue，等 pre 完再跑，updated 钩子在此。④防死循环：flushPostFlushCbs/jobs 重入计数 flushDepth；updated 里再触发更新递归超过 MAX_UPDATE_COUNT(100) 报 'infinite loop' 警告中止；nextTick 的 promise 链不因用户异常中断（flush 后 finally 清 currentFlushPromise）。"
+    },
     "scoringPoints": [
-      { "point": "答出按 id（组件 uid）排序且解释父 uid 小于子 uid 的原因", "weight": 3 },
-      { "point": "答出 flush 期间新 job 继续入队消化、必要时回退 flushIndex 重排", "weight": 2 },
-      { "point": "答出 pre/post 双队列与 updated 钩子的归属", "weight": 1 },
-      { "point": "答出 MAX_UPDATE_COUNT≈100 的递归守卫或等价警告文案", "weight": 2 }
+      {
+        "point": "答出按 id（组件 uid）排序且解释父 uid 小于子 uid 的原因",
+        "weight": 3
+      },
+      {
+        "point": "答出 flush 期间新 job 继续入队消化、必要时回退 flushIndex 重排",
+        "weight": 2
+      },
+      {
+        "point": "答出 pre/post 双队列与 updated 钩子的归属",
+        "weight": 1
+      },
+      {
+        "point": "答出 MAX_UPDATE_COUNT≈100 的递归守卫或等价警告文案",
+        "weight": 2
+      }
     ],
     "analysis": "这组追问是『读过源码』与『背过结论』的分水岭。id 排序的正确解释必须落到 uid 分配时机（实例创建序），只说『父先子后』不给因果最多一半分；flushIndex 回退是最多人不知道的细节；MAX_UPDATE_COUNT 能报出数字属于惊喜层。",
-    "gapCheck": ["易漏点：componentUpdateFn 内部同步挂载子组件时，子 job 可能已在队列——这正是需要回退指针的场景", "常见误区：以为队列按『入队时间』FIFO；实际是 id 有序插入", "边界：HMR 场景会把 hot job 排到更前（findInsertionIndexAndSwap 特判）"],
+    "gapCheck": [
+      "易漏点：componentUpdateFn 内部同步挂载子组件时，子 job 可能已在队列——这正是需要回退指针的场景",
+      "常见误区：以为队列按『入队时间』FIFO；实际是 id 有序插入",
+      "边界：HMR 场景会把 hot job 排到更前（findInsertionIndexAndSwap 特判）"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.scheduler.flush-jobs"],
-      "related": ["fe.vue.runtime.update-flow", "fe.vue.lifecycle.mount-unmount"],
-      "followUps": ["Suspense 的 effect 为什么被暂停（pendingBranch）时 job 还能入队？", "为什么 watch 的 job id 用它所属组件的 id？（保证同组件内按注册序、跨组件按父子序）", "React 的 event-time/render-time 两段批处理和 Vue 这套的差异？"]
+      "prereq": [
+        "fe.vue.scheduler.flush-jobs"
+      ],
+      "related": [
+        "fe.vue.runtime.update-flow",
+        "fe.vue.lifecycle.mount-unmount"
+      ],
+      "followUps": [
+        "Suspense 的 effect 为什么被暂停（pendingBranch）时 job 还能入队？",
+        "为什么 watch 的 job id 用它所属组件的 id？（保证同组件内按注册序、跨组件按父子序）",
+        "React 的 event-time/render-time 两段批处理和 Vue 这套的差异？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://jishuzhan.net/article/2014159901967826945", "retrievedAt": "2026-11-09", "note": "调度系统解析：binarySearchInsert、flushIndex 回退与 MAX_UPDATE_COUNT 均有源码对照" },
-    "tags": ["源码向", "追问连环", "大厂"],
+    "source": {
+      "kind": "web",
+      "url": "https://jishuzhan.net/article/2014159901967826945",
+      "retrievedAt": "2026-11-09",
+      "note": "调度系统解析：binarySearchInsert、flushIndex 回退与 MAX_UPDATE_COUNT 均有源码对照"
+    },
+    "tags": [
+      "源码向",
+      "追问连环",
+      "大厂"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "加约束版：假设只有单一 FIFO 队列（不排序、无 pre/post 之分），请以『父组件 updated 里读子组件 DOM』『watch 想在渲染前拦截』两个场景各构造一个会出错的具体 bug，并说明排序与双队列分别修掉了它。", "analysis": "bug 一：子组件 job 先于父入队（子先注册？不——子 mount 在父 render 之后，若 FIFO 则子 update 先跑，随后 patch 又把子 vnode 替换导致子再更新一次，出现双重渲染甚至引用失效）。排序令父恒先，一轮收敛。bug 二：watch(pre) 想改派生状态阻止本次渲染，但 FIFO 下渲染 job 可能先于 watch 回调入队（渲染 job 早在依赖变化时已排），watch 后跑就晚了；pre-flush 队列把 watcher job 按 id+flag 排到同 id 渲染 job 之前（watcher 先注册先入队 + 稳定排序）解决。答题质量取决于能否画出具体交错序列。" }
+      {
+        "angle": "加约束",
+        "stem": "加约束版：假设只有单一 FIFO 队列（不排序、无 pre/post 之分），请以『父组件 updated 里读子组件 DOM』『watch 想在渲染前拦截』两个场景各构造一个会出错的具体 bug，并说明排序与双队列分别修掉了它。",
+        "analysis": "bug 一：子组件 job 先于父入队（子先注册？不——子 mount 在父 render 之后，若 FIFO 则子 update 先跑，随后 patch 又把子 vnode 替换导致子再更新一次，出现双重渲染甚至引用失效）。排序令父恒先，一轮收敛。bug 二：watch(pre) 想改派生状态阻止本次渲染，但 FIFO 下渲染 job 可能先于 watch 回调入队（渲染 job 早在依赖变化时已排），watch 后跑就晚了；pre-flush 队列把 watcher job 按 id+flag 排到同 id 渲染 job 之前（watcher 先注册先入队 + 稳定排序）解决。答题质量取决于能否画出具体交错序列。"
+      }
     ]
   },
   {
@@ -102,26 +269,325 @@
     "type": "code",
     "difficulty": 4,
     "stem": "手写题：只用 Promise 实现迷你调度器：`trackUpdate()` 返回是否已在队列的标记位语义（同一轮重复调用只在首轮排微任务），`nextTick(cb)` 的回调保证在 flushJobs 之后按注册顺序执行；flushJobs 同步清空当轮任务数组（任务执行中新增的任务也并入本轮）。给出实现并用两行注释说明与 Vue 源码一致的两个关键点。",
-    "answer": { "ref": "核心：currentFlushPromise 单例——queueFlush 时 p=promiseResolve().then(flushJobs) 并记住；nextTick 永远 p.then(cb)，p 不存在时直接 resolved promise 立即微任务执行。flushJobs 用 while(queue.length) 取 shift 执行，天然并入新任务；执行期异常 try/catch 收集最后集中抛（Vue 用 handleError）。一致点：①nextTick 挂在 currentFlushPromise 链尾而非独立 then；②flush 结束后 currentFlushPromise=null 允许下一轮重新起链。", "code": "let currentFlushPromise = null\nlet queued = false\nconst queue = []\nfunction trackUpdate() {\n  if (queued) return false        // 已在队列：只排一次微任务\n  queued = true\n  if (!currentFlushPromise) {\n    currentFlushPromise = Promise.resolve().then(flushJobs)\n  }\n  return true\n}\nfunction enqueue(job) { queue.push(job); trackUpdate() }\nfunction flushJobs() {\n  queued = false\n  let i = 0\n  while (i < queue.length) {      // 执行中 push 的新任务并入本轮\n    try { queue[i++]() } catch (e) { console.error(e) }\n  }\n  queue.length = 0\n  currentFlushPromise = null      // 允许下一轮重新起链\n}\nfunction nextTick(cb) {\n  const p = currentFlushPromise || Promise.resolve()\n  return cb ? p.then(cb) : p\n}\n// 与 Vue 一致：① nextTick 复用 currentFlushPromise 链尾，保证在 flush 完成后执行；\n// ② flush 期间新任务被 while 条件自然吞进本轮，等价 flushJobs 的 queue.length 复查。" },
+    "answer": {
+      "ref": "核心：currentFlushPromise 单例——queueFlush 时 p=promiseResolve().then(flushJobs) 并记住；nextTick 永远 p.then(cb)，p 不存在时直接 resolved promise 立即微任务执行。flushJobs 用 while(queue.length) 取 shift 执行，天然并入新任务；执行期异常 try/catch 收集最后集中抛（Vue 用 handleError）。一致点：①nextTick 挂在 currentFlushPromise 链尾而非独立 then；②flush 结束后 currentFlushPromise=null 允许下一轮重新起链。",
+      "code": "let currentFlushPromise = null\nlet queued = false\nconst queue = []\nfunction trackUpdate() {\n  if (queued) return false        // 已在队列：只排一次微任务\n  queued = true\n  if (!currentFlushPromise) {\n    currentFlushPromise = Promise.resolve().then(flushJobs)\n  }\n  return true\n}\nfunction enqueue(job) { queue.push(job); trackUpdate() }\nfunction flushJobs() {\n  queued = false\n  let i = 0\n  while (i < queue.length) {      // 执行中 push 的新任务并入本轮\n    try { queue[i++]() } catch (e) { console.error(e) }\n  }\n  queue.length = 0\n  currentFlushPromise = null      // 允许下一轮重新起链\n}\nfunction nextTick(cb) {\n  const p = currentFlushPromise || Promise.resolve()\n  return cb ? p.then(cb) : p\n}\n// 与 Vue 一致：① nextTick 复用 currentFlushPromise 链尾，保证在 flush 完成后执行；\n// ② flush 期间新任务被 while 条件自然吞进本轮，等价 flushJobs 的 queue.length 复查。"
+    },
     "scoringPoints": [
-      { "point": "currentFlushPromise 单例复用，nextTick 挂在其链上", "weight": 3 },
-      { "point": "queued/flag 去重：同一轮多次 track 只起一条微任务", "weight": 2 },
-      { "point": "flush 用动态长度循环吞掉新任务，且结束置空 promise", "weight": 2 },
-      { "point": "cb 缺省返回 promise、异常不吞链（try/catch 或 finally）", "weight": 1 },
-      { "point": "注释准确指出与 Vue 源码对应的两个机制", "weight": 1 }
+      {
+        "point": "currentFlushPromise 单例复用，nextTick 挂在其链上",
+        "weight": 3
+      },
+      {
+        "point": "queued/flag 去重：同一轮多次 track 只起一条微任务",
+        "weight": 2
+      },
+      {
+        "point": "flush 用动态长度循环吞掉新任务，且结束置空 promise",
+        "weight": 2
+      },
+      {
+        "point": "cb 缺省返回 promise、异常不吞链（try/catch 或 finally）",
+        "weight": 1
+      },
+      {
+        "point": "注释准确指出与 Vue 源码对应的两个机制",
+        "weight": 1
+      }
     ],
     "analysis": "本题复刻 runtime-core/nextTick.ts + scheduler.ts 骨架。最大陷阱是 nextTick 写成 Promise.resolve().then(cb)——那样回调会插到 flush 之前，直接丢一半分；第二陷阱是 flush 用 for 固定长度快照，吞不了新任务。能写出 queued 与 currentFlushPromise 两层去重（前者防重复入队后者防重复起链）即满分结构。",
-    "gapCheck": ["易漏点：currentFlushPromise 与 queued 是两个层级——一个管『微任务只起一条』，一个管『本批 job 只排一次』", "常见误区：忘记置空 currentFlushPromise 导致第二轮 nextTick 还挂在第一轮旧 promise 上（已 resolve，行为碰巧对但语义错）", "Vue 真实现多出的部分主动说明：id 二分插入、pre/post 双队列、flushIndex 回退"],
+    "gapCheck": [
+      "易漏点：currentFlushPromise 与 queued 是两个层级——一个管『微任务只起一条』，一个管『本批 job 只排一次』",
+      "常见误区：忘记置空 currentFlushPromise 导致第二轮 nextTick 还挂在第一轮旧 promise 上（已 resolve，行为碰巧对但语义错）",
+      "Vue 真实现多出的部分主动说明：id 二分插入、pre/post 双队列、flushIndex 回退"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.scheduler.nexttick", "fe.vue.scheduler.flush-jobs"],
-      "related": ["fe.browser", "fe.vue.runtime.update-flow"],
-      "followUps": ["要支持 flush:'sync' 你的 enqueue 怎么分流？", "如果 flush 中某 job 抛错，后续 job 还跑吗？（Vue：catch 后继续，错误冒泡到 window）", "改成 rAF 调度会失去什么？（与输入事件的同帧合并、微任务级延迟）"]
+      "prereq": [
+        "fe.vue.scheduler.nexttick",
+        "fe.vue.scheduler.flush-jobs"
+      ],
+      "related": [
+        "fe.browser",
+        "fe.vue.runtime.update-flow"
+      ],
+      "followUps": [
+        "要支持 flush:'sync' 你的 enqueue 怎么分流？",
+        "如果 flush 中某 job 抛错，后续 job 还跑吗？（Vue：catch 后继续，错误冒泡到 window）",
+        "改成 rAF 调度会失去什么？（与输入事件的同帧合并、微任务级延迟）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "按 runtime-core nextTick.ts / scheduler.ts 行为契约设计的白板题" },
-    "tags": ["手写题", "调度器", "白板"],
+    "source": {
+      "kind": "self-authored",
+      "note": "按 runtime-core nextTick.ts / scheduler.ts 行为契约设计的白板题"
+    },
+    "tags": [
+      "手写题",
+      "调度器",
+      "白板"
+    ],
     "variants": [
-      { "angle": "换问法", "stem": "口头版（不写码）：面试官把你的实现打断后只问三个 why——为什么要 currentFlushPromise 这个变量而不是直接 Promise.resolve().then？为什么 nextTick 不加参数时也返回 promise？为什么 flush 完要把它置 null？逐条回答。", "analysis": "①currentFlushPromise 是为了让所有 nextTick 回调能『接在同一条 flush 链后面』并且 flush 微任务全局只注册一次；直接 then 无法表达顺序依赖。②返回 promise 是为 async/await 消费者（await nextTick()），也是 API 演进（3.x 移除回调参数主推 promise 风格）。③置 null：flush 已结束，链的使命完成；不置空则下一轮 flush 不会新建微任务（若以它作存在性判断）或新 nextTick 挂到已完成的旧链上，语义上等于立即执行——碰巧对但掩盖了竞态。三问都是『变量存在的必要性』级考察。" }
+      {
+        "angle": "换问法",
+        "stem": "口头版（不写码）：面试官把你的实现打断后只问三个 why——为什么要 currentFlushPromise 这个变量而不是直接 Promise.resolve().then？为什么 nextTick 不加参数时也返回 promise？为什么 flush 完要把它置 null？逐条回答。",
+        "analysis": "①currentFlushPromise 是为了让所有 nextTick 回调能『接在同一条 flush 链后面』并且 flush 微任务全局只注册一次；直接 then 无法表达顺序依赖。②返回 promise 是为 async/await 消费者（await nextTick()），也是 API 演进（3.x 移除回调参数主推 promise 风格）。③置 null：flush 已结束，链的使命完成；不置空则下一轮 flush 不会新建微任务（若以它作存在性判断）或新 nextTick 挂到已完成的旧链上，语义上等于立即执行——碰巧对但掩盖了竞态。三问都是『变量存在的必要性』级考察。"
+      }
     ]
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.vue.scheduler.flush-jobs",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "填空：Vue 对同一 tick 内多次状态修改只渲染一次，靠的是每个更新 job 上的 ______ 标记——已在队列中的 job 不会重复入队；队列在 flush 前会按渲染 effect 的自增 ______ 从小到大排序，从而保证 ______ 组件先于子组件更新；整个 flush 被调度到 ______ 中执行，这也是同步代码里连续改多次状态最终只触发一次 DOM 更新的原因。",
+    "answer": {
+      "blanks": [
+        "queued",
+        "id",
+        "父",
+        "微任务"
+      ],
+      "synonyms": {
+        "queued": [
+          "queued 标记",
+          "queued 标志",
+          "入队标记"
+        ],
+        "id": [
+          "id（序号）",
+          "自增 id",
+          "job id",
+          "序号"
+        ],
+        "父": [
+          "父级",
+          "父组件"
+        ],
+        "微任务": [
+          "microtask",
+          "Promise 微任务",
+          "微任务（microtask）",
+          "Promise.then"
+        ]
+      }
+    },
+    "analysis": "Vue 调度器把组件更新封装成 job：首次触发时入队并打上 queued 标记，后续同一 tick 再触发因 queued 已存在而跳过去重，保证一个组件一轮只更新一次。flush 前队列按 job 关联 effect 的自增 id 升序排序——父组件的 render effect 创建更早、id 更小，所以父总在子之前更新，符合自上而下的传播顺序，也避免子组件被重复更新。整个 flushJobs 通过 Promise.then 安排在微任务队列，当前同步执行栈清空后、浏览器渲染前统一执行，于是同步段内的多次修改被合并为一次批量更新。",
+    "gapCheck": [
+      "易漏点：去重靠 job 的 queued 标记，排序靠 effect 自增 id，二者共同保证\"只更新一次且父先子后\"。",
+      "常见误区：以为多次改状态会触发多次渲染，忽略微任务批处理把同一 tick 的更新合并。",
+      "排查线索：在 watcher/渲染钩子中 log 执行顺序，结合 id 排序验证父子更新次序与合并行为。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.scheduler.flush-jobs"
+      ],
+      "related": [
+        "fe.vue.scheduler.nexttick",
+        "fe.vue.scheduler.watcher-flush",
+        "fe.vue.reactivity.effect-dep"
+      ],
+      "followUps": [
+        "flush 执行过程中又产生新的 job，调度器如何把它并入当前轮？",
+        "为什么父组件必须先于子组件 flush？反过来会出现什么问题？",
+        "如何防止 watch 回调反复改状态导致的无限循环？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vue 调度器 job 去重、id 排序与微任务批处理原理编写"
+    },
+    "tags": [
+      "调度器",
+      "批量更新",
+      "时序"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0045"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.vue.scheduler.nexttick",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Vue 的 nextTick 与 DOM 更新时序，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "nextTick 注册的回调会在当前同步代码跑完、组件 flush 渲染任务所在的微任务链路之后执行，因此回调里能读到更新后的 DOM。"
+      },
+      {
+        "key": "B",
+        "text": "不传回调时 nextTick() 返回一个 Promise，可以用 await nextTick() 以 async/await 方式等待 DOM 更新完成。"
+      },
+      {
+        "key": "C",
+        "text": "同一轮事件循环里，先注册的 nextTick 微任务会比之后用 setTimeout(fn, 0) 注册的宏任务更晚执行。"
+      },
+      {
+        "key": "D",
+        "text": "Vue 3 在现代浏览器中 nextTick 主要基于 Promise 微任务实现，历史上的 MutationObserver/宏任务降级方案已基本退出主路径。"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A 正确：状态变更只把渲染 job 入队，真正的 DOM 更新在随后的微任务 flush 中完成；nextTick 把回调接到当前 flush 的 Promise 链之后，所以回调执行时 DOM 已更新。B 正确：nextTick 无参调用返回 Promise，支持 `await nextTick()`，这是组合式 API 中的主流写法。C 错误：事件循环中当前同步栈结束后会先清空全部微任务，再取下一个宏任务，因此 nextTick（微任务）必然早于 setTimeout(0)（宏任务）执行。D 正确：现代浏览器普遍原生支持 Promise，Vue 3 的 nextTick 主路径就是 Promise 微任务，Vue 2 时代为兼容老环境准备的 MutationObserver、setImmediate/setTimeout 多级降级在现代环境已不再是主路径。",
+    "gapCheck": [
+      "易漏点：微任务在当前同步栈之后、任何宏任务之前全部清空，nextTick 一定早于 setTimeout(0)。",
+      "常见误区：在状态赋值后同步立刻读取 DOM，误以为能拿到新值，实际上要等 nextTick/await 之后。",
+      "排查线索：时序题先画出\"同步段 → flush 微任务 → nextTick 回调 → 宏任务\"的顺序，再对号入座。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.scheduler.nexttick"
+      ],
+      "related": [
+        "fe.vue.scheduler.flush-jobs",
+        "fe.vue.scheduler.watcher-flush",
+        "fe.js.async.event-loop"
+      ],
+      "followUps": [
+        "await nextTick() 与 await Promise.resolve() 在等待 DOM 更新上等价吗？为什么？",
+        "flush 中途新增的 nextTick 回调会落到本轮还是下一轮？",
+        "为什么在 watch 的 flush:'post' 里读 DOM 也能拿到新结构，它与 nextTick 谁先执行？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 nextTick 微任务实现与事件循环时序编写"
+    },
+    "tags": [
+      "nextTick",
+      "事件循环",
+      "时序题"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0046"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.vue.scheduler.watcher-flush",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "开发者用 watch(source, cb, { flush: 'sync' }) 监听一个 ref，并在 cb 内部再次修改这个被监听的 ref。下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "sync 模式下 cb 在依赖被触发的当刻同步执行，能观察到每次变化的中间态；若在 cb 中无保护地反复修改同一依赖，可能引发同步递归，需要用条件判断或 once 等手段终止。"
+      },
+      {
+        "key": "B",
+        "text": "sync watcher 与默认 pre 模式一样会被批处理，同一轮内无论改多少次都只执行最后一次回调。"
+      },
+      {
+        "key": "C",
+        "text": "flush:'post' 的回调在组件 DOM 更新之前执行，适合用来读取更新前的旧 DOM 结构。"
+      },
+      {
+        "key": "D",
+        "text": "flush 只影响回调执行时机，三种模式下 cb 拿到的都只能是依赖的最终态，读不到中间值。"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：flush:'sync' 的 watcher 不进入 job 队列，依赖一变化就同步执行回调，因此每次修改都能被捕获、可读到中间态；但也正因同步触发，在回调里再改同一个源会立即再次触发自己，形成同步递归，必须靠条件收敛、once 或标志位防止栈溢出/死循环。B 错误：批处理（去重、合并）作用于走队列的 pre/post watcher 与渲染 job，sync watcher 绕过队列、不被合并。C 错误：post 是在组件 DOM 更新之后执行（语义接近 updated/onUpdated），适合操作新 DOM；在更新前执行的是默认的 pre。D 错误：sync 模式恰恰能读到连续修改过程中的中间态，这正是它与 pre/post 的重要区别，也是其风险来源。",
+    "gapCheck": [
+      "易漏点：sync watcher 绕过调度队列同步触发，可观察中间态但会失去批处理保护，易产生递归与性能问题。",
+      "常见误区：以为三种 flush 都只拿最终态，或以为 sync 也会像渲染 job 一样自动去重合并。",
+      "排查线索：出现 Maximum recursive updates 或调用栈溢出时，重点检查 sync watch 回调是否自改其监听源且缺少终止条件。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.scheduler.watcher-flush"
+      ],
+      "related": [
+        "fe.vue.scheduler.flush-jobs",
+        "fe.vue.scheduler.nexttick",
+        "fe.vue.reactivity.computed-watch"
+      ],
+      "followUps": [
+        "默认 pre 与 post watcher 在执行时机和 DOM 可读性上具体差在哪？",
+        "watch 的 once 选项在什么场景下可以替代手动标志位？",
+        "为什么绝大多数业务场景应优先用默认 pre 而不是 sync？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 watch flush 三种时机与同步触发递归风险编写"
+    },
+    "tags": [
+      "watch",
+      "flush",
+      "递归风险"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0047"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.vue.scheduler.watcher-flush",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请结合工程实践说明 watch 三种 flush（pre / post / sync）的选型：(1) 各自回调相对组件重新渲染的执行时机与典型用途；(2) 需要在数据变化后操作\"已经更新完的 DOM\"（如重建第三方图表、滚动定位）应选哪种，给出两种等效实现；(3) sync 模式有哪些性能与递归风险，什么场景才值得使用。",
+    "scoringPoints": [
+      {
+        "point": "准确描述 pre（默认，渲染前、可读到新值但 DOM 仍旧）、post（渲染后、DOM 已新）、sync（触发即同步、可拿中间态）三者时机",
+        "weight": 3
+      },
+      {
+        "point": "针对更新后 DOM 场景选择 post：watch(cb,{flush:'post'}) 或 watchEffect(cb,{flush:'post'})，并可提 onUpdated/nextTick 等效方案及取舍",
+        "weight": 3
+      },
+      {
+        "point": "指出 sync 风险：绕过批处理、频繁同步执行、回调自改监听源导致递归/栈溢出、影响性能",
+        "weight": 2
+      },
+      {
+        "point": "给出 sync 的合理使用边界：需要捕获每次中间态、禁止合并的极少数同步联动场景，并强调默认优先 pre",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "(1) 三种 flush 决定回调在调度流水线中的位置。pre（默认）：watcher 进入 pre-flush 队列，在组件重新渲染之前执行，回调里能拿到更新后的响应式新值，但此时真实 DOM 还是旧的；适合在渲染前根据新数据做派生、拦截或再修改状态。post：在组件 DOM patch 完成之后执行，回调里读取到的是更新后的新 DOM，语义接近 updated 钩子，适合需要测量/操作新 DOM 的副作用。sync：不进队列，依赖一变化就同步执行，能捕获连续修改的每一个中间态，但没有批处理。(2) 要操作更新后的 DOM（重建 ECharts/图表实例、滚动到某元素、测量宽高）应选 post。等效写法一：`watch(source, cb, { flush: 'post' })`；写法二：`watchEffect(() => { 读取依赖并操作 DOM }, { flush: 'post' })`。也可在默认 watch 回调里 `await nextTick()` 后再操作 DOM，或在 onUpdated 中配合状态比对实现，但 onUpdated 每次组件更新都触发、成本更高且不够内聚，post watch 更精准。(3) sync 的风险：它绕过调度器的去重与批处理，高频变化时回调被同步反复执行，可能造成明显性能损耗；更危险的是在回调里修改自身监听的源会立即再次触发，形成同步递归，Vue 会报 Maximum recursive updates exceeded 甚至栈溢出。因此只有在确实需要逐次捕获中间态、不能接受任何合并的特殊同步联动（如某些底层联动、与外部同步状态机严格对齐）时才用 sync，常规业务一律优先默认 pre，需要新 DOM 再用 post。"
+    },
+    "analysis": "本题考查把 flush 语义映射到真实副作用选型。关键区分：pre 拿得到新值但 DOM 仍旧，post 才能安全操作新 DOM，sync 用同步性换中间态但牺牲批处理保护。高分答案会主动指出 post watch 与 nextTick/onUpdated 的等效关系及各自成本，并能举出 sync 递归的具体报错与收敛手段，体现工程权衡而非背诵定义。",
+    "gapCheck": [
+      "易漏点：pre 回调里值是新的但 DOM 仍旧；要新 DOM 必须 post 或 nextTick，二者时机接近但归属的调度阶段不同。",
+      "常见误区：在默认 pre watch 里直接测量 DOM 尺寸，结果量到旧结构；或滥用 sync 导致递归与性能问题。",
+      "排查线索：DOM 操作类 bug 先确认回调执行时 DOM 是否已 patch，用 post/nextTick 对照复现，递归报错则检查 sync 自改源。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.scheduler.watcher-flush"
+      ],
+      "related": [
+        "fe.vue.scheduler.flush-jobs",
+        "fe.vue.scheduler.nexttick",
+        "fe.vue.lifecycle.mount-unmount"
+      ],
+      "followUps": [
+        "post watch 与组件 updated 钩子在执行顺序上谁先谁后？",
+        "keep-alive 组件 activated 前后，post watch 的时机有什么需要注意的？",
+        "watch 与 watchEffect 在依赖收集和 flush 行为上有哪些差异？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 watch flush 时机、调度队列与 DOM 副作用选型实践编写"
+    },
+    "tags": [
+      "watch",
+      "flush 选型",
+      "工程实践"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0048"
   }
 ]

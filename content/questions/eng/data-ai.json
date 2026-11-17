@@ -1,0 +1,251 @@
+[
+  {
+    "id": "Q-eng-data-pagination-0001",
+    "nodeId": "eng.warstory.data.deep-pagination",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "一张千万级订单表执行 `SELECT * FROM orders ORDER BY id LIMIT 1000000, 20`，翻到后面的页越来越慢。对深分页性能崩塌的根因与优化，下列说法正确的是：",
+    "options": [
+      { "key": "A", "text": "慢是因为网络传输 20 行数据太多，加大带宽即可解决" },
+      { "key": "B", "text": "MySQL 需要先扫描并丢弃前 1000000 行再取 20 行，且 SELECT * 触发大量回表，扫描行数被放大；可用覆盖索引+延迟关联或游标(seek)分页优化" },
+      { "key": "C", "text": "把 LIMIT 的偏移量调大就能减少扫描" },
+      { "key": "D", "text": "深分页无法优化，只能限制用户最多翻 100 页" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确。LIMIT M,N 的执行逻辑是先定位并扫描前 M+N 行、再丢弃前 M 行，M 越大无效扫描越多；InnoDB 二级索引叶子节点只存主键，SELECT 非索引列要回到聚簇索引取整行（回表），百万级回表代价巨大。主流优化：① 覆盖索引+延迟关联——先用子查询在窄索引上查出这一页的 20 个主键，再 JOIN 回表，把百万次回表降到 20 次；② 游标/seek 分页——记住上一页最后一条的 id，改写成 WHERE id > last_id ORDER BY id LIMIT 20，走索引范围扫描，每页代价恒定，适合无限滚动/上一页下一页；③ 大数据量检索交给 ElasticSearch 等专用引擎。A 错，瓶颈在服务端扫描与回表而非 20 行传输。C 错，偏移越大越慢。D 错，有成熟优化手段，限制页数只是产品兜底。",
+    "gapCheck": [
+      "易漏点：LIMIT 偏移不是『跳过』而是『扫描后丢弃』，且 SELECT * 导致回表放大",
+      "常见误区：只想到加索引，忽略覆盖索引/延迟关联把回表次数从百万降到一页大小",
+      "加分项：能讲游标分页不支持随机跳页的取舍，以及什么场景该上 ES"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.data.deep-pagination"],
+      "related": ["eng.warstory.data.cache-trio"],
+      "followUps": ["延迟关联子查询具体怎么写？为什么它能减少回表？", "游标分页为什么不适合『直接跳到第 500 页』这种需求？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://javaguide.cn/high-performance/deep-pagination-optimization.html", "retrievedAt": "2026-11-12", "note": "JavaGuide 深分页优化：范围查询/子查询/延迟关联/覆盖索引" },
+    "tags": ["工程战例", "MySQL", "深分页", "覆盖索引", "回表"]
+  },
+  {
+    "id": "Q-eng-data-pagination-0002",
+    "nodeId": "eng.warstory.data.deep-pagination",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：订单表 orders 主键为自增 id，并有索引 idx_status_create(status, create_time)。业务要按 id 顺序做『加载更多』分页，每页 20 条。① 写出避免深分页的游标分页 SQL（假设前端会回传上一页最后一条 id，首页 lastId 传 0）；② 再写出用延迟关联优化 `SELECT * ... ORDER BY id LIMIT 1000000,20` 的 SQL，并简述两者适用场景。",
+    "answer": {
+      "ref": "设计要点：游标分页用 WHERE id > lastId 把 OFFSET 换成索引范围条件，每页扫描量恒定、代价不随页码增长，配合主键索引天然有序。延迟关联先用派生表 t 在主键/覆盖索引上只查这一页的 20 个 id（不回表），再用这 20 个 id JOIN 原表做一次回表，把回表次数从 100 万降到 20。游标适合上一页/下一页、无限滚动；延迟关联保留了可指定偏移的能力，适合必须随机跳页的传统分页，越靠后仍有成本但大幅改善。",
+      "code": "-- ① 游标(seek)分页：lastId 首页传 0，之后传上一页最后一条的 id\nSELECT id, user_id, amount, status, create_time\nFROM orders\nWHERE id > ?        -- 预编译参数 lastId\nORDER BY id ASC\nLIMIT 20;\n-- 走主键聚簇索引范围扫描，扫描行数恒为 20，与页码无关\n\n-- ② 延迟关联优化深分页：先窄索引取本页主键，再回表\nSELECT o.*\nFROM orders o\nINNER JOIN (\n    SELECT id\n    FROM orders\n    ORDER BY id\n    LIMIT 1000000, 20      -- 子查询只走索引、不回表，拿到 20 个主键\n) t ON o.id = t.id\nORDER BY o.id;\n-- 回表只发生在最终 JOIN 的 20 行上，而不是前 100 万行"
+    },
+    "scoringPoints": [
+      { "point": "游标分页正确用 WHERE id > lastId + ORDER BY + LIMIT，讲清扫描量恒定", "weight": 3 },
+      { "point": "延迟关联用派生表先取主键再 JOIN 回表，结构正确", "weight": 3 },
+      { "point": "能解释回表次数从百万级降到一页大小的原理", "weight": 2 },
+      { "point": "说清两种方案的适用边界（顺序滚动 vs 随机跳页）", "weight": 1 }
+    ],
+    "analysis": "评分核心是理解『把回表推迟到最后、且只对一页数据做』。游标分页是最优的顺序分页形态，但牺牲随机跳转；延迟关联是必须保留 LIMIT 偏移时的折中，子查询里的列要被索引覆盖才能避免子查询本身回表。能主动提到复合索引列顺序、参数化防 SQL 注入，以及在超大数据量下引入 ES/搜索引擎，是工程成熟度的体现。",
+    "gapCheck": [
+      "易漏点：延迟关联的子查询 SELECT 列必须被覆盖索引覆盖，否则子查询照样回表",
+      "常见误区：游标分页还保留巨大 OFFSET，没真正消除深扫描",
+      "加分项：讲清 seek 分页不支持随机跳页的产品取舍与 ES 的分工"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.data.deep-pagination"],
+      "related": ["eng.warstory.data.cache-trio"],
+      "followUps": ["如果排序键不是唯一主键（如按 create_time），游标分页要如何保证不重不漏？", "覆盖索引为什么能让子查询不回表？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://javaguide.cn/high-performance/deep-pagination-optimization.html", "retrievedAt": "2026-11-12", "note": "JavaGuide 深分页优化方案的 SQL 落地" },
+    "tags": ["工程战例", "MySQL", "游标分页", "延迟关联", "手写SQL"]
+  },
+  {
+    "id": "Q-eng-data-cachetrio-0001",
+    "nodeId": "eng.warstory.data.cache-trio",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "请把下列故障现象与缓存问题类型正确对应（多选，选项本身的对应关系需全部正确）：",
+    "options": [
+      { "key": "A", "text": "缓存穿透：大量请求查询一个数据库里根本不存在的数据（如恶意构造的 id=-1），缓存永远不命中，全部打到数据库" },
+      { "key": "B", "text": "缓存击穿：某个被高并发访问的热点 key 在失效瞬间，大量并发同时穿透到数据库查同一条数据" },
+      { "key": "C", "text": "缓存雪崩：大批 key 在同一时刻集中过期，或缓存节点整体宕机，海量请求同时压向数据库" },
+      { "key": "D", "text": "三者本质完全相同，用同一种方案就能解决" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 准确刻画了三种不同故障。穿透的关键词是『数据本身不存在』，缓存和库都没有，恶意请求可借此压垮 DB；击穿是『单点热点 key 过期』，量集中在一条数据；雪崩是『大面积 key 同时失效或缓存集群故障』，面上的流量整体倾泻到数据库。D 错，三者根因不同、解法也不同：穿透用布隆过滤器拦截不存在的 id 或对空结果做短 TTL 空值缓存；击穿用互斥锁/逻辑过期保证只有一个线程回源重建缓存；雪崩用过期时间加随机抖动避免集中失效、多级缓存、缓存高可用集群以及限流降级。混淆三者是面试常见扣分点。",
+    "gapCheck": [
+      "易漏点：穿透=查不存在的数据；击穿=单个热点 key 过期；雪崩=大批 key 同时过期/节点宕机",
+      "常见误区：把三者当一回事，或把布隆过滤器错安到击穿/雪崩上",
+      "加分项：能针对每一种给出主推方案 + 兜底（空值缓存、互斥锁/逻辑过期、随机 TTL/多级缓存/限流）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.data.cache-trio"],
+      "related": ["eng.warstory.data.deep-pagination"],
+      "followUps": ["布隆过滤器误判（false positive）会带来什么影响？如何容忍？", "逻辑过期 vs 物理过期在解决击穿时的取舍是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://javaguide.cn/database/redis/redis-questions-02.html", "retrievedAt": "2026-11-12", "note": "JavaGuide Redis 面试题：缓存穿透/击穿/雪崩区别与方案" },
+    "tags": ["工程战例", "Redis", "缓存穿透", "缓存击穿", "缓存雪崩"]
+  },
+  {
+    "id": "Q-eng-data-cachetrio-0002",
+    "nodeId": "eng.warstory.data.cache-trio",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "某秒杀系统在活动开场时数据库 CPU 瞬间打满。复盘发现：① 有脚本用大量不存在的商品 id 刷接口；② 几个爆款商品的缓存 key 恰好同一秒过期；③ 缓存集群与数据库之间没有任何过载保护。请分别对应缓存三兄弟中的哪几种问题，并为每种设计防御方案，最后给出一套分层兜底。",
+    "answer": {
+      "ref": "① 是缓存穿透（查不存在的数据）；② 爆款 key 同时过期，既是缓存击穿（热点 key 失效）也叠加了雪崩特征（多 key 集中失效）。防御：穿透——入口参数校验拒绝非法 id，前置布隆过滤器判断商品是否存在，不存在直接拦截；对确认为空的结果缓存空值并设短 TTL，防止反复回源。击穿——热点 key 用互斥锁（SET NX）保证只有一个线程回源重建、其余等待或返回旧值；对永不过期的核心热点用『逻辑过期 + 异步重建』。雪崩——写缓存时 TTL 加随机抖动（基础 TTL + 随机分钟数）避免集中失效，做多级缓存（本地 Caffeine + Redis）和 Redis 集群高可用。分层兜底：网关/应用层限流（ Sentinel 等）、服务熔断降级返回兜底数据、数据库连接池与只读副本保护，确保最坏情况下降级而不是宕库。"
+    },
+    "scoringPoints": [
+      { "point": "正确把①归为穿透、②归为击穿并识别其雪崩（集中失效）特征", "weight": 3 },
+      { "point": "穿透方案：参数校验 + 布隆过滤器 + 空值短 TTL 缓存", "weight": 2 },
+      { "point": "击穿方案：互斥锁 SET NX / 逻辑过期异步重建", "weight": 2 },
+      { "point": "雪崩方案：TTL 随机抖动 + 多级缓存 + 集群高可用", "weight": 2 },
+      { "point": "分层兜底：限流、熔断降级、只读副本等系统级保护", "weight": 1 }
+    ],
+    "analysis": "高分回答体现『分而治之 + 纵深防御』：先准确归类，再对症施策，最后承认任何单一缓存手段都可能被击穿，必须有应用限流和数据库侧的最后防线。能提到布隆过滤器的误判容忍、逻辑过期不阻塞请求但可能短暂返回旧数据这类取舍，说明不是背书而是真正用过。秒杀场景还要结合热点预热（活动前主动加载爆款 key）。",
+    "gapCheck": [
+      "易漏点：② 同时具备击穿与雪崩特征，只答一种会漏分",
+      "常见误区：只堆 Redis 配置，缺少入口限流和熔断降级的系统兜底",
+      "加分项：提到热点 key 预热、布隆误判容忍、逻辑过期的旧值取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.data.cache-trio"],
+      "related": ["eng.warstory.data.deep-pagination", "eng.warstory.be.threadpool-sizing"],
+      "followUps": ["互斥锁重建缓存时如何避免死锁和惊群？锁的 TTL 怎么设？", "本地缓存与 Redis 多级缓存之间如何处理数据一致性？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://github.com/CoderLeixiaoshuai/java-eight-part/blob/master/docs/redis/%E4%B8%80%E5%BC%A0%E5%9B%BE%E6%90%9E%E6%87%82Redis%E7%BC%93%E5%AD%98%E9%9B%AA%E5%B4%A9%E3%80%81%E7%BC%93%E5%AD%98%E7%A9%BF%E9%80%8F%E3%80%81%E7%BC%93%E5%AD%98%E5%87%BB%E7%A9%BF.md", "retrievedAt": "2026-11-12", "note": "高星开源笔记图解缓存雪崩/穿透/击穿及防御组合" },
+    "tags": ["工程战例", "Redis", "秒杀", "布隆过滤器", "限流降级"]
+  },
+  {
+    "id": "Q-eng-ai-context-0001",
+    "nodeId": "eng.warstory.ai.context-overflow",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "一个多轮客服 Agent 运行一段时间后开始报上下文超限错误、且忘记用户最早说过的需求。在不能无限换更大窗口模型的前提下，最合理的工程治理组合是：",
+    "options": [
+      { "key": "A", "text": "把所有历史对话原样保留，只在报错时重试一次" },
+      { "key": "B", "text": "结合滚动摘要压缩早期对话、滑动窗口保留近期原文，并用 RAG 把长期知识/历史工单外置到向量库按需检索，控制每次送入的 token 量" },
+      { "key": "C", "text": "直接删除最早的一半对话，且不做任何信息保留" },
+      { "key": "D", "text": "把 temperature 调到 0 就能减少 token 占用" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确。上下文窗口是模型单次能处理的 token 上限，多轮对话单调累积必然撞顶。工程上分层处理：近期对话用滑动窗口保留原文保证即时上下文准确；较早的轮次用 LLM 滚动总结成摘要，把细节压缩成关键信息；长期知识、历史工单、产品文档等放到外部存储，用 RAG 按当前问题检索相关片段再注入，而不是全量塞进 prompt。A 必撞上限且重试无效。C 粗暴截断会丢关键事实，正是用户抱怨『忘记最早需求』的根源。D 错，temperature 只影响采样随机性，与 token 数量无关。还要注意即便窗口够大，长上下文也存在『中间遗忘』（lost in the middle）和成本/延迟随 token 线性增长的问题，所以外置检索通常优于无脑塞满。",
+    "gapCheck": [
+      "易漏点：窗口是 token 硬约束，对话只增不减必然超限；temperature 与 token 量无关",
+      "常见误区：以为换个长上下文模型就一劳永逸，忽略中间遗忘和成本延迟",
+      "加分项：能组合滑动窗口+滚动摘要+RAG，并讲 map-reduce 分段处理超长文档"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.ai.context-overflow"],
+      "related": ["ai.rag.retrieval-pipeline"],
+      "followUps": ["滚动摘要如何避免摘要本身也越积越长？", "RAG 检索回来的片段如何排序放进 prompt 才能缓解中间遗忘？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.datacamp.com/zh/blog/context-window", "retrievedAt": "2026-11-12", "note": "DataCamp：大语言模型上下文窗口的工作记忆约束" },
+    "tags": ["工程战例", "LLM", "上下文窗口", "RAG", "滚动摘要"]
+  },
+  {
+    "id": "Q-eng-ai-context-0002",
+    "nodeId": "eng.warstory.ai.context-overflow",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：只要选用上下文窗口足够大的模型，把全部资料和完整对话一次性塞进去，就总是比用 RAG 外置检索更好，不存在任何代价或准确性问题。",
+    "answer": { "judge": false },
+    "analysis": "错误。长上下文『暴力塞』并非银弹，至少有四类代价：① 成本与延迟——多数 API 按 token 计费，输入越长费用和首 token 延迟越高，长文档每次重复发送浪费严重；② 中间遗忘（lost in the middle）——研究普遍发现模型对位于上下文中部的信息利用率明显低于开头和结尾，资料越多关键信息越容易被淹没；③ 有效注意力稀释——超长输入下模型对单条信息的关注被摊薄，指令遵循和事实抽取质量下降；④ 窗口仍有物理上限，再大也装不下持续增长的全量数据。RAG 通过只检索与当前问题最相关的少量片段，把每次输入控制在高质量区间，且知识更新只需更新索引而无需重发全文。实践中常是两者结合：用 RAG 控量、用适度长窗口保留必要的多轮上下文，再配合摘要压缩，而不是无脑塞满。",
+    "gapCheck": [
+      "易漏点：token 成本/延迟随输入线性增长，且窗口有硬上限",
+      "常见误区：以为窗口大=记得准，忽略中间遗忘和注意力稀释",
+      "加分项：能说出 RAG 知识更新只需更新索引、结合摘要与适量窗口的混合架构"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.ai.context-overflow"],
+      "related": ["ai.rag.retrieval-pipeline"],
+      "followUps": ["什么类型的任务（如长文通读、法律全文比对）反而更适合长上下文而非 RAG？", "如何用评测量化中间遗忘对自己业务的实际影响？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.wits.com/tw/news/%E5%A4%A7%E8%AA%9E%E8%A8%80%E6%A8%A1%E5%9E%8Brag-%E5%92%8C%E9%95%B7%E4%B8%8A%E4%B8%8B%E6%96%87%E9%95%B7%E5%BA%A6%E7%9A%84%E5%84%AA%E7%BC%BA%E9%BB%9E%E6%AF%94%E8%BC%83/", "retrievedAt": "2026-11-12", "note": "RAG 与长上下文方案优缺点对比" },
+    "tags": ["工程战例", "LLM", "长上下文", "RAG", "中间遗忘", "判断题"]
+  },
+  {
+    "id": "Q-eng-data-pagination-0003",
+    "nodeId": "eng.warstory.data.deep-pagination",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：把 LIMIT 1000000, 20 改写成子查询先在覆盖索引上定位出主键（延迟关联），或改成 WHERE id > 上一页最大id 的游标（seek）分页，都能显著减少深分页扫描和回表的行数。",
+    "answer": { "judge": true },
+    "analysis": "正确，两种都是深分页的标准优化，本质都是『先窄路定位主键，再回表取整行』，避免对百万级行做无谓扫描与回表。原始 LIMIT 1000000,20 的代价在于：服务器要先扫描并丢弃前 100 万行，若走二级索引还要对这 100 万行逐一回表，IO 放大极其严重。① 延迟关联（deferred join）：先用子查询 SELECT id FROM t WHERE ... ORDER BY id LIMIT 1000000,20 命中覆盖索引——覆盖索引包含所需列、免回表，快速拿到 20 个主键，再用这 20 个 id 去 JOIN 原表取完整字段，回表次数从百万级降到 20 次。② 游标/seek 分页：把『翻页偏移』改成『基于有序键的条件过滤』，如 WHERE id > last_max_id ORDER BY id LIMIT 20，每次都走索引范围扫描，只取需要的 20 行，性能与页码深度无关，适合无限滚动/上一页下一页；代价是不支持直接跳转到任意页。要注意游标要求排序键唯一且稳定（常用主键或 (created_at,id) 复合键），且必须有匹配的有序索引支撑。面对复杂多维筛选与全文检索的深分页，通常进一步交给 ElasticSearch 等专用引擎。",
+    "gapCheck": [
+      "易漏点：深分页慢在扫描放大 + 大量回表，优化目标是先拿少量主键再回表",
+      "常见误区：以为加了索引 LIMIT 大偏移就快，覆盖索引不能免掉『扫描并丢弃前 N 行』本身",
+      "加分项：能讲延迟关联把回表降到 20 次、游标分页性能与页码无关但不支持跳页，以及 ES 的适用边界"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.data.deep-pagination"],
+      "related": ["be.mysql.index-tuning"],
+      "followUps": ["为什么游标分页要求排序键唯一，(created_at,id) 复合游标如何处理同时间戳？", "覆盖索引为什么能避免回表，它在哪些查询条件下会失效？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://dev.mysql.com/doc/refman/8.0/en/limit-optimization.html", "retrievedAt": "2026-11-12", "note": "MySQL 官方 LIMIT 查询优化与深分页处理思路" },
+    "tags": ["工程战例", "MySQL", "深分页", "覆盖索引", "游标分页", "判断"]
+  },
+  {
+    "id": "Q-eng-data-cachetrio-0003",
+    "nodeId": "eng.warstory.data.cache-trio",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：缓存三大高并发故障中，请求的 key 在缓存和数据库里都不存在、请求全部打到数据库，称为 ______；某个热点 key 恰好过期瞬间大量并发同时回源，称为 ______；大批 key 设置了相同过期时间而在同一刻集体失效，称为 ______。前者常用 ______ 拦截非法 key，热点 key 过期则常用互斥锁或 ______ 保证只有一个线程回源。",
+    "answer": {
+      "blanks": ["缓存穿透", "缓存击穿", "缓存雪崩", "布隆过滤器", "逻辑过期"],
+      "synonyms": {
+        "缓存穿透": ["穿透", "cache penetration"],
+        "缓存击穿": ["击穿", "cache breakdown", "热点key击穿"],
+        "缓存雪崩": ["雪崩", "cache avalanche"],
+        "布隆过滤器": ["布隆", "BloomFilter", "bloom filter", "布隆过滤"],
+        "逻辑过期": ["逻辑过期时间", "logical expiration", "逻辑失效"]
+      }
+    },
+    "analysis": "三者的区分维度是『key 是否存在』和『失效范围』。① 缓存穿透：查的数据压根不存在（恶意攻击或非法 ID），缓存永远 miss、数据库也查不到，每次请求都穿透到 DB；防御用布隆过滤器在缓存前先判断 key 是否可能存在（不存在直接拦截，有误判无漏判），或对空结果也做短 TTL 的空值缓存，并配合参数校验与限流。② 缓存击穿：单个热点 key 过期的瞬间，海量并发同时 miss 并回源，DB 瞬时承压；解法是互斥锁（setnx/分布式锁，只放一个线程查库重建缓存，其余等待或返回旧值），或逻辑过期（不设物理 TTL，在 value 里存逻辑过期时间，发现过期后异步线程更新，期间其他线程仍返回旧数据，用短暂的不新鲜换可用性）。③ 缓存雪崩：大量 key 同刻失效或 Redis 整体宕机，回源流量成片压垮 DB；防御手段是给 TTL 加随机抖动打散失效时间、多级缓存、Redis 高可用集群、以及限流降级兜底。记忆抓手：穿透=『不存在的 key』，击穿=『单个热点 key 过期』，雪崩=『大面积 key 同时失效』。",
+    "gapCheck": [
+      "易漏点：按 key 是否存在 + 失效范围区分三者，穿透是 key 根本不存在",
+      "常见误区：把击穿和雪崩混为一谈（一个是单热点、一个是大面积），或以为空值缓存能替代布隆过滤器",
+      "加分项：能对应布隆过滤器/空值缓存、互斥锁/逻辑过期、TTL 随机抖动/多级缓存/限流降级三套防御"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.data.cache-trio"],
+      "related": ["be.redis.cache.patterns"],
+      "followUps": ["布隆过滤器为什么有误判率却不会漏判，删除元素时有什么局限？", "逻辑过期方案如何保证最终一致性，异步重建失败怎么办？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://redis.io/docs/latest/develop/use/patterns/caching/", "retrievedAt": "2026-11-12", "note": "缓存穿透/击穿/雪崩的区分与防御模式综合填空" },
+    "tags": ["工程战例", "缓存", "穿透击穿雪崩", "布隆过滤器", "逻辑过期", "填空"]
+  },
+  {
+    "id": "Q-eng-ai-context-0003",
+    "nodeId": "eng.warstory.ai.context-overflow",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "为一个长期运行的多轮 LLM 应用设计上下文治理方案，下列做法合理的有：（多选）",
+    "options": [
+      { "key": "A", "text": "用滑动窗口只保留最近若干轮原文，超出窗口的早期对话交给滚动摘要压缩后保留要点" },
+      { "key": "B", "text": "把历史工单、产品文档等长期知识外置到向量库，用时按当前问题做 RAG 检索，只把相关片段注入 prompt" },
+      { "key": "C", "text": "对超长文档采用 map-reduce 分段处理：先分段摘要再汇总，避免单次输入超窗" },
+      { "key": "D", "text": "为了不丢任何信息，把全部历史和资料每轮都原样发送，仅依赖模型越来越大的上下文窗口兜底" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 是工程上互补的三层治理，D 是反模式。A 滑动窗口 + 滚动摘要：近期对话用原文保证即时准确，早期内容由 LLM 增量总结成要点，既控 token 又保留长期记忆主线，注意要控制摘要自身长度、可分级摘要防止摘要膨胀。B 的 RAG 把『记住全部』转为『按需检索』：知识外置到向量/检索引擎，每轮只注入与当前问题最相关的少量片段，输入稳定在高质量区间，知识更新也只需更新索引、不必重发全文。C 的 map-reduce 应对单篇超长文档：先切成不超窗的块分别摘要（map），再对各块摘要做合并归纳（reduce），必要时多轮归并，是处理长文档的标准流水线。D 错在忽视了长上下文的硬约束与隐性代价：上下文窗口仍有物理上限、token 成本与首 token 延迟随长度线性增长、存在中间遗忘（lost in the middle）和注意力稀释导致质量下降，且多轮累积无界增长迟早再次撞顶。合理架构通常是三者组合——RAG 控长期知识、滑动窗口+摘要控对话历史、map-reduce 处理长文档，并以 token 预算与中间遗忘评测持续校准。",
+    "gapCheck": [
+      "易漏点：三类手段作用层次不同（窗口管近期、摘要管早期、RAG 管长期知识、map-reduce 管超长文档），应组合使用",
+      "常见误区：把『换大窗口暴力塞』当银弹，忽视成本、延迟、中间遗忘与窗口硬上限",
+      "加分项：能讲分级摘要防膨胀、RAG 索引更新优势、map-reduce 多轮归并，并提 token 预算与评测"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.ai.context-overflow"],
+      "related": ["ai.rag.retrieval-pipeline"],
+      "followUps": ["滚动摘要如何设计触发阈值与分级结构，避免摘要本身占满窗口？", "如何通过评测量化中间遗忘，并决定检索片段在 prompt 中的摆放位置？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.datacamp.com/zh/blog/context-window", "retrievedAt": "2026-11-12", "note": "上下文窗口治理：滑动窗口、滚动摘要、RAG 与 map-reduce 组合方案" },
+    "tags": ["工程战例", "LLM", "上下文窗口", "RAG", "滚动摘要", "多选"]
+  }
+]

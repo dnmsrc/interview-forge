@@ -6,26 +6,75 @@
     "difficulty": 3,
     "stem": "关于 LoRA 的原理（Hu et al., ICLR 2022），下列说法**正确的是**：",
     "options": [
-      { "key": "A", "text": "LoRA 冻结预训练权重 W，用 ΔW = BA（B∈R^{d×r}, A∈R^{r×k}, r≪min(d,k)）的低秩增量做训练目标，只训 A/B，推理时 ΔW 可直接合并回 W 零额外延迟" },
-      { "key": "B", "text": "LoRA 对每一层都加一个可训练的小型 Adapter MLP，串行插在层间，因此推理时必然引入额外前向开销" },
-      { "key": "C", "text": "LoRA 的 rank 越大效果单调提升，所以永远选最大 rank" },
-      { "key": "D", "text": "LoRA 的本质是量化方法，通过把 FP16 权重压到 INT4 实现省显存" }]
-    ,
-    "answer": { "keys": ["A"] },
-    "analysis": "论文核心假设：模型适配任务时权重变化具有低『内在秩』，故用两个瘦矩阵乘积近似 ΔW 即可；训练只碰 A/B（参数量千分之几），推理时 (W+BA)x 可选择合并进 W → 零延迟增量 → A 全对。B 描述的是 Houlsby adapter 一脉（串行旁路 MLP），LoRA 恰以『可合并的并行分支』区别于它；C 错：rank 过大等于放开自由度，小数据反而过拟合，且论文报告 r=1~8 常已够用（成本还线性上涨）；D 把 LoRA 与量化混为一谈——省显存的是 QLoRA 里 NF4 量化那一半，LoRA 本体管的是『训谁』不是『怎么存』。",
-    "gapCheck": ["易漏点：『内在秩假设』这个词要说出来——它是 LoRA 有效性的理论叙事，也是面试的深挖点", "常见误区：忘讲 alpha（缩放系数）的作用：ΔW=BA·α/r，调 alpha 等价调有效学习率，与 rank 不是一回事", "加分项：说出 target modules 选择的实操结论（attention 投影 vs 全 linear 层的收益差异）与 LoRA 合并后多适配器热切换要放弃合并的取舍"],
-    "knowledgeLinks": {
-      "prereq": ["ai.train.finetune-vs-rag.lora-peft"],
-      "related": ["ai.train.finetune-vs-rag.finetune-decision", "ai.serving.infer-serving.quantize-accel"],
-      "followUps": ["QLoRA 三件套（NF4/paged optimizer/影子求值）各解决什么？", "LoRA 训完 loss 很降但生成退化，你怎么办？", "多租户 SaaS 上 100 个客户各一个 LoRA，怎么服务化？（batched multi-adapter）"]
+      {
+        "key": "A",
+        "text": "LoRA 冻结预训练权重 W，用 ΔW = BA（B∈R^{d×r}, A∈R^{r×k}, r≪min(d,k)）的低秩增量做训练目标，只训 A/B，推理时 ΔW 可直接合并回 W 零额外延迟"
+      },
+      {
+        "key": "B",
+        "text": "LoRA 对每一层都加一个可训练的小型 Adapter MLP，串行插在层间，因此推理时必然引入额外前向开销"
+      },
+      {
+        "key": "C",
+        "text": "LoRA 的 rank 越大效果单调提升，所以永远选最大 rank"
+      },
+      {
+        "key": "D",
+        "text": "LoRA 的本质是量化方法，通过把 FP16 权重压到 INT4 实现省显存"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
     },
-    "resources": [{ "title": "LoRA: Low-Rank Adaptation of Large Language Models", "digest": "arXiv:2106.09685（ICLR 2022）：内在低秩假设、ΔW=BA 参数化、GPT-3 上 10,000× 更少可训练参数超过全量微调、r 与 alpha 的行为分析、推理合并零延迟增量。" }],
+    "analysis": "论文核心假设：模型适配任务时权重变化具有低『内在秩』，故用两个瘦矩阵乘积近似 ΔW 即可；训练只碰 A/B（参数量千分之几），推理时 (W+BA)x 可选择合并进 W → 零延迟增量 → A 全对。B 描述的是 Houlsby adapter 一脉（串行旁路 MLP），LoRA 恰以『可合并的并行分支』区别于它；C 错：rank 过大等于放开自由度，小数据反而过拟合，且论文报告 r=1~8 常已够用（成本还线性上涨）；D 把 LoRA 与量化混为一谈——省显存的是 QLoRA 里 NF4 量化那一半，LoRA 本体管的是『训谁』不是『怎么存』。",
+    "gapCheck": [
+      "易漏点：『内在秩假设』这个词要说出来——它是 LoRA 有效性的理论叙事，也是面试的深挖点",
+      "常见误区：忘讲 alpha（缩放系数）的作用：ΔW=BA·α/r，调 alpha 等价调有效学习率，与 rank 不是一回事",
+      "加分项：说出 target modules 选择的实操结论（attention 投影 vs 全 linear 层的收益差异）与 LoRA 合并后多适配器热切换要放弃合并的取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.train.finetune-vs-rag.lora-peft"
+      ],
+      "related": [
+        "ai.train.finetune-vs-rag.finetune-decision",
+        "ai.serving.infer-serving.quantize-accel"
+      ],
+      "followUps": [
+        "QLoRA 三件套（NF4/paged optimizer/影子求值）各解决什么？",
+        "LoRA 训完 loss 很降但生成退化，你怎么办？",
+        "多租户 SaaS 上 100 个客户各一个 LoRA，怎么服务化？（batched multi-adapter）"
+      ]
+    },
+    "resources": [
+      {
+        "title": "LoRA: Low-Rank Adaptation of Large Language Models",
+        "digest": "arXiv:2106.09685（ICLR 2022）：内在低秩假设、ΔW=BA 参数化、GPT-3 上 10,000× 更少可训练参数超过全量微调、r 与 alpha 的行为分析、推理合并零延迟增量。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "official", "url": "https://arxiv.org/abs/2106.09685", "retrievedAt": "2026-11-09", "note": "论文官方 arXiv 页；QLoRA 另见 arXiv:2305.14314", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["微调核心", "论文口径", "必考"],
+    "source": {
+      "kind": "official",
+      "url": "https://arxiv.org/abs/2106.09685",
+      "retrievedAt": "2026-11-09",
+      "note": "论文官方 arXiv 页；QLoRA 另见 arXiv:2305.14314",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "微调核心",
+      "论文口径",
+      "必考"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "加约束实操：只有 2×4090 和 3000 条指令数据，要微调 7B 做领域问答。给出 LoRA 配置的关键决策（rank/target modules/epoch/lr 起点）并说明每个旋钮拧错的信号。", "analysis": "参考决策：r=8~16 起步（3000 条撑不起大 rank）、target 全选 linear（含 MLP，数据少时广覆盖换适应面）、lr 1e-4~2e-4 区间起步、epoch 2~3 上限（小数据多 epoch 必背数据）、bf16+gradient checkpointing 塞下 batch。拧错信号：loss 趋 0 但自由生成胡言=过拟合背数据（减 epoch/加 dropout 看数据）；loss 平台很高=欠拟合（升 lr/rank 查数据格式 bug）；通用能力明显萎缩=灾难性遗忘（混 5~10% 通用数据或减步数）。评分眼：每个决策后面挂一个『失败信号』才算真会调。" }
-    ]
+      {
+        "angle": "加约束",
+        "stem": "加约束实操：只有 2×4090 和 3000 条指令数据，要微调 7B 做领域问答。给出 LoRA 配置的关键决策（rank/target modules/epoch/lr 起点）并说明每个旋钮拧错的信号。",
+        "analysis": "参考决策：r=8~16 起步（3000 条撑不起大 rank）、target 全选 linear（含 MLP，数据少时广覆盖换适应面）、lr 1e-4~2e-4 区间起步、epoch 2~3 上限（小数据多 epoch 必背数据）、bf16+gradient checkpointing 塞下 batch。拧错信号：loss 趋 0 但自由生成胡言=过拟合背数据（减 epoch/加 dropout 看数据）；loss 平台很高=欠拟合（升 lr/rank 查数据格式 bug）；通用能力明显萎缩=灾难性遗忘（混 5~10% 通用数据或减步数）。评分眼：每个决策后面挂一个『失败信号』才算真会调。"
+      }
+    ],
+    "learnFirst": true
   },
   {
     "id": "Q-ai-train-decide-0002",
@@ -34,25 +83,500 @@
     "difficulty": 2,
     "stem": "按 NVIDIA 官方《When Should You Fine-Tune an LLM?》的四维判断框架，下列情形与其首选方案对应**正确的有**：",
     "options": [
-      { "key": "A", "text": "模型知识已过时、且知识还在持续更新 → RAG：更新检索源即可，无需反复重训" },
-      { "key": "B", "text": "需要模型稳定输出特定格式/遵循固定话术风格 → 微调：行为改变靠示范数据比靠加长 prompt 更稳更省 token" },
-      { "key": "C", "text": "需要模型具备它原本没有的新技能/深层领域行为模式 → 继续预训练或 SFT 这类真正改变权重的路线，RAG 做不到" },
-      { "key": "D", "text": "只是想让答案带上出处引用 → 微调：把『引用习惯』训进权重是最省事的方案" }]
-    ,
-    "answer": { "keys": ["A", "B", "C"] },
-    "analysis": "该文四问框架：知识过时且在变→RAG（A 对）；要改变行为/格式→微调（B 对，few-shot 顶到一定长度后被 FT 反超是其给出的经验规律）；要教全新技能/深层模式→continue-pretraining/SFT（C 对，RAG 只能喂上下文改不了能力）；『带引用』恰恰是 D 的陷阱——引用来自**检索层的出处指针**，微调让模型『模仿引用的样子』会背出编造的出处（权重记页码是幻觉温床），正确解法是 RAG+引用校验。",
-    "gapCheck": ["易漏点：D 的反例逻辑要能现场展开：『为什么微调学不会可靠引用』（出处是动态外部事实而非稳定行为）", "常见误区：把 B 与 C 混淆——格式是浅层行为（SFT/LoRA 足够），新技能是深层能力（可能要继续预训练），该文对此分层明确", "加分项：报出该文的组合结论『多数项目应从 prompt+RAG 起步，被证不够再升级到 FT』"],
-    "knowledgeLinks": {
-      "prereq": ["ai.train.finetune-vs-rag.finetune-decision"],
-      "related": ["ai.rag.retrieval-pipeline.generation-grounding", "ai.train.finetune-vs-rag.lora-peft"],
-      "followUps": ["你的场景四维各打几分？现场过一遍", "few-shot 什么时候开始不如微调？给个经验拐点", "微调后模型引用格式漂亮但页码全错，责任在谁？"]
+      {
+        "key": "A",
+        "text": "模型知识已过时、且知识还在持续更新 → RAG：更新检索源即可，无需反复重训"
+      },
+      {
+        "key": "B",
+        "text": "需要模型稳定输出特定格式/遵循固定话术风格 → 微调：行为改变靠示范数据比靠加长 prompt 更稳更省 token"
+      },
+      {
+        "key": "C",
+        "text": "需要模型具备它原本没有的新技能/深层领域行为模式 → 继续预训练或 SFT 这类真正改变权重的路线，RAG 做不到"
+      },
+      {
+        "key": "D",
+        "text": "只是想让答案带上出处引用 → 微调：把『引用习惯』训进权重是最省事的方案"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
     },
-    "resources": [{ "title": "NVIDIA 开发者博客 · When Should You Fine-Tune?", "digest": "官方四问决策树：知识新且在变→RAG；要新能力→继续预训练；要改变行为→SFT/FT；都不是→prompt 就够。附成本与迭代速度视角对比。" }],
+    "analysis": "该文四问框架：知识过时且在变→RAG（A 对）；要改变行为/格式→微调（B 对，few-shot 顶到一定长度后被 FT 反超是其给出的经验规律）；要教全新技能/深层模式→continue-pretraining/SFT（C 对，RAG 只能喂上下文改不了能力）；『带引用』恰恰是 D 的陷阱——引用来自**检索层的出处指针**，微调让模型『模仿引用的样子』会背出编造的出处（权重记页码是幻觉温床），正确解法是 RAG+引用校验。",
+    "gapCheck": [
+      "易漏点：D 的反例逻辑要能现场展开：『为什么微调学不会可靠引用』（出处是动态外部事实而非稳定行为）",
+      "常见误区：把 B 与 C 混淆——格式是浅层行为（SFT/LoRA 足够），新技能是深层能力（可能要继续预训练），该文对此分层明确",
+      "加分项：报出该文的组合结论『多数项目应从 prompt+RAG 起步，被证不够再升级到 FT』"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.train.finetune-vs-rag.finetune-decision"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.generation-grounding",
+        "ai.train.finetune-vs-rag.lora-peft"
+      ],
+      "followUps": [
+        "你的场景四维各打几分？现场过一遍",
+        "few-shot 什么时候开始不如微调？给个经验拐点",
+        "微调后模型引用格式漂亮但页码全错，责任在谁？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "NVIDIA 开发者博客 · When Should You Fine-Tune?",
+        "digest": "官方四问决策树：知识新且在变→RAG；要新能力→继续预训练；要改变行为→SFT/FT；都不是→prompt 就够。附成本与迭代速度视角对比。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "web", "url": "https://developer.nvidia.com/blog/when-should-you-fine-tune-an-llm/", "retrievedAt": "2026-11-09", "note": "NVIDIA 官方决策框架文（与 rag 节点的 RAG-or-FT 问答是姊妹篇）", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["决策框架", "取舍题", "高频开场"],
+    "source": {
+      "kind": "web",
+      "url": "https://developer.nvidia.com/blog/when-should-you-fine-tune-an-llm/",
+      "retrievedAt": "2026-11-09",
+      "note": "NVIDIA 官方决策框架文（与 rag 节点的 RAG-or-FT 问答是姊妹篇）",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "决策框架",
+      "取舍题",
+      "高频开场"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "现场裁决：律所想要『用合伙人的行文风格改写诉状，并确保引用判例库原文』。按四维框架拆成两条需求分别给方案，并指出把两件事捆在一起微调会发生什么。", "analysis": "拆解：行文风格=稳定行为→SFT/LoRA（拿合伙人修改前后配对数据训风格迁移，效果远好于巨型 few-shot）；判例引用=动态外部事实→RAG（检索判例原文注入，引用由检索层给指针）+格式约束输出。捆绑微调的事故：判例库在长，模型权重里的判例引用会过时且编造——正是 D 陷阱的放大版；还会为迁就引用行为破坏风格训练的稳定性（两种目标互相拉扯）。答题结构『拆-配-反证』三段齐全即满分。" }
+      {
+        "angle": "换场景",
+        "stem": "现场裁决：律所想要『用合伙人的行文风格改写诉状，并确保引用判例库原文』。按四维框架拆成两条需求分别给方案，并指出把两件事捆在一起微调会发生什么。",
+        "analysis": "拆解：行文风格=稳定行为→SFT/LoRA（拿合伙人修改前后配对数据训风格迁移，效果远好于巨型 few-shot）；判例引用=动态外部事实→RAG（检索判例原文注入，引用由检索层给指针）+格式约束输出。捆绑微调的事故：判例库在长，模型权重里的判例引用会过时且编造——正是 D 陷阱的放大版；还会为迁就引用行为破坏风格训练的稳定性（两种目标互相拉扯）。答题结构『拆-配-反证』三段齐全即满分。"
+      }
     ]
+  },
+  {
+    "id": "Q-ai-train-align-0003",
+    "nodeId": "ai.train.finetune-vs-rag.alignment-preference",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 RLHF 与 DPO 在偏好对齐上的差异，下列说法**正确的是**：",
+    "options": [
+      {
+        "key": "A",
+        "text": "DPO 直接用 chosen/rejected 偏好对优化一个二分类式的闭式损失，无需单独训练奖励模型、也无需 PPO 那套在线采样，因此工程链路比 RLHF 短得多"
+      },
+      {
+        "key": "B",
+        "text": "RLHF 的三段式是 SFT → 奖励模型 RM → PPO，其中 PPO 阶段不需要再读奖励模型，直接用偏好对监督即可"
+      },
+      {
+        "key": "C",
+        "text": "DPO 的 β 越大，对参考模型的 KL 约束越强、输出越保守，所以想让模型大胆改变风格就应把 β 调到极大"
+      },
+      {
+        "key": "D",
+        "text": "DPO 因为没有奖励模型，所以无法利用线上拒绝采样（rejection sampling）回流的偏好数据"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 准确描述了 DPO 的核心动机（Rafailov et al. 2023）：把『基于奖励的 RL 优化』通过奖励与最优策略的闭式关系重参数化，变成对策略的、可用偏好对直接监督的损失，省掉 RM 与 PPO 在线 rollout，链路短、稳定性高。B 错在 PPO 恰恰要用 RM 给每个采样 token/响应打分当奖励信号，脱离 RM 就不是 RLHF 了；C 把 β 的方向说反——DPO 损失里 β 是对偏离参考模型的惩罚系数，β 越大越贴着 SFT 参考模型、越保守，要明显改变风格应适当调小 β（但太小会跑偏、增加对齐税）；D 错：拒绝采样产出的 chosen/rejected 对一样能喂 DPO，偏好数据从哪来与用哪种对齐算法是正交的两件事，DPO 同样吃这套回流闭环。",
+    "gapCheck": [
+      "易漏点：要能写出 DPO 损失里隐含了一个由参考策略隐式定义的奖励，β 控制的是 KL 正则强度，而不是学习率",
+      "常见误区：以为 DPO『完全不需要偏好数据』——它只是不需要显式 RM，chosen/rejected 一对都不能少",
+      "追问延伸：IPO/KTO 各自解决 DPO 的什么痛点？（IPO 缓解确定性偏好下的过拟合，KTO 只需要二元好/坏标签、不要成对数据）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.train.finetune-vs-rag.alignment-preference",
+        "ai.train.finetune-vs-rag.lora-peft"
+      ],
+      "related": [
+        "ai.eval.evaluation-qa.llm-as-judge",
+        "ai.train.finetune-vs-rag.finetune-decision"
+      ],
+      "followUps": [
+        "只有『好/坏』二元标签、凑不成对，你选 DPO 还是 KTO？为什么？",
+        "对齐税（alignment tax）具体指什么能力下降、怎么观测？",
+        "什么情况下你仍会坚持上完整 PPO-RLHF 而不是 DPO？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "DPO: Direct Preference Optimization（Rafailov et al., 2023）",
+        "digest": "把 RLHF 的奖励最大化用最优策略闭式解重参数化为直接偏好损失；β 为对参考模型的 KL 约束；无需显式奖励模型与在线 RL。"
+      }
+    ],
+    "openBookAllowed": true,
+    "source": {
+      "kind": "official",
+      "url": "https://arxiv.org/abs/2305.18290",
+      "retrievedAt": "2026-11-11",
+      "note": "DPO 原论文 arXiv:2305.18290；KTO 见 arXiv:2402.01306",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "偏好对齐",
+      "DPO",
+      "RLHF",
+      "必考"
+    ],
+    "variants": [
+      {
+        "angle": "加约束",
+        "stem": "加约束选型题：团队只有 8 卡、没有成熟 RL 基建，标注同学能产出约 2 万条 chosen/rejected 偏好对，目标是让客服模型话术更像人工、且不能明显掉通用问答能力。给方案并说明怎么控『对齐税』。",
+        "analysis": "选 DPO 而非完整 RLHF：没有 PPO/RM 基建、数据已是偏好对、算力有限，DPO 链路最短最稳。落地：先保一个高质量 SFT 底座当参考模型；β 从 0.1 量级起调，太大贴着参考没变化、太小跑偏，用验证集盯 KL；对齐税控制靠①留一份通用能力回归集（MMLU 类 + 自建问答）对齐前后对比、②混入少量通用 SFT 数据防灾难性遗忘、③小 β 多轮微调而不是一次猛训。若后续只有好/坏零散标签凑不成对，再评估 KTO。答出『β 权衡 + 回归集监控 + 数据混入』三点即到位。"
+      }
+    ]
+  },
+  {
+    "id": "Q-ai-train-align-0004",
+    "nodeId": "ai.train.finetune-vs-rag.alignment-preference",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：既然 DPO 不需要显式奖励模型、损失还是闭式的，那么它对偏好数据质量的要求就比 RLHF 低，标注噪声大一点也没关系。",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "错。DPO 省掉的是 RM 与在线 RL 这层工程，不是对数据质量的要求。RLHF 里 RM 还能对一大批偏好对做一次平滑拟合、对单点噪声有一定平均效应；DPO 是直接在每条 chosen/rejected 上算对数似然差，单条错标（把坏答案标成 chosen）会直接把策略往错误方向拽，噪声样本的梯度没有中间模型缓冲。因此 DPO 对成对标签的内部一致性、chosen 与 rejected 的可区分度反而更敏感，实践中要做偏好对去噪、去近似重复、控制长度偏置（模型会投机地偏好更长回答，常需长度归一化或配对时对齐长度）。『工程简单』不等于『数据可以糙』。",
+    "gapCheck": [
+      "易漏点：长度偏置（length bias）是 DPO 实战高频坑，rejected 普遍很短时模型会学会『多说就赢』",
+      "常见误区：把『没有 RM』误解成『没有噪声容忍问题』，其实少了一层平滑",
+      "追问延伸：怎么清洗偏好对？（一致性投票、删 chosen/rejected 几乎雷同的对、LLM-as-judge 复核）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.train.finetune-vs-rag.alignment-preference"
+      ],
+      "related": [
+        "ai.eval.evaluation-qa.llm-as-judge"
+      ],
+      "followUps": [
+        "DPO 训练后模型变得特别啰嗦，最可能是什么数据问题？",
+        "RLHF 的 RM 过拟合会带来什么现象？",
+        "怎么判断一份偏好集的可区分度够不够？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "DPO 数据敏感性与长度偏置的工程共识，结合原论文与社区实践整理",
+      "retrievedAt": "2026-11-11"
+    },
+    "tags": [
+      "DPO",
+      "数据质量",
+      "高频追问",
+      "判断题"
+    ]
+  },
+  {
+    "id": "Q-ai-train-lora-0002",
+    "nodeId": "ai.train.finetune-vs-rag.lora-peft",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：LoRA 训练时冻结原始预训练权重 W、只训练低秩矩阵 A 和 B，因此可训练参数量和显存占用相比全量微调大幅下降；推理时可以把 BA 计算出的增量权重合并回 W，从而不引入额外的推理延迟，但一旦选择合并就不能在同一基座上快速热切换多个适配器。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。LoRA 的核心就是参数高效：冻结 W，只在旁路加 ΔW=B·A（B∈R^{d×r}、A∈R^{r×k}，r 远小于 d、k），可训练参数往往只有原模型的千分之几，优化器状态和梯度也只为这部分参数分配，显存显著下降，单卡/少卡微调大模型成为可能。推理时有两种部署：① 不合并，运行时同时算 Wx 和 BAx 再相加，好处是多个 LoRA 适配器可以按需挂载/卸载（多租户、多任务热切换），代价是多一次矩阵乘的延迟和额外显存；② 合并，把 ΔW 直接加进 W 得到 W'=W+BA，之后前向与原模型结构完全一致、零额外延迟，代价是每个适配器都要存一份合并后的完整权重，且无法在运行时快速切换。工程上常离线训练 LoRA、按需合并发布，或用支持多适配器批处理的服务框架（batched multi-adapter）兼顾两者。还要区分：LoRA 解决「训哪些参数」，量化（如 QLoRA 的 NF4）解决「权重怎么存省显存」，二者正交可叠加；alpha 通过 ΔW=(α/r)·BA 控制缩放量，调节它等价于调节有效学习率。对照后端：这很像用插件/装饰器给一个冻结的核心服务叠加可热插拔的行为，而不是复制整套服务各改一份。",
+    "gapCheck": [
+      "易漏点：合并后零延迟但失去多适配器热切换；不合并可热插拔但有额外矩阵乘开销",
+      "常见误区：把 LoRA 与量化混为一谈，或以为可训练参数少就一定效果差",
+      "加分项：能讲 alpha/r 缩放、QLoRA 的 NF4 与 LoRA 正交、多适配器服务化方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.train.finetune-vs-rag.lora-peft"
+      ],
+      "related": [
+        "ai.serving.infer-serving.quantize-accel",
+        "ai.train.finetune-vs-rag.finetune-decision"
+      ],
+      "followUps": [
+        "QLoRA 在 LoRA 之外还做了哪些省显存的事？",
+        "多租户每个客户一个 LoRA，推理服务如何调度？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "LoRA 训练/部署与合并取舍判断题"
+    },
+    "tags": [
+      "LoRA",
+      "参数高效微调",
+      "适配器合并",
+      "推理部署"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-ai-train-decide-0003",
+    "nodeId": "ai.train.finetune-vs-rag.finetune-decision",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "在「提示工程 / RAG / 微调」的选型中：需要注入频繁更新、可溯源的外部知识时优先选 ______；要稳定改变模型的输出格式、语气或固化某种行为模式时优先选 ______；而最轻量、应最先尝试、几乎零额外成本的手段是 ______。",
+    "answer": {
+      "blanks": [
+        "RAG（检索增强生成）",
+        "微调（SFT/LoRA）",
+        "提示工程（prompt engineering）"
+      ],
+      "synonyms": {
+        "RAG（检索增强生成）": [
+          "RAG",
+          "检索增强",
+          "检索增强生成"
+        ],
+        "微调（SFT/LoRA）": [
+          "微调",
+          "SFT",
+          "LoRA",
+          "fine-tune",
+          "fine-tuning"
+        ],
+        "提示工程（prompt engineering）": [
+          "提示工程",
+          "prompt",
+          "prompt engineering",
+          "提示词工程"
+        ]
+      }
+    },
+    "analysis": "三个空串起 LLM 应用落地的标准决策阶梯（NVIDIA 等官方框架的共识）：从最便宜、可逆的手段起步，被证不足再升级。① RAG 解决「知识」问题——把外部知识放在可随时更新的检索库里，推理时检索相关片段注入上下文，知识更新只需改库不需重训，且能给出来源引用、可溯源，适合法规、产品文档、企业知识库这类动态事实；它改不了模型的底层能力和稳定行为。② 微调（尤其 SFT/LoRA）解决「行为/能力」问题——当 few-shot 提示已经很长仍不稳定、需要模型内化特定格式、领域话术、风格或新的行为模式时，用示范数据调整权重更稳、推理时还省 token；但它有训练成本、知识会过时、不擅长可靠记忆可溯源的动态事实（强行把页码训进权重只会制造幻觉）。③ 提示工程（含 few-shot、角色设定、思维链）成本最低、迭代最快、完全可逆，是任何需求的第一选择。升级顺序通常是 prompt → RAG（缺知识/要溯源）→ 微调（要改行为/格式）→ 继续预训练（要注入全新领域能力），且这些手段常组合使用（如微调风格 + RAG 给事实 + 提示约束输出）。对照后端：这像先用配置/开关解决，再外挂数据源，最后才改核心代码，变更成本和风险逐级上升。",
+    "gapCheck": [
+      "易漏点：RAG 管动态可溯源知识、微调管稳定行为/能力、提示工程最先尝试，三者层次不同可组合",
+      "常见误区：想用微调记住频繁更新的事实或可靠引用，导致过时与幻觉",
+      "加分项：能给出 prompt→RAG→SFT/LoRA→继续预训练的升级阶梯和组合用法"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.train.finetune-vs-rag.finetune-decision"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.generation-grounding",
+        "ai.train.finetune-vs-rag.lora-peft"
+      ],
+      "followUps": [
+        "什么信号说明 prompt/RAG 已经到顶、该上微调了？",
+        "RAG 和微调同时使用时各自承担什么职责？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "prompt/RAG/微调选型阶梯填空题"
+    },
+    "tags": [
+      "RAG",
+      "微调",
+      "提示工程",
+      "选型",
+      "填空题"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-ai-train-align-0005",
+    "nodeId": "ai.train.finetune-vs-rag.alignment-preference",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "填空：让语言模型对齐人类偏好的主流路线中，______ 先训练一个奖励模型、再用强化学习（典型为 PPO）优化策略，效果强但流程长、训练不稳定且成本高；而 ______ 直接利用『chosen 响应的对数概率应高于 rejected 响应』的偏好对优化策略本身，省去独立奖励模型与在线 RL，更简单稳定。奖励模型一般基于人类标注的 ______ 数据（成对比较哪个回答更好）来训练。",
+    "answer": {
+      "blanks": [
+        "RLHF",
+        "DPO",
+        "成对偏好比较"
+      ],
+      "synonyms": {
+        "RLHF": [
+          "基于人类反馈的强化学习",
+          "人类反馈强化学习",
+          "RLHF/PPO",
+          "rlhf"
+        ],
+        "DPO": [
+          "直接偏好优化",
+          "Direct Preference Optimization",
+          "dpo",
+          "DPO直接偏好优化"
+        ],
+        "成对偏好比较": [
+          "偏好对",
+          "成对比较",
+          "pairwise preference",
+          "chosen/rejected",
+          "成对偏好",
+          "两两比较"
+        ]
+      }
+    },
+    "analysis": "① RLHF（基于人类反馈的强化学习）通常分三步：先做监督微调 SFT 得到初始策略，再用人类对多个回答的成对偏好标注训练奖励模型（RM）拟合『人类更喜欢哪个』，最后用 PPO 等强化学习算法让策略在 RM 打分引导下优化，优点是能精细控制偏好、上限高，缺点是流水线复杂、RM 可能被钻空子（reward hacking）、PPO 调参敏感且显存/算力开销大。② DPO（直接偏好优化）把偏好优化改写成对策略的监督式损失：用一个参考模型和 chosen/rejected 偏好对，直接增大 chosen、减小 rejected 的相对对数概率，数学上等价于隐式奖励，因此无需单独训练 RM、无需在线采样的 RL，训练更稳定、实现更便宜，代价是对在线探索、复杂约束的灵活性不如 RLHF。③ 奖励模型的训练数据是成对偏好比较（pairwise preference）：标注者对同一 prompt 的两个回答选更优者，形成 chosen/rejected 对，RM 学习给更优回答更高分；相比绝对打分，成对比较对人类标注更稳定、口径更一致。理解这三者关系（RM 吃 pairwise 数据、RLHF 用 RM+RL、DPO 绕过 RM 直接学偏好）是本考点的主线。",
+    "gapCheck": [
+      "易漏点：RLHF=SFT+奖励模型+PPO 三段；DPO 用偏好对直接优化策略、省掉 RM 与在线 RL",
+      "常见误区：以为 DPO 还要训奖励模型，或把成对比较数据和绝对打分混为一谈",
+      "加分项：能讲 DPO 的隐式奖励等价性、RLHF 的 reward hacking 与调参成本、两者灵活性取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.train.finetune-vs-rag.alignment-preference"
+      ],
+      "related": [
+        "ai.train.finetune-vs-rag.lora-peft",
+        "ai.eval.evaluation-qa.llm-as-judge"
+      ],
+      "followUps": [
+        "DPO 为什么可以不显式训练奖励模型，参考模型在其中起什么作用？",
+        "RLHF 的奖励模型被『钻空子』（reward hacking）通常如何缓解？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "RLHF 与 DPO 偏好对齐机制填空题"
+    },
+    "tags": [
+      "RLHF",
+      "DPO",
+      "偏好对齐",
+      "奖励模型",
+      "填空"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-15",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-ai-train-decide-0004",
+    "nodeId": "ai.train.finetune-vs-rag.finetune-decision",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：在 Prompt 工程、RAG、微调三种手段的选型上，知识频繁更新、需要引用权威来源且训练数据有限的场景应优先 RAG；而要稳定改变模型的行为风格、输出格式或内化特定领域『语感/技能』、且具备足够高质量样本时，才更适合微调。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确，这是三种手段的标准决策阶梯。RAG 把知识外置到检索系统：知识更新只需更新索引而无需重训，能给出处可溯源、对训练样本量要求低，天然适合事实性、时效性强、需要引用依据以及会频繁变动的企业知识；它不改变模型权重，幻觉可通过 grounding 缓解。Prompt 工程成本最低、迭代最快，应作为首选——改指令、给 few-shot 示例、约束格式往往就能解决大量问题。微调（含 LoRA 等 PEFT）修改模型权重，擅长把稳定的行为模式、语气风格、固定输出结构、领域语言习惯与特定技能『内化』进模型，但前提是有充足且高质量、分布一致的标注样本，并要承担训练算力、评估体系与持续维护成本；用微调去记忆频繁变化的事实性价比很低且易过时。实践中三者常组合：RAG 负责动态知识与溯源、微调负责稳定行为与风格、Prompt 负责即时调度。判断该上微调的信号通常是：Prompt 与 RAG 已优化到瓶颈仍无法稳定满足行为要求、能持续产出高质量样本、且团队能承受训练与运维投入。",
+    "gapCheck": [
+      "易漏点：RAG 管可更新可溯源的知识、微调管稳定行为/风格/技能、Prompt 成本最低优先试",
+      "常见误区：用微调去记频繁变化的事实，或在数据不足/Prompt 未榨干时就盲目微调",
+      "加分项：能讲三者组合（RAG 知识+微调行为+Prompt 调度）与上微调的前置信号和运维成本"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.train.finetune-vs-rag.finetune-decision"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval",
+        "ai.train.finetune-vs-rag.lora-peft"
+      ],
+      "followUps": [
+        "出现哪些具体信号说明 Prompt/RAG 已到瓶颈、该投入微调？",
+        "RAG 与微调同时使用时，各自承担什么职责、如何避免职责重叠？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Prompt/RAG/微调选型决策的判断题"
+    },
+    "tags": [
+      "微调",
+      "RAG",
+      "提示工程",
+      "选型决策",
+      "判断"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-15",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-ai-train-lora-0003",
+    "nodeId": "ai.train.finetune-vs-rag.lora-peft",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 LoRA / QLoRA 等参数高效微调（PEFT），下列说法正确的有：（多选）",
+    "options": [
+      {
+        "key": "A",
+        "text": "LoRA 冻结预训练权重 W，只在旁路注入两个低秩矩阵 A、B（更新量 ΔW=BA，秩 r 远小于原维度），仅训练少量增量参数，显著降低训练显存与每个适配器的存储体积"
+      },
+      {
+        "key": "B",
+        "text": "可针对不同任务训练并保存各自独立的 LoRA 适配器，运行时按需加载/热切换，多个任务共享同一份基座模型，便于多租户与多任务部署"
+      },
+      {
+        "key": "C",
+        "text": "QLoRA 在量化（如 4-bit NF4）后的冻结基座上做 LoRA，并配合双重量化、分页优化器等手段，进一步压低显存，使小显存/单卡也能微调较大模型"
+      },
+      {
+        "key": "D",
+        "text": "LoRA 既然冻结了原模型，秩 r 就应该设得越大越好，r 越大效果必然越好，且不会带来过拟合或边际收益递减"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确，D 错。A 是 LoRA 的核心：基于『微调时权重更新具有低秩本征维度』的假设，冻结原 W，用 W'=W+BA（B∈R^{d×r}、A∈R^{r×k}，r≪min(d,k)）表达更新，可训练参数从 d×k 降到约 r(d+k)，显存（无需为全部权重存优化器状态/梯度）和适配器存储大降，推理时可把 BA 合并回 W 不增加延迟。B 是工程优势：适配器通常只有几十到几百 MB，可独立版本化、按任务/租户加载或热插拔，基座只留一份，显著降低多任务部署成本，也方便 A/B 与回滚。C 是 QLoRA 的贡献：把基座权重量化到 4-bit NF4（针对正态分布权重优化的量化格式）并冻结，在其上训练 bf16 的 LoRA，辅以双重量化（量化『量化常数』再省一块）与分页优化器（显存峰值时借用 CPU 内存防 OOM），让单卡微调几十上百亿参数模型成为可能，精度通常接近全参微调。D 错：秩 r 是关键超参，r 越大可训练容量和参数/显存越高，表达力增强但会边际收益递减、更容易在小数据上过拟合、也削弱低秩正则带来的泛化好处；实践要结合任务复杂度调 r、缩放系数 alpha 与 dropout，常用 8/16/32/64 并以验证集评估，而非一味调大。",
+    "gapCheck": [
+      "易漏点：LoRA 冻基座+低秩 BA、参数量 r(d+k)、可合并回 W 不增推理延迟；QLoRA 的 NF4/分页优化器",
+      "常见误区：以为 r 越大越好，忽视过拟合、边际递减与显存回升；把 LoRA 当全参微调",
+      "加分项：能讲适配器独立热切换共享基座、alpha/dropout 调参、低秩假设的泛化含义"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.train.finetune-vs-rag.lora-peft"
+      ],
+      "related": [
+        "ai.train.finetune-vs-rag.finetune-decision",
+        "ai.serving.infer-serving.quantize-accel"
+      ],
+      "followUps": [
+        "LoRA 的秩 r 与 alpha 如何配合设置，过大或过小分别有什么表现？",
+        "LoRA 适配器推理时合并（merge）与不合并各有什么利弊？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "LoRA/QLoRA 机制与超参实务综合多选题"
+    },
+    "tags": [
+      "LoRA",
+      "QLoRA",
+      "PEFT",
+      "低秩适配",
+      "多选"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-15",
+      "version": 1,
+      "history": []
+    }
   }
 ]

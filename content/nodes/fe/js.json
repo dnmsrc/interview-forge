@@ -1,0 +1,88 @@
+[
+  { "id": "fe.js", "title": "JavaScript 核心", "level": 2, "domain": "fe", "stack": "js", "topic": null, "mustMaster": true, "estMinutes": 260,
+    "summary": "类型与转换、作用域闭包、原型链与 this、Promise 与事件循环、DOM 与事件、ES6+，是前端面试占比最高的硬基础" },
+
+  { "id": "fe.js.basics", "title": "语法、数据类型与转换", "level": 3, "domain": "fe", "stack": "js", "topic": "basics", "mustMaster": true, "estMinutes": 45,
+    "summary": "原始类型与引用类型、typeof/装箱、隐式类型转换、相等运算符" },
+
+  { "id": "fe.js.basics.types", "title": "原始类型 vs 引用类型与 typeof", "level": 4, "domain": "fe", "stack": "js", "topic": "basics",
+    "prerequisites": ["fe.html.foundation.semantic-tags"],
+    "related": ["fe.js.basics.coercion"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 7 种原始类型（number/string/boolean/null/undefined/symbol/bigint）与 object 引用类型在内存与赋值上的区别、typeof 的返回与 null 的历史坑、原始包装类型装箱、值类型按值拷贝而对象按引用共享。前端语境的 JavaScript 用于为 HTML 页面添加交互，因此排在 HTML 之后" },
+
+  { "id": "fe.js.basics.coercion", "title": "隐式类型转换与 == / ===", "level": 4, "domain": "fe", "stack": "js", "topic": "basics",
+    "prerequisites": ["fe.js.basics.types"],
+    "related": ["fe.js.basics.types"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 ToPrimitive/ToNumber/ToString 转换规则、[] == false 与 1 + '2' 等经典坑、== 与 === 的区别（是否允许转换）、何时用 == 何时一律 ===，以及 Boolean 真值假值清单" },
+
+  { "id": "fe.js.scope", "title": "作用域、闭包与执行上下文", "level": 3, "domain": "fe", "stack": "js", "topic": "scope", "mustMaster": true, "estMinutes": 50,
+    "summary": "var/let/const、变量提升与暂时性死区、作用域链、闭包原理与典型应用" },
+
+  { "id": "fe.js.scope.hoisting", "title": "var/let/const、变量提升与暂时性死区", "level": 4, "domain": "fe", "stack": "js", "topic": "scope",
+    "prerequisites": ["fe.js.basics.types"],
+    "related": ["fe.js.es6.modern"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲函数与变量的提升（hoisting）、var 的函数作用域与重复声明、let/const 的块级作用域与暂时性死区 TDZ、函数声明与函数表达式提升差异、const 绑定不可重新赋值但对象内容可变" },
+
+  { "id": "fe.js.scope.closure", "title": "作用域链与闭包", "level": 4, "domain": "fe", "stack": "js", "topic": "scope",
+    "prerequisites": ["fe.js.scope.hoisting"],
+    "related": ["fe.js.oop.this"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲词法作用域与作用域链查找、闭包的定义（函数记住并访问其词法作用域）、闭包在数据私有化/防抖节流/循环计数中的应用、闭包可能导致的内存泄漏与 GC 关系" },
+
+  { "id": "fe.js.oop", "title": "原型链与 this", "level": 3, "domain": "fe", "stack": "js", "topic": "oop", "mustMaster": true, "estMinutes": 50,
+    "summary": "prototype/proto/constructor、原型链继承、new 过程、this 的四种绑定与箭头函数" },
+
+  { "id": "fe.js.oop.prototype", "title": "原型、原型链与继承", "level": 4, "domain": "fe", "stack": "js", "topic": "oop",
+    "prerequisites": ["fe.js.basics.types"],
+    "related": ["fe.js.oop.this"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 prototype 与 __proto__/constructor 的关系、属性沿原型链查找、new 一个对象发生了什么、原型链继承与 class/extends 的语法糖本质、hasOwnProperty 与原型属性的区别" },
+
+  { "id": "fe.js.oop.this", "title": "this 绑定规则与 call/apply/bind", "level": 4, "domain": "fe", "stack": "js", "topic": "oop",
+    "prerequisites": ["fe.js.oop.prototype", "fe.js.scope.closure"],
+    "related": ["fe.js.scope.closure"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 this 的默认/隐式/显式(call apply bind)/new 四种绑定及优先级、箭头函数继承外层 this、严格函数调用 this 为 undefined、回调里 this 丢失的原因与 bind/箭头函数解法" },
+
+  { "id": "fe.js.async", "title": "异步编程与事件循环", "level": 3, "domain": "fe", "stack": "js", "topic": "async", "mustMaster": true, "estMinutes": 50,
+    "summary": "回调与 Promise、async/await、宏任务微任务、事件循环时序" },
+
+  { "id": "fe.js.async.promise", "title": "Promise 与 async/await", "level": 4, "domain": "fe", "stack": "js", "topic": "async",
+    "prerequisites": ["fe.js.scope.closure"],
+    "related": ["fe.js.async.event-loop"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 Promise 三种状态与不可逆、then 链与返回值、Promise.all/race/allSettled、async/await 的语法糖本质与错误处理(try/catch)、回调地狱如何被 Promise 解决" },
+
+  { "id": "fe.js.async.event-loop", "title": "事件循环：宏任务、微任务与执行时序", "level": 4, "domain": "fe", "stack": "js", "topic": "async",
+    "prerequisites": ["fe.js.async.promise"],
+    "related": ["fe.vue.scheduler.nexttick"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能手排同步/微任务(Promise.then)/宏任务(setTimeout) 的执行顺序、讲清调用栈与任务队列、每轮宏任务后清空微任务队列、浏览器与 Node 事件循环差异、await 后的代码进微任务" },
+
+  { "id": "fe.js.dom", "title": "DOM 操作与浏览器事件", "level": 3, "domain": "fe", "stack": "js", "topic": "dom", "mustMaster": true, "estMinutes": 40,
+    "summary": "DOM 树与常用 API、重排重绘、事件流冒泡捕获、事件委托" },
+
+  { "id": "fe.js.dom.dom-api", "title": "DOM 操作、重排与重绘", "level": 4, "domain": "fe", "stack": "js", "topic": "dom",
+    "prerequisites": ["fe.js.basics.types", "fe.html.foundation.semantic-tags"],
+    "related": ["fe.js.dom.event"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 querySelector/getElementById 等选取、节点增删改插、attribute 与 property 区别、浏览器渲染流水线中 reflow(重排) 与 repaint(重绘) 的触发条件与性能优化（批量 DOM、DocumentFragment、脱离文档流）" },
+
+  { "id": "fe.js.dom.event", "title": "事件流、冒泡捕获与事件委托", "level": 4, "domain": "fe", "stack": "js", "topic": "dom",
+    "prerequisites": ["fe.js.dom.dom-api", "fe.html.form.form-basics"],
+    "related": ["fe.js.scope.closure"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲事件捕获-目标-冒泡三阶段、addEventListener 的 useCapture、stopPropagation/preventDefault 区别、事件委托利用冒泡在父级统一处理子元素事件的原理与动态列表优势、this/currentTarget/target 的区别" },
+
+  { "id": "fe.js.es6", "title": "ES6+ 现代语法", "level": 3, "domain": "fe", "stack": "js", "topic": "es6", "mustMaster": false, "estMinutes": 30,
+    "summary": "解构、展开/剩余、模板字符串、可选链、模块化、迭代器与生成器入门" },
+
+  { "id": "fe.js.es6.modern", "title": "解构/展开/可选链/模块化等 ES6+ 语法", "level": 4, "domain": "fe", "stack": "js", "topic": "es6",
+    "prerequisites": ["fe.js.scope.hoisting"],
+    "related": ["fe.ts.type-system.structural-typing"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 let/const、箭头函数、模板字符串、默认参数、解构赋值、展开与剩余运算符、可选链 ?. 与空值合并 ??、Map/Set、ES Module(import/export) 与 CommonJS 区别，为过渡到 TypeScript 打底" }
+]

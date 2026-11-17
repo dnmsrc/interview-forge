@@ -1,0 +1,112 @@
+[
+  {
+    "id": "be.mysql.index",
+    "title": "索引原理与 SQL 调优",
+    "level": 3,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "index",
+    "mustMaster": true,
+    "estMinutes": 80,
+    "summary": "B+ 树索引、聚簇/二级索引、最左前缀与执行计划，是慢查询优化与表结构设计的核心"
+  },
+  {
+    "id": "be.mysql.index.bplus-tree",
+    "title": "为什么用 B+ 树、聚簇索引与二级索引、回表与覆盖索引",
+    "level": 4,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "index",
+    "prerequisites": ["be.java.dsa.tree"],
+    "related": ["be.mysql.index.left-prefix-explain"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 35,
+    "summary": "要能讲为什么 InnoDB 选 B+ 树而不是 B 树/哈希/二叉树（矮胖、范围查询、叶子链表顺序 IO）、聚簇索引叶子存整行而二级索引叶子存主键、回表是什么、覆盖索引如何避免回表、索引下推 ICP、唯一索引与普通索引在 change buffer 上的差异"
+  },
+  {
+    "id": "be.mysql.index.left-prefix-explain",
+    "title": "联合索引最左前缀、索引失效与 EXPLAIN 执行计划",
+    "level": 4,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "index",
+    "prerequisites": ["be.mysql.index.bplus-tree"],
+    "related": ["eng.warstory.data.deep-pagination"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 35,
+    "summary": "要能讲联合索引最左匹配原则、索引失效的典型场景（对索引列函数/运算、隐式类型转换、like 左模糊、or 连接无索引列、不符合最左前缀）、EXPLAIN 的 type/key/rows/Extra 关键字段、rows 与扫描行数、深分页 limit 偏移问题与延迟关联/书签法优化"
+  },
+
+  {
+    "id": "be.mysql.transaction",
+    "title": "事务、锁与 MVCC",
+    "level": 3,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "transaction",
+    "mustMaster": true,
+    "estMinutes": 80,
+    "summary": "隔离级别、MVCC 多版本、行锁/间隙锁与死锁，是高并发写与数据正确性的关键"
+  },
+  {
+    "id": "be.mysql.transaction.isolation-mvcc",
+    "title": "ACID、四种隔离级别与 MVCC（undo log + ReadView）",
+    "level": 4,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "transaction",
+    "prerequisites": ["be.mysql.index.bplus-tree"],
+    "related": ["be.mysql.transaction.lock-deadlock"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 40,
+    "summary": "要能讲 ACID 四性、脏读/不可重复读/幻读分别对应哪个隔离级别、RU/RC/RR/Serializable 四级与 InnoDB 默认 RR、MVCC 如何靠 undo log 版本链 + ReadView（trx_ids/up_limit/low_limit/creator）实现 RC 与 RR 的区别、快照读与当前读的差异"
+  },
+  {
+    "id": "be.mysql.transaction.lock-deadlock",
+    "title": "记录锁/间隙锁/临键锁、意向锁与死锁排查",
+    "level": 4,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "transaction",
+    "prerequisites": ["be.mysql.transaction.isolation-mvcc"],
+    "related": ["cs.os.sync.deadlock"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 40,
+    "summary": "要能讲 Record Lock/Gap Lock/Next-Key Lock 如何在 RR 下防止幻读、意向锁 IS/IX 的作用、共享锁与排他锁、当前读 select ... for update 加锁范围、死锁的四个必要条件与 InnoDB 死锁检测（wait-for graph、主动回滚代价小的事务）、show engine innodb status 排查与加固定顺序避免死锁"
+  },
+
+  {
+    "id": "be.mysql.log",
+    "title": "日志体系与高可用架构",
+    "level": 3,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "log",
+    "mustMaster": false,
+    "estMinutes": 60,
+    "summary": "redo/undo/binlog 三大日志、两阶段提交与主从复制，是崩溃恢复与集群扩展的基础"
+  },
+  {
+    "id": "be.mysql.log.redo-binlog-replication",
+    "title": "redo log/undo log/binlog、两阶段提交与主从复制、分库分表",
+    "level": 4,
+    "domain": "be",
+    "stack": "mysql",
+    "topic": "log",
+    "prerequisites": ["be.mysql.transaction.isolation-mvcc"],
+    "related": ["cs.design.sharding.strategy", "cs.design.sharding.readwrite", "be.redis.persist.cluster"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 40,
+    "summary": "要能讲 redo log（InnoDB 物理日志、WAL、crash recovery）、undo log（回滚与 MVCC）、binlog（Server 层逻辑日志、归档与主从）三者职责、redo 与 binlog 两阶段提交为何能保证一致、主从复制流程（binlog→relay log→重放）与异步/半同步、读写分离延迟，以及分库分表的垂直/水平拆分、分片键选择与带来的跨片查询/分布式 ID/事务问题"
+  }
+]

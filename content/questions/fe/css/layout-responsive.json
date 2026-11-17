@@ -1,0 +1,646 @@
+[
+  {
+    "id": "Q-fe-css-flex-0001",
+    "nodeId": "fe.css.layout.flex",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "用 Flex 实现「容器内单个子元素水平且垂直居中」，下列写法**最直接正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "容器设 display:flex; justify-content:center; align-items:center;"
+      },
+      {
+        "key": "B",
+        "text": "子元素设 margin: 0 auto;"
+      },
+      {
+        "key": "C",
+        "text": "容器设 text-align:center; vertical-align:middle;"
+      },
+      {
+        "key": "D",
+        "text": "子元素设 position:absolute; top:50%; left:50%;"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：flex 容器默认主轴为水平方向，justify-content 控制主轴对齐（水平居中），align-items 控制交叉轴对齐（垂直居中），两者配合即可实现水平垂直居中。B 的 margin:0 auto 只能水平居中块级元素且需要明确宽度，做不到垂直居中。C 的 text-align 只对内联/行内内容的水平对齐有效，vertical-align 对普通块级布局不实现垂直居中。D 只写 top/left:50% 会让元素左上角居中而非元素中心，还需 transform:translate(-50%,-50%) 修正，且绝对定位脱离文档流，不如 flex 直接。",
+    "gapCheck": [
+      "易漏点：justify-content 管主轴、align-items 管交叉轴，主轴方向随 flex-direction 改变",
+      "常见误区：把 text-align:center 当成万能居中——它只影响行内内容",
+      "加分项：能讲 flex:1 = flex-grow:1 flex-shrink:1 flex-basis:0% 的含义"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.layout.flex"
+      ],
+      "related": [
+        "fe.css.layout.position",
+        "fe.css.layout.grid"
+      ],
+      "followUps": [
+        "flex-direction 改成 column 后，两个居中属性还对吗？",
+        "flex:1 到底是哪三个属性的简写？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Flex 居中应用题"
+    },
+    "tags": [
+      "CSS",
+      "Flex",
+      "居中",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-css-flex-0002",
+    "nodeId": "fe.css.layout.flex",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：flex: 1 是 flex-grow:1、flex-shrink:1、flex-basis:0% 的简写，表示该项目在有剩余空间时按比例放大、空间不足时可收缩，且初始主轴尺寸按 0 参与剩余空间分配。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。flex 是 flex-grow（放大比例）、flex-shrink（收缩比例）、flex-basis（初始基准尺寸）的简写。flex:1 等价于 1 1 0%：basis 为 0 意味着不看内容原始宽度，所有项目从 0 开始按 grow 比例瓜分容器空间，因此多个 flex:1 的子项会等宽。对比 flex:auto（1 1 auto）会先按内容尺寸再分配剩余空间，等宽效果可能不一致。flex:none（0 0 auto）则既不放大也不收缩，保持内容尺寸。",
+    "gapCheck": [
+      "易漏点：flex:1 的 basis 是 0% 而不是 auto，这是它能严格等分的关键",
+      "常见误区：以为 flex-grow 直接等于最终宽度比例——它分配的是「剩余空间」而非整个容器",
+      "加分项：能解释 flex-shrink 在空间不足时按什么权重压缩、min-width:auto 的影响"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.layout.flex"
+      ],
+      "related": [
+        "fe.css.layout.grid"
+      ],
+      "followUps": [
+        "为什么 flex 子项里的长文本会把容器撑破，怎么解？",
+        "flex:auto 和 flex:1 视觉上何时会不一样？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "flex 简写语义判断题"
+    },
+    "tags": [
+      "CSS",
+      "Flex",
+      "flex简写",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-css-position-0001",
+    "nodeId": "fe.css.layout.position",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "给元素设 position: absolute 并用 top/left 定位时，它的定位参照物是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "永远是浏览器视口（viewport）"
+      },
+      {
+        "key": "B",
+        "text": "最近的一个 position 不为 static 的祖先元素；若都没有则相对初始包含块（视口/文档）"
+      },
+      {
+        "key": "C",
+        "text": "它的直接父元素，无论父元素 position 是什么"
+      },
+      {
+        "key": "D",
+        "text": "相对它自己原来的位置偏移"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：absolute 相对最近的「已定位祖先」（position 为 relative/absolute/fixed/sticky）定位；一路向上都没有时，相对初始包含块（通常是 <html>，随页面滚动）。这就是为什么常见做法是给父元素加 position:relative 当定位上下文、子元素 absolute 来摆放。A 描述的更接近 fixed（相对视口、不随滚动）。D 描述的是 relative——相对自身原位置偏移且不脱离原占位。absolute 会脱离正常文档流（脱标），原位置不再保留。",
+    "gapCheck": [
+      "易漏点：absolute 的参照物要找「最近的非 static 祖先」，所以父级常配 relative",
+      "常见误区：把 absolute 和 fixed 的参照物混为一谈",
+      "加分项：能讲脱标后对文档流和兄弟元素布局的影响"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.layout.position"
+      ],
+      "related": [
+        "fe.css.layout.flex"
+      ],
+      "followUps": [
+        "fixed 元素在有 transform 的祖先内为什么会失效变成相对该祖先？",
+        "sticky 吸顶的原理和触发条件是什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "position 定位参照物单选题"
+    },
+    "tags": [
+      "CSS",
+      "定位",
+      "position",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-css-position-0002",
+    "nodeId": "fe.css.layout.position",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：两个都设了 position:relative 和 z-index 的兄弟元素，z-index 数值大的一定盖在上面；但如果父元素创建了新的层叠上下文（stacking context），子元素再大的 z-index 也无法越过父元素的层叠层级与外部元素比较。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。这是「z-index 不生效」的核心原理。z-index 只对定位元素（非 static）生效，且比较被限制在同一个层叠上下文内部。层叠上下文由根元素、z-index 非 auto 的定位元素、opacity<1、transform 非 none、filter、will-change、isolation:isolate 等条件创建。一旦父级形成层叠上下文，其内部所有子元素的 z-index 都被「打包」成一个整体，先在父级所在的外层上下文里和别的整体比较，因此子元素 z-index:9999 也可能被外部一个 z-index 很小但处于更高层叠上下文的元素盖住。",
+    "gapCheck": [
+      "易漏点：z-index 不是全局比大小，而是「同一层叠上下文内」比较",
+      "常见误区：z-index 设得很大却被遮挡，只知道加数值，不知道是祖先层叠上下文限制",
+      "加分项：能列举 transform/opacity/filter/will-change 等意外创建层叠上下文的属性"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.layout.position"
+      ],
+      "related": [
+        "fe.css.layout.flex"
+      ],
+      "followUps": [
+        "哪些 CSS 属性会「偷偷」创建层叠上下文？",
+        "sticky 元素的 z-index 该怎么管理？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "层叠上下文与 z-index 判断题"
+    },
+    "tags": [
+      "CSS",
+      "层叠上下文",
+      "z-index",
+      "高频踩坑"
+    ]
+  },
+  {
+    "id": "Q-fe-css-grid-0001",
+    "nodeId": "fe.css.layout.grid",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 Flex 与 Grid 布局的选型，下列说法**最准确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "Grid 是一维布局、Flex 是二维布局"
+      },
+      {
+        "key": "B",
+        "text": "Flex 擅长一维（单行或单列）的弹性分布，Grid 擅长二维（行和列同时受控）的整体网格布局"
+      },
+      {
+        "key": "C",
+        "text": "有了 Grid 之后 Flex 已经完全没用了"
+      },
+      {
+        "key": "D",
+        "text": "Grid 只能做固定列数布局，不能用 fr 自适应"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 准确：Flex 是一维布局，沿主轴排列项目（导航栏、工具栏、一行卡片），交叉轴只做对齐；Grid 是二维布局，用 grid-template-columns/rows 同时定义行列轨道，适合整页骨架、仪表盘、卡片矩阵等。A 说反了。C 错，二者互补常配合使用（Grid 搭页面骨架、Flex 处理组件内部排布）。D 错：Grid 的 fr（fraction 单位）正是自适应利器，grid-template-columns:repeat(3,1fr) 即三等分，配合 minmax(auto-fill,minmax) 还能做自动换行的响应式网格。",
+    "gapCheck": [
+      "易漏点：一维 vs 二维是 Flex 与 Grid 最本质的分工，不是谁取代谁",
+      "常见误区：以为 Grid 只能写死列宽，忽略 fr/minmax/auto-fill 的自适应能力",
+      "加分项：能用 repeat(auto-fit,minmax(200px,1fr)) 写无需媒体查询的自适应网格"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.layout.grid"
+      ],
+      "related": [
+        "fe.css.layout.flex",
+        "fe.css.responsive.media-query"
+      ],
+      "followUps": [
+        "auto-fill 和 auto-fit 有什么区别？",
+        "Grid 的 subgrid 解决什么问题？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Flex 与 Grid 选型单选题"
+    },
+    "tags": [
+      "CSS",
+      "Grid",
+      "布局选型"
+    ]
+  },
+  {
+    "id": "Q-fe-css-grid-0002",
+    "nodeId": "fe.css.layout.grid",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：grid-template-columns: repeat(3, 1fr) 表示创建 3 条等宽列轨道，fr 单位按比例瓜分容器除去 gap 后的可用空间。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。repeat(3,1fr) 等价于 1fr 1fr 1fr，三条列轨道按 1:1:1 均分可用宽度；gap（列间距）占用的空间会先扣除，剩余空间再按 fr 比例分配。fr 是 fraction（剩余空间分数），与固定 px、minmax、auto 混用时，先满足固定轨道和内容尺寸，再把剩余空间分给 fr 轨道。例如 100px 1fr 2fr 表示第一列固定 100px，余下空间按 1:2 分给后两列。",
+    "gapCheck": [
+      "易漏点：fr 分配的是「扣除 gap 和固定轨道后的剩余空间」，不是整个容器宽度",
+      "常见误区：以为 1fr 永远等于容器的 1/N，忽略固定列和 gap 的影响",
+      "加分项：能结合 minmax 与 auto-fill 做响应式自动网格"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.layout.grid"
+      ],
+      "related": [
+        "fe.css.responsive.media-query"
+      ],
+      "followUps": [
+        "1fr 和 auto 在分配空间时有何不同？",
+        "如何让网格在容器变窄时自动减少列数？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Grid fr 单位判断题"
+    },
+    "tags": [
+      "CSS",
+      "Grid",
+      "fr单位"
+    ]
+  },
+  {
+    "id": "Q-fe-css-responsive-0001",
+    "nodeId": "fe.css.responsive.media-query",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于移动端适配中的单位，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "rem 相对当前元素的 font-size，em 相对根元素 <html> 的 font-size"
+      },
+      {
+        "key": "B",
+        "text": "rem 相对根元素 <html> 的 font-size，em 相对当前元素（继承来的）font-size"
+      },
+      {
+        "key": "C",
+        "text": "vw 表示视口高度的 1%，vh 表示视口宽度的 1%"
+      },
+      {
+        "key": "D",
+        "text": "rem 在任何情况下都不会受用户浏览器字号设置影响"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：rem（root em）始终相对根元素 <html> 的 font-size，所以全站改一个根字号就能整体缩放，是移动端等比适配的常用方案；em 相对当前元素自身（继承计算后的）font-size，嵌套时会逐层累积、容易失控。A 把两者说反了。C 说反：vw 是视口宽度的 1%、vh 是视口高度的 1%。D 错：若根字号用浏览器默认 16px 或用户调大了默认字号，rem 会随之变化（这其实是可访问性优点）；用 px 写死根字号才会忽略用户偏好。",
+    "gapCheck": [
+      "易漏点：rem 看根 <html>、em 看当前元素且会嵌套累积",
+      "常见误区：把 vw/vh 对应的视口维度记反",
+      "加分项：能讲 rem 适配（JS 动态设根字号 / vw 方案）与 devicePixelRatio、物理像素的关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.responsive.media-query"
+      ],
+      "related": [
+        "fe.html.foundation.semantic-tags"
+      ],
+      "followUps": [
+        "用 JS 动态设置 html font-size 的 rem 适配原理是什么？",
+        "1px 边框在高清屏为什么会变粗，怎么处理？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "响应式单位单选题"
+    },
+    "tags": [
+      "CSS",
+      "响应式",
+      "rem",
+      "vw",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-css-responsive-0002",
+    "nodeId": "fe.css.responsive.media-query",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"> 让移动端浏览器以设备宽度作为视口宽度并按 1:1 初始缩放，缺少它时手机会按较宽的默认视口（约 980px）渲染再缩小，导致页面字很小。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。没有 viewport meta 时，移动浏览器为兼容早期为桌面设计的页面，会用一个约 980px 的布局视口渲染，再整体缩小到屏幕宽度，结果文字和按钮都偏小、需要手动缩放。加上 width=device-width 让布局视口等于设备独立像素宽度，initial-scale=1 设定初始缩放比例为 1，页面才按移动端真实宽度正常排版。它是响应式和移动端适配的前提，媒体查询的断点也依赖正确的视口宽度才能命中。",
+    "gapCheck": [
+      "易漏点：viewport meta 是移动端适配的「开关」，媒体查询没有它也会按 980px 判定而失效",
+      "常见误区：只写媒体查询却忘了 viewport，结果手机端样式不生效",
+      "加分项：能区分布局视口/视觉视口/理想视口，以及 devicePixelRatio 与物理像素、CSS 像素的关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.responsive.media-query"
+      ],
+      "related": [
+        "fe.html.foundation.semantic-tags",
+        "fe.css.layout.grid"
+      ],
+      "followUps": [
+        "布局视口和视觉视口有什么区别？",
+        "maximum-scale/user-scalable=no 为什么不推荐？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "viewport meta 与移动适配判断题"
+    },
+    "tags": [
+      "CSS",
+      "响应式",
+      "viewport",
+      "移动端"
+    ]
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.css.layout.flex",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "一个横向 flex 容器内有三个固定 flex: none、宽度分别为 120px、180px、260px 的项目，容器宽度仅 480px。请回答：(1) 不做任何其他设置时，项目会不会收缩？为什么？请结合 flex-shrink 默认值与 min-width:auto 说明；(2) 若给三个项目都设 flex-shrink: 1 且内容可收缩，收缩量按什么公式分配？请代入数值算出每个项目的最终宽度；(3) 若第三个项目内含不可换行的长 URL 文本导致它拒绝收缩，现象与根因是什么？给出两条可行修复。",
+    "scoringPoints": [
+      {
+        "point": "答出默认 flex-shrink:1 会收缩，但 flex 项目 min-width:auto 使收缩下限是内容 min-content，固定宽内容可被压缩、长文本场景则被顶住",
+        "weight": 3
+      },
+      {
+        "point": "收缩加权公式正确：缩减量按 flex-shrink × 主轴基准尺寸（flex-basis）的比例分配，本题总权重 560，超出 80px",
+        "weight": 3
+      },
+      {
+        "point": "数值正确：120 项缩 80×120/560≈17.1 → 约 102.9；180 项缩 ≈25.7 → 约 154.3；260 项缩 ≈37.1 → 约 222.9",
+        "weight": 2
+      },
+      {
+        "point": "长 URL 现象（第三项不收缩导致溢出/被挤出）与根因 min-width:auto + min-content，修复：min-width:0 释放收缩、overflow-wrap:anywhere/word-break 允许断词（或容器 overflow 兜底）",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "参考骨架：(1) 会参与收缩。flex 简写初始值是 flex: 0 1 auto，即 flex-shrink 默认为 1，空间不足时项目允许收缩；但收缩不是无底线的，flex 项目的 min-width 自动计算为 auto，解析为内容的 min-content 宽度，所以「能缩多少」取决于内容固有最小宽度：固定宽度盒子内容可压，而长英文串/nowrap 文本会把项目顶在 min-content 上。(2) 收缩分配与 grow 瓜分剩余空间不同：先算总缺口 = (120+180+260) - 480 = 80px；加权基数 Σ(shrink×basis) = 1×120+1×180+1×260 = 560；各项缩减量 = 80 × 自身权重/560：项一 ≈17.14px → 最终 ≈102.86px；项二 ≈25.71px → ≈154.29px；项三 ≈37.14px → ≈222.86px，合计 480px。注意若 shrink 不同则按各自 shrink 加权，且任一项触达 min-content 后剩余缺口会重新分摊给其他项。(3) 现象：第三项宽度卡在长 URL 的 min-content 上拒绝继续收缩，总宽超出容器，出现横向溢出或把其他项目挤偏。根因是 min-width:auto 的自动最小值保护。修复：①给该项目显式 min-width:0（flex 场景最经典的解法），允许其收缩到 0 再由内容换行；②给文本加 overflow-wrap:anywhere（或 word-break:break-all）让长 URL 可断行，从源头降低 min-content；容器侧可叠加 overflow:hidden 兜底但不治本。"
+    },
+    "analysis": "这题的区分度在「grow 与 shrink 分配规则不对称」：grow 瓜分的是剩余空间、按 grow 比例；shrink 分摊的是溢出缺口、按 shrink×flex-basis 加权，basis 越大的项目承担越多缩减，很多候选人会误按 shrink 数值直接平分。第二层考点是 min-width:auto 这条隐形约束——它解释了为什么理论计算会收缩的项目实际被内容顶住，也是 flex 文本溢出类 bug 的统一根因。失分集中在：不知道默认 shrink 是 1、用 grow 的思路算 shrink、只给 overflow:hidden 而答不出 min-width:0 与 min-content 的机制。",
+    "gapCheck": [
+      "易漏点：flex-shrink 默认值是 1，flex 项目默认就可收缩；真正阻止收缩的是 min-width:auto 对应的 min-content 底线。",
+      "常见误区：把收缩量当成按 shrink 数值平分，正确口径是按 shrink × flex-basis 加权分摊缺口。",
+      "排查线索：项触达 min-content 后缺口会二次分摊给其余项；实战溢出先查计算面板里的 min-width 与内容 min-content。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.layout.flex"
+      ],
+      "related": [
+        "fe.css.layout.grid",
+        "fe.css.box.box-model"
+      ],
+      "followUps": [
+        "flex-grow 分配剩余空间与 flex-shrink 分摊缺口的公式有什么本质不同？",
+        "为什么 grid/flex 项目都需要 min-width: 0 才能收缩到内容宽度以下？",
+        "flex-basis 设为 0% 和 auto 在分配计算上差在哪？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 CSS Flexbox Level 1 收缩算法与 min-width:auto 规范语义编写"
+    },
+    "tags": [
+      "Flex",
+      "flex-shrink",
+      "min-content",
+      "高频踩坑"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0076"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.css.layout.grid",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "现代 Grid 能力填空：①grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) 中，容器很宽时 auto-fill 会创建 ______（填「尽可能多」或「恰好等于项目数」）的轨道，空轨道保留；把 auto-fill 换成 ______ 时，空轨道会被折叠、现有项目拉伸填满；②子项用 grid-column: 1 / -1 表示从第一条网格线跨到 ______；③让嵌套子网格参与父级轨道对齐的属性是 display: grid 配合 ______。",
+    "answer": {
+      "blanks": [
+        "尽可能多",
+        "auto-fit",
+        "最后一条网格线（铺满整行）",
+        "subgrid"
+      ],
+      "synonyms": {
+        "尽可能多": [
+          "尽量多",
+          "最多"
+        ],
+        "auto-fit": [
+          "autofit",
+          "auto fit"
+        ],
+        "最后一条网格线（铺满整行）": [
+          "最后一条线",
+          "末尾网格线",
+          "-1 那条线"
+        ],
+        "subgrid": [
+          "subgrid（子网格）",
+          "子网格"
+        ]
+      }
+    },
+    "analysis": "①auto-fill 与 auto-fit 都用于响应式自动轨道，区别在项目数不足以填满一行时：auto-fill 仍按容器宽度创建尽可能多的轨道，闲置轨道保留为空白槽位，轨道尺寸不放大；auto-fit 会把没有项目落入的空轨道折叠为 0，fr 单位随之把空间让给现有轨道，使卡片拉伸占满整行——卡片较少但希望铺满时选 auto-fit，希望保持固定槽位留白对齐时选 auto-fill。②负数网格线从末尾倒数，-1 即显式网格的最后一条线，grid-column: 1 / -1 让项目横跨全部列，常用于表头/通栏元素。③subgrid（grid-template-columns: subgrid / grid-template-rows: subgrid）让嵌套网格不再自定义轨道，而是直接沿用父网格的轨道尺寸与命名线，解决嵌套层级间对不齐的问题；截至 2026 年 subgrid 已在 Chromium、Firefox、Safari 16+ 全面可用，属 Baseline 能力。",
+    "gapCheck": [
+      "易漏点：auto-fill 与 auto-fit 只在「项目填不满一行」时才有视觉差异，填满时两者表现相同。",
+      "常见误区：以为 -1 是倒数第一列的起始线，实际它是最后一条网格线，1 / -1 跨越的是全部轨道。",
+      "排查线索：嵌套网格对不齐时优先评估 subgrid；兼容性兜底可退回在父级统一定义轨道变量共享。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.layout.grid"
+      ],
+      "related": [
+        "fe.css.layout.flex",
+        "fe.css.responsive.media-query"
+      ],
+      "followUps": [
+        "minmax() 的两个参数分别接受哪些值，fr 为什么不能作为最小值？",
+        "subgrid 与在子元素上重复写一遍 grid-template-columns 相比解决了什么？",
+        "grid 布局下 1fr 与 minmax(0,1fr) 的差异何时会显现？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 CSS Grid Level 2（subgrid）与自动轨道规范语义编写"
+    },
+    "tags": [
+      "Grid",
+      "auto-fit",
+      "subgrid",
+      "响应式"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0077"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.css.layout.position",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 position: sticky 吸顶定位，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "sticky 元素在未触发阈值前表现为 relative（占据正常文档流），滚动达到 top/left 阈值后表现为 fixed 式吸附，但始终不脱离文档流、原位置保留"
+      },
+      {
+        "key": "B",
+        "text": "sticky 的吸附范围被限制在其包含块（通常是最近的滚动祖先内的父盒）内，父盒滚出视口时吸顶元素会跟着一起被带走"
+      },
+      {
+        "key": "C",
+        "text": "只要给元素写了 position: sticky 和 top: 0，任何祖先设置 overflow: hidden 都不会影响吸顶生效"
+      },
+      {
+        "key": "D",
+        "text": "同一滚动容器内多个 sticky 元素可以依次吸附堆叠，常用来实现分组列表的「章节标题」吸顶效果"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A、B、D 正确。A 描述了 sticky 的混合定位本质：它是 relative 与 fixed 的折中，阈值前随正常流排版并保留占位，阈值后相对最近的滚动视口「粘住」，但元素本身始终在文档流中，不会像 absolute/fixed 那样脱标。B 是 sticky 失效的高频根因：吸附的活动区间就是包含块的内容盒区间，父容器高度只到内容结束处，父盒整体滚出后 sticky 元素无可吸附空间便随父盒离开。D 正确，多个 sticky 标题在同一滚动容器内会先后吸附并自然堆叠（z-index 相同时按 DOM 顺序层叠），通讯录/分组表格的吸顶分组都靠它。C 错误：祖先链上任一元素设置 overflow 非 visible（hidden/auto/scroll/clip）会改变滚动包含块，sticky 的滚动参照被截断到该祖先，若该祖先自身不滚动或高度不足以产生滚动差，吸顶直接失效；这是比 z-index 更常见的 sticky 踩坑点，排查时要逐级检查 overflow 与高度。",
+    "gapCheck": [
+      "易漏点：sticky 不脱标、保留原占位，与 fixed 的脱标行为有本质区别。",
+      "常见误区：吸顶失效只盯着 top 值和 z-index，忽略祖先 overflow:hidden/auto 对滚动包含块的截断。",
+      "排查线索：逐级审查祖先的 overflow、height 与包含块边界；父盒高度等于 sticky 元素高度时没有可滚动区间也不会吸。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.layout.position"
+      ],
+      "related": [
+        "fe.css.layout.flex",
+        "fe.css.responsive.media-query"
+      ],
+      "followUps": [
+        "overflow: clip 与 overflow: hidden 对 sticky 的影响有差异吗？",
+        "sticky 元素的层叠层级由什么决定？",
+        "如何实现横向滚动表格里首列 sticky 与首行 sticky 的交叉冻结？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 CSS Positioned Layout Level 3 sticky 定位规范语义编写"
+    },
+    "tags": [
+      "定位",
+      "sticky",
+      "滚动包含块",
+      "高频踩坑"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0078"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.css.responsive.media-query",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "团队要把一个沿用 px + 多断点媒体查询的旧移动端页面改造成 2026 年的现代响应式方案。请回答：(1) 说明媒体查询断点策略中「移动优先（min-width 递进）」相对「桌面优先（max-width 递减）」的两个工程优势；(2) 容器查询（@container / container-type）解决了媒体查询的什么盲区，给出组件库场景的典型用法；(3) 对比 rem、vw、clamp() 三种流式字号方案的适配原理与可访问性差异，给出你的组合选型。",
+    "scoringPoints": [
+      {
+        "point": "移动优先优势：基础样式即小屏样式、断点内只做增量覆盖，CSS 体积与特异性冲突更小；优先保证低端/小屏设备的关键路径渲染，渐进增强符合能力分层",
+        "weight": 3
+      },
+      {
+        "point": "容器查询盲区：媒体查询只对视口尺寸响应，同一组件放在侧边栏与主内容区无法差异化；container-type: inline-size 建立查询容器后 @container 按组件实际可用宽度适配，给出 card 组件例子",
+        "weight": 3
+      },
+      {
+        "point": "三方案原理与 a11y：rem 跟随根字号、尊重用户默认字号设置；vw 随视口宽度缩放但不随字号偏好变化，极端视口下失真；clamp(min, preferred, max) 给流式值加上下限，推荐 clamp() 搭配 rem 单位（如 clamp(1rem, 0.95rem + 0.5vw, 1.5rem)）",
+        "weight": 3
+      },
+      {
+        "point": "选型结论自洽：布局用容器查询+网格 auto-fit，字号用 clamp+rem 保留无障碍缩放，媒体查询退守到页面级布局骨架断点",
+        "weight": 1
+      }
+    ],
+    "answer": {
+      "ref": "参考骨架：(1) 移动优先（min-width 断点向上叠加）优势：①基础规则面向最小屏编写，断点块只增量增强（多列、留白、横向导航），没有桌面优先里大量「先铺开再隐藏」的回退声明，CSS 更短、层叠覆盖关系简单；②小屏/低性能设备先拿到基础可用样式，增强特性在大屏才启用，契合渐进增强与关键渲染路径，也天然避免在小屏加载桌面端大图再 display:none 的浪费。(2) 媒体查询的参照系只有视口，组件无法感知自己被放进多宽的容器：同一个卡片在主内容区是双列、在侧边栏只能单列，媒体查询做不到。容器查询先在宿主上声明 container-type: inline-size（必要时 container-name 命名），组件内部即可写 @container (min-width: 400px) { .card { grid-template-columns: 1fr 2fr; } }，组件真正做到随容器自适应、可在任意插槽复用，是组件库/设计系统 2026 年的标配；container 查询已是全 Baseline，style() 容器查询与容器单位 cqw 也可用于按容器宽度流式排版。(3) rem 相对根 <html> font-size，用户在浏览器调大默认字号时 rem 尺寸等比放大，可访问性最好；vw 相对视口宽度，能纯 CSS 等比缩放但与用户字号偏好脱钩，超宽/超窄视口下文字可能过大或过小，旧手淘方案还需 JS 设根字号；clamp(MIN, VAL, MAX) 给流式值加硬上下限，VAL 段可用 vw 做平滑插值。推荐组合：字号与间距写 clamp(1rem, 0.9rem + 0.6vw, 1.375rem) 这类「rem 基准 + vw 插值 + clamp 限幅」，保留用户字号缩放能力又获得流式效果；布局层面网格 auto-fit/minmax 与容器查询承担组件适配，媒体查询只保留页面骨架级少量断点。"
+    },
+    "analysis": "本题考察响应式范式的代际演进，而非背诵断点数值。高分答案要把三层参照系讲清楚：媒体查询看视口、容器查询看组件宿主、流式单位看根字号/视口比例，并落到可访问性——纯 vw 方案忽略用户字体偏好是常见扣分点。clamp + rem 的组合既流式又不失无障碍缩放，是 2026 年的主流结论。容易失分处：把容器查询当成媒体查询的语法糖、说不出 container-type 的前置声明、认为 vw 字号天然优于 rem、移动优先只答「先写手机样式」而讲不出增量覆盖与渐进增强的工程收益。",
+    "gapCheck": [
+      "易漏点：容器查询要求祖先先声明 container-type，直接写 @container 没有查询容器时规则不生效。",
+      "常见误区：用纯 vw 定字号后在系统字号放大设置下文字不跟随，违背无障碍要求；rem 才响应字号偏好。",
+      "排查线索：适配决策按「页面骨架看媒体查询、组件自适应看容器查询、字号间距看 clamp+rem」分层，避免断点泛滥。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.responsive.media-query"
+      ],
+      "related": [
+        "fe.css.layout.grid",
+        "fe.css.layout.flex"
+      ],
+      "followUps": [
+        "container-type: inline-size 与 size 对容器自身布局有什么不同影响？",
+        "容器查询单位 cqw/cqh 与 vw/vh 的参照系差在哪？",
+        "如何设计一套移动优先的断点 token 并避免断点数量失控？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 CSS Containment Level 3 容器查询、Values Level 4 clamp 与响应式设计现代实践编写"
+    },
+    "tags": [
+      "响应式",
+      "容器查询",
+      "clamp",
+      "移动优先"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0079"
+  }
+]

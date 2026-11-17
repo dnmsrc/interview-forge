@@ -1,0 +1,917 @@
+[
+  {
+    "id": "Q-fe-uniapp-0001",
+    "nodeId": "fe.uniapp.compile.cross-platform",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 uni-app「一套 Vue 代码编译多端」的机制，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "小程序端运行时直接用 vue3 完整版操作真实 DOM 来渲染视图"
+      },
+      {
+        "key": "B",
+        "text": "模板先经 Vue 编译器到 render 层，再由各端 codegen 改写为 wxml/axml 等目标语法，脚本经 uni API 路由与生命周期桥接，缺失的 DOM/BOM 由运行时 shim 补、补不齐的能力（第三方 DOM 库）需换方案"
+      },
+      {
+        "key": "C",
+        "text": "rpx 是运行时由 JS 计算的单位，与编译无关"
+      },
+      {
+        "key": "D",
+        "text": "App 端与小程序端渲染管线完全相同，都不存在 WebView"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确概括了三层翻译+shim 的分工。A 错——小程序逻辑线程没有 DOM，Vue3 走的是专为小程序定制的 mini runtime（响应式 diff→setData），不是操作 DOM 的 runtime-dom；C 错——rpx 以 750 设计稿为基准，编译期/运行时的单位换算体系（H5 转 vw/rem 策略可配），并非 JS 逐元素计算；D 错——App 端 webview 渲染 vue/nvue 之外，小程序是双线程自绘管线，只有 uni-app x 才走向原生渲染。",
+    "gapCheck": [
+      "易漏点：分清「编译期解决」（模板/样式翻译）与「运行时垫片」（API/生命周期）与「无解」（DOM 依赖）三类边界是这题的核心考点",
+      "常见误区：以为跨端框架等于 UI 组件库换皮，忽略 codegen 与 runtime 的分端实现",
+      "加分项：能提 Vue3 版 @dcloudio/uni-mp-vue 把 effect 变化映射为最小 path setData 的机制"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.compile.cross-platform"
+      ],
+      "related": [
+        "fe.vue.compiler.ast-pipeline",
+        "fe.uniapp.compile.conditional"
+      ],
+      "followUps": [
+        "为什么 jQuery 插件在小程序端基本没法用？",
+        "nvue/uni-app x 与 vue 页面渲染管线差在哪？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "跨端编译机制单选题"
+    },
+    "tags": [
+      "uniapp",
+      "跨端",
+      "编译原理",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-uniapp-0002",
+    "nodeId": "fe.uniapp.compile.conditional",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "关于 uni-app 条件编译，下列用法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "js 中写 // #ifdef MP-WEIXIN ... // #endif 只在微信小程序端保留代码"
+      },
+      {
+        "key": "B",
+        "text": "样式里用 /* #ifdef H5 */ ... /* #endif */ 处理 H5 专属的安全区/导航栏补偿"
+      },
+      {
+        "key": "C",
+        "text": "pages.json 不支持注释，无法做分端裁剪页面与分包"
+      },
+      {
+        "key": "D",
+        "text": "#ifndef H5 表示除 H5 外的其他端都编译该段代码"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "ABD 正确。条件编译家族四语言全覆盖：js（// 或 /* */）、css（/* */）、模板（<!-- -->#ifdef -->）、pages.json/manifest.json 本身就是 jsonc 支持注释条件块（按端裁剪低频页面减主包体积是小程序减包正招之一）。C 错。工程纪律补充：裸 wx. 调用尽量收敛进 adapter 文件单点 ifdef，别让 MP-WEIXIN 满天星——否则「一套代码」退化成分叉维护。",
+    "gapCheck": [
+      "易漏点：APP-PLUS 与 APP-PLUS-NVUE、MP-LINK（所有小程序）等复合标识的包含关系要答得准",
+      "常见误区：以为条件编译只在打包生效所以测试时不用切平台——IDE 按当前平台实时裁剪",
+      "加分项：知道 manifest.json 的 quickapp/uniCloud 条件配置与 uni_modules 依赖按端过滤"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.compile.conditional"
+      ],
+      "related": [
+        "fe.uniapp.compile.cross-platform",
+        "fe.build.bundle.caching"
+      ],
+      "followUps": [
+        "三方小程序 SDK 只想在微信端引入怎么做？",
+        "条件编译与 tree-shaking 的关系？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "条件编译用法多选题"
+    },
+    "tags": [
+      "uniapp",
+      "条件编译",
+      "多端"
+    ]
+  },
+  {
+    "id": "Q-fe-uniapp-0003",
+    "nodeId": "fe.uniapp.mini.runtime",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：小程序 setData 的成本主要是渲染层 vdom diff，序列化与 JSBridge 转发开销可以忽略，因此优化重点应放在减少节点数量而不是控制数据量。",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "错误。setData 全链路成本大头恰在前半段：逻辑层 JSON 序列化→Native 进程中转→渲染层反序列化，数据体积线性决定这段耗时（单次上限 1MB 也是硬约束）；渲染层 diff 只是末端。所以列表页只传 data['items[2].status'] 这类变更路径、窗口化分页、合并帧内多次 setData 才是主流优化；减少节点数有益但属于另一条线（初始渲染与布局成本）。这也是 uni/Taro 框架都在死磕「最小 setData path」的原因。",
+    "gapCheck": [
+      "易漏点：两次线程间通信都要过 Native 中转桥，这是与浏览器单进程渲染的本质差异",
+      "常见误区：把浏览器虚拟列表经验直接照搬却不管 setData 体积维度（DOM 少≠传输少）",
+      "加分项：知道 recycle-view/recycle-item 同层渲染复用组件与 worklet 动画绕开 bridge 的思路"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.mini.runtime"
+      ],
+      "related": [
+        "fe.perf.longlist.virtual",
+        "fe.uniapp.mini.lifecycle"
+      ],
+      "followUps": [
+        "uni-app Vue3 版如何把响应式变化映射成最小 setData？",
+        "事件回传为什么推荐 dataset 而不是闭包？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "setData 成本结构判断题"
+    },
+    "tags": [
+      "uniapp",
+      "小程序",
+      "setData",
+      "性能",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-uniapp-0004",
+    "nodeId": "fe.uniapp.mini.runtime",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "某 uni-app 商城小程序商品列表页滑动严重掉帧。已知列表每页 20 条、每条含懒加载图片与促销标签。请从「小程序双线程架构」出发给出完整诊断路径与优化清单，并说明每项手段为什么有效。",
+    "answer": {
+      "ref": "参考骨架：诊断：真机调试 Performance/小程序分析面板看 setData 耗时与数据大小排行（60s 录屏帧率+长 setData 标红）、vConsole 观察每次更新的 payload、渲染层火焰图定位 layout/paint 热点。分层优化：①传输层（最大头）：分页合并 setData、只 diff 变更字段路径（Vue3 版 uni 自动做 path 化，Vue2 手写 this.$mp 或改用 diff 补丁）、图片懒加载 lazy-load 属性+IntersectionObserver 自管预热带、价格/库存轮询更新改 path 定点写不整条替换；②渲染层：条目结构扁平化（嵌套 wx:for 与 slot 模拟层级是布局放大器）、固定尺寸图片防加载跳动、复杂富交互条目拆自定义组件（自定义组件独立 setData 域缩小 diff 面）、长列表上 recycle-item 虚拟化或「窗口渲染+占位」；③逻辑层：滚动回调里禁重计算（事件节流到帧）、库存格式化预计算进 store 不在模板 filter 反复跑、避免在 onPageScroll 同步 setData 驱动吸顶（改 CSS sticky/position 或 worklet 动画）；④数据源：接口分页游标瘦身只回必要字段、促销标签字典化引用（id→映射）减小每行体积。每项都要回指双线程因果：传输层赢在「少过桥」、渲染层赢在「少 relayout」、逻辑层赢在「少占用 JSCore 时间片」。验证：优化前后对比 setData 总字节数与 P95 帧耗时，而非肉眼顺滑。"
+    },
+    "scoringPoints": [
+      {
+        "point": "先测量后开药：setData 耗时/体积面板与帧率录制流程",
+        "weight": 2
+      },
+      {
+        "point": "传输层组合拳：path 化更新+合并帧+分页瘦身",
+        "weight": 2
+      },
+      {
+        "point": "渲染层：自定义组件拆域、结构扁平化、虚拟化选项",
+        "weight": 2
+      },
+      {
+        "point": "每项手段回指双线程/setData 因果链而非名词堆砌",
+        "weight": 2
+      },
+      {
+        "point": "量化验证口径（字节数/P95 帧耗时）收尾",
+        "weight": 1
+      }
+    ],
+    "analysis": "小程序性能题的分数全在「机制→手段」的因果链上：知道 setData 过桥贵，才会做 path 化与合并；知道渲染层 WebView 布局贵，才会拆组件扁平化。高分答案还会提「自定义组件的 setData 作用域隔离」这一进阶机制（组件树 diff 面缩小）。失分：只会背「少用 setData」口号；建议用 Web Worker（小程序 worker 能力受限且无 DOM，多数场景不适用）；把虚拟列表当唯一解忽略传输体积维度。追问：图片很多但 setData 不大还卡？——查渲染层图片解码与内存（大图降采样 webp）。",
+    "gapCheck": [
+      "易漏点：懒加载图片在快速滚动时仍会集中触发，要结合 rootMargin 预热与占位底色防跳动",
+      "常见误区：以为 onPageScroll 高频 setData 做吸顶无害——每次都过桥",
+      "加分项：知道 skyline 渲染引擎（微信新内核）对滚动/长列表的改善与迁移限制"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.mini.runtime"
+      ],
+      "related": [
+        "fe.perf.longlist.virtual",
+        "fe.uniapp.mini.lifecycle"
+      ],
+      "followUps": [
+        "Skyline 小程序渲染引擎改变了什么？",
+        "uni-app Vue3 的 path 级 setData 是怎么算出来的？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "小程序列表性能诊断主观题"
+    },
+    "tags": [
+      "uniapp",
+      "小程序",
+      "setData",
+      "性能",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-uniapp-0005",
+    "nodeId": "fe.uniapp.mini.lifecycle",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：小程序页面生命周期中，接收路由参数的时机是 ______，视图初次渲染完成可用 canvas/wxml 查询的时机是 ______；为降低冷启动白屏，把低频页面移入 ______（配合 preloadRule 可按入口预热），登录无关的活动页还可放入「______ 分包」使其跳转时不初始化主包。",
+    "answer": {
+      "blanks": [
+        "onLoad",
+        "onReady",
+        "分包",
+        "独立"
+      ],
+      "synonyms": {
+        "onLoad": [
+          "onLoad 钩子"
+        ],
+        "onReady": [
+          "onReady 钩子"
+        ],
+        "分包": [
+          "subPackage",
+          "subpackages",
+          "subpackage"
+        ],
+        "独立": [
+          "independent",
+          "独立分包"
+        ]
+      }
+    },
+    "analysis": "时序必背：App.onLaunch→onShow；Page onLoad（拿 query）→onShow→onReady（首帧完成，可节点查询）→onHide→onUnload。「数据请求放 onLoad 还是 created」的争议点：created/onInit 时路由参数未必就绪、onLoad 起请求又晚于 App.onLaunch——最佳实践是 onLaunch 预判环境+预取关键接口落 globalData，onLoad 消费。分包三件套：普通 subPackages 减主包（2MB 时代规则演进后的配额）、preloadRule 进入某页预热下一页分包、independent 独立分包跳入不携主包（活动页/分享落地页神器）；tab 页常驻切换不再 onLoad。",
+    "gapCheck": [
+      "易漏点：热启动只触发 onShow 不重进 onLoad，数据新鲜度要在 onShow 判定（下拉刷新/时间戳）",
+      "常见误区：把隐私授权弹窗当启动后小事——它同步阻塞首次渲染，要做「同意后预热」设计",
+      "加分项：知道 getPerformance/小程序后台启动分位与自建打点的口径差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.mini.lifecycle"
+      ],
+      "related": [
+        "fe.uniapp.mini.runtime",
+        "fe.electron.ship.native-os"
+      ],
+      "followUps": [
+        "独立分包为什么不能 require 主包代码？",
+        "tabBar 页面卸载时机是怎样的？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "小程序生命周期与分包填空题"
+    },
+    "tags": [
+      "uniapp",
+      "小程序",
+      "生命周期",
+      "分包",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-uniapp-0006",
+    "nodeId": "fe.uniapp.ecosystem.cross-framework",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "创业公司新产品要同时覆盖微信小程序、抖音小程序、iOS/Android App（体验要求高、有重动画长列表）与营销 H5，团队 6 人以 Vue 为主。请给出你的技术选型方案：主框架、各端承接方式、必须单独处理的性能红线场景，以及你放弃其他候选的理由。",
+    "answer": {
+      "ref": "参考骨架：示范答案非唯一但论证要成立。主流解：uni-app(Vue3+Vite) 作主力——一套代码覆盖 H5/微信/抖音小程序矩阵顺理成章（uni 对头条系 MP-TOUTIAO 支持成熟），App 端默认 webview 渲染承接 80% 页面；性能红线场景（重动画页、千条长列表 feed）两条路：优先 nvue/uni-app x（uts 编译原生渲染）局部攻坚，仍不达标则该两页独立走原生模块或整 App 改 Flutter/RN 混合容器（uni 内嵌 Flutter/RN 模块的混合栈），用「90% 跨端+10% 原生」的成本曲线说服。放弃候选理由链：Taro 更适合 React 团队（本例 Vue 栈学习成本更高）、RN/Flutter 全家桶则小程序端缺位或第三方适配边缘化（分发是硬需求不能弃）、PWA 无小程序入口且 iOS 推送受限、Electron 桌面专属与移动无关。补充决策要素：包体积预算（小程序主包 2MB 红线倒逼分包）、uni统计/uniPush/uniCloud 生态加成与厂商锁定风险的权衡、发版节奏（小程序热更 vs App 商店审核——营销页放 H5+小程序容器化 iframe? 小程序禁 iframe，用 web-view 组件承载 H5 的统一话术）、招聘供给（uni 开发者池）。收尾：给 3 个月验证计划——先做小程序端 MVP+一个动画红线页 spike 测帧率，再决定是否引入 uni-app x。"
+    },
+    "scoringPoints": [
+      {
+        "point": "选 uni-app 的理由与团队栈/端矩阵匹配论证充分",
+        "weight": 2
+      },
+      {
+        "point": "红线场景给出具体的局部原生策略（nvue/uni-app x/混合栈）而非一句「体验不好再说」",
+        "weight": 2
+      },
+      {
+        "point": "至少两个候选框架的放弃理由各自成立（Taro/RN/Flutter/PWA）",
+        "weight": 2
+      },
+      {
+        "point": "工程约束意识：包体配额、审核节奏、web-view 承载营销页",
+        "weight": 2
+      },
+      {
+        "point": "风险验证闭环：spike 测帧率再扩面的渐进决策",
+        "weight": 1
+      }
+    ],
+    "analysis": "选型题没有唯一答案，考的是「约束→方案→代价」的咨询式表达。高分线：能把「小程序分发」与「重体验 App」这对矛盾显式摆出来并给出分层承接（这正是 uni-app 生态存在的意义）；能提 web-view 承载 H5、审核周期、包体红线等运营级约束。失分：宗教战争式吹一个框架；不知道 uni-app 也能出 uni-app x 原生渲染线导致误判「webview=必然卡顿」；忽略团队技术栈空谈性能。追问：如果下季度要加桌面端？（Electron/Capacitor 复用 H5 线的延伸讨论）",
+    "gapCheck": [
+      "易漏点：抖音小程序对 uni 的支持细节（MP-TOUTIAO 条件编译与 API 差异表）",
+      "常见误区：以为 Flutter 能完美覆盖小程序——Flutter 小程序方案属第三方、兼容成本高",
+      "加分项：提到 uniHub/uniCloud 的云开发一体化与出海 Google Play 合规（targetSdk 节奏）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.ecosystem.cross-framework"
+      ],
+      "related": [
+        "fe.uniapp.compile.cross-platform",
+        "fe.electron.process.model"
+      ],
+      "followUps": [
+        "uni-app x 的 UTS 为什么选编译到 Kotlin/Swift 而非运行时桥？",
+        "React Native 新架构对选型结论有影响吗？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "跨端选型咨询主观题"
+    },
+    "tags": [
+      "uniapp",
+      "跨端选型",
+      "架构决策",
+      "高频"
+    ]
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.uniapp.compile.conditional",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "某 uni-app 项目需要同一份代码在微信小程序端接入微信支付、在 H5 端接入网页支付。下列条件编译写法能精确实现「仅微信小程序端保留微信支付分支」的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "JS 中使用 // #ifdef MP-WEIXIN 包裹微信支付调用，// #endif 结束；H5 构建时该段在编译期被整体剔除"
+      },
+      {
+        "key": "B",
+        "text": "用运行时 if (process.env.PLATFORM === \"mp-weixin\") 判断，依赖打包后 tree-shaking 删除 H5 分支"
+      },
+      {
+        "key": "C",
+        "text": "在模板里写 // #ifdef MP-WEIXIN 注释块实现分端渲染"
+      },
+      {
+        "key": "D",
+        "text": "把微信支付 SDK 在 manifest.json 里声明一次，各端构建会自动按需剔除不相关代码"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：uni-app 条件编译是编译期文本裁剪，JS/TS 中用行注释 // #ifdef 平台标识 ... // #endif 包裹，构建到 H5 时该代码块在预处理阶段被物理删除，不会进入产物，因此微信端专属 SDK 与调用不会污染 H5 包体，也不会因小程序全局对象缺失而报错。B 错误：小程序端没有可靠的 process.env 运行时平台变量这一通用机制，且普通运行时 if 里的引用仍会被打包进产物（tree-shaking 对带副作用的 SDK 引入往往无效），达不到「分端减包」目的；uni 也提供静态常量替代但首选仍是官方条件编译注释。C 错在注释语法：模板（SFC template）中必须使用 HTML 注释形态 <!-- #ifdef MP-WEIXIN --> ... <!-- #endif -->，行注释在模板里不是合法语法。D 错误：manifest.json 负责应用配置而非代码裁剪开关，平台差异代码必须靠条件编译显式隔离。工程上建议把分端调用收敛到单独 adapter 文件内集中 ifdef，避免平台标识散落全项目。",
+    "gapCheck": [
+      "易漏点：四类文件注释形态不同——JS 用 // 或 /* */，CSS 用 /* */，模板用 <!-- -->，jsonc 配置用 //。",
+      "常见误区：用运行时平台判断替代条件编译，导致专属 SDK 仍被打进其他端产物、减包失效。",
+      "排查线索：分端异常先确认平台标识拼写（MP-WEIXIN/MP-TOUTIAO/H5/APP-PLUS）与注释闭合是否成对。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.compile.conditional"
+      ],
+      "related": [
+        "fe.uniapp.compile.cross-platform",
+        "fe.build.bundle.optimization"
+      ],
+      "followUps": [
+        "#ifdef 与 #ifndef 在组合多平台（||、&&）时的写法规则是什么？",
+        "为什么推荐把平台差异收敛进 adapter 层而不是散落页面？",
+        "条件编译裁剪与 tree-shaking 在减包机理上有什么不同？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 uni-app 官方条件编译文档语义与多端构建预处理机制编写"
+    },
+    "tags": [
+      "uniapp",
+      "条件编译",
+      "分端裁剪",
+      "高频"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0088"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.uniapp.compile.conditional",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：uni-app 的条件编译在构建预处理阶段按目标平台物理删除代码片段，因此被裁掉的分支不会进入对应端产物、不参与包体积；而 #ifndef MP-WEIXIN 表示「除微信小程序外的所有平台」都保留该段，两端混用 ifdef/ifndef 时可以用 ||、&& 组合平台标识表达复杂条件。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。条件编译本质是预处理器的文本级裁剪：构建某一端时，不满足平台表达式的代码块在编译管线最前段被移除，后续编译与打包完全看不到这些代码，所以分端 SDK、分端样式、分端页面路由都能真正减小该端包体，这与运行时 if 判断（代码仍在产物中）有本质区别。#ifndef 是 ifdef 的取反形态，#ifndef MP-WEIXIN 即「非微信小程序端」（H5、App、其他小程序）均保留。平台表达式支持逻辑组合：|| 表示任一平台命中即保留（如 // #ifdef MP-WEIXIN || MP-TOUTIAO），&& 用于交集场景；模板、样式、JSON 配置中的语法形态随文件类型换注释符，规则一致。补充易错点：APP-PLUS 覆盖 App 端、MP 系标识按厂商区分，复合标识（如 MP 表示所有小程序、WEB 与 H5 的命名）要以当前官方文档为准，写错标识的现象是「代码被静默裁剪」，排查时应在目标端产物或 IDE 当前平台视图中确认。",
+    "gapCheck": [
+      "易漏点：条件编译是编译期物理裁剪而非运行时分支，被删代码不占包体也不会执行。",
+      "常见误区：混淆 #ifdef 与 #ifndef 语义，或在模板里误用 JS 行注释语法导致裁剪不生效。",
+      "排查线索：平台标识写错不会报错而是静默缺失，需切到目标平台在 IDE 实时预览或产物中核对。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.compile.conditional"
+      ],
+      "related": [
+        "fe.uniapp.compile.cross-platform",
+        "fe.build.bundle.caching"
+      ],
+      "followUps": [
+        "条件编译能否嵌套？嵌套时平台表达式如何求值？",
+        "uni_modules 插件如何声明自己的平台兼容范围？",
+        "同一逻辑在 H5 与小程序差异很大时，adapter 抽象应放在哪一层？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 uni-app 条件编译预处理与平台标识官方文档语义编写"
+    },
+    "tags": [
+      "uniapp",
+      "条件编译",
+      "ifndef",
+      "减包"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0089"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.uniapp.compile.cross-platform",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 uni-app「一套代码多端编译」中样式、组件与 API 的跨端差异处理，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "rpx 以 750 为设计稿基准宽度，在小程序端由运行时按屏宽换算；H5 端编译时可配置转换为 vw/rem 等方案，两端口径需要在设计稿约定上统一"
+      },
+      {
+        "key": "B",
+        "text": "小程序逻辑层不存在 window/document 等 DOM/BOM 对象，依赖真实 DOM 的第三方库（如 jQuery、直接操作 canvas 2D 上下文的旧库）无法直接运行，需替换为小程序 API 或条件编译分端实现"
+      },
+      {
+        "key": "C",
+        "text": "uni.xxx 系列 API 是跨端抽象层，框架在各端把它路由到 wx.xxx/原生桥接/H5 实现；某端缺失的能力会在编译或运行期暴露，不能假设所有 uni API 全端一致支持"
+      },
+      {
+        "key": "D",
+        "text": "浏览器标准 CSS（如所有伪类、position: fixed 行为）在小程序 WebView 渲染层与 H5 表现完全一致，不需要任何兼容处理"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确。A：rpx（responsive pixel）约定 750rpx = 屏幕宽度，设计稿按 750 宽出图即可等比缩放；小程序端由框架/运行时换算，H5 端通过编译配置转 vw（常见 750 基准直接对应 1rpx≈0.1333vw）或 rem 方案，工程上要统一设计稿基准并验证超大屏（平板/折叠屏）效果。B 是双线程架构的硬约束：小程序 JS 跑在无 DOM 的逻辑线程（JSCore/V8 隔离环境），模板被编译为 wxml/axml 由渲染层处理，任何 document.querySelector 式库都没有运行基础；canvas 在新版小程序里也改为离线 Canvas 节点 API，旧 H5 canvas 库需要适配。C 正确描述 uni API 的门面模式：统一入口 uni.xxx 在底层按平台路由，能力矩阵存在端差异（如部分蓝牙、推送、文件系统 API 仅 App/特定小程序支持），官方兼容性列表要逐项核对，缺失能力用条件编译或优雅降级处理。D 错误：小程序渲染层虽基于 WebView 改版，但样式支持是子集加方言——例如部分伪类受限、组件默认样式隔离、fixed 在键盘弹起/原生组件同层渲染时行为差异、滚动容器与页面滚动模型不同，都需要针对性兼容。",
+    "gapCheck": [
+      "易漏点：uni API 不是全端能力等价的保证，每个 API 都有平台兼容矩阵，落地前要查端支持情况。",
+      "常见误区：把 H5 调试通过等同于小程序可用，忽略逻辑层无 DOM、样式为子集的架构差异。",
+      "排查线索：跨端问题先判断属于编译期（模板/codegen）、运行时桥接（API 路由）还是无解（DOM 依赖）三类边界。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.compile.cross-platform"
+      ],
+      "related": [
+        "fe.uniapp.compile.conditional",
+        "fe.uniapp.mini.runtime"
+      ],
+      "followUps": [
+        "uni-app x 用 UTS 编译到 Kotlin/Swift 后，DOM 缺失问题如何被原生渲染替代？",
+        "rpx 在 H5 端转 vw 与转 rem 两种方案各自的副作用是什么？",
+        "同层渲染、原生组件（map/video/textarea）带来哪些样式与层级限制？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 uni-app 多端编译架构、rpx 规范与小程序双线程约束语义编写"
+    },
+    "tags": [
+      "uniapp",
+      "跨端",
+      "rpx",
+      "DOM缺失",
+      "API路由"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0090"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.uniapp.compile.cross-platform",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "跨端编译机制填空：①小程序采用双线程架构，界面渲染在 ______ 线程（或 WebView 渲染层），业务 JS 运行在独立的 ______ 线程，两者通过 Native 层 JSBridge 通信；②uni-app 编译小程序时，Vue 模板经编译与 codegen 转成目标端的 ______（如微信端 wxml），响应式数据变化最终映射为 ______ 调用驱动视图更新；③App 端若要绕开 WebView 获得原生渲染，可使用 nvue 或新一代的 ______。",
+    "answer": {
+      "blanks": [
+        "渲染（视图）",
+        "逻辑（AppService/JSCore）",
+        "模板语法文件（wxml/axml）",
+        "setData",
+        "uni-app x（UTS 原生编译）"
+      ],
+      "synonyms": {
+        "渲染（视图）": [
+          "渲染",
+          "视图",
+          "渲染层",
+          "WebView"
+        ],
+        "逻辑（AppService/JSCore）": [
+          "逻辑",
+          "AppService",
+          "JSCore",
+          "逻辑层"
+        ],
+        "模板语法文件（wxml/axml）": [
+          "wxml",
+          "wxml/axml",
+          "模板文件"
+        ],
+        "setData": [
+          "setData（路径化数据更新）",
+          "this.setData"
+        ],
+        "uni-app x（UTS 原生编译）": [
+          "uni-app x",
+          "uts",
+          "UTS",
+          "uni-appx"
+        ]
+      }
+    },
+    "analysis": "①小程序双线程：渲染层运行在 WebView/渲染内核（多页面可能多个 WebView），负责 wxml 排版与绘制；逻辑层在独立 JS 运行时（微信 iOS 用 JSCore、安卓可走 V8/自研内核，统称 AppService），执行业务代码但没有 DOM；两边经 Native 中转的 JSBridge 传递序列化消息，这是 setData 成本与事件回传开销的架构根源。②uni-app 的 Vue3 小程序版使用定制 runtime（@dcloudio/uni-mp-vue）：模板先经 Vue 编译产出 render 表达，再由各端 codegen 改写为 wxml/axml/swan 模板语法；响应式 effect 触发后框架计算最小变更路径，把数据 patch 翻译成 setData（优先 path 形式如 data.items[0].status）发送给渲染层。③App 端传统 vue 页面走 WebView 渲染；nvue 基于 Weex 思路用原生组件渲染（已逐步收敛），2026 年的主推方向是 uni-app x：用 UTS（TypeScript 超集）把代码编译为 Kotlin（Android）/Swift（iOS），视图与逻辑均为原生实现，从根上消除 WebView 与 bridge 瓶颈。",
+    "gapCheck": [
+      "易漏点：逻辑层与渲染层的通信要经过 Native 中转且数据需序列化，这是 setData 贵、事件回传有成本的根因。",
+      "常见误区：以为小程序 JS 能操作 DOM，实际逻辑层没有 window/document，Vue 跑的是定制 runtime 而非 runtime-dom。",
+      "排查线索：跨端渲染问题先定位是 codegen 模板翻译、bridge 数据传输还是渲染层布局三个环节中的哪一个。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.compile.cross-platform"
+      ],
+      "related": [
+        "fe.uniapp.mini.runtime",
+        "fe.uniapp.compile.conditional"
+      ],
+      "followUps": [
+        "Vue3 版 uni-app 如何把响应式变更计算成最小 setData path？",
+        "uni-app x 的 UTS 与 JS 在类型、平台 API 调用上有哪些关键差异？",
+        "多 WebView 页面与单逻辑层的架构对全局状态管理提出了什么要求？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于小程序双线程架构、uni-app 小程序 runtime 与 uni-app x 官方资料语义编写"
+    },
+    "tags": [
+      "uniapp",
+      "双线程",
+      "setData",
+      "uni-app-x",
+      "填空题"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0091"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.uniapp.ecosystem.cross-framework",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "团队技术栈是 React，目标端以微信/支付宝小程序为主、兼顾 H5，希望使用与 React 心智一致的跨端框架。下列选型与理由最匹配的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "选择 Taro（React 模式），用 React 组件与 Hooks 编写，编译期把代码转换为小程序原生模板与逻辑，Taro 对 React 生态和多小程序端的适配成熟"
+      },
+      {
+        "key": "B",
+        "text": "选择 uni-app，因为它只支持 Vue 语法，React 项目无法使用但跨端能力最强"
+      },
+      {
+        "key": "C",
+        "text": "直接用 React Native 输出微信小程序，RN 官方一等公民支持小程序平台"
+      },
+      {
+        "key": "D",
+        "text": "各端分别原生开发，React 代码完全无法在任何跨端框架中复用"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：Taro 是京东出品的多端框架，3/4 代主线支持 React（也支持 Vue），开发态写 React 函数组件与 Hooks，编译期通过自定义 renderer 与代码生成把组件树翻译为各小程序的模板（wxml/axml）和 setData 调用，React 团队的心智与大部分 hooks 模式可直接迁移，微信、支付宝、抖音、H5、RN 端均有适配。B 错误：uni-app 主线以 Vue 为一等公民，但「只支持 Vue、React 无法使用」的绝对化表述不成立——uni-app 历史上有过 React 支持的尝试，生态现状以 Vue 为主才是准确说法；且本题 React 栈下 Taro 是更顺的选择。C 错误：React Native 官方目标是原生 App（iOS/Android 等），并不输出小程序；社区有 RN 转小程序的非主流方案但兼容性与维护风险高，不能称为官方支持。D 错误：跨端框架的价值正是一套范式多端复用，React 代码经 Taro 编译可覆盖小程序矩阵与 H5，仅在重度 DOM 依赖、原生组件能力上需要分端处理。选型还要评估团队熟悉度、插件生态、性能红线（长列表/动画）与社区维护节奏。",
+    "gapCheck": [
+      "易漏点：Taro 与 uni-app 的首要分界是框架心智（React 系 vs Vue 系），而非端覆盖数量，二者都能覆盖主流小程序与 H5。",
+      "常见误区：以为 RN 能直接编译小程序，RN 的目标平台是原生 App，小程序需独立编译方案。",
+      "排查线索：选型核对编译时（模板 codegen）与运行时（renderer、setData 路径化）两条链路在目标端的成熟度。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.ecosystem.cross-framework"
+      ],
+      "related": [
+        "fe.uniapp.compile.cross-platform",
+        "fe.eco.react.mechanism"
+      ],
+      "followUps": [
+        "Taro 的 React renderer 与小程序 setData 之间是如何桥接的？",
+        "同一团队同时维护 Vue 与 React 跨端项目时，组件库如何抽象最大公约数？",
+        "Taro 与 uni-app 在 App 端（RN/nvue/uni-app x）的路线差异是什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Taro/uni-app/React Native 官方定位与跨端编译生态现状编写"
+    },
+    "tags": [
+      "跨端选型",
+      "Taro",
+      "React",
+      "生态对比"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0092"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.uniapp.ecosystem.cross-framework",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 uni-app 生态与工程化能力（2026 年现状），下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "uni_modules 是插件市场的标准化包格式，支持组件、UTS 插件、云函数与项目模板，具备依赖管理与 easycom 自动按需引入能力"
+      },
+      {
+        "key": "B",
+        "text": "uni-app x 通过 UTS 编译为 Kotlin/Swift 等原生代码，目标是在 App 端获得接近原生的性能与平台 API 直连能力"
+      },
+      {
+        "key": "C",
+        "text": "uniCloud 提供 serverless 云函数/云数据库一体化，前端可用 JS/TS 写云端逻辑并与 uni-id 等账号体系联动，但会带来云厂商绑定层面的选型权衡"
+      },
+      {
+        "key": "D",
+        "text": "uni-app 项目只能使用 HBuilderX 开发，命令行/Vite 工程化方式完全不被支持"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确。A：uni_modules 是 DCloud 定义的插件包规范，每个插件独立目录、可含原生 UTS 插件与前端组件，配合 easycom 规则实现「装完即用、模板直接写标签」的自动引入与按需打包，取代了早期手动 import + 全局注册的粗放模式。B：uni-app x 是生态的原生渲染路线，UTS 在 TS 语法上扩展平台类型，编译期直出 Kotlin（Android）、Swift（iOS）等，视图层用原生组件而非 WebView，动画、长列表、启动耗时等红线指标显著改善，代价是部分 Web CSS/API 子集需要适配。C：uniCloud 以 serverless 形态对齐阿里云/支付宝云等基础设施，云函数、云数据库、前端一体调用降低全栈门槛，uni-id 提供登录鉴权模板；但 serverless 与特定云生态意味着可移植性与锁定风险，选型要评估迁移成本。D 错误：HBuilderX 是官方深度集成 IDE，但 uni-app 同时提供基于 Vite 的 CLI 脚手架（create-vue/uni-app 模板、npm 脚本），可在 VS Code 等环境中走标准命令行构建与 CI/CD，现代团队普遍采用 CLI 工程 + 任意编辑器的组合。",
+    "gapCheck": [
+      "易漏点：easycom 自动引入依赖 uni_modules 目录约定与 pages.json 配置，不符合约定时仍需手动 import。",
+      "常见误区：把 uni-app 等同于 HBuilderX，实际上 CLI/Vite 工程化链路成熟，可接入任意 CI 与编辑器。",
+      "排查线索：评估 uniCloud 时把厂商锁定、冷启动、本地调试与迁移成本列入决策表，不只看开发便利性。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.ecosystem.cross-framework"
+      ],
+      "related": [
+        "fe.uniapp.compile.cross-platform",
+        "fe.build.toolchain.vite"
+      ],
+      "followUps": [
+        "UTS 插件与传统原生小程序插件在调用链路和性能上有什么差异？",
+        "easycom 的自动按需引入与 tree-shaking 如何共同控制包体？",
+        "serverless 云函数冷启动对小程序首屏接口有哪些影响，如何预热？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 uni-app 官方 uni_modules、uni-app x、uniCloud 与 CLI 工程化文档语义编写"
+    },
+    "tags": [
+      "uniapp生态",
+      "uni_modules",
+      "uni-app-x",
+      "uniCloud"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0093"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.uniapp.mini.lifecycle",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于小程序/uni-app 页面与应用生命周期的时序，下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "首次打开页面时序为 App.onLaunch → App.onShow → Page.onLoad（接收路由 query）→ Page.onShow → Page.onReady（首次渲染完成，可查询节点）"
+      },
+      {
+        "key": "B",
+        "text": "Page.onReady 一定先于 Page.onLoad 触发，适合在 onReady 里读取路由参数"
+      },
+      {
+        "key": "C",
+        "text": "页面被 tabBar 切走再切回会重新执行 onLoad，数据必须在 onLoad 里重新拉取"
+      },
+      {
+        "key": "D",
+        "text": "onUnload 在每次页面被 onHide 时都会触发，二者是同一时机的不同命名"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确描述冷启动时序：应用级先 onLaunch（全局只一次，做登录态检查、全局预取）再 onShow；页面级 onLoad 早于 onShow，且只有 onLoad 能拿到路由参数 query（uni-app 中对应 onLoad(options)），onReady 在首次渲染完成后触发一次，此后才能安全做 createSelectorQuery/canvas 等节点依赖操作。B 把顺序说反，路由参数在 onLoad 消费，onReady 时视图才就绪。C 错误：tabBar 页面切换只是隐藏/显示，走 onHide/onShow，页面实例与 data 保留、不会重复 onLoad；需要刷新新鲜度应在 onShow 里按时间戳或下拉刷新策略决定是否重新请求。D 错误：onHide 仅表示页面不可见（跳新页、切后台、切 tab），实例仍存活；onUnload 只在页面真正销毁（redirectTo/navigateBack/重定向关闭）时触发，适合清理定时器、事件监听与长连接。组件层面 Vue 的 created/mounted 与页面 onLoad/onReady 交错，组合式 API 用 onLoad/onShow 等生命周期钩子对齐。",
+    "gapCheck": [
+      "易漏点：路由 query 只在 onLoad 可得；热启动与 tab 切换只触发 onShow，重复请求逻辑要挂在 onShow 并加新鲜度判断。",
+      "常见误区：把 onHide 当销毁时机清理资源，导致返回页面时定时器/监听已失效；销毁清理应放 onUnload。",
+      "排查线索：时序问题在生命周期日志里按 onLaunch/onLoad/onShow/onReady/onHide/onUnload 打点核对。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.mini.lifecycle"
+      ],
+      "related": [
+        "fe.uniapp.mini.runtime",
+        "fe.vue.lifecycle.mount-unmount"
+      ],
+      "followUps": [
+        "onLaunch 中的异步登录与首页 onLoad 请求竞态时如何编排？",
+        "Vue 组合式 API 中如何注册 onLoad/onBackPress 等小程序页面钩子？",
+        "独立分包页面的生命周期与主包页面有哪些时序差异？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于微信小程序与 uni-app 页面/应用生命周期官方文档语义编写"
+    },
+    "tags": [
+      "生命周期",
+      "时序",
+      "onLoad",
+      "onShow"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0094"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.uniapp.mini.lifecycle",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于小程序分包加载策略与生命周期影响，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "普通分包中的页面在主包启动时不下载不执行，首次跳转到分包页面时才触发分包下载与该页面的 onLoad，能有效减小主包体积、加快冷启动"
+      },
+      {
+        "key": "B",
+        "text": "preloadRule 可配置在进入某个页面后后台预下载指定分包，把用户跳转时的下载等待提前到空闲时段"
+      },
+      {
+        "key": "C",
+        "text": "独立分包（independent）可以不依赖主包直接运行，从分享卡片打开独立分包活动页时无需先下载主包，适合营销落地页"
+      },
+      {
+        "key": "D",
+        "text": "分包可以随意拆分且互不影响，独立分包里也能自由 require 主包的 JS 与组件"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确。A 是分包机制的核心收益：小程序有主包体积上限（微信侧主包 2MB、整包体积上限随政策调整，2026 年已支持更大总包与按需注入），主包只保留 tabBar 页与核心公共代码，业务页拆入分包后冷启动只需下载主包，分包页面首次访问时才下载并走完整 onLoad/onReady 流程。B：preloadRule 按网络（wifi/all）与触发页面配置预下载，用户还在首页时静默拉取可能进入的分包，跳转时命中本地缓存实现秒开，是转化漏斗优化的常规手段。C：独立分包是特殊分包，可独立于主包运行，扫码/分享直达时省去主包下载与初始化，活动页、邀请页常用；代价是不能依赖主包资源、App 生命周期能力受限，需要自包含。D 错误：分包划分受公共依赖约束——被多个分包复用的代码应抽到主包或分包异步化/共享模块，否则重复打包；独立分包明确禁止 require 主包内容，否则「独立」不成立。补充：分包内还支持异步组件与 require.async 做更细粒度的按需注入。",
+    "gapCheck": [
+      "易漏点：分包页面首次跳转才下载，跳转耗时包含下载+注入，preloadRule 是把这段成本前移的主要手段。",
+      "常见误区：以为独立分包能复用主包 JS，实际上它必须自包含，公共逻辑需内联或走插件。",
+      "排查线索：包体超限先看依赖分布图，公共模块归位主包、低频业务入分包，再用预下载平衡跳转速度。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.mini.lifecycle"
+      ],
+      "related": [
+        "fe.uniapp.mini.runtime",
+        "fe.build.bundle.caching"
+      ],
+      "followUps": [
+        "分包异步化（require.async / 异步组件）与普通分包在注入时机上差在哪？",
+        "独立分包中 App.onLaunch 缺失会带来哪些全局能力限制？",
+        "如何监控分包下载耗时并把预下载命中率接入性能看板？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于微信小程序分包加载、preloadRule、独立分包官方文档与 uni-app 对应配置语义编写"
+    },
+    "tags": [
+      "分包",
+      "preloadRule",
+      "独立分包",
+      "冷启动"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0095"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.uniapp.mini.runtime",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "请从微信小程序（uni-app 编译目标）的双线程运行时架构出发，完成一份系统性阐述：(1) 说明逻辑层、渲染层与 Native 中转桥三者的职责，以及一次 setData 从业务代码到像素更新的完整链路；(2) 解释为什么 setData 的数据量与调用频率会成为性能瓶颈，单次 setData 的硬性约束与常见劣化写法有哪些；(3) 给出至少五条可落地的优化手段，并逐条回指架构原因；(4) 说明 Skyline 渲染引擎与 worklet 动画在链路上改变了什么、适用边界是什么。",
+    "scoringPoints": [
+      {
+        "point": "架构职责清晰：逻辑层 JSCore 跑业务无 DOM、渲染层 WebView 跑模板排版、Native 桥负责线程间消息中转与系统能力",
+        "weight": 2
+      },
+      {
+        "point": "setData 链路完整：数据 JSON 序列化 → bridge/Native 转发 → 渲染层反序列化 → 虚拟节点 diff → 排版绘制，指出序列化与通信是主要成本",
+        "weight": 2
+      },
+      {
+        "point": "约束与劣化：单次 1MB 上限、频繁全量 setData、传递无关大字段、滚动回调里同步更新、未合并帧内多次调用",
+        "weight": 2
+      },
+      {
+        "point": "五条优化且因果对应：path 化最小更新、合并/节流 setData、分页与字段瘦身、自定义组件隔离 diff 域、列表虚拟化/recycle、事件用 dataset 等",
+        "weight": 3
+      },
+      {
+        "point": "Skyline/worklet 认知正确：Skyline 原生渲染绕开 WebView 重排、worklet 把动画逻辑放到渲染线程跳过 bridge，但有组件/CSS 兼容边界与迁移成本",
+        "weight": 1
+      }
+    ],
+    "answer": {
+      "ref": "参考骨架：(1) 三线程职责：逻辑层是独立 JS 运行时（iOS JSCore/安卓 V8 系），执行业务、响应式与框架 runtime，没有 window/document；渲染层由一个或多个 WebView 承担，加载编译后的 wxml/wxss 做布局、绘制与事件采集；Native（微信客户端进程）居中做 JSBridge 消息路由、系统 API 调用与组件管理。setData 链路：业务调用 setData（uni-app Vue3 版由响应式 effect 自动生成）→ 逻辑层把 patch 数据 JSON 序列化 → 经 Native 桥跨线程转发 → 渲染层反序列化并入数据态 → 虚拟 DOM/组件树 diff → 样式重算、布局（reflow）与绘制（repaint）→ 合成上屏。(2) 瓶颈原因：序列化/反序列化耗时与数据体积近似线性，跨线程通信还要经历 Native 排队，单次 setData 数据量有 1MB 硬上限；渲染层 diff 与重排是第二段成本。劣化写法：整页大对象全量更新、把不需要渲染的临时数据也挂 data、onPageScroll/输入事件中高频同步 setData、同一帧内多次零散 setData 不合并、列表更新传整条数组而非变更下标路径。(3) 优化与因果：①path 化更新，只传 data[\"list[3].status\"]=x 这类最小路径，减少序列化体积与 diff 面（对应桥成本线性于体积）；②合并与帧节流，把同一事件循环内的多次写入聚合，降低过桥次数（通信有固定启动开销）；③接口字段瘦身与分页，只回渲染必需字段、游标分页拉取（减小 payload 与渲染节点）；④自定义组件拆分，组件拥有独立数据域与 diff 边界，setData 影响限制在组件内部（缩小重算范围）；⑤长列表虚拟化/recycle-view，窗口化挂载节点，降低渲染层布局与内存；⑥事件回传用 data-* dataset 而非闭包传大对象，图片懒加载与固定尺寸防跳动；逻辑层避免在滚动回调做重计算。(4) Skyline 是微信新一代原生渲染引擎，布局绘制由原生渲染引擎而非 WebView 承担，scroll-view、sticky、长列表与手势性能显著提升，配合 worklet：动画函数被编译分发到渲染线程执行，帧更新不再每帧过 bridge，从根上消除「逻辑线程忙→动画掉帧」链路；边界：仅支持其子集的组件与 CSS 特性、需要适配迁移、部分 WebView 专属能力不可用，worklet 适合高频动画/手势而非通用业务逻辑，落地应先在红线页面试点并对比性能看板。"
+    },
+    "analysis": "这是小程序运行时的统领性大题，评分关键不是名词堆砌而是「架构→成本→手段」的闭环：能讲清序列化与跨线程桥是 setData 主要成本，才会自然推出 path 化、合并、瘦身三类传输层优化；理解渲染层重排与组件数据域，才讲得清自定义组件隔离与虚拟化。Skyline/worklet 的追问用来区分「只看过优化清单」与「理解线程模型演进」的候选人：核心变化是把工作从逻辑线程+bridge 迁到渲染线程/原生引擎，但兼容性子集是真实约束。常见失分：把瓶颈归于虚拟 DOM diff 而忽略通信序列化、建议在小程序里用 Web Worker/DOM 方案、把 Skyline 描述成「换个更快的 WebView」、给不出每条优化对应的架构原因。",
+    "gapCheck": [
+      "易漏点：setData 成本大头是序列化+Native 桥转发+反序列化，渲染 diff 只是后段；1MB 是单次数据硬约束。",
+      "常见误区：照搬浏览器优化经验，只盯节点数不盯传输体积，或在 onPageScroll 里高频 setData 驱动吸顶。",
+      "排查线索：用真机性能面板看 setData 耗时/字节排行与帧率 P95，按传输层→渲染层→逻辑层分层验证收益。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.uniapp.mini.runtime"
+      ],
+      "related": [
+        "fe.uniapp.mini.lifecycle",
+        "fe.uniapp.compile.cross-platform",
+        "fe.perf.longlist.virtual"
+      ],
+      "followUps": [
+        "uni-app Vue3 的最小 setData path 是如何从响应式依赖推导出来的？",
+        "worklet 动画与 CSS 动画在执行线程与适用场景上如何取舍？",
+        "同层渲染与原生组件（map/video）对双线程通信模型有什么特殊处理？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于微信小程序双线程架构、setData 性能指南与 Skyline/worklet 官方文档语义编写"
+    },
+    "tags": [
+      "小程序",
+      "双线程",
+      "setData",
+      "Skyline",
+      "架构论述"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0096"
+  }
+]

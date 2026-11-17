@@ -1,0 +1,85 @@
+[
+  {
+    "id": "be.python.core",
+    "title": "语言机制与并发模型",
+    "level": 3,
+    "domain": "be",
+    "stack": "python",
+    "topic": "core",
+    "mustMaster": false,
+    "estMinutes": 70,
+    "summary": "GIL 对并发的约束、装饰器/生成器/迭代器等语言机制，是 Python 后端与脚本工程的内功"
+  },
+  {
+    "id": "be.python.core.gil-concurrency",
+    "title": "GIL、多线程/多进程/协程的取舍",
+    "level": 4,
+    "domain": "be",
+    "stack": "python",
+    "topic": "core",
+    "prerequisites": ["cs.os.process.thread-vs-process"],
+    "related": ["cs.os.process.thread-models", "be.node.core.eventloop"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 35,
+    "summary": "要能讲 GIL（全局解释器锁）为什么让 CPython 多线程无法真正并行执行字节码、IO 密集为何仍可用多线程（GIL 在 IO 等待时释放）、CPU 密集为何要用 multiprocessing 多进程绕过 GIL、threading vs asyncio vs multiprocessing 三者选型，以及 GIL 在 3.13 free-threaded（no-GIL）构建里的变化"
+  },
+  {
+    "id": "be.python.core.lang-advanced",
+    "title": "装饰器、生成器/迭代器与常见语言坑",
+    "level": 4,
+    "domain": "be",
+    "stack": "python",
+    "topic": "core",
+    "prerequisites": [],
+    "related": ["be.java.core.oop"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 35,
+    "summary": "要能讲闭包与装饰器（含带参装饰器、functools.wraps）、迭代器协议 __iter__/__next__ 与生成器 yield 惰性求值、yield from 与生成器协程、可变默认参数 def f(x=[]) 的共享陷阱、深拷贝浅拷贝、*args/**kwargs 与鸭子类型，以及 list/dict/set 推导式"
+  },
+
+  {
+    "id": "be.python.web",
+    "title": "异步与 Web 框架",
+    "level": 3,
+    "domain": "be",
+    "stack": "python",
+    "topic": "web",
+    "mustMaster": false,
+    "estMinutes": 60,
+    "summary": "asyncio 事件循环、FastAPI/Django/Flask 选型与 ORM/Pydantic，决定 Python 服务的工程形态"
+  },
+  {
+    "id": "be.python.web.asyncio",
+    "title": "asyncio 事件循环、协程调度与 aiohttp",
+    "level": 4,
+    "domain": "be",
+    "stack": "python",
+    "topic": "web",
+    "prerequisites": ["be.python.core.gil-concurrency"],
+    "related": ["be.node.core.eventloop"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲协程函数与普通函数的区别、event loop 如何单线程调度大量协程、await 的挂起恢复机制、asyncio.gather 并发与 Task 取消、为什么协程里不能有阻塞 IO（会卡住整个循环）要用 aiohttp/异步驱动，以及与 Node 事件循环在单线程并发模型上的异同"
+  },
+  {
+    "id": "be.python.web.framework",
+    "title": "Django/Flask/FastAPI 选型、ORM 与 Pydantic 校验",
+    "level": 4,
+    "domain": "be",
+    "stack": "python",
+    "topic": "web",
+    "prerequisites": ["be.python.web.asyncio"],
+    "related": ["be.spring.mvc.request-flow"],
+    "mustMaster": false,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲 Django（大而全、同步 ORM、Admin）、Flask（轻量、灵活、扩展拼装）、FastAPI（异步、类型注解驱动、自动 OpenAPI 文档）三者定位、同步框架跑在 WSGI 而异步框架跑 ASGI 的区别、Django ORM 慢查询与 N+1 问题、Pydantic 基于类型注解做请求/响应数据校验与序列化，以及依赖注入 Depends 的用法"
+  }
+]

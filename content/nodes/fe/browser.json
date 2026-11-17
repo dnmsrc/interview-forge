@@ -1,0 +1,61 @@
+[
+  { "id": "fe.browser.render", "title": "渲染流水线与帧生产", "level": 3, "domain": "fe", "stack": "browser", "topic": "render", "mustMaster": true, "estMinutes": 55,
+    "summary": "从字节到首帧的完整流水线、重排重绘合成与合成层动画优化" },
+
+  { "id": "fe.browser.render.pipeline", "title": "从 URL 输入到首帧：解析、布局、绘制与合成", "level": 4, "domain": "fe", "stack": "browser", "topic": "render",
+    "prerequisites": ["fe.html.foundation.semantic-tags", "fe.js.dom.dom-api"],
+    "related": ["fe.browser.render.reflow-repaint", "fe.network.optimize.conn-reuse"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能完整走通流水线：DNS/TCP/TLS 与 TTFB → HTML 字节流增量解析建 DOM（script 同步阻塞解析、async/defer 两种放行方式）、CSS 下载不阻塞 DOM 解析但阻塞渲染且有「首次绘图前等完整 CSSOM」的 FOUC/白屏权衡 → render tree 构建 → layout（盒子几何，含 flex/grid 两轮测量）→ paint（分层生成绘制指令/display list）→ composite（合成线程按层变换叠加交给 GPU），并知道 commit 主线程→合成器线程的 IPC 交接、首屏之后增量失效与脏矩形重绘" },
+
+  { "id": "fe.browser.render.reflow-repaint", "title": "重排、重绘与合成层：几何失效与 GPU 加速边界", "level": 4, "domain": "fe", "stack": "browser", "topic": "render",
+    "prerequisites": ["fe.browser.render.pipeline"],
+    "related": ["fe.js.dom.dom-api", "fe.css.layout.position"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能区分 reflow（几何变化向下传播局部重排、根级变化全局重排）⊇ repaint（外观变化不改几何）⊇ 仅 composite（transform/opacity 只走合成线程跳过 layout/paint），知道 getBoundingClientRect/offsetTop 等属性会强制 flush pending layout（读写交错引发 layout thrashing）及 FastDom/批量读写对策；合成层触发条件（will-change、translateZ、video/iframe/canvas 等）与层爆炸的显存代价——每个层都是纹理，滥用 will-change 反而掉帧；2026 现状：content-visibility:auto + contain-intrinsic-size 让屏外子树跳过 layout/paint 成为长页首选，@container 容器查询普及但触发的是容器局部重排，anchor 定位已 Baseline 可用" },
+
+  { "id": "fe.browser.events", "title": "事件循环与帧调度", "level": 3, "domain": "fe", "stack": "browser", "topic": "events", "mustMaster": true, "estMinutes": 45,
+    "summary": "浏览器事件循环时序、渲染时机与输入响应治理" },
+
+  { "id": "fe.browser.events.event-loop", "title": "浏览器事件循环：宏任务、微任务与渲染时机", "level": 4, "domain": "fe", "stack": "browser", "topic": "events",
+    "prerequisites": ["fe.js.async.event-loop"],
+    "related": ["fe.vue.scheduler.nexttick", "fe.browser.events.input-frame"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲浏览器事件循环与 Node（libuv 六阶段+setImmediate/process.nextTick）的执行模型差异：每轮取一个宏任务 → 清空全部微任务（递归产生的也同轮执行）→ 必要时渲染更新（每帧最多一次，由 vsync 驱动，非每轮必渲染）；rAF 在渲染前的 animation 回调阶段执行、rIC 在空闲预算内兜底、requestPostMessage/跨源隔离通道（postMessage vs MessageChannel vs BroadcastChannel）的任务归属；Vue nextTick 用 Promise 微任务合批因此「改完数据 await nextTick 可读到新 DOM」的因果链" },
+
+  { "id": "fe.browser.events.input-frame", "title": "输入延迟、INP 与长任务让出：event-loop 实用性治理", "level": 4, "domain": "fe", "stack": "browser", "topic": "events",
+    "prerequisites": ["fe.browser.events.event-loop"],
+    "related": ["fe.js.dom.event", "fe.perf.metrics.core"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能解释输入事件的派发路径（浏览器进程命中测试→渲染进程按事件监听器是否 passive/preventDefault 决定滚动能否提前合成）、INP 取代 FID 的度量口径（交互到下一次绘制、P75）与「事件处理函数本身慢」的主因定位；长任务 >50ms 切分手段：setTimeout 粗切的问题（渲染间隙不受控）、scheduler.yield()（Chrome 129+ 的 YieldingTask 原生让出、优先级保持）与 yield* scheduler.yield() 异步迭代器写法、splitting 库与 Web Worker 卸载计算；passive:true 对滚动流畅度的意义与 preventDefault 失效的取舍" },
+
+  { "id": "fe.browser.storage", "title": "存储与多线程能力", "level": 3, "domain": "fe", "stack": "browser", "topic": "storage", "mustMaster": true, "estMinutes": 45,
+    "summary": "本地存储家族对比、Cookie 边界与 Web Worker/Service Worker 体系" },
+
+  { "id": "fe.browser.storage.local", "title": "Cookie、Web Storage 与 IndexedDB：容量、生命周期与并发", "level": 4, "domain": "fe", "stack": "browser", "topic": "storage",
+    "prerequisites": ["fe.html.foundation.semantic-tags", "fe.network.transport.cors-cookie"],
+    "related": ["fe.browser.worker.thread", "fe.electron.security.csp"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能横向对比：Cookie（4KB、随同域请求自动携带、可设过期/HttpOnly/SameSite、是 CSRF 载体）、localStorage（约 5MB 同源配额、同步 API 大 value 会卡主线程、永久直到手动清）、sessionStorage（同源同标签页会话级、复制标签页会带过去）、IndexedDB（NoSQL 事务索引、异步不阻塞、可存 File/Blob、配额可达磁盘比例）的选型矩阵；知道 Cookie 的 Domain/Path/Secure/Partitioned 属性、三方 Cookie 淘汰态势（Chrome 已放弃全面禁用改为设置页入口、Safari ITP 持续生效）与 CHIPS 按顶层站点分区；localStorage 的多标签一致性要靠 storage 事件或 BroadcastChannel 自建" },
+
+  { "id": "fe.browser.worker.thread", "title": "Web Worker、SharedWorker 与 Service Worker 全景", "level": 4, "domain": "fe", "stack": "browser", "topic": "storage",
+    "prerequisites": ["fe.js.async.promise"],
+    "related": ["fe.network.transfer.upload", "fe.browser.storage.local"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲 Dedicated Worker 的 postMessage 结构化克隆成本（Transferable ArrayBuffer/OffscreenCanvas 零拷贝转移）、无 DOM 环境的边界与 Comlink 封装；SharedWorker 跨标签共享实例的场景（连接复用/协作光标）与 Safari 支持滞后；Service Worker 的 install/fetch/activate 生命周期、Cache Storage 版本化清理、skipWaiting/clientsClaim 的发布节奏控制、SW 是 HTTPS/localhost 安全上下文下的网络拦截层且能 background sync/push；Worklet（音频/CSS 分组层）一句话定位；2026 增量：navigator.locks 做跨标签互斥、Atomics.wait 阻塞等待 SharedArrayBuffer 需 COOP/COEP 跨源隔离、WebGPU compute 部分接管重计算" },
+
+  { "id": "fe.browser.v8", "title": "V8 引擎与内存管理", "level": 3, "domain": "fe", "stack": "browser", "topic": "v8", "mustMaster": false, "estMinutes": 40,
+    "summary": "执行流水线与垃圾回收分代、内存泄漏排查" },
+
+  { "id": "fe.browser.v8.engine", "title": "V8 执行流水线与分代 GC：Ignition、Sparkplug 与 Scavenge", "level": 4, "domain": "fe", "stack": "browser", "topic": "v8",
+    "prerequisites": ["fe.js.basics.types"],
+    "related": ["fe.js.scope.closure", "fe.js.async.event-loop"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 parse→AST→Ignition 生成 bytecode（解释执行、收集类型反馈/turbofan feedback vector）→热点函数经 Sparkplug 基线编译→Maglev（V8 12.x 起默认的中端优化层，吃反馈做轻量 IR）→TurboFan 深度 JIT（依赖假设、去优化 bail out）的分层流水线及「为什么短生命周期字节码优先」的启动性能动机；GC 侧：新生代 Scavenge（From/Semi-space 复制、young generation 小对象高存活快挪走）、老生代 Mark-Sweep-Compact（三色标记、增量着色与写屏障消解浮动垃圾、并发标记减少停顿）、内存泄漏判定（堆锯齿抬升而非峰值）；隐藏类/内联缓存对「同构对象字面量更快」的解释" },
+
+  { "id": "fe.browser.v8.memory", "title": "内存泄漏场景清单与 DevTools 排查路径", "level": 4, "domain": "fe", "stack": "browser", "topic": "v8",
+    "prerequisites": ["fe.browser.v8.engine"],
+    "related": ["fe.js.scope.closure", "fe.vue.composition.composable-design"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能列高频泄漏源：闭包长期持有大对象、被遗忘的定时器/rAF、addEventListener 漏 remove（尤其 window/document 全局监听与第三方组件）、Map/Set 缓存无上限（应 WeakMap/WeakRef+FinalizationRegistry 慎用）、console.log 在生产 hold 引用、SW/扩展消息端口持有页面引用、detached DOM（JS 引用已 removeChild 的节点）；排查路径：Memory 面板 Heap Snapshot 三连拍比对 Retained Size 增长、Allocation instrumentation on timeline 定位分配点、Performance Monitor 看 JS Heap 锯齿、queryObjects 找实例、生产侧 performance.measureUserAgentSpecificMemory 与 Chrome 任务管理器分进程观测" }
+]

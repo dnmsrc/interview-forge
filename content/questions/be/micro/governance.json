@@ -1,0 +1,176 @@
+[
+  {
+    "id": "Q-be-micro-registry-0001",
+    "nodeId": "be.micro.governance.registry-gateway",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于微服务注册中心的 CAP 取舍与服务发现，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "Eureka 倾向 AP（注册信息保存在各节点、网络分区时仍可提供服务发现、容忍短时不一致）；Zookeeper/etcd 倾向 CP（基于 Zab/Raft 强一致，分区时少数派不可写）；Nacos 可在 AP/CP 间切换" },
+      { "key": "B", "text": "所有注册中心都必须保证强一致，否则服务调用一定会失败" },
+      { "key": "C", "text": "Eureka 是 CP 的，Zookeeper 是 AP 的，二者定位正好相反" },
+      { "key": "D", "text": "注册中心宕机后，所有服务间调用会立即全部中断，因为无法再做服务发现" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确。注册中心本质是一个分布式数据存储，要在 CAP 间取舍：Eureka 的每个 Server 节点都持有完整注册表、对等复制、不保证复制时刻强一致，网络分区时各节点仍可被读、宁可返回可能过期的实例列表也要保证可用，是典型 AP；Zookeeper（Zab）、etcd（Raft）靠领导者 + 多数派提交保证强一致，分区时少数派无法写入/读取最新值，是 CP；Nacos 对临时实例用 AP（Distro 协议）、对持久实例用 CP（Raft），可按业务切。B 错：服务发现更看重可用性，拿到几秒前的实例列表通常仍可用，配合心跳剔除和客户端重试即可。C 把两者说反。D 错：消费方（客户端）会把从注册中心拉到的服务列表缓存在本地，并通过心跳/定时刷新更新，注册中心短时宕机不影响已有调用，只是新实例上下线不能及时感知，这正是 AP 设计的意义。服务剔除靠心跳租约（如 Eureka 的 90s 过期 + 自我保护机制）。对照前端：本地缓存的服务列表很像 Service Worker 缓存接口地址，注册中心（配置源）短暂不可用时仍能用缓存继续工作。",
+    "gapCheck": [
+      "易漏点：Eureka AP、ZK/etcd CP、Nacos 可切；客户端本地缓存让注册中心宕机不立即中断调用",
+      "常见误区：以为注册中心必须强一致，或把 Eureka 与 ZK 的 CAP 定位记反",
+      "加分项：能讲 Raft/Zab 多数派、Eureka 自我保护机制、心跳租约与服务剔除"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.mvc.autoconfig"],
+      "related": ["be.micro.distributed-tx.cap-base", "cs.net.dns.resolve"],
+      "followUps": ["Eureka 的自我保护机制解决什么问题？有什么副作用？", "Nacos 的临时实例和持久实例在健康检查上有何不同？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "注册中心 CAP 取舍与服务发现" },
+    "tags": ["微服务", "注册中心", "CAP", "Eureka", "Nacos"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-micro-registry-0002",
+    "nodeId": "be.micro.governance.registry-gateway",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "关于 API 网关、负载均衡与服务调用入口，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "API 网关（如 Spring Cloud Gateway）是统一入口，负责路由转发、统一鉴权、限流、熔断、灰度、协议转换、日志监控等横切能力" },
+      { "key": "B", "text": "客户端负载均衡（如 LoadBalancer/Ribbon）由调用方从本地服务列表里按策略选一个实例；Nginx 是服务端负载均衡，请求先到 Nginx 再被分发" },
+      { "key": "C", "text": "网关适合承载核心业务逻辑和数据库事务，应尽量把各微服务的领域规则都收口到网关" },
+      { "key": "D", "text": "网关可以基于请求头/权重/用户标签做灰度发布路由，把一小部分流量导向新版本" }
+    ],
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A 正确：网关是系统对外的唯一入口，把鉴权、限流、熔断、路由、灰度、黑白名单、统一日志这些与具体业务无关的横切关注点集中处理，后端微服务可专注领域逻辑。B 正确区分了两类负载均衡：服务端 LB（Nginx/F5）对客户端透明，请求打到 VIP 后由中间件分发；客户端 LB（Ribbon/LoadBalancer）是调用方自己持有注册中心下发的实例列表，在进程内按轮询/随机/加权等策略选一个地址直连，少一跳。C 是反模式：网关应保持「轻」，只做通用横切和编排，承载重业务/事务会使其膨胀成新的单点和瓶颈，领域逻辑仍归各微服务（这与 BFF 不要变胖同理）。D 正确：灰度（金丝雀）发布常借助网关按权重、Header、Cookie、用户分桶做流量切分，先放 1% 到新版本验证再逐步放量，出问题快速回滚。网关还常配合配置中心动态调整路由和限流规则。对照前端：网关很像前端的 BFF/统一请求层 + 路由守卫，把登录校验、错误处理、流量分发在入口统一做掉，页面组件只管业务。",
+    "gapCheck": [
+      "易漏点：客户端 LB（进程内选实例）与服务端 LB（Nginx 分发）的区别；网关做灰度路由",
+      "常见误区：把核心业务和事务塞进网关，造成胖网关单点",
+      "加分项：能讲 Gateway 的 Predicate/Filter 模型、灰度流量切分维度"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.micro.governance.registry-gateway"],
+      "related": ["be.node.runtime.cluster-bff", "cs.design.limit.algorithm"],
+      "followUps": ["Spring Cloud Gateway 的 Predicate 和 Filter 各起什么作用？", "灰度发布和蓝绿发布在流量切换上有什么区别？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "网关职责与两类负载均衡多选题" },
+    "tags": ["微服务", "API网关", "负载均衡", "灰度发布"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-micro-resilience-0001",
+    "nodeId": "be.micro.governance.resilience",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "熔断器（Circuit Breaker）的状态机与作用，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "有 closed（正常放行）、open（熔断、直接快速失败不再调用下游）、half-open（放少量探测请求，成功则关闭、失败则继续打开）三态，能防止下游故障时调用方线程被大量拖死、避免雪崩级联" },
+      { "key": "B", "text": "熔断器一旦打开就永久断开，必须人工重启服务才能恢复" },
+      { "key": "C", "text": "熔断器的作用是把请求缓存起来，等下游恢复后再统一补发" },
+      { "key": "D", "text": "熔断和限流是同一回事，都是限制单位时间内的请求总数" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确描述了熔断器三态模型。closed 状态正常放行请求并统计失败率；当滑动窗口内失败率/慢调用比例超过阈值（如 Resilience4j 的 failureRateThreshold），切到 open，此后一段时间内（waitDurationInOpenState）所有请求直接快速失败、不再访问已故障的下游，保护调用方线程池不被占满、阻断故障向上游级联（雪崩）；冷却期结束进入 half-open，放行有限几个探测请求，若成功率达标就回到 closed 恢复调用，否则重新回到 open。这套机制让系统具备自适应的故障隔离与自愈能力。B 错：half-open 就是自动恢复探测，无需人工重启。C 错：熔断是快速失败 + 降级兜底（返回默认值/缓存/友好提示），不是缓存补发，消息队列才负责异步堆积。D 错：限流控制的是「进入的请求速率」（令牌桶/漏桶等），熔断控制的是「对某个故障下游是否还发起调用」，二者目标和机制不同，常配合降级一起使用。Sentinel 还把熔断、限流、热点、系统自适应保护统一在一套规则里。对照前端：熔断很像前端请求库对一个持续 5xx 的接口做短路，暂时直接走 catch 兜底而不是反复发请求把页面拖卡。",
+    "gapCheck": [
+      "易漏点：closed/open/half-open 三态转换条件，熔断防的是级联雪崩而非限流",
+      "常见误区：以为熔断后永久断开，或把熔断与限流、降级混为一谈",
+      "加分项：能讲滑动窗口失败率统计、慢调用比例、半开探测的具体参数"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.micro.governance.registry-gateway"],
+      "related": ["cs.design.limit.circuit-breaker", "cs.design.limit.algorithm"],
+      "followUps": ["熔断和降级分别解决什么问题？如何配合？", "Resilience4j 和 Sentinel 在实现上有什么差异？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "熔断器三态与雪崩防护" },
+    "tags": ["微服务", "熔断", "雪崩", "Resilience4j", "Sentinel"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-micro-resilience-0002",
+    "nodeId": "be.micro.governance.resilience",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：微服务调用链上的自动重试必须以接口幂等为前提，且要设置最大重试次数与退避间隔；若上下游都无脑重试，下游一旦变慢，叠加的重试流量会放大成「重试风暴」，反而把下游彻底压垮。",
+    "answer": { "judge": true },
+    "analysis": "正确。这是生产事故高发点。重试是应对瞬时故障（网络抖动、偶发超时）的常用手段，但有三个前提：① 被重试的接口必须幂等，否则一次下单因超时被重试成两笔订单，重试反而制造数据错误；写操作要靠唯一键/状态机/幂等 token 保证重复执行结果一致。② 必须有最大重试次数（通常 1-2 次）和退避策略（指数退避 + 随机抖动），不能无限重试。③ 多层重试会相乘放大：网关、服务 A、服务 B 各重试 3 次，最底层一次抖动理论上最多触发 3×3×3=27 次请求，当下游已经变慢时，大量线程在等待 + 重试，新流量叠加旧重试形成重试风暴，把「慢」推向「彻底挂」，并沿调用链级联成雪崩。正确做法是只在最外层或明确的一层做有限重试、配合熔断（下游熔断后立即停止重试）、设置层层递减的超时（上游超时 > 下游超时，给重试留出时间）、对非幂等写接口默认不自动重试。退避加抖动还能避免大量客户端同时重试造成的「惊群」。对照前端：前端请求重试/轮询同样要限制次数并加退避，否则弱网下会把接口打爆，是同一类放大风险。",
+    "gapCheck": [
+      "易漏点：重试以幂等为前提；多层重试次数相乘会形成重试风暴",
+      "常见误区：以为重试越多越可靠、对非幂等写接口也无脑重试，忽略多层重试的相乘放大效应",
+      "加分项：能讲指数退避+抖动、层层超时设置、熔断与重试的配合"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.micro.governance.resilience"],
+      "related": ["cs.design.mq-dedup.idempotent", "be.mq.reliability.idempotent"],
+      "followUps": ["如何设计一个幂等 token 机制防止重复下单？", "指数退避为什么还要加随机抖动？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "重试风暴与幂等前提，工程高频" },
+    "tags": ["微服务", "重试风暴", "幂等", "雪崩", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-micro-registry-0003",
+    "nodeId": "be.micro.governance.registry-gateway",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "微服务健康检查中，注册中心靠服务实例周期性发送的 ______（心跳/租约）判断其存活，超过约定时间未收到则摘除该实例；调用方本地还会______ 一份服务列表，使得注册中心短暂宕机时已有调用不立即中断。",
+    "answer": {
+      "blanks": ["心跳", "缓存"],
+      "synonyms": {
+        "心跳": ["心跳包", "租约", "heartbeat", "续约"],
+        "缓存": ["本地缓存", "缓存（cache）", "cache"]
+      }
+    },
+    "analysis": "两个空对应服务发现的可用性设计。① 心跳（heartbeat，也称租约续约 lease renewal）：服务实例启动后注册到注册中心，并周期性（如 Eureka 默认每 30s）发送心跳表明自己存活，注册中心若在租约期限（Eureka 默认 90s）内收不到心跳就把实例从注册表剔除，避免流量被发往已死节点；Nacos 临时实例也用心跳，持久实例则由服务端主动探测。② 本地缓存：消费端（如 Ribbon/LoadBalancer）首次拉取服务实例列表后缓存在本地内存，并定时增量/全量刷新，调用时直接从本地选实例，不必每次请求都问注册中心。这样即使注册中心整体短时不可用，调用方仍能用缓存的列表继续通信，只是新实例上线、坏实例下线不能及时感知——这正是 AP 型注册中心优先保证可用性的体现。要注意 Eureka 还有「自我保护机制」：当短时间大量实例心跳丢失（可能是网络分区而非实例真挂），注册中心宁可不剔除也保留注册表，防止误摘，恢复后再退出保护。对照前端：本地缓存服务地址类似前端缓存配置/接口域名，配置中心短暂失效时仍能凭缓存运行。",
+    "gapCheck": [
+      "易漏点：心跳/租约续约驱动存活判定与摘除；客户端本地缓存让注册中心宕机不中断调用",
+      "常见误区：以为注册中心一宕机服务间调用立刻全挂，忽略本地缓存与心跳租约",
+      "加分项：知道 Eureka 自我保护机制、Nacos 临时/持久实例健康检查方式差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.micro.governance.registry-gateway"],
+      "related": ["be.micro.distributed-tx.cap-base"],
+      "followUps": ["Eureka 自我保护机制在什么情况下反而可能带来问题？", "Nacos 临时实例和持久实例的健康检查有何不同？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "心跳租约与本地缓存填空题" },
+    "tags": ["微服务", "心跳", "服务发现", "本地缓存", "填空题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-micro-resilience-0003",
+    "nodeId": "be.micro.governance.resilience",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于限流算法，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "令牌桶以固定速率往桶里放令牌、请求拿到令牌才放行，桶有容量上限，因此既能限制平均速率，又允许一定程度的突发流量；漏桶则以恒定速率出水，输出更平滑、不鼓励突发" },
+      { "key": "B", "text": "固定窗口计数器没有临界突刺问题，在窗口边界瞬间打到两倍流量也不会超限" },
+      { "key": "C", "text": "漏桶算法允许请求以任意突发速率直接通过，完全不做整形" },
+      { "key": "D", "text": "滑动窗口和固定窗口的实现成本、精度完全相同，没有区别" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确对比了两种主流算法。令牌桶：系统以恒定速率生成令牌存入容量有限的桶，请求消耗一个令牌才通过，桶满则多余令牌丢弃；因为桶里可积攒令牌，闲时攒下的令牌能应对短时突发，故允许受控突发、平均速率受限，Sentinel/Guava RateLimiter 多用此模型。漏桶：请求先进桶，桶以恒定速率漏出（处理），无论入口多突发，出口速率都被强制平滑，适合保护下游不被突发冲垮，但无法利用空闲能力应对合法突发。B 错：固定窗口在窗口翻转的临界点有明显突刺——例如限 100/分钟，第 59 秒来 100 个、第 61 秒（新窗口）又来 100 个，短时间内实际通过 200 个。C 说的是漏桶的反面，漏桶恰恰是强整形。D 错：滑动窗口把窗口细分成多个小格并随时间滑动，统计更平滑、临界突刺更小，但要维护更多格子、内存和计算成本高于固定窗口。选型：要容忍突发选令牌桶，要强平滑保护下游选漏桶，要简单且对精度不敏感可用固定窗口，要精度折中用滑动窗口；分布式限流还要把计数/令牌放到 Redis（如 Lua 脚本保证原子）。对照前端：令牌桶很像前端按钮节流允许连点少量次数、之后按固定频率放行，漏桶像消息队列把突发拉平成稳定消费。",
+    "gapCheck": [
+      "易漏点：令牌桶允许受控突发、漏桶恒定平滑；固定窗口有临界突刺",
+      "常见误区：以为限流算法都一样，或忽视分布式限流要靠 Redis+Lua 保证原子",
+      "加分项：能讲滑动窗口如何缓解突刺、单机限流与网关/分布式限流的落点"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.micro.governance.resilience"],
+      "related": ["cs.design.limit.algorithm", "be.redis.cache.patterns"],
+      "followUps": ["如何用 Redis + Lua 实现一个分布式令牌桶？", "Sentinel 的流控模式（直接/关联/链路）分别解决什么问题？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "限流算法对比单选题" },
+    "tags": ["微服务", "限流", "令牌桶", "漏桶", "滑动窗口"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  }
+]

@@ -1,0 +1,876 @@
+[
+  {
+    "id": "Q-fe-electron-0001",
+    "nodeId": "fe.electron.process.model",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "关于 Electron 的进程与 Node 能力分布，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "渲染进程的页面 JS 默认可以直接 require('fs') 读写文件"
+      },
+      {
+        "key": "B",
+        "text": "Node 能力默认收敛在主进程与 preload 脚本，渲染进程页面运行在 Chromium 环境中经 contextBridge 受控访问"
+      },
+      {
+        "key": "C",
+        "text": "每个 BrowserWindow 独占一个主进程，多窗口即多主进程"
+      },
+      {
+        "key": "D",
+        "text": "GPU 加速由 Node 的 worker_threads 承担，与 Chromium 无关"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。现代 Electron 默认 nodeIntegration:false + contextIsolation:true + sandbox:true：页面世界没有 require/process，文件系统、原生调用由主进程实现、preload 以 contextBridge 暴露最小函数面。A 是老配置（nodeIntegration:true）的行为，也是当年 XSS→RCE 事故的根源；C 错——全应用只有一个主进程，窗口只是不同的渲染进程；D 错——GPU 是独立 Chromium 进程体系。",
+    "gapCheck": [
+      "易漏点：preload 运行在「特权 world」，能同时够到页面 window 与 Electron API，是官方指定的桥接层",
+      "常见误区：以为多窗口会并行多个主进程事件循环，重计算应放 utilityProcess 而非想当然开新窗",
+      "加分项：能说出 utilityProcess.fork 替代旧 process.type=browser 子窗方案的版本背景"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.process.model"
+      ],
+      "related": [
+        "fe.electron.ipc.channels",
+        "fe.js.async.event-loop"
+      ],
+      "followUps": [
+        "sandbox:true 后 preload 还能 require 什么？",
+        "主进程卡顿会冻结所有窗口吗？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "进程模型入门单选题"
+    },
+    "tags": [
+      "Electron",
+      "进程模型",
+      "送分题",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-electron-0002",
+    "nodeId": "fe.electron.process.model",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：BrowserWindow 关闭只调 win.hide()（常驻托盘模式）时，其渲染进程与整份 Chromium 内存依然存活；长期后台应用应区分「短暂隐藏复用」与「不再需要就 webContents.close()/destroy 释放」两种策略。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。hide 只是不可见，renderer 的 JS/DOM/监听器/定时器全部照常运行并占用几十至上百 MB，多窗口应用「越用越肥」多半是攒了一堆隐藏窗。策略上：高频打开的主编辑窗可预热+隐藏复用换秒开；低频设置窗/预览窗用完 close（webContents.close 先销毁渲染侧再 destroy），并把引用置 null 防泄漏。配套监听 render-process-gone/destroyed 做状态清理；macOS 上 window-all-closed 不 quit 是平台惯例，但也要靠 app.on('before-quit') 放行真正退出。",
+    "gapCheck": [
+      "易漏点：hidden 窗口里 requestAnimationFrame 会停摆但 setTimeout 照常，后台逻辑要按可见性门控",
+      "常见误区：以为 GC 会回收被变量引用的 BrowserWindow——主进程强引用链在就不会释放",
+      "加分项：知道 backgroundThrottling 选项与 app.getAppMetrics 观测各进程占用"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.process.model"
+      ],
+      "related": [
+        "fe.electron.ship.native-os",
+        "fe.browser.v8.memory"
+      ],
+      "followUps": [
+        "窗口复用池怎么设计冷启动秒开？",
+        "render-process-gone 的 reason 有哪几类？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "隐藏窗口内存判断题"
+    },
+    "tags": [
+      "Electron",
+      "窗口",
+      "内存",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-electron-0003",
+    "nodeId": "fe.electron.ipc.channels",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "渲染进程要发起「读取配置文件内容」的调用并拿到返回值，最符合现代 Electron 规范的通道写法是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "ipcRenderer.sendSync('read-config') 同步拿结果，代码最简单"
+      },
+      {
+        "key": "B",
+        "text": "preload 暴露 readConfig(): Promise，内部走 ipcRenderer.invoke，主进程 ipcMain.handle 读文件返回"
+      },
+      {
+        "key": "C",
+        "text": "页面直接 import('electron') 使用 ipcRenderer"
+      },
+      {
+        "key": "D",
+        "text": "主进程轮询全局变量等待渲染进程写入"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。invoke/handle 是官方推荐的异步请求-响应：Promise 化、并发安全（不共享可变全局）、错误经 reject 传播、结构化克隆参数。A 的 sendSync 会阻塞该渲染进程整个 IPC 帧直到回复，主进程一卡全员陪葬，官方明确劝退；C 在 contextIsolation+sandbox 默认下页面根本摸不到 ipcRenderer，即使把 ipcRenderer 原样透传进 window 也等于绕过隔离让页面可自由发任意 channel；D 无此机制。",
+    "gapCheck": [
+      "易漏点：handle 一次注册重复调用场景要 removeHandler 或 Map 管理，否则第二次注册直接抛错",
+      "常见误区：invoke 大数据（几十 MB Buffer）会克隆拷贝两份——改传文件路径或走 MessagePort 流",
+      "加分项：channel 用 TS 联合类型集中定义成「API 合同」，配 electron-trpc 类封装谈选型"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.ipc.channels"
+      ],
+      "related": [
+        "fe.electron.security.csp",
+        "fe.network.realtime.websocket"
+      ],
+      "followUps": [
+        "高频进度事件用什么通道、如何防监听器泄漏？",
+        "两个渲染进程大流量互传怎么做？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "invoke/handle 规范单选题"
+    },
+    "tags": [
+      "Electron",
+      "IPC",
+      "preload",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-electron-0004",
+    "nodeId": "fe.electron.ipc.channels",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：contextBridge.exposeInMainWorld('api', { ipc: require('electron').ipcRenderer }) 把 ipcRenderer 整个对象透出，与逐个包装方法相比只是写法偷懒，安全性等价。",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "不等价。contextBridge 对透出的**函数**执行「跨界调用+参数深拷贝」，而把 ipcRenderer 这样的活对象透出后，页面拿到的是真实通道对象：可 on 任意 channel 窃听其他业务事件、send 任意 channel 触发主进程未预期分支、甚至经由其原型链摸到 Node 世界（历史上多个 contextIsolation 逃逸 CVE 就是这类「对象直漏」形态）。官方纪律是只暴露语义化函数（readConfig/saveDoc/openExternal），入参出参均为可克隆纯数据，让 preload 成为一张可审计的最小 API 面。",
+    "gapCheck": [
+      "易漏点：contextBridge 透出对象属性是快照深拷贝、函数才是活桥——两种语义混用会写出「页面改了 window.api.x 主进程看不见」的错觉 bug",
+      "常见误区：以为 contextIsolation:true 就自动安全，暴露面失控时隔离只剩形式",
+      "加分项：知道 webFrameMain / event.senderFrame 在服务端校验调用来源 frame，防 iframe 冒充"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.ipc.channels"
+      ],
+      "related": [
+        "fe.electron.security.csp",
+        "fe.electron.process.model"
+      ],
+      "followUps": [
+        "preload 里为什么不能 import 第三方 npm 包（sandbox 下）？",
+        "如何给 IPC 做输入校验与 zod 化？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "contextBridge 暴露面判断题"
+    },
+    "tags": [
+      "Electron",
+      "contextBridge",
+      "安全",
+      "IPC"
+    ]
+  },
+  {
+    "id": "Q-fe-electron-0005",
+    "nodeId": "fe.electron.security.csp",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "桌面端 renderer 加载了一个用户可贴外链的富预览页。为阻断「XSS 升级为整机 RCE」，下列加固组合**最完整**且无误伤的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "nodeIntegration:true 方便调试，配 CSP meta 标签即可"
+      },
+      {
+        "key": "B",
+        "text": "保持默认三件套（nodeIntegration:false/contextIsolation:true/sandbox:true），setWindowOpenHandler deny+白名单新建受控窗、will-navigate 拦离站、shell.openExternal 仅放行 http/https/mailto、CSP default-src 'self'"
+      },
+      {
+        "key": "C",
+        "text": "webSecurity:false 关掉同源策略，让预览页跨域取资源更省事"
+      },
+      {
+        "key": "D",
+        "text": "给预览页注入 jQuery 并用 innerHTML 渲染来「净化」内容"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 是标准答案。逻辑链：XSS 在被隔离的沙箱页里最多偷页面数据，摸不到 fs/child_process；弹窗与导航治理防「钓鱼窗/权限滥用窗」，openExternal scheme 白名单防 mailto: 拼参数与自定义协议劫持，CSP 兜底禁内联注入。A 的 nodeIntegration:true 正是事故链起点（XSS 一行 require 即弹计算器）；C 的 webSecurity:false 连同源都拆了是反向操作；D 的 innerHTML 本身可执行 script 标签与事件属性，净化要用 DOMPurify 类白名单解析器。",
+    "gapCheck": [
+      "易漏点：Vue3 运行时模板编译器依赖 new Function——SFC 预编译产物不需要 CSP unsafe-eval，但动态 runtime 模板需要，答题体现这层才专业",
+      "常见误区：以为 Electron 本地 file:// 页面天然免疫 CSRF/XSS——远程内容混载时同样中招",
+      "加分项：提到 protocol.handle 自定义协议的 realpath 路径穿越防护与 safeStorage 存 token"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.security.csp"
+      ],
+      "related": [
+        "fe.electron.ipc.channels",
+        "fe.browser.storage.local"
+      ],
+      "followUps": [
+        "autoUpdater 的包完整性如何保证？",
+        "为什么 preload 也要过一遍代码审计？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "XSS 升 RCE 加固单选题"
+    },
+    "tags": [
+      "Electron",
+      "安全",
+      "CSP",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-electron-0006",
+    "nodeId": "fe.electron.security.csp",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "面试官：「我们的 Electron 应用要接入一个内部 Web 系统的远程页面，还要允许弹出新窗口下载附件。请从 Electron 安全模型出发，给出完整的威胁清单与对应防线。」要求覆盖进程隔离、导航与弹窗、外部程序、更新链路四层。",
+    "answer": {
+      "ref": "参考骨架：① 进程隔离层：确认 webPreferences 三件套默认值未被历史代码翻转（老项目常因迁移遗留 nodeIntegration:true 或 enableRemoteModule），preload 只暴露函数白名单；远程页所在窗口单独降级 webPreferences（禁 preload 或给 noop 桥），与本地特权窗分离——site isolation 思维：不同信任域不进同一进程语境。② 导航/弹窗层：will-navigate 拦截离开白名单域（防表单劫持/重定向钓鱼）、pre-drag 防拖放导航；setWindowOpenHandler 对所有 window.open 返回 deny，附件下载判定 Content-Disposition 走 session.downloadURL 或直接 openExternal，其余按白名单创建受控 BrowserWindow（无 preload、独立 partition=session.fromPartition 隔离 Cookie/存储）；新窗再监听自己的 will-navigate 形成递归防线；权限申请 permission-request 事件按 origin 白名单放行（摄像头/剪贴板）。③ 外部程序层：shell.openExternal 严格 scheme 白名单+query 编码检查（mailto 拼多参曾出过参数注入执行任意命令的历史 CVE）；自定义协议 handler 里 decodeURIComponent 后 realpath 校验目录根，防 ../ 穿越读任意文件；file 拖入用 webUtils.getPathForFile 取径而非拼 fake path。④ 更新与供应链层：updater 走 HTTPS 且校验包签名/哈希，macOS notarization、Windows 代码签名双平台建立信任链；node_modules 依赖审计（Electron 生态 supply-chain 事件：electron-builder 证书事件、前端包投毒）；崩溃 dump 与日志避免泄露 token；敏感数据用 safeStorage 加密，不学 web 端明文 localStorage。收尾金句：Electron 安全的本质是把「浏览器 XSS」与「本机任意代码执行」之间的两堵墙（进程隔离+API 白名单）永远立住，任何为省事的翻转都要过威胁评审。"
+    },
+    "scoringPoints": [
+      {
+        "point": "三件套+preload 白名单作为地基，并按信任域拆分窗口语境",
+        "weight": 2
+      },
+      {
+        "point": "弹窗 deny+downloadURL/openExternal 分流+新窗递归设防+partition 隔离",
+        "weight": 2
+      },
+      {
+        "point": "openExternal scheme 白名单与自定义协议路径穿越两处细节",
+        "weight": 2
+      },
+      {
+        "point": "更新链签名公证与供应链审计意识",
+        "weight": 2
+      },
+      {
+        "point": "safeStorage 替代明文存储的收尾",
+        "weight": 1
+      }
+    ],
+    "analysis": "这题用真实接入场景考「安全十诫」的工程化理解。高分特征是分层清晰且给出递归防线（新窗口也要管）、能提 partition 隔离与 permission-request 这类进阶钩子。失分：只会背三件套名词；不知道 window.open 在 Electron 里默认会开一个带完整 webPreferences 的新原生窗（钓鱼风险）；把 webSecurity 当开关乱关。追问方向：远程页要调本机能力怎么办（专属 preload 桥+服务端可信域校验）。",
+    "gapCheck": [
+      "易漏点：setWindowOpenHandler 的 frame 参数可判发起方 origin，deny 前按域分流",
+      "常见误区：以为 partition 只是 Cookie 隔离——storage/indexedDB 一并分区",
+      "加分项：知道 fuses 可在二进制层烙死安全开关防运行时篡改"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.security.csp"
+      ],
+      "related": [
+        "fe.electron.ipc.channels",
+        "fe.network.transport.cors-cookie"
+      ],
+      "followUps": [
+        "permission-request 事件怎么按 origin 审批？",
+        "Electron 的 site isolation 与 Chrome 有何差异？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "远程页接入威胁建模主观题"
+    },
+    "tags": [
+      "Electron",
+      "安全",
+      "弹窗治理",
+      "威胁建模",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-electron-0007",
+    "nodeId": "fe.electron.ship.package",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Electron 打包发布，下列说法**正确的**有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "macOS 分发包需 codesign + notarization（公证），否则新用户会被 Gatekeeper 直接拒绝打开"
+      },
+      {
+        "key": "B",
+        "text": "使用非 N-API 的原生模块时，每次升级 Electron 大版本都要针对其 ABI 重新 rebuild"
+      },
+      {
+        "key": "C",
+        "text": "asar 会把应用代码打成归档提升 IO，运行时需要写入/被外部工具直接访问的文件应放 asarUnpack"
+      },
+      {
+        "key": "D",
+        "text": "为减小体积，应把 devDependencies 也打进 asar，反正会被 tree-shaking 摇掉"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "ABC 正确。A：macOS 12+ 未公证包点开即「已损坏/无法验证开发者」，CI 里 notarytool 提交公证是发版流水线一环；B：Electron 内置 Node 版本与 ABI 独立于系统 Node，node-gyp 直编模块必须 @electron/rebuild 对齐，N-API（node-addon-api/prebuild）做版本无关 ABI 是根治之道；C：asar 是只读归档，写日志/解包缓存/chromium 加载 .node dlopen 都不支持包内直用，builder 的 asarUnpack 处理。D 荒谬——devDependencies 本就被 files 排除策略剔除（生产安装 --omit=dev），tree-shaking 是构建期概念，运行时打进包里只会白白增大。",
+    "gapCheck": [
+      "易漏点：Windows 无签名包 SmartScreen  reputation 警告影响转化，EV/常规证书与 AZURE TRUSTED SIGNING 是现实议题",
+      "常见误区：universal mac 包体积翻倍换兼容——按用户分布决策 arm64 单发或双 arch",
+      "加分项：知道 delta 自动更新（nsis blockmap）、launch-at-login 与开机静默启动的产品细节"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.ship.package"
+      ],
+      "related": [
+        "fe.build.toolchain.vite",
+        "fe.electron.ship.native-os"
+      ],
+      "followUps": [
+        "electron-updater 的灰度与强制更新怎么设计？",
+        "首启解压资源的冷启动劣化如何缓解？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "打包发布要点多选题"
+    },
+    "tags": [
+      "Electron",
+      "打包",
+      "签名",
+      "原生模块",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-electron-0008",
+    "nodeId": "fe.electron.ship.package",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：把应用代码封成一个归档文件以提升小文件 IO 的机制叫 ______（Electron 内置读取支持）；原生 C++ 模块为适配 Electron 内置 Node 的 ABI 需要用 @electron/______ 重编；macOS 分发除签名外还要完成 Apple 的 ______（notarization）才能顺利通过 Gatekeeper。",
+    "answer": {
+      "blanks": [
+        "asar",
+        "rebuild",
+        "公证"
+      ],
+      "synonyms": {
+        "asar": [
+          "asar 归档",
+          ".asar"
+        ],
+        "rebuild": [
+          "rebuilder",
+          "重编译",
+          "rebuild 工具"
+        ],
+        "公证": [
+          "notarization",
+          "notarize",
+          "notary"
+        ]
+      }
+    },
+    "analysis": "asar 是 Electron 内置的只读归档格式（启动扫描聚合、轻度防翻源码），代价是包内文件不可被外部进程按真实路径访问，写操作与 dlopen 原生模块要 asarUnpack；ABI 适配走 @electron/rebuild（pnpm 下要配 rebuild 搜索路径），长期方案是 N-API 预编译；macOS 公证（notarytool 提交 Apple 扫描回签 stapling）与签名是两件事，只做签名在 Big Sur+ 依旧被 Gatekeeper 拦。这三处是发版 CI 最常炸的三个点。",
+    "gapCheck": [
+      "易漏点：签名要在打包后按「由内向外」顺序签（先签 asar 内 dlopen 的 .node 与辅助 executable，最后签主程序），乱序会导致公证失败",
+      "常见误区：以为 notarization 是「审核上架」——它是自动化扫描服务，与 App Store 上架无关",
+      "加分项：知道 Windows 双证书时代（EV 消 SmartScreen 的历史与 Azure Trusted Signing 新政）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.ship.package"
+      ],
+      "related": [
+        "fe.build.toolchain.package-manager",
+        "fe.electron.security.csp"
+      ],
+      "followUps": [
+        "为什么 pnpm workspace 里的本地包要 extraResources？",
+        "delta 更新的 blockmap 原理？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "asar 与签名公证填空题"
+    },
+    "tags": [
+      "Electron",
+      "asar",
+      "公证",
+      "CI"
+    ]
+  },
+  {
+    "id": "Q-fe-electron-0009",
+    "nodeId": "fe.electron.ship.native-os",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：在较新版本 Electron 中，渲染进程把用户拖入的文件转成本机路径，应使用 webUtils.getPathForFile(event.dataTransfer.files[0])，旧的 File.path 扩展属性已被移除。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。File.path 是非标准的 Electron 私有扩展，随 Chromium 标准化压力在 Electron 32 前后被移除，改由主/预加载侧的 webUtils.getPathForFile(file) 同步获取（本质是查 sender 侧的文件映射，不再把路径直接挂在 File 原型上）。这是升级 Electron 大版本时的经典「静默失效」坑：拖拽不报错但路径 undefined，上传全部失败。同类升级坑还有 remote 模块移除改 @electron/remote、enableRemoteModule 更名史。",
+    "gapCheck": [
+      "易漏点：getPathForFile 只能在主/preload 调用且文件必须来自本应用的 drop 事件，跨窗转递无效",
+      "常见误区：升级大版本只看 changelog 头部条目，漏掉 deprecations 章节导致线上隐性断链",
+      "加分项：知道 drop 时可先拿 File 对象走 IPC 传 buffer 的免路径方案（沙箱更彻底）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.ship.native-os"
+      ],
+      "related": [
+        "fe.electron.process.model",
+        "fe.electron.ship.package"
+      ],
+      "followUps": [
+        "globalShortcut 注册失败的场景与兜底？",
+        "Linux 通知不弹的常见原因？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "拖拽路径 API 迁移判断题"
+    },
+    "tags": [
+      "Electron",
+      "拖拽",
+      "升级坑",
+      "webUtils"
+    ]
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.electron.ipc.channels",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 Electron 30+ 的进程间通信通道选型与 preload 暴露面设计，下列哪些说法是正确的？（多选）",
+    "options": [
+      {
+        "key": "A",
+        "text": "ipcRenderer.invoke / ipcMain.handle 构成请求-响应通道：参数与返回值走结构化克隆，handle 处理器里抛出的异常会让调用侧的 invoke Promise 直接 reject，因此主进程可以直接 throw 来传递业务错误"
+      },
+      {
+        "key": "B",
+        "text": "为少写样板代码，把整个 ipcRenderer 对象通过 contextBridge.exposeInMainWorld('ipc', ipcRenderer) 暴露给页面，功能上与逐个封装白名单函数等价，对安全边界没有额外影响"
+      },
+      {
+        "key": "C",
+        "text": "MessagePortMain 可在主进程与渲染进程之间创建点对点端口，把其中一个 port 转交给另一个窗口后即可实现两个渲染进程直连的高频数据流，避免全部流量经主进程中转带来的序列化与调度瓶颈"
+      },
+      {
+        "key": "D",
+        "text": "webContents.send 若目标是 show:false 的隐藏窗口，会跳过参数序列化、等窗口显示后再投递，所以进度类高频推送无需节流或合并"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "C"
+      ]
+    },
+    "analysis": "A 对：invoke/handle 是官方推荐的默认请求-响应通道，底层基于 MessagePort 与 Promise，参数走结构化克隆（传函数、Symbol 或不可克隆对象会报错）；handle 内 throw 会让 invoke 端 reject，语义等同一次 RPC 的错误分支，主进程不必自己约定 {ok:false} 包装。B 错：把 ipcRenderer 原样透传等于把 send/on/once/removeListener/startPort 等全部能力开放给不受信页面——页面能自订任意频道、向主进程发任意频道名，甚至摘掉框架自己的监听器，contextIsolation 带来的隔离被这次透传掏空；官方最佳实践要求只暴露具名函数、频道名由 preload 内部固定。C 对：port 可以 transfer 给另一个 webContents，建立后流量不再经主进程 JS 中转，是官方为大数据/高频流设计的逃生舱。D 错：webContents.send 对隐藏窗口照样执行结构化克隆并把消息送进渲染进程队列（renderer 仍活着、JS 仍在跑），只是不绘制；高频 send 会带来主进程序列化与渲染进程唤醒开销，必须节流合并或延迟到窗口可见再推。易混补充：send 是单向 fire-and-forget 无回执；需要结果或背压用 invoke，需要点对点流用 port。",
+    "gapCheck": [
+      "易漏点：handle 抛错会自动映射成 invoke reject，很多人仍手写 { ok:false, error } 包装并在每个调用点重复判断，既啰嗦又容易漏 catch",
+      "常见误区：认为 exposeInMainWorld 传出 ipcRenderer 原对象也安全，实际页面拿到 on/send 后就能自订频道、伪造频道名，隔离只剩形式",
+      "排查线索：排查「隐藏窗口越用越卡」先看 webContents.send 的频率：隐藏 renderer 仍在接收并克隆大 payload，应节流、合帧或在 did-show 后再推"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.ipc.channels",
+        "fe.electron.process.model"
+      ],
+      "related": [
+        "fe.electron.security.csp",
+        "fe.electron.ship.native-os"
+      ],
+      "followUps": [
+        "invoke/handle 与 send/on 在高频进度上报场景下如何取舍？",
+        "为什么 sandbox:true 之后 preload 只能 require electron 的极少数模块，这会怎样限制 API 设计？",
+        "多窗口应用如何按 event.sender / webContents.id 做频道路由，而不是无脑广播？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Electron 官方 IPC 与安全教程中 invoke/handle、contextBridge、MessagePortMain 的行为语义编写"
+    },
+    "tags": [
+      "高频",
+      "Electron",
+      "IPC"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0121"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.electron.process.model",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "阅读下面的主进程片段，把 4 个空缺处的事件名或取值补全（事件名不带引号，取值不区分大小写）：\n```js\nconst win = new BrowserWindow({\n  show: false,\n  webPreferences: {\n    preload: path.join(__dirname, 'preload.js'),\n    // 要让 contextBridge 的隔离语义真正生效，这一项必须是：(1)______\n    contextIsolation: '(1)______'\n  }\n});\n// 避免首屏白屏闪烁：等到 (2)______ 事件再显示窗口\nwin.on('(2)______', () => win.show());\n// 窗口彻底销毁后清掉缓存引用，防止访问已销毁对象\nwin.on('(3)______', () => { windows.delete(win); });\n\nif (!app.requestSingleInstanceLock()) {\n  app.quit();\n} else {\n  // 第二个实例启动时，持锁实例在该事件回调里收到它的 argv\n  app.on('(4)______', (argv, workingDirectory) => focusOrCreate(argv));\n}\n```",
+    "answer": {
+      "blanks": [
+        "true",
+        "ready-to-show",
+        "destroyed",
+        "second-instance"
+      ],
+      "synonyms": {
+        "true": [
+          "True",
+          "true（现代 Electron 的默认值）"
+        ],
+        "ready-to-show": [
+          "'ready-to-show'",
+          "ready to show"
+        ],
+        "destroyed": [
+          "'destroyed'",
+          "win.destroyed"
+        ],
+        "second-instance": [
+          "'second-instance'",
+          "second instance"
+        ]
+      }
+    },
+    "analysis": "(1) contextIsolation 必须为 true（现代 Electron 默认即 true，官方安全清单强制要求）：true 时 preload 运行在独立隔离世界，页面脚本无法进入 preload 的模块作用域，只能拿到 contextBridge 显式暴露的拷贝；false 则页面与 preload 共享同一全局，暴露面形同虚设。(2) ready-to-show 在渲染进程完成首次内容绘制后触发，配合 show:false 是消除「先白屏再出内容」闪烁的标准姿势；它比 did-finish-load 更可靠，后者只表示文档加载完成并不代表已绘制。(3) destroyed（此后 win.isDestroyed() 为 true）是清理窗口集合、置 null 的正确时机：只监听 closed 会漏掉 win.destroy() 这类不触发 closed 的强制关闭路径。(4) second-instance：requestSingleInstanceLock 成功后，后续实例会立即退出并把其 argv/cwd 转发给持锁实例的该事件，这是「双击图标聚焦已有窗口」的标准链路，还需与 open-file / open-url 一起覆盖冷启动与热启动两种入参。延伸考点：隐藏窗口的 renderer 依然存活并占用内存，彻底释放要用 webContents.close()/win.destroy() 并等 destroyed；崩溃治理看 render-process-gone 与 unresponsive。",
+    "gapCheck": [
+      "易漏点：show:false 必须搭配 ready-to-show；只监听 did-finish-load 仍会看到白屏，因为它只表示文档加载完成而非完成首绘",
+      "常见误区：以为 closed 足以覆盖所有关闭路径，实际 win.destroy() 或系统强杀不会触发 closed，必须监听 destroyed",
+      "排查线索：排查「二次启动又开了一个新实例」时确认 requestSingleInstanceLock 在任何 BrowserWindow 创建之前调用，且失败分支里确实 app.quit()"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.process.model",
+        "fe.js.async.event-loop"
+      ],
+      "related": [
+        "fe.electron.ipc.channels",
+        "fe.electron.ship.native-os"
+      ],
+      "followUps": [
+        "为什么每个隐藏窗口的 renderer 都还占着内存？如何用 webContents.close 与 destroyed 正确回收？",
+        "render-process-gone 与 unresponsive 分别由什么条件触发？崩溃窗口应该 reload 还是降级页？",
+        "utilityProcess.fork 与早期在渲染进程里跑后台任务相比解决了什么问题？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Electron 官方 BrowserWindow / app / 安全教程中 ready-to-show、destroyed、second-instance 与 contextIsolation 的行为语义编写"
+    },
+    "tags": [
+      "Electron",
+      "生命周期",
+      "易错"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0122"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.electron.security.csp",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "桌面端安全评审常说「Electron 里的一次 XSS 可能就是本机 RCE」。请围绕这条主线作答：(1) 说明历史上 XSS 为何能在 Electron 中升级为远程代码执行，事故链是什么；(2) 解释现代基线 nodeIntegration:false / contextIsolation:true / sandbox:true 各自防的是什么，缺一层会怎样；(3) 给出 renderer 加载远程内容时的 CSP 配置思路，并辨析「Vue 3 项目是否需要 script-src 'unsafe-eval'」；(4) 列出导航与外链治理的关键钩子以及 shell.openExternal 的使用纪律。",
+    "answer": {
+      "ref": "参考答案要点：\n(1) 事故链：nodeIntegration:true 时代，渲染进程的页面 JS 与 Node 能力处于同一个 Realm，注入一段 <script> 就能执行 require('child_process').exec(...)，于是一次 XSS 或被劫持的第三方脚本可直接调 shell、读写用户文件，Web 漏洞被放大成本机代码执行；再叠加 window.open 裸开带 Node 的新窗口、以及 http 明文自动更新通道被中间人换包，攻击面进一步扩张。\n(2) 三层防线：nodeIntegration:false 切断页面直接 require 与全局 Node 对象的能力，把特权只留在 preload；contextIsolation:true 让 preload 与页面处在不同 JS 世界，页面污染自己世界里的 Object.prototype 不会影响 preload 世界的内建对象，堵住原型污染逃逸；sandbox:true 再把渲染进程放进 Chromium 的操作系统级沙箱（seccomp / AppContainer / Seatbelt），即便 renderer 被攻陷也难触达本机文件系统与进程，同时 preload 只能使用受限的少数 electron 模块。缺 nodeIntegration:false 则页面直连 Node；缺 contextIsolation:true 则暴露 API 的原型可被页面污染、拷贝语义失去信任根；缺 sandbox:true 则 renderer 被利用时可直接落到本机资源。\n(3) CSP：加载远程内容的窗口必须下发 CSP——default-src 'none' 起步按需放宽，script-src 锁 'self'（必要时枚举具体可信源）、object-src 'none'、base-uri 'self'、form-action 'self'、frame-ancestors 控嵌套，style/img/font-src 各自收紧；可通过 session 的 webRequest.onHeadersReceived 注入或改写响应头（也可 meta 标签），并配 report-uri/report-to 收集违规。unsafe-eval 辨析：只有运行时编译模板（runtime-with-compiler 入口、运行时 template 选项或字符串模板）才会 new Function，此时才需要 'unsafe-eval'；SFC 的 <template> 已由 @vitejs/plugin-vue / vue-loader 在构建期预编译成 render 函数，产物不含模板编译器，因此不需要 unsafe-eval。上线后发现 CSP 报 eval 违规，通常说明误用了带编译器的运行时入口或引入了其他 eval 型库，正确解法是改构建方式而不是放开 CSP。\n(4) 导航与外链治理：will-navigate 拦截站内页跳出的外链（preventDefault 后交给 shell.openExternal）；pre-drag 防止把外部 URL 拖入形成 file:// 导航；setWindowOpenHandler 一律返回 { action:'deny' }，再由主进程按需新建继承自身 webPreferences/CSP 的受控窗口，避免 window.open 裸开特权窗；webRequest 的 onBeforeSendHeaders 剥离跨站出站 Authorization/Cookie 等敏感 header，并限制请求 scheme。shell.openExternal 纪律：只接受 http/https/mailto 等 scheme 白名单，先用 new URL() 解析并校验协议与 host，绝不把未校验的用户输入直接丢给系统（file:// 与自定义协议曾被用来执行程序）。加分项：autoUpdater 走 HTTPS 且依赖平台签名/公证（Windows 代码签名消 SmartScreen、macOS codesign + notarization），否则中间人换包等于本机 RCE；敏感凭据用 safeStorage 加密落盘而非明文 localStorage。"
+    },
+    "scoringPoints": [
+      {
+        "point": "讲清 XSS→RCE 事故链：nodeIntegration:true 下页面 JS 可直接 require child_process/fs，Web 注入被放大为本机代码执行",
+        "weight": 2
+      },
+      {
+        "point": "逐层说明 nodeIntegration:false、contextIsolation:true、sandbox:true 的职责差异，并指出缺失任一的后果（原型污染逃逸、renderer 破沙箱触达本机）",
+        "weight": 2
+      },
+      {
+        "point": "说明 Node 能力收敛到 preload，contextBridge.exposeInMainWorld 只暴露白名单函数、采用拷贝语义，不做整对象透传",
+        "weight": 1
+      },
+      {
+        "point": "给出可落地的 CSP 收紧方案（default-src、script-src 'self'、object-src 'none'、base-uri、onHeadersReceived 注入）",
+        "weight": 1
+      },
+      {
+        "point": "准确辨析 unsafe-eval：SFC 模板构建期预编译不需要 unsafe-eval，仅运行时编译才需要；违规应修构建方式而非放开 CSP",
+        "weight": 2
+      },
+      {
+        "point": "列出导航与外链治理：will-navigate / pre-drag / setWindowOpenHandler deny + 自建窗口 / webRequest 剥离敏感 header / shell.openExternal 的 scheme 白名单与 URL 校验",
+        "weight": 2
+      },
+      {
+        "point": "扩展到更新链路信任（HTTPS + 签名公证）与 safeStorage 加密敏感数据",
+        "weight": 1
+      }
+    ],
+    "gapCheck": [
+      "易漏点：漏掉 contextBridge 暴露对象的拷贝语义：页面在自己世界里污染原型不会影响 preload 世界，但整对象透传仍会把 on/send 这类危险能力交出去",
+      "常见误区：误以为 Vue 3 一定要 unsafe-eval，实际 SFC 模板已在构建期编译完成，放开 unsafe-eval 等于给注入者留下 new Function 的逃生门",
+      "排查线索：排查 CSP 违规时结合 report-uri 上报与 devtools 的 Refused to load 日志，定位是哪张窗口的响应缺少 onHeadersReceived 注入"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.security.csp",
+        "fe.electron.ipc.channels"
+      ],
+      "related": [
+        "fe.electron.process.model",
+        "fe.electron.ship.package"
+      ],
+      "followUps": [
+        "如果产品必须在窗口里加载第三方远程页面，你会怎么额外收紧 webPreferences 与 CSP？",
+        "contextIsolation 的隔离世界机制与普通 iframe 隔离有什么本质区别？",
+        "自定义 protocol.handle 注册的文件协议如何防御路径穿越与 ../ 逃逸？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Electron 官方安全教程与检查清单及 CSP 标准语义编写，含 Vue 3 运行时编译与 SFC 预编译的差异分析"
+    },
+    "tags": [
+      "深度题",
+      "Electron",
+      "安全"
+    ],
+    "openBookAllowed": false,
+    "analysis": "本题考 Electron 安全模型的历史演进与纵深防御。满分主线：①旧模型 nodeIntegration:true + 无 contextIsolation 时渲染进程同时握有页面 JS 与 Node fs/child_process/spawn，一次 XSS 即可 require('child_process').exec 落地任意命令，RCE 链最短；②现代默认（30+）contextIsolation:true、sandbox:true、nodeIntegration:false，把页面 JS 与 preload 的 isolated world 分开，Node 能力只经 contextBridge.exposeInMainWorld 白名单暴露，XSS 只能调受限 IPC 通道，无法直接 require；③纵深防御四道闸：导航管控（will-navigate/setWindowOpenHandler 拒绝外部 origin 进入高权限窗口）、外链 shell.openExternal 前校验 scheme 白名单、CSP 限制脚本源（default-src 'self'，禁 inline/eval 阻断注入执行）、权限请求拦截（session.defaultSession.setPermissionRequestHandler 拒 geolocation/clipboard 等）；④加分：ipcMain.handle 侧对 senderFrame.url/origin 二次鉴权（防止被 XSS 的 frame 冒名 invoke），以及 fuses 编译期开关（V8 快照/run_as_node 等）防运行时篡改。常见失分：只会背『开启 contextIsolation』却说不出它挡不住什么——它挡的是页面 JS 直接访问 preload 作用域与 Node 全局，若 preload 里把 fs.readFile 原样透传，XSS 依然能读任意文件，必须强调通道要带参数校验与最小权限。",
+    "id": "Q-fe-fill-0123"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.electron.ship.native-os",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "某 Electron 3x 应用升级后，用户把本地文件拖进窗口的上传区，原代码依赖 drag 事件的 dataTransfer.files[0].path 取绝对路径（新版该扩展属性已被移除）。现在要正确取得被拖入文件的真实磁盘路径，同时兼顾资源被打包进 asar 的情形，正确做法是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "在渲染进程继续读 file.path，并用 String(file.path).replace(/\\/app\\.asar\\//g, '/app.asar.unpacked/') 修正路径"
+      },
+      {
+        "key": "B",
+        "text": "在持有该 File 的一侧（通常是 renderer/preload 的 drop 处理里）调用 webUtils.getPathForFile(file) 取路径；需要写盘或交给外部进程使用的资源用 asarUnpack 解出，避免手工改写 asar 内部路径"
+      },
+      {
+        "key": "C",
+        "text": "把 File 对象直接经 IPC 传给主进程，在主进程读取 file.path，主进程侧该属性仍然存在"
+      },
+      {
+        "key": "D",
+        "text": "改用 dialog.showOpenDialog 让用户重新选一次文件，因为拖拽通道在新版本里已无法获得任何文件信息"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "正确答案 B。Electron 为对齐 Web 标准移除了 File.path 扩展，官方迁移方案是 webUtils.getPathForFile(file)：同步返回真实磁盘路径，且必须在拥有该 File 对象的进程中调用（一般就在 drop 现场）；同时打进 asar 的资源不能被外部程序当普通磁盘文件访问，需要写临时文件或交给外部二进制的资源要用 asarUnpack 解出来。A 是典型反面做法：新版根本没有 file.path，而且手工字符串替换 .asar 路径会在 asarUnpack 之后产生错误路径，掩盖真实问题。C 错在两处：File 经结构化克隆到主进程后不再携带任何 Electron 私有路径信息，且 getPathForFile 无法跨进程反查。D 夸大了损失：dataTransfer.files / items 依然可用，只是取路径换了 API。同类系统集成坑一并记住：Windows 通知必须由主进程 app.setAppUserModelId（AUMID）否则不弹或不分组；globalShortcut.register 返回 false 表示热键被占用，要做兜底而非静默失败；Linux 通知依赖 libnotify；常驻托盘场景推荐用完即关窗而不是一直 hide。",
+    "gapCheck": [
+      "易漏点：webUtils.getPathForFile 必须在持有该 File 的进程调用（一般是 renderer/preload），不要指望跨 IPC 之后还能反查路径",
+      "常见误区：把 asar 内的路径当真实磁盘路径使用，导致 fs 写入或外部程序打开失败——需要解包的资源应在打包配置里 asarUnpack",
+      "排查线索：同类坑一并核对：Windows 通知缺 setAppUserModelId、globalShortcut 注册失败无兜底、Linux 缺 libnotify 导致通知静默丢失"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.ship.native-os",
+        "fe.electron.process.model"
+      ],
+      "related": [
+        "fe.electron.ship.package",
+        "fe.electron.ipc.channels"
+      ],
+      "followUps": [
+        "为什么 Electron 要移除 File.path 这个便捷属性？保留它会带来什么一致性或安全问题？",
+        "globalShortcut 注册失败（返回 false）时应用应该如何降级？",
+        "常驻托盘的应用为什么推荐用完即关窗，而不是一直 hide 窗口到底？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Electron 官方 webUtils 与 File.path 移除的迁移说明及 asarUnpack 打包语义编写"
+    },
+    "tags": [
+      "Electron",
+      "升级坑",
+      "系统集成"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0124"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.electron.ship.native-os",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "简述 Electron 桌面端实现「双击 .log 文件直接用本应用打开」需要配齐哪些环节：打包层的声明是什么，冷启动与热启动两条事件路径分别怎么走，以及各自最容易漏掉的一步。",
+    "answer": {
+      "ref": "参考答案：① 打包声明：electron-builder 的 fileAssociations（macOS 落到 CFBundleDocumentTypes、Windows 写注册表 ProgID、Linux 写 Desktop Entry 的 MimeType）；若要支持 open-url 还需配 protocols。这一步漏了系统就不知道该扩展名归谁，后面全都无从谈起。② 冷启动：应用因双击文件而首次启动时，参数不是走事件而是随进程到达——macOS/Linux 体现在 process.argv，Windows 体现在命令行参数（配合单实例时体现为转发的 argv），必须解析 argv 取出目标文件放入待处理队列，等窗口创建完成后再消费，否则会出现「窗口还没建好就往里塞任务」。③ 热启动：应用已在运行时，macOS 走 app 的 open-file（老式打包）或 open-url 事件，Windows/Linux 依赖单实例锁——第二个实例携带 argv 启动后立即退出，首个实例在 second-instance 回调里拿到 argv、聚焦已有窗口并把文件路由过去。④ 必备前置与时机：requestSingleInstanceLock 必须在创建任何窗口之前调用，否则 Windows 上会再起一个实例看起来「没反应」；open-file 类事件要在 app ready 之前注册，macOS 会补发历史事件，晚注册就会漏。⑤ 常见漏项：只配了 fileAssociations 忘了冷启动 argv 解析（表现为「应用没开时双击无效」）、只处理 open-file 忘了 second-instance、拿到路径后直接 fs 读而未校验来源与是否为 asar 内资源、以及重复开窗而不是把文件送进已存在的窗口。"
+    },
+    "scoringPoints": [
+      {
+        "point": "指出打包层 fileAssociations（builder 配置，落到各平台的注册表/CFBundleDocumentTypes/MimeType）是前提",
+        "weight": 2
+      },
+      {
+        "point": "说清冷启动：文件参数随进程启动到达（process.argv / Windows 命令行），需解析并入队，等窗口就绪再消费",
+        "weight": 2
+      },
+      {
+        "point": "说清热启动：macOS open-file / open-url 事件；Windows 与 Linux 依赖单实例锁 + second-instance 转发 argv 并聚焦",
+        "weight": 3
+      },
+      {
+        "point": "点出必备前置与注册时机：requestSingleInstanceLock 早于建窗、open-file 需在 ready 前注册",
+        "weight": 2
+      },
+      {
+        "point": "补一个工程细节：路径来源校验、asar 内资源区分、避免重复开窗",
+        "weight": 1
+      }
+    ],
+    "gapCheck": [
+      "易漏点：fileAssociations 只在打包后的产物里生效，开发模式（npm start）下双击不会走这套注册关系，验证必须装包后做",
+      "常见误区：只处理热启动事件会漏掉冷启动 argv，表现为「应用没开时双击文件无反应、开着时才有反应」这种诡异现象",
+      "排查线索：排查顺序：先确认产物里是否真的注册了扩展名，再看是否命中单实例转发路径，最后看事件是否在 app ready 之前注册"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.ship.native-os",
+        "fe.electron.process.model"
+      ],
+      "related": [
+        "fe.electron.ship.package",
+        "fe.electron.ipc.channels"
+      ],
+      "followUps": [
+        "macOS 上 open-file 为什么要强调在 app ready 之前注册？漏注册会出现什么现象？",
+        "Windows 的通知为什么不弹、或者全部挤成一组？这与哪个 API 有关？",
+        "开机自启（launch-at-login）该如何与「静默启动到托盘」配合，才不被用户当成恶意软件？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 electron-builder fileAssociations 与 Electron app 事件（open-file / open-url / second-instance）的官方语义编写"
+    },
+    "tags": [
+      "Electron",
+      "工程实践",
+      "系统集成"
+    ],
+    "openBookAllowed": true,
+    "analysis": "考查文件关联的端到端链路，得分点是三段缺一不可：①打包声明：electron-builder 配 fileAssociations（macOS Info.plist CFBundleDocumentTypes + Windows 注册表 App Paths/OpenWithProgids + Linux .desktop MimeType），仅装后生效，开发模式无效需打包验证；②冷启动：OS 以命令行参数传入文件路径，Windows/macOS 走 process.argv，Linux 桌面环境同样 argv，主进程 app.whenReady 后读 argv 解析出文件路径（macOS 老式 open-file 事件已废弃，统一走 openFile 事件或 argv），再构造窗口加载查看器路由（pathToFileURL 转 file:// 编码传参，中文空格必须 encode）；③热启动：OS 通知已运行实例，app.requestSingleInstanceLock() 拿锁，第二实例立即退出并触发第一实例的 second-instance(argv) 回调（macOS 走 open-file/open-url 事件），主进程据此新开标签或复用窗口，再 webContents.send 把新路径推给渲染进程；④最易漏点：second-instance 必须在拿到单实例锁后注册、macOS 需在 app.on('open-file') 里 e.preventDefault 且处理『App尚未ready时事件先到』的缓存队列（ready 前缓存 pendingPaths、ready 后再回放）。加分：提及 macOS Gatekeeper 要求声明 UTI 类型否则 Finder 不显示打开方式，以及 Linux XDG 需 update-desktop-database 刷新 MIME 缓存。",
+    "id": "Q-fe-fill-0125"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.electron.ship.package",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "团队把 Electron 从 28 升到 3x 大版本后，依赖 better-sqlite3 这类原生模块的 Windows 包在 require 时抛出 NODE_MODULE_VERSION 不匹配。关于根因与正确的修复路径，下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "NODE_MODULE_VERSION 不匹配说明插件 ABI 与当前 Electron 内置的 Node/V8 不一致，应在 CI 里针对目标 Electron 版本执行 @electron/rebuild（或用 N-API + prebuildify 的预编译产物以免 rebuild），而不是用系统 Node 编译后把 .node 拷进包里"
+      },
+      {
+        "key": "B",
+        "text": "这是 asar 打包导致的：原生 .node 文件无法从 asar 中被加载，只要把它们从 asar 里剔除（asarUnpack）就一定能恢复正常"
+      },
+      {
+        "key": "C",
+        "text": "只要把 package.json 里 electron 的主版本号改成与系统安装的 Node 主版本号一致，两份 ABI 就自动对齐，无需 rebuild"
+      },
+      {
+        "key": "D",
+        "text": "出现该错误说明 Electron 已废弃原生模块机制，必须把所有原生依赖替换为 WASM 实现"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 对：原生插件按编译时的 ABI 编号（NODE_MODULE_VERSION）绑定，Electron 自带的 Node/V8 与系统 Node 的 ABI 序列并不相同，还会随 Electron 大版本变化，所以换大版本必须针对该版本 rebuild；N-API 提供 ABI 稳定承诺，prebuildify 产出的 napi 产物可跨版本复用因而免 rebuild，这正是官方推荐优先选 N-API 模块的原因。B 半真半假，是本题最强干扰项：.node 确实常常需要 asarUnpack 才能被 dlopen，但那属于「找不到/无法加载」类故障，与 NODE_MODULE_VERSION 不匹配是两类问题——只解包而 ABI 依旧不对，照样报错。C 错：Electron 版本号与其内置 Node 的 ABI 编号没有等价关系，改 package.json 里的 electron 版本不会让系统 Node 的 ABI 对齐。D 错：Electron 一直支持原生模块，只是要求正确 rebuild 或走 N-API。补充加分：pnpm/monorepo 下要注意 rebuild 的依赖搜索路径与符号链接结构；macOS 新产物还要 codesign + notarize，否则 Big Sur+ 直接打不开；CI 里 rebuild 之后应做一次冒烟启动验证 .node 能被成功加载。",
+    "gapCheck": [
+      "易漏点：把 ABI 不匹配误判成 asar 问题：先读错误信息里的期望值与实际 NODE_MODULE_VERSION，再决定是否 rebuild；解包只解决 dlopen 的路径问题",
+      "常见误区：漏掉 CI 中针对目标 Electron 版本的 rebuild 步骤（或只在本地 rebuild 并提交产物），换机器或升版本立刻炸",
+      "排查线索：排查顺序：错误文本 → 对照 Electron 版本与 ABI 版本表 → 确认是否走 N-API 预编译 → 检查 pnpm/monorepo 下 rebuild 是否作用到正确的 node_modules 路径"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.electron.ship.package",
+        "fe.build.toolchain.vite"
+      ],
+      "related": [
+        "fe.electron.ship.native-os",
+        "fe.electron.process.model"
+      ],
+      "followUps": [
+        "N-API 与 node-gyp 直编在跨 Electron 版本兼容性上的差别是什么？为什么官方推荐前者？",
+        "除 .node 之外还有哪些文件必须移出 asar（运行时写入、被外部进程读取的资源）？",
+        "macOS 的 notarization 与 Windows 代码签名各自解决什么信任问题？未签名产物用户会遇到什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Electron 原生模块 ABI/N-API 与 @electron/rebuild、electron-builder asarUnpack 的官方语义编写"
+    },
+    "tags": [
+      "Electron",
+      "打包",
+      "易错"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0126"
+  }
+]

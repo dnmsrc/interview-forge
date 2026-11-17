@@ -1,0 +1,550 @@
+[
+  {
+    "id": "Q-cs-devops-k8s-0001",
+    "nodeId": "cs.devops.k8s.arch-object",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "面试官：Kubernetes 集群里，所有 REST 请求（kubectl、控制器、kubelet 回传）唯一的统一入口，并且负责鉴权、校验对象的组件是：",
+    "options": [
+      { "key": "A", "text": "kube-apiserver：所有组件都通过它读写 etcd 中的集群状态，自身是无状态的、可水平扩展" },
+      { "key": "B", "text": "etcd：所有组件直接连 etcd 读写对象，apiserver 只负责 kubectl 的界面" },
+      { "key": "C", "text": "kube-scheduler：它既负责调度 Pod，也统一接收所有 API 请求" },
+      { "key": "D", "text": "kubelet：节点上的 kubelet 直接管理整个集群的对象写入" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：apiserver 是控制面前门，做认证、鉴权（RBAC）、准入控制与对象校验，然后写入 etcd；其他控制面组件和节点组件都不直接碰 etcd，而是 list-watch apiserver。apiserver 无状态、可多副本水平扩展，etcd 独立承担一致性存储。B 错：直连 etcd 会绕过全部鉴权与准入逻辑，架构上被严格禁止。C 错：scheduler 只负责为待调度 Pod 选节点，通过 apiserver 写回绑定结果。D 错：kubelet 只管本节点 Pod 生命周期，向 apiserver 汇报状态。",
+    "gapCheck": [
+      "易漏点：list-watch 机制让各组件通过 apiserver 缓存协同，避免轮询打爆 etcd",
+      "常见误区：以为 etcd 是业务数据库——它只存集群声明状态，应用数据不进 etcd",
+      "加分项：能讲准入控制器（admission webhook）在 apiserver 链路里做动态校验/注入的位置"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.arch-object"],
+      "related": ["cs.devops.docker.namespace-cgroup"],
+      "followUps": [
+        "apiserver 挂了之后，已经运行的 Pod 还能继续服务吗？为什么？",
+        "etcd 为什么通常部署奇数个节点？它和普通关系型数据库的定位有什么不同？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "K8s 控制面组件职责单选题" },
+    "tags": ["Kubernetes", "apiserver", "控制面", "架构"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0002",
+    "nodeId": "cs.devops.k8s.arch-object",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：Kubernetes 采用声明式模型——你提交的是对象的期望状态（如副本数=3），控制器通过调谐循环不断对比期望状态与实际状态并驱动二者收敛；即使节点宕机导致 Pod 消失，控制器也会在健康节点上补出新副本，而不需要人写『宕机后执行什么命令』的脚本。",
+    "answer": { "judge": true },
+    "analysis": "正确。声明式 API 的核心是『描述 What 而非 How』：Deployment 声明期望副本与模板，控制器（ReplicaSet controller 等）持续 watch 集群状态，发现实际副本少于期望就创建、多于期望就删除。节点宕机后 node controller 标记节点不可用、Pod 状态变为失效，ReplicaSet 控制器据此在其他节点补齐副本，整个过程是控制循环自动收敛而非预置故障脚本。相对命令式脚本，这种模式天然支持自愈、可审计（对象都在 etcd 留痕）、可 GitOps 化；代价是调谐有延迟、排障需要理解控制器语义。",
+    "gapCheck": [
+      "易漏点：调谐是异步的——节点宕机到副本补齐之间有控制器检测与容忍时间窗口，不是瞬时切换",
+      "常见误区：把 kubectl apply 当命令式操作，它实际是做声明式 patch（三方 diff），与 kubectl create/ replace 的命令式语义不同",
+      "加分项：能讲控制器模式（controller pattern）与 operator 模式如何把自定义资源接入同一套调谐机制"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.arch-object"],
+      "related": ["cs.devops.iac.terraform"],
+      "followUps": [
+        "期望状态和实际状态长期无法收敛（如镜像拉不下来）时，控制器会无限重试吗？现象是什么？",
+        "声明式模型下做应急止血，直接改线上对象和改 Git 仓库哪个更危险？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "声明式与调谐循环判断题" },
+    "tags": ["声明式", "调谐循环", "自愈", "控制器", "判断"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0003",
+    "nodeId": "cs.devops.k8s.arch-object",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "面试官：关于 Pod、ReplicaSet、Deployment、Service 四个核心对象的关系，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "Pod 是最小调度单位，同 Pod 内容器共享网络 namespace（同一 IP、可通过 localhost 互访）与可共享存储卷" },
+      { "key": "B", "text": "ReplicaSet 保证任意时刻匹配标签的 Pod 副本数接近期望值，Deployment 通过管理 ReplicaSet 实现发布与回滚" },
+      { "key": "C", "text": "Service 用标签选择器找到一组 Pod，提供稳定的虚拟 IP 与 DNS 名，Pod 重建换 IP 不影响调用方" },
+      { "key": "D", "text": "Service 直接复制并管理 Pod 的业务进程，Pod 宕机时由 Service 负责重新拉起" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 描述 Pod 的共享模型：pause 容器持有 net/IPC namespace，业务容器加入其中，因此同 Pod localhost 互通、卷共享，这也是 sidecar 模式的基础。B 描述编排层级：实际生产很少直接建 ReplicaSet，Deployment 每次发布生成新 ReplicaSet 并在新旧之间滚动。C 说明 Service 的解耦价值：Pod IP 易逝，Service 靠 label selector 动态聚合端点，kube-proxy 维护转发规则，调用方只认稳定 ClusterIP/DNS。D 错：Service 只做流量转发与端点发现，不负责拉起进程；保副本是 ReplicaSet/控制器的职责，二者通过标签松耦合而非互相管理。",
+    "gapCheck": [
+      "易漏点：Deployment 滚动发布后旧 ReplicaSet 会保留（默认保留修订历史），回滚就是把旧 RS 重新 scale 起来",
+      "常见误区：以为 Service 和 Pod 是强绑定关系——实际靠 label selector，贴错标签会导致 Service 后端为空",
+      "加分项：能讲 EndpointSlice 对象如何承载 Service 的后端端点列表及其大规模集群优化"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.arch-object"],
+      "related": ["cs.devops.k8s.network-config"],
+      "followUps": [
+        "为什么不建议裸创建 Pod 而要套一层 Deployment/ReplicaSet？裸 Pod 在节点故障后会怎样？",
+        "同 Pod 两个容器和两个独立 Pod 在网络、存储、生命周期上有什么差别？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "K8s 核心对象关系多选题" },
+    "tags": ["Pod", "Deployment", "Service", "ReplicaSet"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0004",
+    "nodeId": "cs.devops.k8s.arch-object",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：K8s 控制面中，负责为待调度 Pod 选择节点的组件是 ______；集群所有对象状态的一致性存储是 ______；节点上负责向 apiserver 汇报并按 PodSpec 管理本节点容器生命周期的代理是 ______；节点上负责 Service 转发规则（如 iptables/IPVS）的组件是 ______。",
+    "answer": {
+      "blanks": ["kube-scheduler", "etcd", "kubelet", "kube-proxy"],
+      "synonyms": {
+        "kube-scheduler": ["scheduler", "调度器"],
+        "etcd": ["etcd 数据库"],
+        "kubelet": ["kubelet 代理"],
+        "kube-proxy": ["kube proxy", "proxy"]
+      }
+    },
+    "analysis": "四个组件各守一层：scheduler 只做『放置决策』（过滤不满足资源/亲和性的节点，再打分选最优），把绑定结果写回 apiserver；etcd 基于 Raft 保证强一致，是控制面唯一有状态组件；kubelet 是节点上的『工头』，watch 到自己节点的 PodSpec 后调用容器运行时创建容器，并上报节点与 Pod 状态、执行探针；kube-proxy 不转发业务流量本身，而是 watch Service/Endpoint 变化并在节点上维护 iptables/IPVS 规则，让发往 ClusterIP 的包被 DNAT 到后端 Pod。",
+    "gapCheck": [
+      "易漏点：scheduler 只决策不创建，真正拉容器的是目标节点上的 kubelet 与容器运行时",
+      "常见误区：以为 kube-proxy 是业务流量代理——默认 iptables 模式下它只写规则，流量在内核 netfilter 里转发",
+      "加分项：能讲 IPVS 模式相对 iptables 模式在大规模 Service 数量下的查表性能优势"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.arch-object"],
+      "related": ["cs.devops.docker.namespace-cgroup"],
+      "followUps": [
+        "scheduler 的过滤（predicate）和打分（priority）两阶段分别解决什么问题？",
+        "etcd 压测时关注哪些指标？为什么它的磁盘延迟会拖慢整个集群？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "K8s 组件职责填空题" },
+    "tags": ["Kubernetes", "scheduler", "etcd", "kubelet", "填空"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0005",
+    "nodeId": "cs.devops.k8s.arch-object",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "面试官：请描述从执行 `kubectl apply` 提交一个 Deployment，到 Pod 在某节点上真正跑起来，中间经过哪些组件、各自做了什么？并说明这套链路体现了什么设计思想。",
+    "answer": {
+      "ref": "参考骨架：\n【链路】①kubectl 把 YAML 组装成 REST 请求发给 kube-apiserver；②apiserver 依次做认证、鉴权（RBAC）、准入控制（含默认值注入与 webhook）、对象 schema 校验，通过后写入 etcd 并返回；③Deployment controller（在 controller-manager 内）watch 到新对象，按 replicas 创建 ReplicaSet 对象，再由 ReplicaSet controller 创建 Pod 对象（此时 nodeName 为空，处于 Pending）；④scheduler watch 到未绑定的 Pod，执行过滤（资源 requests 是否够、nodeSelector/亲和性/污点容忍、端口冲突等）与打分，选出节点后通过 apiserver 写回绑定（binding）；⑤目标节点的 kubelet watch 到有绑定到本节点的 Pod，调用 CRI（容器运行时接口）让 containerd 等运行时拉镜像、创建存储卷（CSI）与网络（CNI 分配 Pod IP），再按顺序启动容器；⑥kubelet 持续上报 Pod 状态与探针结果，Service 相关的 Endpoint/EndpointSlice 由控制器更新，kube-proxy 据此刷新转发规则，Pod 进入可服务状态。\n【设计思想】声明式+调谐循环：所有协作通过 apiserver 中对象状态的变化驱动，组件之间不直接 RPC，而是 list-watch 解耦；每个控制器只负责把自己关心的一类对象向期望状态收敛，职责单一、可独立演进；apiserver+etcd 成为唯一事实源与串行化入口，保证鉴权、审计与一致性；全部环节异步，天然支持重试与自愈，故障表现为『状态迟迟不收敛』，排障抓手是看对象事件与各控制器日志。"
+    },
+    "scoringPoints": [
+      { "point": "apiserver 鉴权准入写 etcd、控制器逐级创建 RS/Pod 的顺序正确", "weight": 3 },
+      { "point": "scheduler 过滤打分、kubelet 经 CRI/CNI/CSI 拉起容器的职责清晰", "weight": 3 },
+      { "point": "讲出 list-watch 解耦、唯一事实源与声明式调谐的设计思想", "weight": 3 },
+      { "point": "能指出各阶段对应的排障事件（Pending/Scheduling/拉镜像/探针）", "weight": 1 }
+    ],
+    "analysis": "架构理解的总纲题。常见失分：把组件说成同步调用链（scheduler 直接命令 kubelet）；漏掉准入 webhook 与 CRI/CNI/CSI 接口层；说不出 watch 机制，把 K8s 理解成大型脚本。高分回答会突出『一切皆对象、状态驱动、控制器调谐』这条主线，并能把 Pending、ContainerCreating 等状态对应到链路的具体环节。",
+    "gapCheck": [
+      "易漏点：Pod 创建对象与真正绑定节点是两步，Pending 阶段的 Pod 已经在 etcd 里、只是 nodeName 为空",
+      "常见误区：认为 scheduler 选中节点后由它远程启动容器——启动始终是节点本地 kubelet 的职责",
+      "加分项：能讲 CRI/CNI/CSI 三大接口让运行时、网络、存储成为可插拔插件的设计"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.arch-object"],
+      "related": ["cs.devops.k8s.schedule-probe", "cs.devops.k8s.network-config"],
+      "followUps": [
+        "这条链路上哪个环节最慢？镜像拉取慢可以怎么优化？",
+        "kubectl describe 里的 Events 分别对应链路的哪些步骤？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Pod 创建全链路简答题" },
+    "tags": ["Kubernetes", "控制面", "list-watch", "调度链路", "架构"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0006",
+    "nodeId": "cs.devops.k8s.schedule-probe",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "面试官：某 Java 服务启动慢（JVM 预热约 40 秒），团队把 livenessProbe 的 initialDelaySeconds 设得很短，导致服务还没起来就被探测失败、反复重启。下列修法**最合理**的是：",
+    "options": [
+      { "key": "A", "text": "配置 startupProbe 覆盖慢启动期（给足够高的 failureThreshold×periodSeconds 容忍启动时间），startup 成功前 liveness/readiness 探针暂停，成功后再由它们接管" },
+      { "key": "B", "text": "把 liveness 探针直接删掉，启动慢就不应该做存活检测" },
+      { "key": "C", "text": "把 liveness 失败阈值调到无限大，让任何情况下都不要重启容器" },
+      { "key": "D", "text": "把 readinessProbe 改成探测一个永远返回 200 的假接口，让流量先进来再说" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：startupProbe 就是为慢启动应用设计的——它成功之前，liveness 与 readiness 探针不生效，应用可以从容预热；startup 一旦成功，liveness 接管死锁/僵死检测、readiness 接管摘挂流量。用 failureThreshold×periodSeconds 凑出最大容忍启动时长（如 10 秒间隔×10 次=100 秒），比把 liveness 延迟硬编码成大值更优雅，因为正常运行后的检测灵敏度不受影响。B 因噎废食，进程死锁后无法自愈。C 让 liveness 名存实亡，故障容器永远不重启。D 让未就绪实例接收真实流量，请求大量失败，readiness 的意义就是未就绪时从 Service 端点摘除而非放流量。",
+    "gapCheck": [
+      "易漏点：三类探针失败后的动作不同——liveness 失败重启容器、readiness 失败摘流量不重启、startup 失败按阈值重启直到成功",
+      "常见误区：把 liveness 和 readiness 配成同一个接口同一套阈值，慢启动与运行期需求其实不同",
+      "加分项：能讲探针的 exec/httpGet/tcpSocket 三种实现方式与 timeoutSeconds、periodSeconds 参数权衡"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.schedule-probe"],
+      "related": ["cs.devops.k8s.release-ops"],
+      "followUps": [
+        "liveness 探测接口要不要连数据库？为什么常见建议是只查进程自身健康？",
+        "readiness 一直失败但 liveness 正常，Pod 会发生什么？Service 端点列表怎么变？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "startupProbe 慢启动场景单选题" },
+    "tags": ["探针", "startupProbe", "liveness", "慢启动"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0007",
+    "nodeId": "cs.devops.k8s.schedule-probe",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "面试官：关于 resources.requests 与 limits，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "requests 是调度依据：scheduler 按节点可分配资源与所有 Pod 的 requests 之和判断能否放下，与实时占用无关" },
+      { "key": "B", "text": "CPU 超过 limit 会被限流（throttling）而不是被杀；内存超过 limit 则触发 OOMKilled、容器被内核杀死重启" },
+      { "key": "C", "text": "只配 limits 不配 requests 时，requests 默认等于 limits；只配 requests 不配 limits 时，Pod 可用资源上限取决于节点容量与 QoS" },
+      { "key": "D", "text": "内存 limit 设得越大越安全，节点永远不会发生资源压力，也不需要驱逐策略" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 点明调度看的是『预订量』而非实时用量，所以 requests 虚报会让节点碎片化、调度率下降。B 是高频考点：CPU 是可压缩资源，超 limit 被 cgroup 限流、表现为延迟抖动；内存不可压缩，超 limit 由内核 OOM killer 杀进程，Pod 状态显示 OOMKilled 并按重启策略拉起。C 符合默认规则，并引出 QoS 三档：requests=limits 为 Guaranteed、只配部分为 Burstable、都不配为 BestEffort，节点资源紧张时 kubelet 按 BestEffort→Burstable→Guaranteed 顺序驱逐。D 错：limit 只是单容器上限，节点总量有限，limit 之和可以远超节点容量（超卖），内存压力下仍会触发驱逐或系统 OOM，必须配合资源配额（ResourceQuota）与 LimitRange 治理。",
+    "gapCheck": [
+      "易漏点：CPU 限流不会杀进程但会造成 P99 延迟毛刺，排查要看容器 CPU throttling 指标",
+      "常见误区：把 OOMKilled 一律归因于内存泄漏——也可能是 limit 拍脑袋设小了，先对比真实用量再下结论",
+      "加分项：能讲 requests 怎么基于历史监控分位数（如 P95）设定、HPA 与 requests 的联动关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.schedule-probe"],
+      "related": ["cs.devops.docker.namespace-cgroup", "cs.devops.k8s.release-ops"],
+      "followUps": [
+        "节点上所有 Pod 的 limits 之和允许超过节点容量吗？超卖的收益和风险是什么？",
+        "JVM 类应用在容器里怎么感知 cgroup 的内存上限？不识别会有什么后果？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "requests/limits 与 QoS 多选题" },
+    "tags": ["requests", "limits", "QoS", "OOMKilled", "限流"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0008",
+    "nodeId": "cs.devops.k8s.schedule-probe",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：readinessProbe 探测失败时，Kubernetes 会把该 Pod 从对应 Service 的端点列表中摘除、不再转发新流量，但不会重启容器；而 livenessProbe 失败达到阈值后会直接重启容器。因此把依赖的数据库不可用时让 readiness 失败、liveness 仍只检测进程自身，通常是更合理的设计。",
+    "answer": { "judge": true },
+    "analysis": "正确。两类探针的失败动作是核心区别：readiness 控制流量准入，失败即摘端点、恢复后自动加回，适合表达『依赖未就绪/正在预热/临时过载』；liveness 控制进程自愈，失败才重启，适合捕捉死锁、死循环、内部状态损坏这类重启才能恢复的故障。题中设计合理：数据库抖动时所有 Pod readiness 失败会整体摘流量（配合上游降级），但 liveness 若也连数据库，就会在依赖故障时把无辜的应用容器批量重启，故障恢复后还要重新预热，放大事故。liveness 一般探测进程自身的轻量健康端点，避免把下游故障转成对自己的死刑判决。",
+    "gapCheck": [
+      "易漏点：readiness 失败期间已建立的长连接行为取决于应用与代理实现，摘端点主要阻止新流量",
+      "常见误区：liveness 接口里塞一堆依赖检查，导致下游一抖动全集群重启的连锁事故",
+      "加分项：能讲 readiness 与滚动发布的耦合——新 Pod readiness 通过前旧副本不会继续下线"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.schedule-probe"],
+      "related": ["cs.devops.k8s.release-ops", "cs.design.limit.circuit-breaker"],
+      "followUps": [
+        "所有副本 readiness 同时失败时 Service 行为是什么？上游会收到什么错误？",
+        "探针超时时间和 periodSeconds 应该参考应用的什么指标来设？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "readiness 与 liveness 语义判断题" },
+    "tags": ["探针", "readiness", "liveness", "流量摘除", "判断"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0009",
+    "nodeId": "cs.devops.k8s.schedule-probe",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 JavaScript 实现一个带指数退避 + 随机抖动（jitter）的异步重试函数 `retryWithBackoff(fn, { retries, baseDelay, maxDelay })`：fn 是返回 Promise 的异步操作，失败时按 `min(maxDelay, baseDelay * 2^n) * (0.5~1.5 随机系数)` 计算等待时间，成功立即返回、超过次数抛出最后一次错误。要求可直接运行并打印测试，再结合 K8s 探针/自愈机制说明它体现了什么工程思想。",
+    "answer": {
+      "ref": "机理：指数退避让重试间隔逐次翻倍（baseDelay、2×、4×……），maxDelay 封顶避免无限放大；乘以 0.5~1.5 的全抖动系数（full jitter 思想）打散大量客户端同步失败后的重试脉冲，防止大家在同一秒集体重试把刚恢复的依赖再次打垮。与 K8s 思想的呼应：liveness 失败后的重启也遵循退避（CrashLoopBackOff 的 back-off 递增），readiness 周期性探测本质是带固定间隔的轮询健康检查，控制器调谐循环也是『失败→等待→再试』的收敛过程；共同点是不假设故障瞬时恢复、用受控重试代替忙等，并把故障恢复的节奏权交给系统而非无脑猛打。",
+      "code": "async function retryWithBackoff(fn, { retries = 3, baseDelay = 100, maxDelay = 2000 } = {}) {\n  let lastError;\n  for (let attempt = 0; attempt <= retries; attempt++) {\n    try {\n      return await fn(); // 成功立即返回，不再重试\n    } catch (err) {\n      lastError = err;\n      if (attempt === retries) break; // 重试用尽，跳出后抛错\n      const expo = Math.min(maxDelay, baseDelay * 2 ** attempt);\n      const jitter = 0.5 + Math.random(); // 0.5 ~ 1.5 的随机系数\n      const delay = Math.floor(expo * jitter);\n      console.log(`第 ${attempt + 1} 次失败，${delay}ms 后重试:`, err.message);\n      await new Promise((resolve) => setTimeout(resolve, delay));\n    }\n  }\n  throw lastError;\n}\n\n// ---- 测试 1：前两次失败、第三次成功 ----\nlet calls = 0;\nconst flaky = () =>\n  new Promise((resolve, reject) => {\n    calls++;\n    setTimeout(() => (calls < 3 ? reject(new Error('transient')) : resolve('ok-' + calls)), 10);\n  });\nretryWithBackoff(flaky, { retries: 3, baseDelay: 50, maxDelay: 500 }).then((r) => {\n  console.log('测试1结果:', r, '总调用次数:', calls); // ok-3，3\n\n  // ---- 测试 2：始终失败，验证最终抛错 ----\n  let calls2 = 0;\n  const alwaysFail = () => {\n    calls2++;\n    return Promise.reject(new Error('boom'));\n  };\n  return retryWithBackoff(alwaysFail, { retries: 2, baseDelay: 20, maxDelay: 200 })\n    .then(() => console.log('不应走到这里'))\n    .catch((e) => console.log('测试2最终错误:', e.message, '总调用次数:', calls2)); // boom，3\n});"
+    },
+    "scoringPoints": [
+      { "point": "重试循环与成功立即返回、超次数抛出最后错误的控制流正确", "weight": 3 },
+      { "point": "退避公式含 2^n 指数、maxDelay 封顶与随机抖动三要素", "weight": 3 },
+      { "point": "代码可运行，测试覆盖先失败后成功与彻底失败两条路径", "weight": 2 },
+      { "point": "能关联 CrashLoopBackOff 退避、探针轮询与调谐循环的自愈思想", "weight": 2 }
+    ],
+    "analysis": "重试机制是分布式自愈的基本功。常见失分：用固定间隔重试（无退避）、递归重试忘记封顶等待时间、抖动只加常量没做随机化、失败后丢不掉原始错误栈、attempt 下标 off-by-one 导致多/少重试一次。结合 K8s 讲得出 CrashLoopBackOff 的退避递增与 jitter 防同步脉冲，说明理解了机制背后的系统韧性设计，属于加分项。",
+    "gapCheck": [
+      "易漏点：maxDelay 封顶与重试次数上限缺一不可，否则故障期会产生无限等待或无限调用",
+      "常见误区：对非幂等写操作也无脑重试，可能造成重复下单等副作用——重试前先确认幂等性",
+      "加分项：能提重试要配合超时预算（deadline 传播）与熔断器，避免在已熔断的依赖上继续重试"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.schedule-probe"],
+      "related": ["cs.design.limit.circuit-breaker", "cs.devops.k8s.release-ops"],
+      "followUps": [
+        "如果 fn 可能永久挂起不返回也不报错，这个函数要怎么加超时控制？",
+        "全抖动（full jitter）和等抖动（equal jitter）在重试间隔分布上有什么差别？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "指数退避重试 JS 手写题" },
+    "tags": ["手写题", "指数退避", "重试", "jitter", "自愈"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0010",
+    "nodeId": "cs.devops.k8s.schedule-probe",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "面试官：线上一组 Pod 反复重启，`kubectl describe` 看到退出原因是 OOMKilled、退出码 137。请给出完整排查思路：怎么区分是应用真泄漏还是 limit 设小了？确认原因后分别怎么治理？另外节点级内存压力和单容器 limit 触发的 OOM 有什么区别？",
+    "answer": {
+      "ref": "参考骨架：\n【先看证据】①kubectl describe pod 看 lastState.terminated.reason=OOMKilled、exit code 137（128+9，SIGKILL），确认是内核 OOM killer 而非应用自己退出；②对比容器内存监控曲线（container_memory_working_set 等）与 limits.memory：若每次都精准贴着 limit 被杀，倾向 limit 问题或泄漏；若曲线长期单调上涨不回落，倾向泄漏。\n【区分两种根因】limit 设小：用量稳定在某个健康平台值（与业务量正相关、重启后同样爬到该值），但该值高于拍脑袋设的 limit；用历史监控看同服务在更大 limit 下稳定运行的水位、JVM/运行时堆参数是否与容器配额匹配（JVM 需识别 cgroup 上限，否则堆外内存+堆超 limit）。真泄漏：每次重启后内存持续单调增长、增长间隔与流量无关或随时间恶化，堆 dump/运行时剖析可见对象无法回收，常见于缓存无上限、连接/文件句柄未释放、ThreadLocal/全局集合堆积。\n【治理】limit 过小→基于 P95/P99 真实用量上调 limit 并同步调整 requests，JVM 用 MaxRAMPercentage 之类参数让堆适配容器；真泄漏→修代码（有界缓存、淘汰策略、资源 try-with-resources/close），临时手段是加内存争取修复窗口并加重启兜底告警。\n【节点级 vs 容器级】容器超自己的 limit：cgroup 级 OOM，只杀该 cgroup 内进程、事件里 reason=OOMKilled，节点本身资源尚可。节点级压力：kubelet 监控节点可用内存，先按 QoS 驱逐（BestEffort→Burstable→Guaranteed 顺序），驱逐的 Pod 显示 Evicted；若驱逐不及时触发节点内核 OOM killer，会按 oom_score 在整机选进程杀，可能波及无关 Pod 甚至系统进程。还要排查 requests 超卖比例、节点上是否有失控的 BestEffort 负载。"
+    },
+    "scoringPoints": [
+      { "point": "OOMKilled/137 的判定证据链正确，会用 describe 与内存监控对比 limit", "weight": 3 },
+      { "point": "区分 limit 过小与真泄漏的判断方法（平台贴限 vs 单调增长）及各自治理", "weight": 3 },
+      { "point": "讲清 cgroup 级 OOM 与节点级驱逐/系统 OOM 的区别、QoS 驱逐顺序", "weight": 3 },
+      { "point": "能提 JVM 等运行时的 cgroup 感知与堆外内存问题", "weight": 1 }
+    ],
+    "analysis": "K8s 排障最高频战例之一。常见失分：看到 OOMKilled 就改大 limit，掩盖真泄漏；分不清 137 也可能来自人工/liveness 强杀，要结合 reason 字段；不知道节点驱逐和容器 OOM 是两套机制；忽略 JVM 不识别容器配额的历史坑。高分回答按『取证→定界→治理→预防（监控告警、资源配额）』展开，并强调先量化再动手。",
+    "gapCheck": [
+      "易漏点：退出码 137 只说明收到 SIGKILL，必须结合 terminated.reason 才能判定 OOM",
+      "常见误区：把内存泄漏治理简化为无限上调 limit，节点容量终会被吃光并转为节点级驱逐",
+      "加分项：能讲 oom_score_adj 与 QoS 的关系、系统预留（system-reserved/kube-reserved）防系统进程被杀"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.schedule-probe"],
+      "related": ["cs.devops.k8s.release-ops", "cs.os.memory.virtual-memory"],
+      "followUps": [
+        "Go/Java/Node 运行时在容器里各自怎么读取 cgroup 内存限制？",
+        "如何配置监控在容器逼近 limit 的 80%/95% 时分级告警？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "OOMKilled 排障简答题" },
+    "tags": ["OOMKilled", "排障", "cgroup", "QoS", "内存"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0011",
+    "nodeId": "cs.devops.k8s.network-config",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "面试官：集群内部一个服务想通过稳定的虚拟 IP 和 DNS 名访问一组 Pod，且这个入口不需要暴露到集群外。应选择的 Service 类型是：",
+    "options": [
+      { "key": "A", "text": "ClusterIP：分配仅集群内可达的虚拟 IP，配合 CoreDNS 提供 <svc>.<ns>.svc 域名解析" },
+      { "key": "B", "text": "NodePort：在每个节点上开放一个高端口，靠 节点IP:端口 从集群外访问" },
+      { "key": "C", "text": "LoadBalancer：调用云厂商接口创建外部负载均衡器并分配公网入口" },
+      { "key": "D", "text": "ExternalName：把 Service 映射成一个外部 DNS CNAME，本身没有代理端点" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：ClusterIP 是默认类型，虚拟 IP 只在集群网络内可路由，CoreDNS 为其生成稳定 A 记录，Pod 重建换 IP 不影响服务间调用，正是集群内服务发现的标准做法。B 的 NodePort 在所有节点开 30000-32767（默认区间）端口，主要作为外部暴露的底层手段，直接用于服务间调用会绕过 Service 抽象且端口管理混乱。C 依赖云厂商 LB、面向公网/外部流量，成本与暴露面都更大。D 只是 DNS 别名，用于把集群内服务引用指向外部域名，没有后端 Pod 端点。",
+    "gapCheck": [
+      "易漏点：ClusterIP 的虚拟 IP 不绑定任何网卡，靠 kube-proxy 的 iptables/IPVS 规则做 DNAT 转发",
+      "常见误区：以为 Pod IP 可以当服务地址——Pod 易逝，重建即换 IP，稳定入口必须走 Service",
+      "加分项：能讲 headless Service（clusterIP: None）直接返回 Pod IP 列表，适合有状态服务自建客户端发现"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.network-config"],
+      "related": ["cs.net.dns.resolve"],
+      "followUps": [
+        "Pod 之间直接用 Pod IP 通信和走 ClusterIP 通信，在内核路径上有什么差别？",
+        "CoreDNS 返回 ClusterIP 的解析记录 TTL 通常怎么设？为什么？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "Service 类型单选题" },
+    "tags": ["Service", "ClusterIP", "服务发现", "CoreDNS"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0012",
+    "nodeId": "cs.devops.k8s.network-config",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "面试官：关于 K8s 的 Ingress、CNI 网络模型与 Secret，下列说法**最准确**的是：",
+    "options": [
+      { "key": "A", "text": "Ingress 只是按 Host/路径转发的七层路由规则声明，真正执行规则的是 Ingress Controller（常同时承担 TLS 终结）；CNI 插件负责为 Pod 分配 IP 并实现跨节点免 NAT 直连" },
+      { "key": "B", "text": "Ingress 内置在 kubelet 里、无需额外组件就能生效；Pod 跨节点通信默认要经过 SNAT 做地址转换" },
+      { "key": "C", "text": "Secret 的内容经过强加密存储，任何有 etcd 读权限的人都无法还原，因此可以直接提交进 Git 仓库" },
+      { "key": "D", "text": "ConfigMap 只能通过环境变量注入，Secret 只能以文件卷挂载，二者的用法完全不能互换" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确：Ingress 本身只是规则对象，必须有 Ingress Controller（如 nginx-ingress）watch 规则并转成实际转发配置才能生效，TLS 证书也常由它终结；K8s 网络契约要求每个 Pod 有独立 IP、Pod 间默认免 NAT 直连，CNI 插件（Calico/Flannel/Cilium 等）负责 IPAM 与跨节点的隧道或路由连通。B 两处皆错：没有 controller 的 Ingress 不生效是最常见的『配了却 404』原因，而网络模型恰恰要求东西向免 NAT。C 错：Secret 默认只是 base64 编码而非加密，有读权限即可解码，敏感数据保护要靠 etcd 静态加密、RBAC 最小权限与外部 KMS/Vault。D 错：ConfigMap 与 Secret 都支持环境变量和卷挂载两种注入方式，区别在语义与 Secret 的 tmpfs 挂载等细节，并非不能互换。",
+    "gapCheck": [
+      "易漏点：光建 Ingress 规则没有 controller 不会生效，这是新手最常踩的『配置了却 404』的坑",
+      "常见误区：把 base64 当加密手段，把 Secret 直接提交进 Git 仓库造成凭据泄露",
+      "加分项：能讲 NetworkPolicy 默认放行、需 CNI 支持才能生效，以及 Service Mesh 在七层流量治理上的增量"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.network-config"],
+      "related": ["cs.net.http.tls-handshake", "cs.net.dns.resolve"],
+      "followUps": [
+        "Ingress 和 API 网关（Gateway）在职责上有什么重叠与差异？Gateway API 想解决什么问题？",
+        "Pod 跨节点通信走 VXLAN 封装和走 BGP 路由，性能与排障方式有什么不同？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Ingress/CNI/Secret 多选题" },
+    "tags": ["Ingress", "CNI", "Secret", "ConfigMap", "网络模型"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0013",
+    "nodeId": "cs.devops.k8s.network-config",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：Service 的 label selector 和后端 Pod 是松耦合的——Service 本身不创建 Pod，控制器只是持续把带匹配标签的健康 Pod 同步进 Endpoint/EndpointSlice；如果 Deployment 的标签改了而 Service 选择器没跟着改，Service 会出现没有任何后端端点的情况，访问表现为连接失败或超时。",
+    "answer": { "judge": true },
+    "analysis": "正确。这是标签选择器机制的典型故障场景。Service 与工作负载对象之间没有引用式强绑定，完全靠 label selector 动态匹配：端点控制器 watch Pod 变化，把匹配且就绪（readiness 通过）的 Pod 写入 EndpointSlice，kube-proxy 再据此生成转发规则。标签改错、选择器拼错、Pod 全部未就绪都会让后端集合为空，请求到 ClusterIP 后没有可 DNAT 的端点，表现为 connection refused/超时。排障命令组合是 kubectl get endpoints 看后端是否为空、kubectl label 对比标签、describe 看 selector 与 Pod labels。理解松耦合才能理解为什么同一组 Pod 可以被多个 Service 用不同选择器切分（如灰度版本分流）。",
+    "gapCheck": [
+      "易漏点：只有就绪的 Pod 才进端点列表，readiness 全部失败时即使标签匹配端点也为空",
+      "常见误区：排障只看 Pod Running 就认为服务正常，忽略 endpoints 为空这个直接证据",
+      "加分项：能讲 EndpointSlice 相对老 Endpoint 对象在万级 Pod 集群里的 watch 压力优化"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.network-config"],
+      "related": ["cs.devops.k8s.arch-object"],
+      "followUps": [
+        "一个 Service 能不能同时选中两个不同 Deployment 的 Pod？靠什么实现？",
+        "没有 selector 的 Service（手动建 Endpoint）适合什么场景？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "标签选择器松耦合判断题" },
+    "tags": ["标签选择器", "Service", "EndpointSlice", "排障", "判断"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0014",
+    "nodeId": "cs.devops.k8s.release-ops",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "面试官：Deployment 滚动更新时，maxSurge=1、maxUnavailable=0（相对副本数的百分比也可）。下列对发布过程的描述，**正确**的是：",
+    "options": [
+      { "key": "A", "text": "先多出 1 个副本创建新版本 Pod，等新 Pod 就绪后再终止 1 个旧 Pod，全程可用副本数不少于期望值，代价是发布期间最多多占 1 份资源" },
+      { "key": "B", "text": "先杀 1 个旧 Pod 再建 1 个新 Pod，发布期间可用副本数必然少于期望值" },
+      { "key": "C", "text": "maxSurge 控制的是旧版本保留数量，与新版本创建节奏无关" },
+      { "key": "D", "text": "该配置会让所有旧 Pod 同时终止、所有新 Pod 同时拉起，属于蓝绿发布" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：maxSurge 是相对期望副本数允许临时多出的上限，maxUnavailable 是允许不可用的上限。组合 1/0 表示发布中总副本最多到期望值+1、可用副本始终不低于期望值，策略最稳但需要额外资源缓冲，新 Pod 靠 readiness 确认就绪后才推进下一轮。B 描述的是 maxSurge=0、maxUnavailable=1 的策略（先减后增，资源省但容量下降）。C 概念错误，两个参数分别约束增量与不可用量。D 描述的是 Recreate 或蓝绿式全量切换，滚动更新的本质正是两个 ReplicaSet 逐步交替扩缩。",
+    "gapCheck": [
+      "易漏点：滚动推进依赖 readinessProbe，探针缺失或过松会让未就绪新 Pod 继续接流量",
+      "常见误区：资源配额（ResourceQuota）卡死时 maxSurge 副本创建不出来，发布会卡住而非报错失败",
+      "加分项：能讲百分比与绝对值的取整规则，以及 StatefulSet 的 OrderedReady 滚动语义差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.release-ops"],
+      "related": ["cs.devops.k8s.schedule-probe", "cs.devops.iac.release-strategy"],
+      "followUps": [
+        "资源紧张到无法容忍任何 surge 时，滚动参数应该怎么配？牺牲的是什么？",
+        "滚动发布到一半发现新版本有问题，kubectl rollout undo 背后操作了哪些对象？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "滚动更新参数单选题" },
+    "tags": ["滚动更新", "maxSurge", "maxUnavailable", "Deployment"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0015",
+    "nodeId": "cs.devops.k8s.release-ops",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：HPA（Horizontal Pod Autoscaler）基于 CPU/内存或自定义指标自动调整副本数，但它要求 Pod 正确配置 resources.requests 且集群部署了指标采集组件（如 metrics-server）；如果指标拿不到或 request 没配，HPA 会无法计算扩缩比例而表现为不工作。",
+    "answer": { "judge": true },
+    "analysis": "正确。HPA 的经典 CPU 利用率口径是『实际用量/requests』的百分比，没有 requests 就没有分母；指标数据来自 metrics-server（资源指标）或 Prometheus Adapter 等自定义指标接口，组件缺失时 HPA 状态里会显示 unknown。还要知道 HPA 的工程特性：扩缩有稳定窗口与防抖（冷却期），避免指标抖动导致副本频繁抖动；扩容快、缩容慢是有意设计；它只解决水平副本数，单 Pod 资源规格（垂直扩缩 VPA）与节点扩容（cluster-autoscaler）是另外两层。配 HPA 时还要给 minReplicas/maxReplicas 合理边界，并保证节点池有容量承接扩容。",
+    "gapCheck": [
+      "易漏点：HPA 与 requests 强绑定，request 设得离谱会让利用率口径失真，扩缩判断随之失灵",
+      "常见误区：以为 HPA 能秒级响应——采集周期+稳定窗口决定它是分钟级反应，挡不住瞬时突发",
+      "加分项：能讲自定义指标（如 QPS/队列积压）驱动 HPA、以及 HPA 与 CA（节点自动扩缩）的联动条件"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.release-ops"],
+      "related": ["cs.devops.k8s.schedule-probe", "cs.devops.observ.alert-slo"],
+      "followUps": [
+        "流量突增导致 HPA 扩容出来的新 Pod 还没就绪，这段空窗怎么扛？",
+        "HPA、VPA、Cluster Autoscaler 分别作用在哪一层？为什么 VPA 默认需要重启 Pod？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "HPA 工作前提判断题" },
+    "tags": ["HPA", "自动扩缩", "metrics-server", "requests", "判断"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0016",
+    "nodeId": "cs.devops.k8s.release-ops",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：编写一份生产可用的 Deployment YAML（3 副本），要求同时体现：①滚动更新策略 maxSurge=25%、maxUnavailable=0 与保留修订历史；②readiness 与 liveness 两类 HTTP 探针（参数合理）；③CPU/内存的 requests 与 limits；④安全上下文（非 root、禁止特权提权）；并逐条说明这些配置在发布与运行时各自防住什么问题。",
+    "answer": {
+      "ref": "逐条说明：replicas=3 保证基础冗余；strategy 滚动策略 25%/0 让发布全程可用副本不下降、最多临时多出 25% 副本（3 副本向上取整为 1），revisionHistoryLimit 保留旧 ReplicaSet 支撑快速回滚；readiness 探测 /readyz，未就绪不进 Service 端点，保证滚动时新副本真正能接流量才推进；liveness 探测 /healthz，失败阈值后重启容器，捕捉死锁僵死；两个探针分开接口、初始延迟按应用启动时间给；requests 供调度与 HPA 分母、limits 防单容器失控争抢，内存 limit 是 OOMKilled 红线；securityContext 关闭特权提权、非 root 运行，压缩被攻破后的权限面。",
+      "code": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: order-api\n  labels:\n    app: order-api\nspec:\n  replicas: 3\n  revisionHistoryLimit: 5\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxSurge: 25%\n      maxUnavailable: 0\n  selector:\n    matchLabels:\n      app: order-api\n  template:\n    metadata:\n      labels:\n        app: order-api\n    spec:\n      securityContext:\n        runAsNonRoot: true\n        runAsUser: 1000\n      containers:\n        - name: app\n          image: registry.example.com/order-api:1.4.2\n          ports:\n            - containerPort: 8080\n          resources:\n            requests:\n              cpu: 250m\n              memory: 256Mi\n            limits:\n              cpu: '1'\n              memory: 512Mi\n          readinessProbe:\n            httpGet:\n              path: /readyz\n              port: 8080\n            initialDelaySeconds: 5\n            periodSeconds: 10\n            failureThreshold: 3\n          livenessProbe:\n            httpGet:\n              path: /healthz\n              port: 8080\n            initialDelaySeconds: 15\n            periodSeconds: 20\n            failureThreshold: 3\n          securityContext:\n            allowPrivilegeEscalation: false\n            privileged: false"
+    },
+    "scoringPoints": [
+      { "point": "Deployment 结构完整（apiVersion/selector 与模板标签一致、镜像固定版本而非 latest）", "weight": 2 },
+      { "point": "滚动策略、revisionHistoryLimit、两类探针参数与语义正确", "weight": 3 },
+      { "point": "requests/limits 成对出现且单位合法，安全上下文非 root/禁提权到位", "weight": 3 },
+      { "point": "能逐条解释配置防住的发布与运行时风险", "weight": 2 }
+    ],
+    "analysis": "K8s 工程化综合手写题。常见失分：selector 与 template labels 对不上导致 apply 报错；探针只写一个且接口混用；资源只写 limit 不写 request 让 HPA 无分母；CPU 值忘加引号或单位乱写；安全上下文整段缺失。能进一步补充 PodDisruptionBudget、topologySpreadConstraints、terminationGracePeriodSeconds 与优雅停机配置属于加分。",
+    "gapCheck": [
+      "易漏点：镜像标签用 latest 违背不可变制品原则，回滚时无法精确定位旧版本",
+      "常见误区：liveness 接口查数据库导致依赖抖动时批量自杀，健康检查应聚焦进程自身",
+      "加分项：能补 PDB 保证自愿中断期间最小可用副本数、反亲和让副本分散到不同节点"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.release-ops"],
+      "related": ["cs.devops.k8s.schedule-probe", "cs.devops.cicd.artifact"],
+      "followUps": [
+        "加上 PodDisruptionBudget 后，节点维护驱逐行为会有什么变化？",
+        "应用优雅停机需要配合哪些字段（terminationGracePeriodSeconds、preStop）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "生产级 Deployment YAML 手写题" },
+    "tags": ["手写题", "Deployment", "YAML", "探针", "滚动更新"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0017",
+    "nodeId": "cs.devops.k8s.release-ops",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "面试官：`kubectl get pods` 显示一个 Pod 长期 Pending，另一个处于 CrashLoopBackOff。下列成因与排查方向的配对，**合理**的有：",
+    "options": [
+      { "key": "A", "text": "Pending 且 events 提示 Insufficient memory/cpu：节点 requests 容量不足，排查节点资源水位、requests 是否虚高、集群是否需要加节点" },
+      { "key": "B", "text": "Pending 且有 nodeSelector/污点相关事件：调度约束无法满足，排查标签、污点容忍（toleration）与亲和性配置" },
+      { "key": "C", "text": "CrashLoopBackOff：容器启动后反复退出，用 kubectl logs --previous 看上一个崩溃实例的日志，结合配置、依赖连通性与探针配置定位" },
+      { "key": "D", "text": "两种状态都只需无脑删除 Pod 或重启节点，根因会自动消失，不需要看 events 与日志" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 是标准排障决策树。Pending 的本质是『调度器找不到合适节点』，Pod 还没被绑定，常见原因：资源 requests 总和超节点可分配量、nodeSelector/亲和性无匹配节点、污点没容忍、PVC 挂不上、端口冲突；describe 的 events 会直接给出调度器失败原因。CrashLoopBackOff 是容器启动后不断崩溃、kubelet 按退避间隔重启，根因在应用或配置：启动命令错误、配置缺失/错误、依赖服务不通、liveness 配置过严、权限问题；--previous 看已死实例日志是关键动作，当前实例可能还没输出就退出。D 反模式：删除重建会复现同样的调度失败或崩溃，重启节点还可能扩大影响，排障必须先取证（describe events、logs、metrics）再动手。",
+    "gapCheck": [
+      "易漏点：ImagePullBackOff 是另一类常见状态，根因在镜像名/标签/仓库凭据，别和 CrashLoopBackOff 混为一谈",
+      "常见误区：CrashLoopBackOff 只看当前 logs，崩溃实例的报错要用 --previous 才能拿到",
+      "加分项：能讲 CrashLoopBackOff 的退避时间递增（10s、20s、40s……封顶 5 分钟）与 K8s 自愈退避设计"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.release-ops"],
+      "related": ["cs.devops.k8s.schedule-probe", "cs.os.linux.troubleshoot-cmds"],
+      "followUps": [
+        "PVC 处于 Pending 导致 Pod Pending，这条链路怎么逐层排查？",
+        "CrashLoopBackOff 但 logs 没有任何输出，下一步应该查什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Pending 与 CrashLoopBackOff 排障多选题" },
+    "tags": ["排障", "Pending", "CrashLoopBackOff", "调度", "面试高频"]
+  },
+  {
+    "id": "Q-cs-devops-k8s-0018",
+    "nodeId": "cs.devops.k8s.release-ops",
+    "type": "short",
+    "difficulty": 5,
+    "stem": "面试官：团队希望把几十个服务的 K8s 清单工程化管理，目前每个环境一套手写 YAML、版本散乱、回滚靠翻聊天记录。请说明 Helm 解决了什么问题、chart/values/release 三个概念如何协作，并对比它与 Kustomize 的思路差异；再讲讲一套可靠的发布回滚机制应该怎么建。",
+    "answer": {
+      "ref": "参考骨架：\n【痛点】裸 YAML 数量膨胀、环境差异靠复制粘贴、模板没有版本概念、参数散落在文件里，回滚与评审都缺抓手。\n【Helm 三概念】chart 是打包好的图表（模板 templates + 默认值 values.yaml + 元数据 Chart.yaml），描述一类应用的完整资源集合；values 是参数层，默认值之外可用 -f 或 --set 按环境覆盖，实现一套模板多环境实例化；release 是某次安装/升级在集群里产生的一个具体实例，带版本号，每次 upgrade 生成新 revision 并存历史，rollback 可按 revision 一键回退到上一版 values 与模板渲染结果。三者关系是『模板（chart）×参数（values）=实例（release）』。\n【与 Kustomize 对比】Helm 是模板引擎思路：Go template 渲染，表达力强（条件、循环、函数），有 chart 仓库与版本发布体系，但模板深了可读性差、调试要看渲染结果；Kustomize 是无模板的覆盖叠加思路：保留原生 YAML，用 base + overlay（kustomization.yaml）做 patch、命名空间/前缀/镜像替换，不用学习模板语言、Git 原生友好，但复杂逻辑表达不如模板灵活。选型上标准化程度高、要分发复用选 Helm；纯配置分层、希望 YAML 原样可读可选 Kustomize，二者也可结合（Helm 渲染后再叠 Kustomize）。\n【发布回滚机制】①所有变更走 Git 评审与 CI 渲染检查（helm template/lint、dry-run、kubectl diff），禁止手工 kubectl edit；②镜像用不可变标签、release 版本与 Git commit 关联；③升级用 helm upgrade --install 并记录 revision，配合 readiness 与发布后冒烟校验，失败自动 helm rollback；④回滚预案区分应用层（rollback revision，快）与数据层（schema 迁移要求前向兼容，老代码能读新结构）；⑤发布历史、values 与变更说明归档，配合监控告警在发布窗口盯 SLO，形成可审计闭环。"
+    },
+    "scoringPoints": [
+      { "point": "讲清 Helm 解决的模板化/版本化/多环境痛点与 chart/values/release 协作关系", "weight": 3 },
+      { "point": "Helm 模板引擎与 Kustomize overlay 叠加的思路对比客观、有选型判断", "weight": 3 },
+      { "point": "发布回滚机制覆盖 Git 评审、CI 校验、自动回滚、数据层前向兼容与监控闭环", "weight": 3 },
+      { "point": "能提 revision 历史、不可变镜像与禁止手工改线上对象的纪律", "weight": 1 }
+    ],
+    "analysis": "K8s 工程化与运维治理的综合拔高题。常见失分：把 Helm 只说成『包管理工具』讲不出模板×参数=实例的模型；完全不了解 Kustomize；回滚只答 kubectl rollout undo，忽略数据 schema 与 values 回滚；没有 Git 化与审计意识。高分回答会把 Helm 定位为参数化渲染+release 版本管理，并把发布可靠性扩展到 CI 门禁与可观测验证。",
+    "gapCheck": [
+      "易漏点：helm rollback 回退的是渲染后的资源集合，数据库 schema 不会自动跟着回退",
+      "常见误区：在集群里手工改资源后再 helm upgrade，手工改动会被模板覆盖且无评审痕迹",
+      "加分项：能提 GitOps 工具（如 Argo CD）把 Git 作为唯一事实源、持续漂移检测与自动同步"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.k8s.release-ops"],
+      "related": ["cs.devops.iac.terraform", "cs.devops.cicd.artifact", "cs.devops.observ.alert-slo"],
+      "followUps": [
+        "Helm chart 里的 hook 资源在安装生命周期的哪些时点执行？适合做什么？",
+        "GitOps 模式下检测到线上对象被手工改动，系统应该自动同步还是告警等人确认？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Helm/Kustomize 与发布回滚综合题" },
+    "tags": ["Helm", "Kustomize", "发布回滚", "GitOps", "工程化"]
+  }
+]

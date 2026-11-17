@@ -1,0 +1,649 @@
+[
+  {
+    "id": "Q-cs-net-layering-0001",
+    "nodeId": "cs.net.tcpip.layering",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "在 TCP/IP 四层模型（网络接口层 / 网际层 / 传输层 / 应用层）中，下列协议与其所在层的对应，**正确**的是：",
+    "options": [
+      { "key": "A", "text": "IP 协议工作在传输层，负责端到端的可靠传输" },
+      { "key": "B", "text": "TCP、UDP 工作在传输层，IP 工作在网际层，HTTP/DNS 工作在应用层" },
+      { "key": "C", "text": "DNS 工作在网际层，因为它要把域名解析成 IP 地址" },
+      { "key": "D", "text": "交换机工作在网际层（三层），路由器工作在网络接口层（二层）" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确：TCP/UDP 是传输层协议（进程到进程，靠端口区分），IP 是网际层协议（主机到主机，靠 IP 地址路由），HTTP/DNS 是应用层协议。A 把 IP 错放到传输层且 IP 本身不可靠（尽力交付，可靠性由 TCP 在传输层补上）。C 错：DNS 是应用层协议，虽然它解析的结果是 IP，但协议本身跑在 UDP/TCP 53 端口之上。D 把设备层级说反了：普通交换机依据 MAC 地址转发，工作在网络接口层（二层）；路由器依据 IP 地址转发，工作在网际层（三层）。",
+    "gapCheck": ["易漏点：区分『主机到主机（IP 地址）』与『进程到进程（端口）』两个粒度，这是理解分层的钥匙", "常见误区：认为 IP 保证可靠——丢包重传、排序都是 TCP 的活，IP 只负责尽力送达", "加分项：能说出 OSI 七层里会话层、表示层在 TCP/IP 模型里被并入应用层"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.layering"],
+      "related": ["cs.net.tcpip.tcp-vs-udp"],
+      "followUps": ["为什么 TCP/IP 模型把 OSI 的会话层和表示层合并掉了？", "一个数据包从应用发出到物理线路，首部是怎么一层层加上去的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "综合 TCP/IP 分层经典教材与高频面试题自创" },
+    "tags": ["网络基础", "分层模型", "高频开场"]
+  },
+  {
+    "id": "Q-cs-net-layering-0002",
+    "nodeId": "cs.net.tcpip.layering",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：数据从发送方应用层向下传输时，每经过一层都会被加上该层的首部（封装）；在接收方则自底向上逐层剥掉首部（分用/解封装），分层因此让各层可以独立演进、相互透明。",
+    "answer": { "judge": true },
+    "analysis": "正确。这正是分层模型的核心机制：发送方下行时，应用数据 → 加 TCP/UDP 首部成段（segment）→ 加 IP 首部成包（packet/datagram）→ 加帧头帧尾成帧（frame）→ 比特流上线；接收方上行时按首部的协议字段逐层剥除并交给对应上层（分用）。分层的价值在于层间只通过明确接口交互、对上层隐藏下层实现，因此物理介质从网线换光纤、IP 层升级，应用层代码都不用改。",
+    "gapCheck": ["易漏点：封装的 PDU 在不同层有不同名字——段/报文段(segment)、数据报(datagram)、帧(frame)、比特(bit)", "常见误区：只背『七层名字』却讲不出数据在层间到底发生了什么", "加分项：能解释封装带来的代价——每层加首部产生额外开销（头部冗余），换取的是解耦与可维护性"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.layering"],
+      "related": ["cs.net.http.message"],
+      "followUps": ["MTU 和 MSS 分别是哪一层的概念？分片发生在哪一层？", "分用时接收方怎么知道一个帧该交给 IP 还是 ARP？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "封装/分用机制基础判断题" },
+    "tags": ["网络基础", "封装分用", "概念题"]
+  },
+
+  {
+    "id": "Q-cs-net-tcpudp-0001",
+    "nodeId": "cs.net.tcpip.tcp-vs-udp",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 TCP 与 UDP 的对比，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "TCP 面向连接（传输前需三次握手建立连接），UDP 无连接、发送前不握手" },
+      { "key": "B", "text": "TCP 通过确认、重传、序号、滑动窗口保证可靠且有序；UDP 只尽力交付，可能丢包、乱序、重复" },
+      { "key": "C", "text": "UDP 因为不可靠，所以实时音视频通话一定不能使用 UDP" },
+      { "key": "D", "text": "TCP 首部（通常 20 字节起，含选项更长）比 UDP 首部（固定 8 字节）开销大，且有握手与拥塞控制的额外成本" }
+    ],
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A、B、D 正确：这三条正是 TCP 与 UDP 的本质差异——连接性、可靠性机制、首部与机制开销。C 错在『一定不能』：实时音视频（视频会议、语音通话、直播）恰恰**首选 UDP/RTP**，因为它们对延迟敏感、能容忍少量丢包（一帧花了比重传整帧更可接受），TCP 的重传等待和队头阻塞反而造成卡顿；可靠性需求（如关键信令）可在应用层对 UDP 做有限补偿（QUIC 就是在 UDP 上自建可靠与拥塞控制）。",
+    "gapCheck": ["易漏点：选型不是『可靠就用 TCP』，而是看场景对『正确性 vs 实时性』的权衡", "常见误区：把 UDP 简单等同于『差』——它的无连接、无拥塞控制、首部小正是低延迟场景想要的", "加分项：能举出 DNS（默认 UDP，区域传送或超 512 字节才用 TCP）、HTTP/3(QUIC over UDP) 等具体选型实例"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.tcp-vs-udp"],
+      "related": ["cs.net.http.http2-3", "cs.net.dns.resolve"],
+      "followUps": ["游戏同步为什么常用 UDP？丢了的移动指令怎么补？", "QUIC 在 UDP 上重新实现了哪些 TCP 的能力，图什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "TCP/UDP 对比经典多选题" },
+    "tags": ["传输层", "协议选型", "必考"]
+  },
+  {
+    "id": "Q-cs-net-tcpudp-0002",
+    "nodeId": "cs.net.tcpip.tcp-vs-udp",
+    "type": "short",
+    "difficulty": 2,
+    "stem": "面试官问：『同一个 IP 地址上同时跑着 Nginx、Redis、一个 Node 服务，操作系统是怎么把收到的数据包分发给正确的那个进程的？』请结合传输层机制回答。",
+    "answer": { "ref": "参考骨架：①IP 地址只解决『送到哪台主机』，主机上区分具体进程靠传输层的**端口号**（port）。②传输层段/数据报首部带源端口和目的端口，操作系统内核维护一张套接字表，键是（源 IP, 源端口, 目的 IP, 目的端口, 协议）四/五元组，收到包后按目的端口+协议查这张表，把载荷投递到对应监听套接字，进而唤醒等待的进程。③所以 Nginx 监听 80/443、Redis 默认 6379、Node 监听如 3000，各自绑定不同端口，互不冲突。④补充：端口是 16 位（0~65535），0~1023 为知名端口需特权；客户端发起连接时用临时端口（ephemeral port）作源端口，靠五元组区分同一客户端的多条并发连接（这也是一台机器能同时开很多连接到同一服务器的原因）。" },
+    "scoringPoints": [
+      { "point": "明确 IP 到主机、端口到进程的两级寻址分工", "weight": 2 },
+      { "point": "讲出内核靠套接字/五元组（IP+端口+协议）做分用投递", "weight": 2 },
+      { "point": "用 Nginx/Redis/Node 不同端口的例子说明共存", "weight": 1 },
+      { "point": "提到端口范围或临时端口/并发连接复用，体现深度", "weight": 1 }
+    ],
+    "analysis": "这题考的是分层寻址的落地：很多人会笼统答『靠端口』，3 分要求能讲到内核套接字表和五元组分用。能进一步解释『为什么同一个浏览器能对同一台服务器开几十条连接而不串』（源临时端口不同 → 五元组不同）就属于加分。常见失分是把端口和 IP 混为一层，或答成 DNS（DNS 解决的是域名到 IP，跟进程分发无关）。",
+    "gapCheck": ["易漏点：端口属于传输层概念，跟 IP 不在一层", "常见误区：以为一个端口同一时刻只能被一个连接占用——监听端口可接受大量连接，靠五元组区分", "加分项：解释 TIME_WAIT 占满端口、端口耗尽等真实问题与五元组的关系"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.tcp-vs-udp"],
+      "related": ["cs.net.tcpip.layering", "cs.net.tcpip.handshake"],
+      "followUps": ["两个进程能不能绑定同一个端口？（SO_REUSEADDR/SO_REUSEPORT）", "NAT 之后多台内网机器共用一个公网 IP，出口路由器怎么区分连接？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "传输层分用机制场景题" },
+    "tags": ["传输层", "端口分用", "场景题"]
+  },
+
+  {
+    "id": "Q-cs-net-handshake-0001",
+    "nodeId": "cs.net.tcpip.handshake",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 TCP 三次握手，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "三次握手的目的只是确认双方网络通畅，两次握手在任何情况下都完全等价" },
+      { "key": "B", "text": "三次握手让通信双方各自确认了『自己的收发能力正常、对方的收发能力正常』，并协商了各自的初始序列号 ISN；两次握手无法让被动方确认主动方能收到自己的 ACK，也无法防止历史失效连接被建立" },
+      { "key": "C", "text": "第三次握手的 ACK 报文一定不能携带任何应用数据" },
+      { "key": "D", "text": "初始序列号 ISN 从 0 开始固定计数，方便双方对齐" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确说清了三次握手的两大必要性：能力确认（双向各确认收发正常）与防历史连接（RFC 793 的核心理由——旧的重复 SYN 若延迟到达，两次握手会让服务器误建连接，三次握手中客户端可用第三次 ACK/RST 否决）。A 错，两次握手无法让服务器确认客户端的接收能力、也挡不住失效连接。C 错：第三次握手的 ACK **可以携带数据**（fast open 场景或标准允许），此前两次一般不带。D 错：ISN 是基于时钟随机/递增生成的，不能固定为 0，否则序列号可预测、易受注入攻击，也容易和旧连接的残留段混淆。",
+    "gapCheck": ["易漏点：三次握手的经典理由是『防止已失效的连接请求报文段突然又传到服务端』，不只是确认通不通", "常见误区：背诵 SYN/SYNACK/ACK 却讲不出为什么不能两次", "加分项：知道 SYN 洪水攻击利用半连接队列，以及 SYN Cookie 的防御原理"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.handshake"],
+      "related": ["cs.net.tcpip.tcp-vs-udp", "cs.net.http.tls-handshake"],
+      "followUps": ["SYN 洪水攻击为什么能打满服务器？SYN Cookie 怎么解？", "TLS 握手和 TCP 三次握手是什么关系，谁先谁后？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "TCP 三次握手原理单选题" },
+    "tags": ["TCP", "三次握手", "必考"]
+  },
+  {
+    "id": "Q-cs-net-handshake-0002",
+    "nodeId": "cs.net.tcpip.handshake",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "关于 TCP 四次挥手与 TIME_WAIT 状态，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "挥手之所以要四次，是因为 TCP 全双工：被动关闭方收到 FIN 后先回 ACK，但它可能还有数据没发完，其 FIN 要等数据发完才能单独发出，所以 ACK 与 FIN 通常不能合并" },
+      { "key": "B", "text": "主动关闭方进入 TIME_WAIT 后立刻释放端口和连接资源即可，无需等待" },
+      { "key": "C", "text": "TIME_WAIT 持续 2MSL 纯粹是浪费，没有任何实际作用" },
+      { "key": "D", "text": "TIME_WAIT 出现在被动关闭的那一方，主动关闭方直接 CLOSED" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：TCP 是全双工，两个方向要各自关闭。收到 FIN 只代表对方不再发数据，但己方可能还有数据要发，所以先 ACK 确认、等自己也发完再发 FIN，ACK 与 FIN 分两步 → 四次（若被动方恰好无数据待发，ACK 与 FIN 也可能合并成三次挥手）。B、C 错：主动关闭方进入 TIME_WAIT 并等待 2MSL 有两个作用——①确保最后一个 ACK 能到达对方（丢失时对方会重发 FIN，本方可重传 ACK）；②让本次连接在网络中残留的报文段自然消亡，避免它们窜入使用相同五元组的新连接。D 错：TIME_WAIT 发生在**主动关闭**方，被动方走 LAST_ACK 后 CLOSED。",
+    "gapCheck": ["易漏点：四次 vs 三次的根因是全双工 + ACK/FIN 能否合并，不是死板规定", "常见误区：认为 TIME_WAIT 是 bug；高并发短连接下大量 TIME_WAIT 才是需要调优（reuse/长连接）的工程问题", "加分项：能讲 2MSL 的两个目的，以及为什么主动关闭方才进 TIME_WAIT"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.handshake"],
+      "related": ["cs.net.tcpip.reliable-flow"],
+      "followUps": ["服务器出现大量 TIME_WAIT 是什么场景？怎么缓解？", "MSL 是什么？为什么是 2 倍而不是 1 倍？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "四次挥手与 TIME_WAIT 深度单选题" },
+    "tags": ["TCP", "四次挥手", "TIME_WAIT", "高频"]
+  },
+
+  {
+    "id": "Q-cs-net-flow-0001",
+    "nodeId": "cs.net.tcpip.reliable-flow",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "补全 TCP 可靠传输与流量控制的关键机制：发送方给每个字节编 ______ 号，接收方通过 ______ 号告知期望收到的下一个字节（累计确认）；未被确认的数据会在 ______ 后触发重传；为了不让发送速度压垮接收方，接收方在首部通告 ______ 窗口，发送方据此限制在途数据量，这套机制称为 ______ 控制。",
+    "answer": {
+      "blanks": ["序列", "确认", "超时（RTO）", "接收（rwnd）", "流量"],
+      "synonyms": {
+        "序列": ["seq", "序列号"],
+        "确认": ["ack", "确认号", "ACK"],
+        "超时（RTO）": ["超时", "超时重传", "RTO", "定时器超时"],
+        "接收（rwnd）": ["接收", "rwnd", "接收窗口"],
+        "流量": ["流量控制"]
+      }
+    },
+    "analysis": "五空串起可靠+流控主线：①每个字节有序号（seq），是排序和去重的基础；②确认号（ack）是累计确认，告诉对方该序号之前的字节都收到了；③超时计时器（RTO，动态估算 RTT）到期未确认就重传，另有快速重传（收到 3 个重复 ACK 不等超时）；④接收方通过 rwnd（receive window）通告自己缓冲区还能收多少；⑤发送方让在途数据不超过 rwnd，即流量控制——它保护的是**接收方**不被压垮（区别于保护网络的拥塞控制）。",
+    "gapCheck": ["易漏点：确认号的语义是『期望收到的下一个字节序号』，即之前的都已收到（累计确认）", "常见误区：把流量控制和拥塞控制混为一谈——前者看接收方 rwnd，后者看网络 cwnd", "加分项：能补充快速重传、滑动窗口如何把『停止-等待』变成流水线从而提升吞吐"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.reliable-flow"],
+      "related": ["cs.net.tcpip.congestion", "cs.net.tcpip.tcp-vs-udp"],
+      "followUps": ["滑动窗口相比停止等待协议，吞吐提升在哪？", "接收方窗口收到 0（零窗口）后发送方怎么办？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "可靠传输与流量控制机制填空题" },
+    "tags": ["TCP", "滑动窗口", "流量控制", "必考"]
+  },
+  {
+    "id": "Q-cs-net-flow-0002",
+    "nodeId": "cs.net.tcpip.reliable-flow",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：TCP 的滑动窗口让发送方可以连续发送多个未确认的段而不必每发一个就停下来等 ACK，从而把停止-等待式的低吞吐改造成流水线传输；窗口的右沿由接收方通告窗口和已确认进度共同决定。",
+    "answer": { "judge": true },
+    "analysis": "正确。停止-等待协议每发一段就阻塞等待 ACK，一个 RTT 只能发一段，带宽利用率极低。滑动窗口允许窗口内的多个段同时在途，收到累计 ACK 后窗口整体向前滑动、继续补发新数据，形成流水线，吞吐随窗口/带宽时延积提升。发送窗口的上界同时受接收方通告窗口 rwnd（流量控制）和拥塞窗口 cwnd（拥塞控制）约束，实际取二者较小值；随 ACK 推进左沿、按新通告调整右沿。",
+    "gapCheck": ["易漏点：实际发送窗口 = min(rwnd, cwnd)，分别对应流量控制与拥塞控制两个约束", "常见误区：以为窗口大小固定——它随 ACK 和接收方通告动态滑动/伸缩", "加分项：引入带宽时延积 BDP，解释为什么长肥网络需要大窗口才能跑满带宽"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.reliable-flow"],
+      "related": ["cs.net.tcpip.congestion"],
+      "followUps": ["带宽时延积（BDP）和窗口大小有什么关系？", "Nagle 算法和延迟 ACK 为什么有时会互相拖累？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "滑动窗口流水线机制判断题" },
+    "tags": ["TCP", "滑动窗口", "流水线"]
+  },
+
+  {
+    "id": "Q-cs-net-congestion-0001",
+    "nodeId": "cs.net.tcpip.congestion",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "关于 TCP 拥塞控制，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "拥塞控制和流量控制是一回事，都是因为接收方处理不过来" },
+      { "key": "B", "text": "慢启动阶段拥塞窗口 cwnd 从 1 开始按指数增长（每 RTT 翻倍），到达慢启动门限 ssthresh 后转入拥塞避免、改为每 RTT 近似线性 +1" },
+      { "key": "C", "text": "一旦发生丢包，cwnd 应该立刻翻倍以尽快把丢失的数据重发回来" },
+      { "key": "D", "text": "拥塞控制只在客户端做，服务器和中间路由器完全不参与" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确描述了经典 Reno/CUBIC 之前的拥塞窗口演化：慢启动 cwnd 指数增长快速探测带宽，碰到 ssthresh 进入拥塞避免线性增长以谨慎逼近瓶颈。A 错：流量控制是端到端、保护接收方（rwnd）；拥塞控制是为了不把**整个网络/中间路由器队列**压垮（cwnd），二者独立，实际窗口取 min(rwnd,cwnd)。C 方向完全反了：检测到拥塞（超时）要把 ssthresh 降为 cwnd 一半、cwnd 回 1 重新慢启动；三次重复 ACK（快速重传）则走快恢复、降窗但不回 1。D 错：路由器的队列丢包/ECN 标记正是端侧判断拥塞的信号，拥塞控制是端到端与网络协同的结果（路由器用 AQM/RED，BBR 还基于带宽和 RTT 建模而非单纯丢包）。",
+    "gapCheck": ["易漏点：先分清 cwnd（网络）与 rwnd（接收方）两个窗口，再谈增长曲线", "常见误区：把『慢启动』理解为增长慢——它其实是指数增长，只是起点小", "加分项：区分超时（回 1 慢启动）与三次重复 ACK（快重传快恢复、减半）两种降窗；了解 BBR 靠带宽/RTT 建模而非丢包"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.congestion"],
+      "related": ["cs.net.tcpip.reliable-flow", "cs.net.http.http2-3"],
+      "followUps": ["为什么基于丢包的拥塞控制会和浅缓冲区（bufferbloat）冲突？", "BBR 和 CUBIC 的根本差别是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "TCP 拥塞控制窗口演化单选题" },
+    "tags": ["TCP", "拥塞控制", "慢启动", "中高级"]
+  },
+  {
+    "id": "Q-cs-net-congestion-0002",
+    "nodeId": "cs.net.tcpip.congestion",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请明确区分 TCP 的『流量控制』与『拥塞控制』：它们各自要解决什么问题、依据什么信号调节、调节的量叫什么，并说明实际发送窗口由谁决定。",
+    "answer": { "ref": "参考骨架：【目的不同】流量控制解决『发送方把接收方灌爆』——接收方应用读取慢、缓冲区有限；拥塞控制解决『大量连接把网络/中间路由器队列压垮』导致全局排队、丢包、时延膨胀。【信号与变量】流量控制依据接收方在首部通告的接收窗口 rwnd（receive window），随接收缓冲区空余动态变化；拥塞控制依据端侧观测到的丢包/超时/重复 ACK（以及 RTT、ECN）维护拥塞窗口 cwnd，慢启动指数探、拥塞避免线性增、检测到拥塞则乘性减（AIMD）。【作用对象】rwnd 是点对点的接收方能力，cwnd 是发送方对当前网络可用容量的估计。【合成】TCP 实际允许的在途数据量（发送窗口）= min(rwnd, cwnd)，任一收紧都会限制发送，从而同时不压垮接收方也不压垮网络。可补充：QUIC/BBR 在这层做了现代化改造（BBR 用带宽与 RTT 模型而非单纯丢包驱动 cwnd）。" },
+    "scoringPoints": [
+      { "point": "说清两者目的差异（保护接收方 vs 保护网络）", "weight": 2 },
+      { "point": "各自的调节信号与窗口变量（rwnd vs cwnd）", "weight": 2 },
+      { "point": "实际发送窗口取 min(rwnd, cwnd)", "weight": 2 },
+      { "point": "提到 AIMD 或 BBR/ECN 等现代演进作为深度补充", "weight": 1 }
+    ],
+    "analysis": "这是网络模块最能检验理解是否成体系的一题：能干净地用『目的—信号—变量』三栏对比并落到 min(rwnd,cwnd) 就是 3 分档。典型失分是把两者混说、或只背 cwnd 增长曲线却不知道它和 rwnd 是两条独立约束。能点出 bufferbloat、ECN、BBR 说明有生产/前沿视野。",
+    "gapCheck": ["易漏点：两个窗口保护的对象不同，一个看主机一个看网络", "常见误区：答成『丢包就重传』——重传属可靠性，拥塞控制关心的是降速", "加分项：AIMD（加性增乘性减）的公平性直觉：多条 TCP 连接能大致均分瓶颈带宽"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.congestion"],
+      "related": ["cs.net.tcpip.reliable-flow"],
+      "followUps": ["多条 TCP 连接共享一条瓶颈链路，为什么最终能大致公平？", "ECN 是怎么在不丢包的情况下通知拥塞的？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "流量控制 vs 拥塞控制体系化辨析题" },
+    "tags": ["TCP", "拥塞控制", "体系化", "高频辨析"]
+  },
+
+  {
+    "id": "Q-cs-net-layering-0003",
+    "nodeId": "cs.net.tcpip.layering",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于常见网络设备的工作层级与各层数据单元（PDU），下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "普通二层交换机依据 MAC 地址转发帧，工作在数据链路层（TCP/IP 的网络接口层）；集线器（Hub）只在物理层放大电信号，并不识别 MAC 地址" },
+      { "key": "B", "text": "路由器依据 IP 地址转发分组，工作在网络层（网际层），其每个接口是一个广播域边界，能隔离广播" },
+      { "key": "C", "text": "传输层靠端口号区分同一主机上的不同进程，TCP 的 PDU 常称段（segment），UDP 的常称数据报（datagram）" },
+      { "key": "D", "text": "三层交换机本质仍是纯二层设备，无论如何都不能依据 IP 地址做跨 VLAN 的路由转发" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 说清了二层设备看 MAC、物理层设备（Hub/中继器）只搬运比特、连 MAC 都不识别；交换机隔离冲突域但默认不隔离广播域。B 指出路由器工作在网络层、按 IP 最长前缀匹配转发，并天然隔离广播域。C 点明传输层的进程分用靠端口，以及段/数据报的命名差异。D 错：三层交换机在二层交换芯片之上集成了路由引擎（通过 SVI/VLAN 接口），完全可以依据 IP 做 VLAN 间路由，工作到网络层，『三层』之名正来源于此。",
+    "gapCheck": [
+      "易漏点：区分冲突域与广播域——交换机隔离冲突域，路由器/三层设备才隔离广播域",
+      "常见误区：把 Hub 当交换机——Hub 是物理层共享介质设备，所有端口同属一个冲突域",
+      "加分项：能说出网关一般工作在网络层及以上、防火墙可跨多层做检测，体现设备层级的复合性"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.layering"],
+      "related": ["cs.net.tcpip.tcp-vs-udp"],
+      "followUps": [
+        "交换机、路由器、网关分别『认识』地址到什么粒度（MAC/IP/端口）？",
+        "为什么说 VLAN 是二层隔离、而 VLAN 间互通必须借助三层路由？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "网络设备层级与 PDU 对应多选题" },
+    "tags": ["网络基础", "网络设备", "PDU", "分层模型"]
+  },
+  {
+    "id": "Q-cs-net-layering-0004",
+    "nodeId": "cs.net.tcpip.layering",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "对照 OSI 与 TCP/IP 模型填空：OSI 七层中负责端到端可靠传输的是 ______ 层；在 TCP/IP 四层模型里它对应 ______ 层；网络层（网际层）的数据单元称为 ______，数据链路层的数据单元称为 ______；发送方数据下行时逐层添加首部的过程称为 ______。",
+    "answer": {
+      "blanks": ["传输", "传输", "分组", "帧", "封装"],
+      "synonyms": {
+        "传输": ["传输层", "运输层", "运输"],
+        "分组": ["分组", "数据包", "数据报", "IP 数据报", "包", "报文分组"],
+        "帧": ["帧", "数据帧", "frame"],
+        "封装": ["封装", "encapsulation", "数据封装"]
+      }
+    },
+    "analysis": "五空串起分层的两条主线：①②OSI 传输层（也称运输层）在 TCP/IP 模型中同样对应传输层，承载 TCP/UDP，负责进程到进程；③网络层 PDU 叫分组/数据报（packet/datagram），由 IP 首部加传输层段构成；④数据链路层 PDU 叫帧（frame），在分组外再加帧头帧尾（含 MAC 与 FCS）；⑤发送方下行每层加上自己首部（链路层还加尾部）的过程叫封装，接收方上行逐层剥离叫分用/解封装。物理层则不再有首部概念，只传输比特。",
+    "gapCheck": [
+      "易漏点：同一 PDU 在不同层名字不同——段、分组/数据报、帧、比特，不要张冠李戴",
+      "常见误区：把『传输层可靠』记成网络层职责——IP 只尽力交付，可靠性是 TCP 在传输层补的",
+      "加分项：能补出封装时链路层除帧头外还追加帧尾（FCS 校验），而其他层主要加首部"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.layering"],
+      "related": ["cs.net.tcpip.reliable-flow"],
+      "followUps": [
+        "接收方分用时凭什么字段决定把帧里的载荷交给 IP 还是 ARP？",
+        "MTU 限制的是哪一层的大小？IP 分片和 MSS 分别在哪一层生效？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "OSI/TCP-IP 分层与 PDU 命名填空题" },
+    "tags": ["网络基础", "分层模型", "PDU", "封装", "填空"]
+  },
+  {
+    "id": "Q-cs-net-layering-0005",
+    "nodeId": "cs.net.tcpip.layering",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "面试官追问：『网络协议栈为什么要采用分层设计？分层带来了哪些好处，又付出了什么代价？请结合封装与层间接口具体说明。』",
+    "answer": {
+      "ref": "参考骨架：【为什么分层】网络通信涉及物理传输、寻址路由、进程分用、可靠传输、应用语义等大量相互正交的问题，分层用『单一职责 + 明确层间接口』把复杂度拆解，每层只对上层提供服务、对下层隐藏实现，层与层之间通过接口（服务访问点 SAP，如端口、套接字）交互。\n【好处】①解耦与独立演进：物理介质从双绞线换光纤、IP 层升级，只要层间接口不变，上层应用代码无需改动；②抽象复用：TCP/UDP 之上可同时承载 HTTP、DNS、SSH 等众多应用，IP 之上可替换不同链路层；③标准化与互操作：各层协议独立成文，不同厂商按同一标准即可互通；④故障隔离与便于排障：可按层定位问题（物理链路、路由、端口、应用分别排查）；⑤便于学习与分工。\n【代价】①封装开销：每层都加首部（链路层还有尾部），同一份数据被重复包装，头部冗余占用带宽；②功能可能跨层重复：可靠性、安全性、校验在多层各自实现（如链路层 FCS 与 TCP 校验和、TLS 与 IPsec）；③严格分层可能牺牲性能：数据逐层拷贝、上下文切换，某些高性能场景需要零拷贝、卸载（TSO/校验和卸载）等跨层优化；④层间语义不完全透明时可能出现相互拖累（如 Nagle 与延迟 ACK）。\n总体上层层封装以可接受的头部与少量重复，换取了可维护、可扩展、可互操作的工程收益，这是互联网协议能持续演进数十年的结构性原因。"
+    },
+    "scoringPoints": [
+      { "point": "讲清分层的本质：单一职责、层间接口/SAP、上层隐藏下层实现", "weight": 2 },
+      { "point": "给出至少三项好处（解耦独立演进、抽象复用、标准互操作、故障隔离）", "weight": 3 },
+      { "point": "客观指出代价：首部冗余、功能重复、分层性能损耗", "weight": 2 },
+      { "point": "能结合封装过程或零拷贝/协议卸载等跨层优化实例，体现工程深度", "weight": 1 }
+    ],
+    "analysis": "这是分层考点从『背七层名字』升级到『理解设计哲学』的一题。3 分档要求既讲收益也讲代价，且能落到封装与接口而不是空谈。常见失分：只罗列好处、对代价毫无概念，或把分层说成纯为了好记。能主动提到头部开销、跨层功能重复、零拷贝/卸载等真实工程权衡，属于明显加分。",
+    "gapCheck": [
+      "易漏点：分层不是物理切分而是职责抽象，层间靠定义良好的接口而非彼此窥探实现",
+      "常见误区：只谈好处不谈代价——首部冗余与多层功能重复是分层的固有成本",
+      "加分项：能举 TSO/校验和卸载、零拷贝等『打破严格分层换性能』的现代优化"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.layering"],
+      "related": ["cs.net.tcpip.tcp-vs-udp", "cs.net.tcpip.reliable-flow"],
+      "followUps": [
+        "既然分层有性能损耗，高性能网络为什么还要用零拷贝和协议卸载？",
+        "TLS、IPsec、链路层加密都在做安全，这是不是分层带来的功能重复？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "分层设计动因与代价体系化简答题" },
+    "tags": ["网络基础", "分层模型", "设计思想", "封装"]
+  },
+
+  {
+    "id": "Q-cs-net-tcpudp-0003",
+    "nodeId": "cs.net.tcpip.tcp-vs-udp",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 TCP 与 UDP 的首部字段和传输特性，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "UDP 无连接、不维护对端状态，因此支持单播、广播与组播；TCP 面向连接、只能在确定的两端之间一对一通信" },
+      { "key": "B", "text": "UDP 首部也包含序列号、确认号和窗口字段，只是默认不启用重传机制" },
+      { "key": "C", "text": "UDP 校验和在 IPv4 下强制开启，而 TCP 校验和反而是可选的" },
+      { "key": "D", "text": "UDP 在握手时会协商 MSS，因此同样具备滑动窗口式的流量控制能力" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：UDP 不建立连接、内核不为对端保存连接状态，发往广播/组播地址也无需提前握手，故能一对多；TCP 必须先三次握手建立点对点连接，天然只能单播。B 错：UDP 首部固定 8 字节，只有源端口、目的端口、长度、校验和四个字段，根本没有序号、确认号、窗口——这些是 TCP 首部才有的。C 说反了：IPv4 中 UDP 校验和是可选的（IPv6 才强制），而 TCP 校验和在任何情况下都强制。D 错：MSS 协商、滑动窗口、流量与拥塞控制全是 TCP 的机制，UDP 没有握手、没有窗口，应用发多快基本就是内核发多快（受套接字缓冲区限制）。",
+    "gapCheck": [
+      "易漏点：UDP 能广播/组播、TCP 只能单播，根因是『有无连接、是否维护对端状态』",
+      "常见误区：以为 UDP 首部也有序号确认——记住它只有端口、长度、校验和四项",
+      "加分项：知道 IPv4 下 UDP 校验和可选、IPv6 强制，以及伪首部参与校验的细节"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.tcp-vs-udp"],
+      "related": ["cs.net.tcpip.reliable-flow", "cs.net.dns.resolve"],
+      "followUps": [
+        "UDP 校验和覆盖哪些内容？为什么要引入伪首部？",
+        "应用层想在 UDP 上实现可靠传输，最少要自己补哪些字段和机制？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "TCP/UDP 首部与传输特性辨析单选题" },
+    "tags": ["传输层", "TCP", "UDP", "首部字段"]
+  },
+  {
+    "id": "Q-cs-net-tcpudp-0004",
+    "nodeId": "cs.net.tcpip.tcp-vs-udp",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：DNS 查询默认走 UDP，但当响应过大（截断标志 TC=1）或进行区域传送（AXFR）时会改用 TCP；HTTP/3 的 QUIC 也运行在 UDP 之上并自行实现可靠传输，因此『UDP 只适合无关紧要的本地小场景』这一说法是错误的。",
+    "answer": { "judge": true },
+    "analysis": "正确。DNS 客户端到递归解析器默认用 UDP/53，追求低延迟；当应答超过承载能力置 TC=1（传统约 512 字节、配合 EDNS 可更大）或做 AXFR 区域传送这类需要可靠、大数据量的操作时回退 TCP。HTTP/3 把 QUIC 架在 UDP 上，在用户态自行实现序号、确认、重传、拥塞控制与集成 TLS，兼顾 UDP 的灵活（绕过中间盒僵化、独立流、连接迁移）与接近 TCP 的可靠性。这正说明 UDP 不是『弱协议』，而是把可靠性策略交还给应用按需定制的轻量基座，实时音视频、游戏、现代 HTTP 都大量使用。",
+    "gapCheck": [
+      "易漏点：DNS 不是只用 UDP——TC 截断与 AXFR 区域传送是回退 TCP 的两个典型触发点",
+      "常见误区：把 UDP 等同于『不可靠所以不重要』，忽略 QUIC/RTP 等关键业务都跑在它上面",
+      "加分项：能讲清 QUIC 选 UDP 是为了在用户态快速迭代、规避中间设备对 TCP 的僵化假设"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.tcp-vs-udp"],
+      "related": ["cs.net.http.http2-3", "cs.net.dns.resolve"],
+      "followUps": [
+        "EDNS 扩大了 UDP 报文承载能力后，DNS 还在什么情况下必须用 TCP？",
+        "QUIC 在 UDP 上自己实现可靠性，相比直接用 TCP 获得了哪些自由？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "UDP 真实适用场景判断题" },
+    "tags": ["传输层", "UDP", "DNS", "QUIC", "判断"]
+  },
+  {
+    "id": "Q-cs-net-tcpudp-0005",
+    "nodeId": "cs.net.tcpip.tcp-vs-udp",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "要为一款多人实时对战手游设计网络同步方案，团队在 TCP 与 UDP（含在其上自研轻量可靠层）之间抉择。请从延迟、丢包处理、队头阻塞、NAT 穿透等角度给出选型建议，并说明如果选择 UDP，需要自行补齐哪些能力。",
+    "answer": {
+      "ref": "参考骨架：【结论】实时对战/音视频类强交互业务通常选 UDP（或直接基于 QUIC），把可靠性做成『按需、分级』而非 TCP 那种『全量、严格有序』。\n【角度分析】①延迟：TCP 丢包后必须等待重传并按序交付，重传等待（一个 RTT 起跳）会直接抬高地平线延迟；UDP 允许应用决定要不要等、等多久。②丢包处理：游戏里位置、视角、移动这类高频状态过期即无价值，丢了直接被下一帧覆盖更合理，只有登录、结算、技能释放等关键消息才需要可靠送达；可对消息分级——关键通道可靠+有序，状态通道不可靠+允许乱序。③队头阻塞：TCP 一个字节丢失会卡住其后所有数据交付（哪怕后面的更新已经到达），UDP 各报文独立，单个丢失不阻塞其他消息，应用可按序号各取所需。④拥塞与带宽：TCP 的拥塞控制在弱网下激进降速且不可定制，自研层可配合 FEC 前向纠错、自适应码率/发包率。⑤NAT 穿透：UDP 无连接，便于打洞（STUN/TURN、P2P）实现玩家直连，降低服务器中转成本。\n【选 UDP 需自行补齐】①序号与确认、超时/选择性重传（可参考 SACK）；②报文分片与路径 MTU 探测（UDP 报文过大会被 IP 分片，丢一片全废，通常自行控在 MSS 内）；③加密与完整性（DTLS 或 QUIC 内置 TLS 1.3），否则数据明文且易伪造；④连接建立、保活心跳与断线重连；⑤自研拥塞控制，避免自私发包加剧网络拥塞；⑥防地址伪造与放大攻击（校验对端、限速）。若不想从零造轮子，可直接采用成熟的 QUIC/ENET/KCP 等库。"
+    },
+    "scoringPoints": [
+      { "point": "明确实时交互选 UDP 的结论，并从延迟/丢包/队头阻塞角度讲清 TCP 严格有序重传的弊端", "weight": 3 },
+      { "point": "提出消息分级可靠性（关键消息可靠、高频状态可丢弃/可乱序）这一核心设计", "weight": 2 },
+      { "point": "覆盖 NAT 穿透/P2P 打洞或拥塞/FEC 等进阶视角", "weight": 2 },
+      { "point": "较完整列出 UDP 需自补能力（序号确认重传、分片 MTU、加密、握手保活、拥塞控制、防攻击）", "weight": 3 }
+    ],
+    "analysis": "这是传输层选型的工程化战例题，区分度高。3 分档不能只背『UDP 快』，而要讲出 TCP 的可靠性在实时场景为何反成负担（队头阻塞、重传等待、一刀切有序），并给出分级可靠性的设计与自补清单。常见失分：把 UDP 方案说得『什么都不用管』，忽略可靠、加密、拥塞控制都得自己实现；或完全不提 NAT 穿透。能提到 KCP/ENET/QUIC 等现成方案、FEC 与连接迁移，是高分信号。",
+    "gapCheck": [
+      "易漏点：TCP 的『按序交付』在实时场景会造成队头阻塞，一个丢包拖住后续全部更新",
+      "常见误区：以为选了 UDP 就天然低延迟且无需可靠性——可靠性策略只是下放给应用，需求依然存在",
+      "加分项：能讲消息分级、FEC、NAT 打洞与自研拥塞控制，或引用 QUIC/KCP 等实践"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.tcp-vs-udp"],
+      "related": ["cs.net.tcpip.reliable-flow", "cs.net.tcpip.congestion", "cs.net.http.http2-3"],
+      "followUps": [
+        "在 UDP 上做选择性重传（类 SACK）相比 TCP 的累计确认有什么优势？",
+        "P2P 打洞时对称型 NAT 为什么难穿透，TURN 中继如何兜底？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "实时游戏传输协议选型工程简答题" },
+    "tags": ["传输层", "UDP", "协议选型", "队头阻塞", "工程题"]
+  },
+
+  {
+    "id": "Q-cs-net-handshake-0003",
+    "nodeId": "cs.net.tcpip.handshake",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 SYN 洪水攻击、半连接队列与 SYN Cookie，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "攻击者大量发送伪造源地址的 SYN，占满服务端的半连接队列（SYN 队列），使正常用户的 SYN 无法入队而被丢弃，形成拒绝服务" },
+      { "key": "B", "text": "服务端每收到一个 SYN 就要分配并暂存连接控制块、回 SYN-ACK 并等待，这是半连接队列资源能被耗尽的根本原因" },
+      { "key": "C", "text": "SYN Cookie 让服务端收到 SYN 时不立即保存连接状态，而把连接信息编码进初始序列号（ISN）回发，等客户端 ACK 带回该值再校验重建，从而无状态地抵御半连接耗尽" },
+      { "key": "D", "text": "开启 SYN Cookie 后服务器在任何攻击强度下都零成本，且能完整保留全部 TCP 选项，没有任何副作用" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 描述 SYN 洪水机理：伪造源使第三次 ACK 永远不会回来，连接长期挂在半连接队列。B 指出资源本质——传统实现要为每个半开连接分配内存/控制块，队列有上限，耗尽即拒绝新连接。C 准确概括 SYN Cookie：把双方地址端口、时间戳等经哈希编码进 ISN，服务端不存状态，收到合法 ACK 时凭 ACK 号反解校验、重建连接，因此半连接队列不再是瓶颈。D 错：Cookie 的编码空间有限，部分 TCP 选项（如较大窗口缩放、SACK 允许）只能压缩进有限比特甚至无法携带，且每次都要做哈希计算，存在 CPU 成本与功能折损，并非零代价。",
+    "gapCheck": [
+      "易漏点：攻击能成立是因为半开连接要占服务端内存且有队列上限，而非带宽被打满这一种形式",
+      "常见误区：把 SYN Cookie 理解成『丢弃 SYN』——它其实是用编码进序列号的方式把状态转嫁给客户端",
+      "加分项：知道 SYN Cookie 对 TCP 选项承载受限、有计算开销，以及调大半连接队列/减少 SYN-ACK 重传等配套手段"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.handshake"],
+      "related": ["cs.net.tcpip.tcp-vs-udp", "cs.net.http.tls-handshake"],
+      "followUps": [
+        "SYN Cookie 编码空间有限，具体哪些 TCP 选项可能因此无法协商？",
+        "除了 SYN Cookie，增大半连接队列、tcp_syncookies 之外还有哪些缓解手段？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "SYN 洪水与 SYN Cookie 防御多选题" },
+    "tags": ["TCP", "三次握手", "SYN洪水", "SYN Cookie", "安全"]
+  },
+  {
+    "id": "Q-cs-net-handshake-0004",
+    "nodeId": "cs.net.tcpip.handshake",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "补全 TCP 连接管理的关键标志位与状态：主动连接方第一次发出的同步报文其标志位是 ______；主动关闭方发出 FIN 后进入 FIN_WAIT_1，收到对该 FIN 的确认后转入 ______ 状态；主动关闭方最后需要停留 2MSL 的状态称为 ______；被动关闭方收到 FIN、先回 ACK 但自己尚未发 FIN 时处于 ______ 状态；挥手时 ACK 与 FIN 通常不能合并，根源在于 TCP 是 ______ 通信。",
+    "answer": {
+      "blanks": ["SYN", "FIN_WAIT_2", "TIME_WAIT", "CLOSE_WAIT", "全双工"],
+      "synonyms": {
+        "SYN": ["syn", "SYN 位", "同步位", "同步"],
+        "FIN_WAIT_2": ["FIN-WAIT-2", "FINWAIT2", "FIN_WAIT2", "FIN WAIT 2"],
+        "TIME_WAIT": ["time_wait", "TIME-WAIT", "time-wait", "TIME WAIT", "2MSL 等待"],
+        "CLOSE_WAIT": ["close_wait", "CLOSE-WAIT", "close-wait", "CLOSE WAIT"],
+        "全双工": ["全双工通信", "双向全双工", "full-duplex", "full duplex", "双工"]
+      }
+    },
+    "analysis": "五空覆盖连接管理状态机：①建连第一个报文置 SYN 位、携带 ISN；②主动关闭方 FIN→FIN_WAIT_1，收到 ACK→FIN_WAIT_2，等待对方的 FIN；③收到对方 FIN 并回 ACK 后进入 TIME_WAIT，停留 2MSL 确保最后 ACK 可达且让旧报文消亡；④被动方收到 FIN 自动回 ACK 后进入 CLOSE_WAIT，此时对方发送方向已关、己方仍可读可写，等应用 close() 发 FIN 才进 LAST_ACK；⑤正因为 TCP 全双工、两个数据方向要各自独立关闭，被动方的 ACK 与 FIN 往往分两次发送，挥手通常是四次而非三次。",
+    "gapCheck": [
+      "易漏点：CLOSE_WAIT 是『被动方等应用关闭套接字』的状态，常驻不消失通常意味着应用漏了 close()",
+      "常见误区：把 TIME_WAIT 记到被动方——它只出现在主动关闭方，被动方走 LAST_ACK",
+      "加分项：能把状态迁移与全双工半关闭（只关一个方向）联系起来解释四次挥手的必然性"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.handshake"],
+      "related": ["cs.net.tcpip.reliable-flow"],
+      "followUps": [
+        "大量 CLOSE_WAIT 与大量 TIME_WAIT 分别指向什么性质的问题？",
+        "半关闭（shutdown 写方向）在什么业务场景下有用？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "TCP 状态机与挥手状态填空题" },
+    "tags": ["TCP", "状态机", "四次挥手", "TIME_WAIT", "填空"]
+  },
+  {
+    "id": "Q-cs-net-handshake-0005",
+    "nodeId": "cs.net.tcpip.handshake",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "线上服务器监控发现存在大量 CLOSE_WAIT 状态的连接且长时间不消失。请说明：①CLOSE_WAIT 是怎么产生的，此时连接两个方向分别处于什么状态；②它通常指向应用层的什么缺陷；③排查与修复思路，以及它与 TIME_WAIT 过多在性质上有何不同。",
+    "answer": {
+      "ref": "参考骨架：【产生机理】对端先发起关闭、发来 FIN，本机内核协议栈自动回复 ACK 后，连接进入 CLOSE_WAIT。此时是『半关闭』：对方的发送方向已经关闭（本端 read 会得到 EOF/0），但本端的发送方向仍然打开，还可以把剩余数据发完；只有当本端应用调用 close()/shutdown() 发出自己的 FIN，才会进入 LAST_ACK 等待对方最后确认。\n【指向的缺陷】大量且长期不消失的 CLOSE_WAIT 几乎都是应用层没有正确关闭套接字：读到 EOF 或发生异常后没有走到 close 分支、异常处理路径泄漏了连接、连接池只借不还或失效连接未被剔除、线程/协程阻塞导致没机会执行关闭。内核会忠实地停在 CLOSE_WAIT 等待应用动作，它本身不会替应用关闭。\n【排查修复】①用 ss -tan state close-wait 或 netstat 统计并定位占用进程、目的端口；②结合应用日志/堆栈看这些连接卡在哪个调用；③复查代码：read 返回 0（对端关闭）时是否关闭、try/finally 或 RAII 是否保证所有异常路径都 close、连接池是否有最大空闲/失效检测与回收；④修复后验证 CLOSE_WAIT 回落、文件描述符（fd）占用恢复正常。\n【与 TIME_WAIT 的区别】TIME_WAIT 出现在主动关闭方，是协议规定的正常状态，2MSL 后自动消失，数量多一般源于短连接过多，可通过长连接、连接复用、合理调优缓解；CLOSE_WAIT 出现在被动关闭方，是应用 bug 造成的异常滞留，不会自行消失，会持续占用 fd 和内存，严重时拖垮进程，二者一『正常可调优』、一『缺陷需修代码』，性质完全不同。"
+    },
+    "scoringPoints": [
+      { "point": "讲清 CLOSE_WAIT 产生于被动收到 FIN、内核回 ACK 后等待应用关闭，并说明半关闭下两个方向的状态", "weight": 3 },
+      { "point": "准确定性为应用未正确 close 套接字（EOF/异常路径泄漏、连接池未回收）", "weight": 3 },
+      { "point": "给出可落地的排查（ss/netstat 定位、堆栈日志）与修复（finally/RAII、连接池健康检查）手段", "weight": 2 },
+      { "point": "对比 TIME_WAIT：主动方/正常态/自动消失 vs 被动方/缺陷态/资源泄漏", "weight": 2 }
+    ],
+    "analysis": "这是握手考点落到线上排障的高频实战题。3 分档要求既懂状态机机理，又能把『CLOSE_WAIT 常驻』准确归因到应用代码而非内核或网络。常见失分：误以为 CLOSE_WAIT 会像 TIME_WAIT 一样超时自动消失，或把两者混为一谈；只说『重启就好』讲不出 close 路径缺陷。能点出 fd 耗尽、半关闭语义、连接池治理，说明具备真实生产经验。",
+    "gapCheck": [
+      "易漏点：CLOSE_WAIT 下本端发送方向仍开着，read 返回 EOF 是应用应当执行关闭的信号",
+      "常见误区：把 CLOSE_WAIT 当成会自动回收的正常状态——它停住往往就是套接字泄漏",
+      "加分项：能联系文件描述符上限、连接池失效检测与半关闭 API（shutdown）给出系统治理"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.handshake"],
+      "related": ["cs.net.tcpip.reliable-flow", "cs.net.tcpip.tcp-vs-udp"],
+      "followUps": [
+        "应用读到 EOF（read 返回 0）时正确的资源回收顺序应该是什么？",
+        "连接池中的空闲连接遇到对端静默断连，怎么靠心跳/探活及时发现？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "CLOSE_WAIT 线上排障实战简答题" },
+    "tags": ["TCP", "状态机", "CLOSE_WAIT", "线上排障", "工程题"]
+  },
+
+  {
+    "id": "Q-cs-net-flow-0003",
+    "nodeId": "cs.net.tcpip.reliable-flow",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 TCP 的快速重传、Nagle 算法与零窗口探测，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "发送方一旦收到 3 个重复确认（即累计 4 个相同 ACK），就判定对应段丢失，不必等重传计时器超时，立即快速重传该段" },
+      { "key": "B", "text": "Nagle 算法鼓励每个小写入都立刻单独发出去，哪怕是只含几个字节的微小段" },
+      { "key": "C", "text": "接收方通告窗口为 0 时，发送方应彻底停止并永不主动探测，直到接收方重新发来窗口更新" },
+      { "key": "D", "text": "延迟 ACK 与 Nagle 同时开启只会互相优化、必定降低延迟，不存在任何相互等待的问题" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确描述快速重传：重复 ACK 说明后续段已到达、仅中间有缺口，连续 3 个重复 ACK（共收到 4 个相同确认号）即触发立即重传，比干等 RTO 超时更快。B 与 Nagle 的意图相反：Nagle 正是为减少 tiny segment，在有未确认数据时把小写入攒着，等 ACK 回来或攒够一个 MSS 再发。C 错：窗口为 0 时发送方会周期性发送零窗口探测（Zero Window Probe），防止接收方的『窗口更新』报文丢失而造成双方永久死锁。D 错：延迟 ACK 让接收方暂缓确认、Nagle 让发送方攒包，两者叠加可能互相等待形成延迟尖峰，必要时用 TCP_NODELAY 关闭 Nagle 来降低交互延迟。",
+    "gapCheck": [
+      "易漏点：『3 个重复 ACK』指在首个确认之外又收到 3 个相同确认（共 4 个 ACK）才触发快速重传",
+      "常见误区：以为 Nagle 是『尽快发』——它其实是攒小包减头部浪费，与低延迟诉求可能冲突",
+      "加分项：能解释零窗口探测防死锁，以及 Nagle×延迟 ACK 的经典互相拖累与 TCP_NODELAY"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.reliable-flow"],
+      "related": ["cs.net.tcpip.congestion", "cs.net.tcpip.tcp-vs-udp"],
+      "followUps": [
+      "快速重传之后为什么还要配合快速恢复，而不是直接回到慢启动？",
+      "哪些业务（如 SSH、实时交易）通常会设置 TCP_NODELAY，理由是什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "快速重传/Nagle/零窗口机制单选题" },
+    "tags": ["TCP", "快速重传", "Nagle", "流量控制"]
+  },
+  {
+    "id": "Q-cs-net-flow-0004",
+    "nodeId": "cs.net.tcpip.reliable-flow",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "补全 TCP 可靠传输与窗口机制的关键术语：发送方为每个字节维护 ______ 作为排序、去重和确认的依据；接收方回送的确认号表示该序号之前的字节都已收到，这种机制称为 ______ 确认；若在重传 ______（RTO）内未等到确认，发送方会重传该数据；依据网络拥塞信号而非接收方能力调整的窗口称为 ______ 窗口；发送方实际允许的在途数据量取接收窗口与它的较 ______ 值。",
+    "answer": {
+      "blanks": ["序列号", "累计", "超时", "拥塞", "小"],
+      "synonyms": {
+        "序列号": ["序号", "seq", "序列号 seq", "字节序号"],
+        "累计": ["累积", "累计确认", "累积确认", "累计式"],
+        "超时": ["超时时间", "RTO", "重传超时", "超时重传", "重传计时器"],
+        "拥塞": ["拥塞窗口", "cwnd", "拥塞 cwnd"],
+        "小": ["较小", "最小", "最小值", "min"]
+      }
+    },
+    "analysis": "五空把可靠与两套窗口串起来：①字节级序列号是排序/去重/确认的共同基础；②确认号表达『此前所有字节均已收到』，即累计（累积）确认，一个 ACK 可一次确认多段；③RTO（动态由 RTT 估算）超时触发重传，另有快速重传不等超时；④拥塞窗口 cwnd 依据丢包/RTT 等网络信号调节，保护的是网络；接收窗口 rwnd 保护接收方；⑤实际发送窗口 = min(rwnd, cwnd)，取较小者，从而同时不压垮接收端与网络。",
+    "gapCheck": [
+      "易漏点：累计确认的语义是『该序号之前全部收到』，可一次确认连续的多段数据",
+      "常见误区：把 cwnd 与 rwnd 混为一个窗口——前者看网络、后者看接收方，实际取 min",
+      "加分项：能补 RTO 由 RTT 动态估算、以及 SACK 在多丢包时比纯累计确认更高效"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.reliable-flow"],
+      "related": ["cs.net.tcpip.congestion"],
+      "followUps": [
+        "SACK（选择性确认）解决了累计确认在什么场景下的低效问题？",
+        "RTO 为什么不能设成固定值，它和 RTT 的关系是什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "可靠传输与双窗口机制填空题" },
+    "tags": ["TCP", "累计确认", "拥塞窗口", "滑动窗口", "填空"]
+  },
+  {
+    "id": "Q-cs-net-flow-0005",
+    "nodeId": "cs.net.tcpip.reliable-flow",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "TCP 同时向应用层承诺『可靠』与『有序』。请系统说明：①它靠哪些机制保证数据不丢（可靠）；②靠什么保证字节按序交付；③当后发的段先到、或某个段丢失时，接收方分别如何处理；④这些机制如何与滑动窗口、累计确认协同。",
+    "answer": {
+      "ref": "参考骨架：【①保证不丢（可靠性）】a. 字节级序列号：每个字节有序号，段携带起始序号；b. 确认与重传：接收方回 ACK，发送方对未确认数据启动 RTO 计时器，超时即重传；c. 快速重传：收到 3 个重复 ACK 不等超时立即重传疑似丢失段；d. 校验和：检出传输差错，出错段直接丢弃并依靠重传补回；必要时还有 SACK 让发送方精确知道哪些块已到。\n【②保证有序】接收方维护接收缓冲与期望序号（next expected），只把『连续且紧邻期望序号』的数据按序上交给应用；乱序到达的段不会越级交付，而是先在窗口内缓存，等缺口补齐。\n【③两种异常的处理】乱序先到：若落在接收窗口内就先缓存（并通过重复 ACK 或 SACK 告知发送方），应用层暂不可见；段丢失：后续段虽到达，但期望序号停在缺口处，接收方对每个到达段都回同一个 ACK（确认号不变的重复 ACK），发送方据此快速重传，或在超时后重传；缺口一旦补上，接收方把缓存的连续数据一次性按序交付，并用一个累计 ACK 确认整段，窗口向前滑动。\n【④与滑动窗口/累计确认协同】滑动窗口让多个段可同时在途形成流水线，窗口左沿由累计 ACK 推进、右沿受 rwnd 与 cwnd 约束（取 min）；累计确认用『期望的下一个字节序号』隐式确认其前所有字节，驱动窗口滑动；乱序缓存保证有序交付，重复 ACK/SACK 驱动精准重传，可靠性与有序性由此在同一套序号—确认—窗口机制中同时成立。"
+    },
+    "scoringPoints": [
+      { "point": "可靠性机制完整：序列号、确认、超时重传、快速重传、校验和（可提 SACK）", "weight": 3 },
+      { "point": "讲清有序交付靠接收缓冲 + 期望序号，只上交连续数据、乱序先缓存", "weight": 3 },
+      { "point": "准确区分乱序先到（缓存）与丢失（重复 ACK/重传、补齐后累计确认）两条处理路径", "weight": 2 },
+      { "point": "说明与滑动窗口、累计确认、min(rwnd,cwnd) 的协同关系", "weight": 2 }
+    ],
+    "analysis": "本题检验可靠与有序是否被理解成一套协同机制而非孤立名词。3 分档要求能把『序号—确认—重传—缓存—窗口』串成闭环，并明确乱序缓存与丢包重传的差异。常见失分：把可靠与有序说成同一件事却讲不出各自抓手；不知道接收方会缓存乱序段、以为乱序即丢弃；只字不提 SACK 或窗口如何随 ACK 滑动。能讲清累计确认如何隐式批量确认、SACK 如何提升多丢包恢复效率，属于加分。",
+    "gapCheck": [
+      "易漏点：可靠（不丢不重）与有序（按字节顺序交付）是两个目标，分别由重传机制和接收缓存/期望序号保障",
+      "常见误区：以为乱序到达的段会被直接丢弃——窗口内的乱序段会被缓存等待缺口补齐",
+      "加分项：能讲重复 ACK 与 SACK 的区别，以及累计确认如何一次确认多段并驱动窗口滑动"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.reliable-flow"],
+      "related": ["cs.net.tcpip.congestion", "cs.net.tcpip.handshake"],
+      "followUps": [
+        "接收窗口内缓存的乱序数据占满后会发生什么？如何反压发送方？",
+        "SACK 相比纯累计确认，在一次丢失多个段时具体省掉了哪些无效重传？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "TCP 可靠与有序协同机制体系化简答题" },
+    "tags": ["TCP", "可靠传输", "有序交付", "滑动窗口", "累计确认"]
+  },
+
+  {
+    "id": "Q-cs-net-congestion-0003",
+    "nodeId": "cs.net.tcpip.congestion",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：在经典 Reno 类拥塞控制中，超时事件会把慢启动门限 ssthresh 降为当前 cwnd 的约一半、并让 cwnd 回到 1 重新慢启动；而收到三个重复 ACK 触发快速重传时通常走快速恢复，ssthresh 减半但 cwnd 不必回到 1；BBR 则主要依据带宽与 RTT 建模来估计发送速率，而非单纯靠丢包判断拥塞。",
+    "answer": { "judge": true },
+    "analysis": "正确。这正是区分两种拥塞信号处理的关键：超时被视为『严重拥塞、网络可能已排队恶化』，因此 ssthresh=cwnd/2、cwnd 重置为 1 重新慢启动，反应最剧烈；三个重复 ACK 说明仍有 ACK 在流动、拥塞相对温和，于是快速重传后进入快速恢复，ssthresh 减半、cwnd 降到约 ssthresh 后直接进入拥塞避免，避免无谓地从 1 爬起。整体遵循 AIMD（加性增、乘性减），使多条连接能较公平地共享瓶颈。BBR 不再把丢包当作拥塞的唯一信号，而是主动测量最大带宽与最小 RTT、据此建模运行在接近 BDP 的发送速率与窗口，从而在浅缓冲/深缓冲网络中避免传统丢包驱动算法的 bufferbloat 与过激降速。",
+    "gapCheck": [
+      "易漏点：超时与三次重复 ACK 的降窗力度不同——前者回 1 慢启动，后者快恢复不回 1",
+      "常见误区：以为只要丢包 cwnd 就一定归零——快速恢复路径下窗口只是减半",
+      "加分项：能讲 AIMD 的公平性直觉，以及 BBR 用带宽/RTT 模型替代丢包驱动的现代思路"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.tcpip.congestion"],
+      "related": ["cs.net.tcpip.reliable-flow", "cs.net.http.http2-3"],
+      "followUps": [
+        "为什么超时比重复 ACK 被解读为更严重的拥塞信号？",
+        "BBR 在有丢包但未真正拥塞的链路（如无线误码）下有什么优势？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "快速重传恢复与 BBR 机制判断题" },
+    "tags": ["TCP", "拥塞控制", "快速恢复", "BBR", "判断"]
+  }
+]

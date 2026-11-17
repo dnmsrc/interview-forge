@@ -1,0 +1,323 @@
+[
+  {
+    "id": "Q-fe-js-domapi-0001",
+    "nodeId": "fe.js.dom.dom-api",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "需要向列表 `<ul id=\"list\"></ul>` 中连续插入 1000 个 `<li>`，下列做法**性能最好、触发重排次数最少**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "循环 1000 次，每次都 document.createElement('li') 后立即 list.appendChild(li)"
+      },
+      {
+        "key": "B",
+        "text": "先拼一个包含 1000 个 <li> 的 HTML 字符串，循环里不断 list.innerHTML += 片段"
+      },
+      {
+        "key": "C",
+        "text": "用 DocumentFragment 在内存中组装 1000 个 li，最后一次性 list.appendChild(fragment)"
+      },
+      {
+        "key": "D",
+        "text": "先 list.style.display='none'，循环插入后再显示，因为隐藏元素完全不参与渲染"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "C"
+      ]
+    },
+    "analysis": "C 正确：DocumentFragment 是脱离文档树的轻量文档片段，在它上面的增删不触发页面重排，最后一次性 appendChild 把全部节点移入真实 DOM，通常只引起一次重排，是批量 DOM 操作的标准优化。A 每次插入都在真实文档上变更，浏览器虽可能合并但最坏会产生多次布局计算，1000 次操作开销大。B 的 `innerHTML +=` 每轮都会序列化现有全部子节点、重新解析整段 HTML，既有性能浪费也会丢事件绑定，是典型反模式。D 虽然 display:none 时元素不参与渲染、切换回来时只重排一次，但会造成闪烁且可读性差，属于绕路方案；现代浏览器本身有渲染队列批处理，而 fragment 才是语义直接、无副作用的正解。",
+    "gapCheck": [
+      "易漏点：DocumentFragment 插入文档后自身不进入 DOM 树，它的子节点被整体「搬运」过去",
+      "常见误区：以为 innerHTML 拼接最快——+= 会反复全量序列化和解析，还会破坏已绑定的事件",
+      "加分项：能区分 reflow（几何属性变化引发布局重算）与 repaint（外观变化不影响布局），并知道 transform/opacity 走合成线程可规避重排"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dom.dom-api"
+      ],
+      "related": [
+        "fe.js.dom.event"
+      ],
+      "followUps": [
+        "哪些 CSS 属性改动只触发重绘不触发重排？",
+        "虚拟列表（virtual list）解决的是什么场景的性能问题？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "批量 DOM 操作与重排优化单选题"
+    },
+    "tags": [
+      "DOM",
+      "重排重绘",
+      "DocumentFragment",
+      "性能优化"
+    ]
+  },
+  {
+    "id": "Q-fe-js-domapi-0002",
+    "nodeId": "fe.js.dom.dom-api",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：DOM 元素上的 attribute（HTML 标签属性，如 el.setAttribute('value', x)）与 property（DOM 对象属性，如 el.value）是两套东西；以输入框为例，用户输入或脚本修改 el.value 后，getAttribute('value') 拿到的仍是 HTML 源码中的初始值，二者不会自动同步。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。attribute 是 HTML 标记上的属性，始终是字符串，存于元素的属性列表中；property 是 DOM 节点这个 JS 对象上的属性，类型任意（value 是字符串、checked 是布尔、style 是对象）。解析页面时，HTML attribute 只负责初始化对应的 property（如 value、id、href），之后两者各走各的：用户在 input 中打字更新的是 property value，attribute value 仍保留初始标记值，因此 getAttribute('value') 读不到当前输入。少数属性（id、title、dir 等）被规范设计为双向同步，但 value、checked、href（绝对化处理）等都不是简单同步关系。表单受控/非受控组件、disabled 状态判断的 bug 多源于混淆这两者。",
+    "gapCheck": [
+      "易漏点：attribute 永远返回字符串，property 可以是布尔/对象等任意类型",
+      "常见误区：把 el.value 和 el.getAttribute('value') 当成同一个值，导致读不到用户实时输入",
+      "加分项：知道 href 会被 property 绝对化、布尔属性（disabled/checked）的 attribute 只看「是否存在」"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dom.dom-api"
+      ],
+      "related": [
+        "fe.html.form.form-basics",
+        "fe.js.basics.types"
+      ],
+      "followUps": [
+        "React 受控组件实际操作的是 attribute 还是 property？",
+        "data-* 自定义属性推荐用哪套 API 读取（dataset）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "attribute 与 property 区别判断题"
+    },
+    "tags": [
+      "DOM",
+      "attribute",
+      "property",
+      "高频辨析"
+    ]
+  },
+  {
+    "id": "Q-fe-js-event-0001",
+    "nodeId": "fe.js.dom.event",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "一个 `<ul>` 下有大量动态增删的 `<li>`，希望点击任意 li（包括后续新增的）都能弹出其文本，且不想给每个 li 单独绑定监听。**最合理**的方案是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "每次新增 li 后查询全部 li，重新给每个 li 绑定一次 click 监听"
+      },
+      {
+        "key": "B",
+        "text": "在父级 ul 上绑定一个 click 监听，利用事件冒泡在回调里通过 e.target 判断实际被点中的子元素（事件委托）"
+      },
+      {
+        "key": "C",
+        "text": "给每个 li 加内联 onclick 属性，新增时在模板字符串里拼好"
+      },
+      {
+        "key": "D",
+        "text": "用 setInterval 轮询 DOM，发现没绑定的 li 就补绑监听"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 是事件委托（事件代理）的标准做法：事件触发后沿 DOM 树冒泡，父级 ul 的监听能收到来自任意后代 li 的 click，再用 e.target（事件真正发生的元素）配合 closest/matches 判断来源。它的两大优势：只需一个监听函数，内存占用小；动态新增的子元素无需重新绑定即可响应，因为监听挂在稳定的父级上。A 每次增删都全量重绑，开销大且容易遗漏/重复绑定。C 内联 onclick 混用 HTML 与 JS、无法享受移除监听和统一管理，动态拼接还有注入风险。D 轮询是最差方案，延迟高、浪费资源、逻辑脆弱。",
+    "gapCheck": [
+      "易漏点：委托依赖冒泡，对不冒泡的事件（如 focus/blur、mouseenter/mouseleave）要改用 focusin/focusout 或捕获阶段",
+      "常见误区：回调里用 this（currentTarget）当被点元素——this 是绑定监听的父级，e.target 才是实际目标",
+      "加分项：能用 e.target.closest('li') 兼容点到 li 内部 span 等嵌套元素的情况"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dom.event"
+      ],
+      "related": [
+        "fe.js.dom.dom-api",
+        "fe.js.scope.closure"
+      ],
+      "followUps": [
+        "e.target 和 e.currentTarget 有什么区别？",
+        "事件委托在表格、下拉菜单等组件中怎么设计更通用？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "事件委托原理与动态列表单选题"
+    },
+    "tags": [
+      "DOM事件",
+      "事件委托",
+      "冒泡",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-event-0002",
+    "nodeId": "fe.js.dom.event",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：`event.stopPropagation()` 的作用是阻止事件继续沿捕获/冒泡链向其他元素传播；`event.preventDefault()` 的作用是取消浏览器对该事件的默认行为（如链接跳转、表单提交），两者互不替代——只调 preventDefault 事件仍会冒泡，只调 stopPropagation 浏览器默认行为仍会发生。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。DOM 事件流分三阶段：捕获（window 向下到目标）、目标、冒泡（目标向上回 window）。stopPropagation 切断的是传播链，当前元素上的其余监听仍会执行（若想连同元素的其他监听也拦下用 stopImmediatePropagation），但父级收不到了；它不影响浏览器默认动作。preventDefault 只取消默认行为（a 跳转、submit 提交、checkbox 勾选、右键菜单等），事件照常传播。二者解决的问题正交：拦截父级委托用 stopPropagation，阻止跳转/刷新用 preventDefault，经常需要同时调用。另外 return false 在 addEventListener 中没有特殊语义，只有 jQuery 风格/内联 onsubmit 里才等价于两者都做。",
+    "gapCheck": [
+      "易漏点：stopPropagation 不挡同元素后续监听，那是 stopImmediatePropagation 的职责",
+      "常见误区：以为 preventDefault 能阻止冒泡，或在委托父级上 stopPropagation 会让子元素监听失效（目标阶段先于冒泡，子元素监听已经执行）",
+      "加分项：知道被动监听 passive:true 下调用 preventDefault 会被忽略并告警（touchstart/wheel 滚动性能场景）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dom.event"
+      ],
+      "related": [
+        "fe.js.dom.dom-api"
+      ],
+      "followUps": [
+        "addEventListener 第三个参数 useCapture/capture 为 true 时监听在哪个阶段触发？",
+        "为什么给 document 绑 touchstart 再 preventDefault 可能失效（passive）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "stopPropagation 与 preventDefault 区别判断题"
+    },
+    "tags": [
+      "DOM事件",
+      "事件流",
+      "冒泡捕获",
+      "高频辨析"
+    ]
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.js.dom.dom-api",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "document.querySelectorAll() 返回的是 ______ 的 NodeList，查询结束后 DOM 再变化也不会自动反映到这个集合；而 getElementsByTagName/getElementsByClassName 返回的是 ______ 的 HTMLCollection，会随文档变动实时更新；Element 原型上的 ______() 方法从当前元素出发（含自身）向上匹配选择器，返回第一个命中的祖先元素。",
+    "answer": {
+      "blanks": [
+        "静态",
+        "实时",
+        "closest"
+      ],
+      "synonyms": {
+        "静态": [
+          "static",
+          "静态集合"
+        ],
+        "实时": [
+          "动态",
+          "live",
+          "实时集合"
+        ],
+        "closest": [
+          "closest()"
+        ]
+      }
+    },
+    "analysis": "querySelectorAll 返回静态 NodeList，是查询时刻结果的快照，之后增删节点不影响它，适合安全地遍历。getElementsBy* 系列返回实时 HTMLCollection，每次访问都会重新查询文档，长度与内容随 DOM 动态变化。Element.closest(selector) 从元素自身开始逐级向上匹配，返回第一个满足选择器的祖先（含自身），找不到返回 null；与之相对的 matches() 只判断元素自身是否匹配选择器。",
+    "gapCheck": [
+      "易漏点：NodeList 不都等于静态，例如 childNodes 是动态 NodeList；只有 querySelectorAll 的结果明确是静态快照。",
+      "常见误区：正序遍历实时 HTMLCollection 同时删除元素，索引跳动导致漏删，应倒序遍历或先 Array.from 转静态数组。",
+      "排查线索：控制台打印集合的 constructor 并在 DOM 操作前后对比 length，即可验证集合是 live 还是 static。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dom.dom-api"
+      ],
+      "related": [
+        "fe.js.dom.event",
+        "fe.html.form.form-basics"
+      ],
+      "followUps": [
+        "closest() 与 matches()、querySelector() 在查找范围上有什么区别？",
+        "实时集合在 for 循环中删除节点为什么会漏元素？给出安全写法。",
+        "HTMLCollection 与 NodeList 在接口能力（如 forEach）上有什么历史差异？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 DOM 规范中静态/动态集合与 Element 遍历 API 语义编写"
+    },
+    "tags": [
+      "DOM API",
+      "HTMLCollection",
+      "NodeList"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0014"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.js.dom.event",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 DOM 事件流与 addEventListener 的高级用法，下列说法正确的有？",
+    "options": [
+      {
+        "key": "A",
+        "text": "监听器以 { passive: true } 注册后，内部调用 preventDefault 会被忽略，浏览器可能输出被动监听器无法阻止默认行为的警告"
+      },
+      {
+        "key": "B",
+        "text": "stopImmediatePropagation() 除了阻止事件继续传播，还会阻止同一元素上后续注册的同类型监听器执行"
+      },
+      {
+        "key": "C",
+        "text": "注册在祖先元素上、useCapture 为 true 的监听器，在捕获阶段就会执行，早于目标元素自身的监听器"
+      },
+      {
+        "key": "D",
+        "text": "调用 preventDefault() 会同时终止事件的捕获与冒泡传播"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A 正确：passive 监听器向浏览器承诺不会取消默认行为，内部 preventDefault 被忽略并告警；Chrome 还默认把根节点上的 touchstart/touchmove 视为 passive 以保障滚动流畅。B 正确：stopImmediatePropagation 同时做两件事——停止向其他节点传播，并拦截当前目标上尚未执行的同类监听器；stopPropagation 只做前者。C 正确：事件经历捕获（window→目标）、目标、冒泡（目标→window）三阶段，祖先的捕获监听器在到达目标前就执行；但要注意目标元素自身的监听器不分捕获/冒泡，按注册顺序执行。D 错误：preventDefault 只取消默认行为（如链接跳转、表单提交），传播路径不受影响，停止传播要用 stopPropagation。",
+    "gapCheck": [
+      "易漏点：目标阶段没有捕获/冒泡之分，同一元素上的监听器按注册顺序触发，capture 参数在目标节点上不改变顺序。",
+      "常见误区：混淆 stopPropagation 与 stopImmediatePropagation，后者多了“拦截同元素后续监听器”的语义。",
+      "排查线索：控制台用 getEventListeners(node) 查看监听器及其 passive/capture 标记，配合 Event Listener 断点逐阶段跟踪。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dom.event"
+      ],
+      "related": [
+        "fe.js.dom.dom-api",
+        "fe.browser.events.event-loop",
+        "fe.browser.events.input-frame"
+      ],
+      "followUps": [
+        "为什么浏览器要把文档级 touchmove 默认当作 passive 监听器？",
+        "AbortSignal 如何用来批量移除一组事件监听器？",
+        "事件委托依赖冒泡的哪个特性，stopPropagation 会怎样影响委托？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 DOM 事件规范三阶段模型与事件监听器选项语义编写"
+    },
+    "tags": [
+      "事件流",
+      "passive",
+      "冒泡捕获"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0015"
+  }
+]

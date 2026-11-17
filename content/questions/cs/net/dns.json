@@ -1,0 +1,164 @@
+[
+  {
+    "id": "Q-cs-net-dnsres-0001",
+    "nodeId": "cs.net.dns.resolve",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "在浏览器输入网址并回车后、建立 TCP 连接之前，要先完成域名解析。关于一次完整的 DNS 解析流程，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "浏览器直接向权威域名服务器查询，中间不经过任何缓存或递归解析器" },
+      { "key": "B", "text": "通常依次查浏览器缓存、操作系统缓存/hosts、本地递归解析器（LocalDNS/运营商 DNS）；递归解析器若未命中，再代客户端沿根服务器 → 顶级域服务器 → 权威服务器逐级迭代查询，最终拿到 IP 并沿途缓存" },
+      { "key": "C", "text": "根域名服务器会直接返回目标网站的 IP 地址，不需要再问顶级域和权威服务器" },
+      { "key": "D", "text": "DNS 解析只能使用 TCP，因为要保证查询结果绝对可靠" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 完整描述了真实链路：客户端侧重缓存（浏览器→OS/hosts），未命中则交给配置的本地递归解析器；递归解析器负责代用户向根、TLD、权威做**迭代**查询（客户端到 LocalDNS 这一跳是递归，LocalDNS 向上是迭代），结果按 TTL 缓存在各级。A 错在跳过缓存与递归器。C 错：根服务器只返回对应顶级域（如 .com）服务器的地址，TLD 再返回权威服务器地址，权威才最终给出目标记录，是逐层 referral 而非一步到位。D 错：DNS 默认用 **UDP 53**（无连接、快、报文小），仅在响应超过 512 字节（截断标志 TC=1）、EDNS 不足或区域传送 AXFR 等场景才回退 TCP。",
+    "gapCheck": ["易漏点：区分『递归查询』（客户端↔LocalDNS，一次问到底）与『迭代查询』（LocalDNS↔根/TLD/权威，逐级拿 referral）", "常见误区：以为根服务器直接存了所有域名 IP", "加分项：能说出 UDP/TCP 的选择依据（512 字节、TC 截断标志、AXFR）"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.dns.resolve"],
+      "related": ["cs.net.tcpip.layering", "cs.net.tcpip.tcp-vs-udp"],
+      "followUps": ["DNS 缓存有哪几级？TTL 在每一级分别起什么作用？", "为什么改了 DNS 记录不能立刻全网生效？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "DNS 解析流程经典单选题" },
+    "tags": ["DNS", "解析流程", "高频开场"]
+  },
+  {
+    "id": "Q-cs-net-dnsres-0002",
+    "nodeId": "cs.net.dns.resolve",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于常见 DNS 记录类型与解析行为，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "A 记录把域名映射到 IPv4 地址，AAAA 记录映射到 IPv6 地址" },
+      { "key": "B", "text": "CNAME 记录把一个域名规范别名到另一个域名，解析时会继续追查到目标域名的 A/AAAA 记录" },
+      { "key": "C", "text": "MX 记录用于指定邮件服务器，NS 记录标识该域的权威域名服务器，TXT 记录常承载 SPF/校验等文本信息" },
+      { "key": "D", "text": "在域名顶点（根域，如 example.com）上配置 CNAME 是被普遍允许且推荐的做法，不会与 NS/MX 冲突" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确，覆盖了最高频的记录类型：A/AAAA 是地址记录、CNAME 是别名（需继续解析到规范名）、MX/NS/TXT 各司其职（邮件路由、权威委派、文本校验如 SPF/DKIM/域名所有权验证）。D 错：DNS 规范规定 CNAME 与其他任何记录不能同名共存，而域名顶点本身必须存在 NS（和通常的 MX/SOA）记录，所以**顶点不能用 CNAME**（这也是很多 DNS 服务商提供 ALIAS/ANAME 虚拟记录来曲线实现顶点别名的原因）。在子域名上用 CNAME 才是常规做法。",
+    "gapCheck": ["易漏点：CNAME 记录的『排他性』——同名不能再有其他记录，这是顶点 CNAME 禁忌的根因", "常见误区：把 CNAME 当成简单跳转，忽略它会触发额外一次解析（增加一次查询/延迟）", "加分项：知道 ALIAS/ANAME 是为解决顶点别名而生的厂商方案，以及 CNAME 链过长的性能代价"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.dns.resolve"],
+      "related": ["cs.net.dns.advanced"],
+      "followUps": ["为什么 CDN 场景大量使用 CNAME？", "SPF/DKIM 为什么放在 TXT 记录里？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "DNS 记录类型多选题" },
+    "tags": ["DNS", "记录类型", "CNAME", "必考"]
+  },
+
+  {
+    "id": "Q-cs-net-dnsadv-0001",
+    "nodeId": "cs.net.dns.advanced",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "移动端 App 常采用 HTTPDNS 替代系统默认的 LocalDNS。关于 HTTPDNS 要解决的问题与工作方式，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "HTTPDNS 主要为了让域名解析走加密隧道，彻底取代根服务器与权威服务器的层级体系" },
+      { "key": "B", "text": "它让客户端通过 HTTP/HTTPS 直接向专用解析服务查询域名→IP，绕过可能被运营商劫持/篡改或调度不准的 LocalDNS，从而降低域名劫持风险并拿到基于客户端真实出口 IP 的就近、精准调度结果" },
+      { "key": "C", "text": "用了 HTTPDNS 后就完全不需要本地缓存，每次都实时查询即可，没有可用性问题" },
+      { "key": "D", "text": "HTTPDNS 只能返回一个固定 IP，无法做负载均衡和故障切换" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确：传统 LocalDNS（运营商递归解析器）可能发生域名劫持（返回广告/错误 IP）、缓存投毒，或因递归器出口 IP 与用户真实位置不符导致 CDN 调度到偏远节点。HTTPDNS 让 App 走 HTTP(S) 直连厂商的解析调度服务，服务端能拿到客户端真实出口 IP 做就近解析、返回多个候选 IP 并配合客户端测速/容灾。A 错：它没有也不可能取代根/TLD/权威层级，只是换了『最后一公里』的访问方式与调度策略，后端解析仍依赖标准 DNS 体系；加密查询更对应 DoH/DoT。C 错：工程上必须保留本地缓存与兜底（HTTPDNS 失败时回退系统 DNS、预置 IP 列表），否则解析服务一抖动整个 App 不可用。D 错：HTTPDNS 通常返回一组带权重/优先级的 IP，配合客户端做负载均衡、故障剔除。",
+    "gapCheck": ["易漏点：HTTPDNS 解决的是 LocalDNS 的『劫持 + 调度不准』两类问题，不只是加密", "常见误区：把 HTTPDNS 和 DoH/DoT 混为一谈——前者是面向 App 的调度服务模式，后者是 DNS 报文的加密传输协议", "加分项：能讲客户端兜底策略（HTTPDNS 失败回退系统 DNS、内置保底 IP、IP 测速选优）"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.dns.advanced"],
+      "related": ["cs.net.dns.resolve", "cs.net.http.tls-handshake"],
+      "followUps": ["HTTPDNS 和 DoH/DoT 的区别到底是什么？", "HTTPDNS 服务挂了，客户端怎么保证还能连上服务器？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "HTTPDNS 原理与价值单选题" },
+    "tags": ["DNS", "HTTPDNS", "高可用", "移动端"]
+  },
+  {
+    "id": "Q-cs-net-dnsadv-0002",
+    "nodeId": "cs.net.dns.advanced",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "线上要把一个服务从旧机房切换到新机房，你修改了权威 DNS 的 A 记录并把 TTL 调成了 60 秒。请解释：①TTL 在这次切换中起什么作用、为什么要提前调小；②为什么即使 TTL=60，实际全网生效仍可能延迟更久；③DNS 污染/劫持与 DoH、DoT 分别是什么关系。",
+    "answer": { "ref": "参考骨架：①TTL 是这条记录允许各级缓存（浏览器、OS、LocalDNS 递归器）缓存的最长时间，到期前直接用缓存不再回源。切换前**提前**把 TTL 调小（如从 3600 降到 60）并等旧的长 TTL 缓存自然过期，这样真正改记录时，各地递归器最多 60 秒就会回权威拿新值，故障切换/回滚都快；平时则用较大 TTL 降低解析延迟与权威压力。②不能保证 60 秒全网生效的原因：(a) 有些递归解析器/中间设备不严格遵守 TTL（缓存投毒式的强制缓存、最小 TTL 覆盖、自家过期策略）；(b) 改动前已经缓存的旧记录要等其原 TTL 到期，调 TTL 本身也需要先传播；(c) 浏览器/应用/框架还有各自的 DNS 缓存与连接池（甚至长连接、HTTP keep-alive 不重新解析）；(d) 多权威/多地域生效传播也有时间差。因此关键服务还会配合灰度、双机房并行、流量层切换（网关/负载均衡）而非只靠 DNS。③DNS 污染/劫持是中间方（运营商、防火墙、恶意热点）篡改或伪造解析结果，把域名引到错误 IP；DoT（DNS over TLS，853 端口）与 DoH（DNS over HTTPS，443 端口）把客户端到递归解析器之间的 DNS 报文加密，使中间人无法明文窃听或篡改查询与响应，从而缓解链路上的污染/劫持；但它们只保护『到递归器这一跳』，递归器本身仍可见查询、且不能解决权威记录被改错或客户端侧恶意软件的问题。" },
+    "scoringPoints": [
+      { "point": "讲清 TTL 是各级缓存时长、切换前提前调小的目的（让回源更快、便于切换与回滚）", "weight": 2 },
+      { "point": "给出至少两个 TTL 不被严格遵守/生效延迟的现实原因（递归器策略、旧缓存未到期、应用与连接池缓存、传播时延）", "weight": 2 },
+      { "point": "正确说明污染/劫持是中间方篡改解析结果", "weight": 1 },
+      { "point": "DoT/DoH 加密客户端到递归器这一跳、缓解链路篡改，但有保护边界（递归器仍可见、不解决权威错误）", "weight": 2 }
+    ],
+    "analysis": "这题把 DNS 从『背流程』拉到『线上变更与安全』的工程视角。3 分回答要同时覆盖缓存时效的主动管理（TTL 调小的时机）、理想 TTL 与现实缓存的差距、以及加密 DNS 的能力边界。常见失分：以为改了记录 + 短 TTL 就能秒级全网生效（忽视不遵守 TTL 的递归器和应用层连接缓存）；或把 DoH/DoT 吹成能根治所有 DNS 安全问题（它们不保护递归器之后、也防不了权威配置错误）。能补充『关键切换不能只靠 DNS、要有流量层/双活兜底』是明显加分项。",
+    "gapCheck": ["易漏点：调小 TTL 要『提前』做，等旧长 TTL 缓存过期后再改记录才有效", "常见误区：把 DNS 切换当成精确的定时开关，忽略多层缓存与连接复用", "加分项：指出 DoH 走 443 更难被网络识别封禁、DoT 走独立 853 端口更容易被拦，这是二者落地差异之一"],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.dns.advanced"],
+      "related": ["cs.net.dns.resolve", "cs.net.http.tls-handshake"],
+      "followUps": ["如果要求秒级故障切换，DNS 方案的局限怎么补？（Anycast、网关流量调度、客户端多 IP 探活）", "DoH 普及后，企业内网的 DNS 管控和审计会遇到什么新问题？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "TTL 切换与 DNS 加密的工程综合题" },
+    "tags": ["DNS", "TTL", "DoH/DoT", "故障切换", "工程题"]
+  },
+
+  {
+    "id": "Q-cs-net-dnsres-0003",
+    "nodeId": "cs.net.dns.resolve",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "用户反馈某网站『有时打不开、解析很慢』，但其他人访问正常。请给出一套从客户端到权威服务器的逐层 DNS 排查思路：每一层可能出什么问题、用什么工具或手段验证，并说明为什么改了 DNS 记录后往往不能立即全网生效。",
+    "answer": {
+      "ref": "参考骨架：【逐层排查，沿解析链路自近及远】\n①浏览器/应用层：浏览器有自己的 DNS 缓存且可能启用了 DoH/安全 DNS，先走不同路径；可清空浏览器缓存、关闭自定义 DoH 对比，换浏览器或用 curl --resolve / 直接访问 IP 区分是解析问题还是后续连接问题。\n②操作系统层：OS 缓存与 hosts 文件可能残留旧记录或被劫持；用查看缓存的命令（如 Windows ipconfig /displaydns、清除 ipconfig /flushdns，Linux 视 nscd/systemd-resolved 而定），检查 hosts 是否有错误静态映射，确认配置的递归解析器地址是否正确、是否被篡改。\n③本地递归解析器（LocalDNS/运营商或公共 DNS）：用 nslookup/dig 显式指定递归服务器查询，对比运营商 DNS 与公共 DNS（如 8.8.8.8、119.29.29.29）结果是否一致；结果不一致可能是 LocalDNS 劫持、缓存未更新或出口调度问题；dig 可看查询耗时、返回的权威/应答段与 TTL。\n④权威与委派层：沿根 → 顶级域 → 权威逐级 dig（+trace）确认委派链路正确、权威服务器都可达且返回一致；检查权威记录本身是否配错、多权威之间数据是否同步、是否有过期/错误的 CNAME 链；区分『解析失败（NXDOMAIN/SERVFAIL/超时）』与『解析到错误 IP』两类现象。\n⑤网络与传输层：UDP/53 是否被防火墙或热点拦截、报文过大触发截断后 TCP/53 是否放通、是否存在 DNS 污染（返回可疑异常 IP，可用 DoH/DoT 或可信网络交叉验证）。\n【为什么改记录不能立即全网生效】DNS 是多级缓存系统：浏览器、OS、递归解析器都按记录的 TTL 缓存，未到期直接用缓存不回源；改动前已缓存的旧记录要等其原 TTL 自然过期；部分递归器/中间设备不严格遵守 TTL（强制最小 TTL、自定义过期策略）；加上多权威、多地域传播时延和应用连接池/长连接不会立即重新解析，所以全网生效通常明显晚于 TTL。关键切换应提前调小 TTL、配合流量层调度与双活，而不是只依赖 DNS。"
+    },
+    "scoringPoints": [
+      { "point": "按浏览器→OS/hosts→本地递归器→权威/委派→网络传输的链路逐层排查，层次清晰", "weight": 3 },
+      { "point": "给出具体工具与判据（dig/nslookup 指定服务器、+trace、flushdns、dig 耗时与 TTL、对比公共 DNS）", "weight": 3 },
+      { "point": "能区分解析失败与解析到错误 IP、并识别 LocalDNS 劫持/污染/UDP 截断等典型问题", "weight": 2 },
+      { "point": "用多级缓存 + TTL 不被严格遵守 + 传播/连接池延迟解释记录不能立即全网生效", "weight": 2 }
+    ],
+    "analysis": "这是 DNS 解析考点的实战化简答，目的是把『递归/迭代流程、缓存层级、UDP/TCP』知识转成可执行的排障路径。3 分档要求有明确的自近及远分层和对应工具，而不是只回答『换个 DNS 试试』。常见失分：跳过浏览器/OS 缓存直接 ping、不会用 dig 指定服务器或 +trace、解释不清 TTL 与多层缓存导致的生效延迟。能提到 DoH 劫持交叉验证、SERVFAIL 与 NXDOMAIN 的区别，属于加分。",
+    "gapCheck": [
+      "易漏点：浏览器自身缓存与 DoH 可能让问题在应用层就与系统 DNS 分流，排查时要先区分",
+      "常见误区：把所有解析问题都归因于『DNS 服务器挂了』——hosts 篡改、LocalDNS 劫持、UDP 截断、污染各有不同特征",
+      "加分项：能用 dig +trace 还原根/TLD/权威的委派路径，并据应答的 TTL 判断缓存来源"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.dns.resolve"],
+      "related": ["cs.net.dns.advanced", "cs.net.tcpip.tcp-vs-udp"],
+      "followUps": [
+        "dig 返回 NXDOMAIN、SERVFAIL、请求超时分别意味着哪一层的问题？",
+        "如何用 DoH/DoT 交叉验证一次解析结果是否遭到链路上的污染？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "DNS 解析故障逐层排查实战简答题" },
+    "tags": ["DNS", "解析排障", "dig", "TTL缓存", "工程题"]
+  },
+  {
+    "id": "Q-cs-net-dnsadv-0003",
+    "nodeId": "cs.net.dns.advanced",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 DNS 高可用、智能解析与加密 DNS，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "智能/就近解析依据递归解析器的来源 IP（或 EDNS Client Subnet）判断用户地理位置与运营商，把同一域名解析到最近、负载较优的节点，是 GSLB 与 CDN 调度的基础" },
+      { "key": "B", "text": "权威侧可通过对同一记录配置多个不同优先级/权重的 A 记录，配合客户端测速与故障剔除实现负载均衡与容灾，但普通 DNS 本身不感知后端实例是否健康" },
+      { "key": "C", "text": "DoH（DNS over HTTPS，走 443）与 DoT（DNS over TLS，走 853）把客户端到递归解析器之间的查询加密，能缓解链路上的窃听与污染/劫持，但递归解析器本身仍能看到查询内容" },
+      { "key": "D", "text": "开启 DoH 后，递归解析器到权威服务器之间的查询也自动全部加密，且能防止权威记录被管理员配错，因此可解决全部 DNS 安全问题" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 说明智能解析/GSLB 的判定依据是来源 IP（ECS 扩展可携带客户端子网，避免递归器出口位置误导调度）；B 指出 DNS 层轮询/加权返回能做粗粒度负载均衡，但健康检查需在权威调度系统或客户端侧完成，传统 DNS 服务器并不探测后端实例；C 准确界定 DoH/DoT 的保护范围与边界——只加密『客户端到递归器这一跳』，递归器之后仍是标准 DNS，且递归器可见明文查询。D 错：DoH/DoT 不覆盖递归器到权威的链路，也无法防止权威配置错误、客户端恶意软件等问题，更不是全部 DNS 安全问题的解药；DoH 走 443 混在普通 HTTPS 流量中更难被识别封锁，DoT 走独立 853 端口更易被网络侧拦截，这是二者落地差异。",
+    "gapCheck": [
+      "易漏点：智能解析默认看到的是递归解析器出口 IP，ECS 才能让权威拿到更接近真实客户端的子网",
+      "常见误区：把 DoH/DoT 当成端到端全链路加密——它们只保护到递归器这一跳，递归器仍可见查询",
+      "加分项：能讲 DNS 轮询不做健康检查、需配合 GSLB/HTTPDNS/客户端探活，以及 DoH 443 与 DoT 853 的封锁差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.dns.advanced"],
+      "related": ["cs.net.dns.resolve", "cs.net.http.tls-handshake"],
+      "followUps": [
+        "EDNS Client Subnet（ECS）在隐私与调度精度之间带来了什么权衡？",
+        "企业普遍部署 DoH 后，传统基于 53 端口的 DNS 审计与管控会遇到什么挑战？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "智能解析/GSLB/加密 DNS 综合多选题" },
+    "tags": ["DNS", "智能解析", "GSLB", "DoH/DoT", "高可用"]
+  }
+]

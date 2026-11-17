@@ -1,0 +1,274 @@
+[
+  {
+    "id": "Q-cs-seceq-crypto-0001",
+    "nodeId": "cs.seceq.crypto.sym-asym",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "密码学原语各有分工。下列关于对称加密、非对称加密、哈希、数字签名的对应关系，**正确**的是：",
+    "options": [
+      { "key": "A", "text": "对称加密用同一把密钥加解密、速度快；非对称用公钥/私钥对解决密钥分发；哈希是单向定长指纹用于完整性；数字签名用私钥签、公钥验，防篡改抵赖" },
+      { "key": "B", "text": "对称加密用公钥加密私钥解密，非对称加密双方共用一把密钥" },
+      { "key": "C", "text": "哈希函数可以从摘要反推出原始明文，因此适合加密密码" },
+      { "key": "D", "text": "数字签名用公钥签名、私钥验签，主要目的是加快传输速度" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 完整准确。对称加密（如 AES）加解密共用密钥、性能高，难点在密钥如何安全共享；非对称（RSA/ECC）有公私钥对，公钥可公开、私钥保密，解决密钥分发与身份问题，但速度慢，常用来协商对称密钥而非加密大量数据。哈希（SHA-256 等）单向、定长、雪崩效应，用于完整性校验与指纹，不可逆。数字签名是『私钥签名、公钥验签』，提供完整性、来源认证与不可抵赖。B 把对称非对称说反；C 违背单向性；D 签名方向说反且目的不是提速。",
+    "gapCheck": [
+      "易漏点：实践中常用非对称协商出对称密钥、再用对称算法传数据（混合加密），各取所长",
+      "常见误区：认为哈希可解密、或把签名的公私钥方向记反",
+      "加分项：能讲 HMAC（带密钥的哈希）与普通哈希、签名之间的区别与用途"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.crypto.sym-asym"],
+      "related": ["cs.seceq.crypto.tls-pki", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "HTTPS 为什么采用非对称 + 对称的混合加密而不是全程非对称？",
+        "HMAC 和数字签名都能验证完整性，它们的密钥模型有何不同？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "密码学原语分类基础单选题" },
+    "tags": ["对称加密", "非对称加密", "哈希", "数字签名"]
+  },
+  {
+    "id": "Q-cs-seceq-crypto-0002",
+    "nodeId": "cs.seceq.crypto.sym-asym",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于用户登录密码的存储，下列做法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "为每个用户生成独立的随机盐，与密码一起做 bcrypt/scrypt/argon2 等可调成本的慢哈希，存储『盐:哈希』，校验时用同盐重算并恒定时间比较" },
+      { "key": "B", "text": "慢哈希可通过调整成本因子（迭代次数/内存/并行度）随硬件升级而增强，以提高暴力破解与彩虹表攻击的成本" },
+      { "key": "C", "text": "MD5/SHA-1 已被证明不适合安全场景；即便是 SHA-256 这类快速哈希，也不应直接用于存密码，因为算得太快且无盐时相同密码哈希相同" },
+      { "key": "D", "text": "用可逆加密（如 AES）把密码加密后存库，登录时解密比对，是比慢哈希更安全的首选方案" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 是标准做法：每用户独立随机盐让彩虹表（预计算通用映射）失效，慢哈希让单次计算刻意昂贵，存储盐与结果，登录时重算比对（恒定时间比较防计时侧信道）。B 说明慢哈希的可调成本是其核心价值——摩尔定律让攻击越来越便宜，调高成本因子可持续拉高破解代价，argon2 还引入内存硬度抗 GPU/ASIC。C 指出两层问题：MD5/SHA-1 已有碰撞攻击退出安全场景；而 SHA-256 等即使本身安全，设计目标是『快』，无盐时同密码同哈希、可被高速字典/彩虹表攻击，故密码存储专用 bcrypt/scrypt/argon2。D 错误：可逆加密意味着密钥泄露即全部明文密码暴露，且数据库被拖库时常连带密钥；密码验证只需『可校验不需还原』，单向慢哈希才是首选，加密仅用于需还原的敏感数据而非密码。",
+    "gapCheck": [
+      "易漏点：盐只防彩虹表/相同密码关联，不防针对单个用户的暴力破解，慢哈希成本才是抗暴力的关键",
+      "常见误区：认为用了 SHA-256 就安全——快哈希无盐照样被字典攻击秒破",
+      "加分项：能讲 argon2id 的内存硬度抗 GPU、成本参数随硬件演进的调参思路"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.crypto.sym-asym"],
+      "related": ["cs.seceq.crypto.random-secret", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "盐为什么可以明文和哈希存一起，不需要保密？",
+        "老系统里的 MD5 密码应该如何平滑迁移到慢哈希？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "密码加盐慢哈希存储多选题" },
+    "tags": ["慢哈希", "盐", "bcrypt", "argon2", "密码存储"]
+  },
+  {
+    "id": "Q-cs-seceq-crypto-0003",
+    "nodeId": "cs.seceq.crypto.sym-asym",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 Node.js crypto 实现密码的加盐慢哈希存储与校验：`hashPassword(password)` 生成每用户独立随机盐，用 scrypt 派生 64 字节哈希，按 `salt:hash`（十六进制）返回；`verifyPassword(password, stored)` 拆分盐与哈希、重算后用恒定时间比较。写测试验证：正确/错误密码、同一密码两次存储结果不同（盐随机）、哈希长度固定，并解释为什么不能用 Math.random 生成盐、为什么不能直接存 SHA-256。",
+    "answer": {
+      "ref": "机理：①随机盐用 crypto.randomBytes（CSPRNG）生成，保证不可预测；盐无需保密，与哈希一起存——它的作用是让每个用户的哈希输入不同，使预计算彩虹表失效、相同密码得到不同结果。②scrypt 是可调成本的慢哈希且带内存硬度，刻意拖慢单次计算、提高 GPU/ASIC 暴力破解成本，符合密码存储场景；结果按 salt:hash 存储。③校验时取出盐重算 scrypt，用 timingSafeEqual 恒定时间比较，防止通过耗时差异逐字节猜测。不能用 Math.random 造盐：它是普通伪随机、输出可预测，攻击者可推测盐值。不能直接存 SHA-256：它为速度设计，无盐时同密码同哈希，且现代硬件每秒可算海量次，挡不住字典/彩虹表攻击。生产建议优先 argon2id/bcrypt 等专用算法并妥善设置成本参数。",
+      "code": "const crypto = require('node:crypto');\n\n// 每用户独立随机盐 + scrypt 慢哈希，存储格式 salt:hash\nfunction hashPassword(password) {\n  const salt = crypto.randomBytes(16).toString('hex');\n  const derived = crypto.scryptSync(password, salt, 64).toString('hex');\n  return salt + ':' + derived;\n}\n\nfunction verifyPassword(password, stored) {\n  const arr = stored.split(':');\n  const salt = arr[0], hash = arr[1];\n  const expected = Buffer.from(hash, 'hex');\n  const actual = crypto.scryptSync(password, salt, 64);\n  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);\n}\n\nconst stored = hashPassword('P@ssw0rd!');\nconsole.log('存储值(盐:哈希):', stored.slice(0, 40) + '...');\nconsole.log('同密码两次存储值不同(盐随机):', stored !== hashPassword('P@ssw0rd!'));\nconsole.log('正确密码校验:', verifyPassword('P@ssw0rd!', stored)); // true\nconsole.log('错误密码校验:', verifyPassword('wrong-pass', stored)); // false\nconsole.log('哈希长度固定 64 字节:', stored.split(':')[1].length === 128);"
+    },
+    "scoringPoints": [
+      { "point": "用 crypto.randomBytes 生成每用户独立随机盐，盐与哈希按约定格式存储", "weight": 3 },
+      { "point": "使用 scrypt/bcrypt/argon2 慢哈希而非快速哈希，成本参数意识正确", "weight": 3 },
+      { "point": "校验用同盐重算 + timingSafeEqual 恒定时间比较，先判长度防异常", "weight": 2 },
+      { "point": "测试覆盖正/误密码、盐随机性、定长，并解释 CSPRNG 与慢哈希的必要性", "weight": 2 }
+    ],
+    "analysis": "密码工程核心手写题。常见失分：用 Math.random 造盐（可预测）；直接 SHA-256 无盐哈希；用 === 比较哈希留下计时侧信道；timingSafeEqual 不等长会抛异常却不先判长度；不理解盐为什么可以明文存储。能进一步对比 bcrypt/scrypt/argon2id 的抗 GPU 能力与成本调参，属于加分。生产环境优先成熟库与 argon2id，不自行拼装。",
+    "gapCheck": [
+      "易漏点：盐不保密但必须随机且每用户独立；timingSafeEqual 比较前要保证 Buffer 等长",
+      "常见误区：用 Math.random 生成盐，或认为快速哈希加一次就够安全",
+      "加分项：能讲 scrypt 内存硬度抗并行破解、以及历史哈希向 argon2id 的渐进升级"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.crypto.sym-asym"],
+      "related": ["cs.seceq.crypto.random-secret", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "如何在不强制全员改密的情况下，把旧 MD5 哈希逐步升级为慢哈希？",
+        "scrypt 的 N、r、p 参数分别控制什么？如何按业务容忍的登录耗时调参？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "加盐 scrypt 哈希存储校验手写代码题" },
+    "tags": ["手写题", "慢哈希", "scrypt", "盐", "恒定时间比较"]
+  },
+  {
+    "id": "Q-cs-seceq-crypto-0004",
+    "nodeId": "cs.seceq.crypto.tls-pki",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "浏览器访问一个 HTTPS 网站时会验证服务器证书链。下列关于 PKI 证书信任链的描述，**正确**的是：",
+    "options": [
+      { "key": "A", "text": "叶子证书绑定域名与公钥、由中间 CA 签发，中间 CA 又由上级 CA 签发，验签逐级向上，直到抵达内置在操作系统/浏览器信任库中的根 CA 自签证书（信任锚）" },
+      { "key": "B", "text": "只要证书上的域名和访问域名一致就可信，不需要验证签发者签名和有效期" },
+      { "key": "C", "text": "根 CA 证书由服务器在每次握手里动态签发，浏览器临时决定是否信任" },
+      { "key": "D", "text": "自签证书和公有 CA 签发的证书在浏览器里默认享有同等信任级别" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确描述了 PKI 信任链：终端实体（叶子）证书把域名和公钥绑定并由中间 CA 签名，中间 CA 证书再由上级或根 CA 签名，验证方逐级验签，终点是预先内置在信任库中的根 CA 自签证书——它是信任锚，不再由别人背书。B 错误：域名匹配只是其中一项，还须验证整条链签名、有效期、吊销状态、用途约束（SAN/密钥用法）等。C 错误：根证书是预置信任的、不在每次连接里动态签发，握手里服务器提供的是叶子与中间证书。D 错误：自签证书不在信任库中，浏览器默认告警、需人工例外，只适合内网/测试等可控场景。",
+    "gapCheck": [
+      "易漏点：信任锚是本地预置的根证书，整条链任一环节签名/有效期/吊销校验失败都会告警",
+      "常见误区：只看域名不看签发链，或以为自签证书默认可信",
+      "加分项：能讲中间 CA 分层的隔离意义、SAN 多域名与通配符证书的约束"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.crypto.tls-pki"],
+      "related": ["cs.net.http.tls-handshake", "cs.seceq.crypto.sym-asym"],
+      "followUps": [
+        "证书过期、域名不匹配、链不完整分别会在浏览器表现为什么错误？",
+        "为什么推荐服务器主动把中间证书一起下发（证书链补全）？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "PKI 证书信任链单选题" },
+    "tags": ["PKI", "证书链", "根 CA", "信任锚"]
+  },
+  {
+    "id": "Q-cs-seceq-crypto-0005",
+    "nodeId": "cs.seceq.crypto.tls-pki",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：私钥属于最高敏感级凭据，正确的工程管理是绝不硬编码进源码、不提交到 Git、不写进日志和镜像，而应通过 KMS/HSM 或环境变量注入使用，并建立密钥分级、定期轮换与泄露后吊销重签的流程；代码里出现的应是密钥标识而非密钥本身。",
+    "answer": { "judge": true },
+    "analysis": "正确。私钥/对称密钥一旦泄露，所有由它保护的数据与身份都可能被解密或冒充，且历史泄露往往长期不可见，因此密钥管理是密码工程的核心。硬编码进代码会随 Git 历史、制品、日志、截图等多渠道扩散，即使后续删除也难确保历史副本失效。正规做法：用 KMS（密钥管理服务）/HSM（硬件安全模块）托管，应用持密钥标识、调用接口完成加解密/签名，密钥材料不出安全边界；本地开发用环境变量/密钥管理注入而非入库；建立密钥分级（数据加密密钥 DEK 与密钥加密密钥 KEK）、定期轮换、最小权限访问审计；泄露时吊销证书、重签、轮换密钥并评估影响面。还要把『密钥不得入日志』纳入编码规范与扫描规则。",
+    "gapCheck": [
+      "易漏点：Git 历史中的密钥即使删除提交仍可被找回，泄露后必须轮换而非仅修改当前版本",
+      "常见误区：把私钥打进镜像或配置文件当作『方便』，忽视供应链与多环境扩散面",
+      "加分项：能讲信封加密（KMS 包 DEK）、自动轮换与密钥使用审计的落地方式"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.crypto.tls-pki"],
+      "related": ["cs.seceq.crypto.random-secret", "cs.seceq.sec-eng.owasp"],
+      "followUps": [
+        "信封加密里 KEK 和 DEK 各自承担什么角色？轮换时如何减少重加密量？",
+        "CI/CD 流水线中检测到误提交的密钥，应急处置步骤是什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "私钥管理与轮换判断题" },
+    "tags": ["密钥管理", "KMS", "HSM", "密钥轮换", "判断"]
+  },
+  {
+    "id": "Q-cs-seceq-crypto-0006",
+    "nodeId": "cs.seceq.crypto.tls-pki",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请从工程视角（不必复述 TLS 握手细节）说明：①一张 TLS 证书从申请到失效的完整生命周期管理要点；②CRL 与 OCSP 两种吊销机制的原理与局限；③私钥泄露后的应急处置流程，以及证书固定（certificate pinning）为什么要谨慎使用。",
+    "answer": {
+      "ref": "参考骨架：\n①证书生命周期管理：申请阶段生成密钥对、构造 CSR（证书签名请求，含公钥、域名、组织信息，私钥不出本机），经 CA 做域名/组织验证（DV/OV/EV 校验级别不同）后签发叶子证书；部署阶段把叶子与中间证书组成完整链下发到负载均衡/网关/服务，配置正确的协议版本与加密套件、自动续期；监控阶段跟踪有效期（证书过期会直接导致全站不可用，是高频事故源），用 ACME 等协议实现自动签发与续期，配合到期前多级告警；归档与吊销阶段留存签发记录，密钥泄露或域名变更时及时吊销。还要管理 SAN/通配符范围、区分测试与正式证书，避免通配符证书私钥被单点攻破后波及所有子域。\n②吊销机制：CRL（证书吊销列表）是 CA 周期性发布的『已吊销证书序列号清单』，客户端下载后查询；局限是文件会越来越大、有发布周期延迟、离线或客户端不抓取就失效。OCSP（在线证书状态协议）让客户端按需向 OCSP 响应者实时查询某张证书状态，更及时；局限是带来额外请求延迟与可用性依赖、向响应者暴露用户访问行为（隐私问题），OCSP stapling（握手时由服务器附带签名后的 OCSP 响应）可缓解延迟与隐私，但仍有软失败（查不到时放行）与覆盖率问题。因此吊销是『降低风险』而非绝对保证，短有效期证书（如自动化 ACME 90 天）本身也压缩了泄露窗口。\n③私钥泄露应急：立即在 CA 吊销该证书并申请新证书、生成新密钥对重签部署；评估泄露期间可能被解密/签名的流量与数据（若无前向保密，历史流量可能被离线解密）；轮换所有关联密钥与依赖该证书的互信配置；通过审计日志排查异常使用，按合规要求通报；复盘泄露渠道（代码仓库、镜像、服务器入侵）并修补。证书固定（pinning）指客户端预先内置/校验特定证书或公钥，即使它不再被系统信任库信任也只认固定对象；能对抗被误签/恶意 CA，但风险很高：证书到期轮换、CA 迁移、密钥更新时若客户端没同步更新就会直接连接失败且难以远程挽救（移动 App 尤甚，发版才能修），配置错误可造成自我拒绝服务。现代实践更推荐公钥固定配合备份 pin、或转向基于 DNS 的 DANE/CT（证书透明日志）监控等更柔性的机制，谨慎在强可控、有完善轮换预案的场景使用。"
+    },
+    "scoringPoints": [
+      { "point": "生命周期完整：CSR/验证签发、证书链部署、有效期监控与 ACME 自动续期、吊销归档", "weight": 3 },
+      { "point": "CRL 与 OCSP 原理、各自局限及 OCSP stapling、短有效期补偿讲清楚", "weight": 3 },
+      { "point": "私钥泄露应急流程完整（吊销重签、影响评估、轮换、审计通报、复盘）", "weight": 3 },
+      { "point": "讲清 pinning 的收益与自我拒绝服务风险及更柔性替代", "weight": 2 }
+    ],
+    "analysis": "PKI 工程视角综合题。常见失分：把生命周期答成握手过程；只知道有吊销机制讲不出 CRL/OCSP 局限与软失败；泄露应急只说『换证书』漏掉影响评估与轮换；对 pinning 只知其利不知其会导致不可逆的连接失败。高分回答能把有效期管理、自动续期、吊销局限、短证书窗口、密钥托管与应急串成运营闭环。",
+    "gapCheck": [
+      "易漏点：证书过期是生产高频事故，监控与自动续期比吊销更常被考察",
+      "常见误区：以为吊销机制实时且强制生效——软失败和覆盖率使它只是补偿手段",
+      "加分项：能提证书透明（CT）日志监控、ACME 自动化与公钥固定的备份 pin 策略"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.crypto.tls-pki"],
+      "related": ["cs.net.http.tls-handshake", "cs.seceq.sec-eng.audit"],
+      "followUps": [
+        "为什么越来越多平台推崇短有效期证书 + 自动续期？",
+        "OCSP stapling 解决了哪些问题，又有什么前提条件？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "证书生命周期/吊销/泄露应急简答题" },
+    "tags": ["证书生命周期", "CRL", "OCSP", "密钥泄露", "证书固定"]
+  },
+  {
+    "id": "Q-cs-seceq-crypto-0007",
+    "nodeId": "cs.seceq.crypto.random-secret",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "需要生成会话 Token、密码盐、验证码或加密密钥。下列关于随机数选择的说法，**正确**的是：",
+    "options": [
+      { "key": "A", "text": "这些安全敏感场景必须使用密码学安全随机数生成器（CSPRNG），如浏览器 crypto.getRandomValues 或 Node 的 crypto.randomBytes/randomUUID；Math.random 等普通 PRNG 输出可预测，不能用于安全用途" },
+      { "key": "B", "text": "Math.random 足够随机，生成 Token 和密钥完全没问题，而且性能更好" },
+      { "key": "C", "text": "用当前时间戳（Date.now()）当 Token 既唯一又安全，攻击者猜不到" },
+      { "key": "D", "text": "CSPRNG 和普通随机函数没有本质区别，可以互换使用" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确。安全随机数要求不可预测性，CSPRNG 由操作系统熵源（如 /dev/urandom、系统随机源）播种，输出在计算上不可预测，专供 Token、盐、密钥、验证码、nonce 等场景；浏览器用 crypto.getRandomValues、Node 用 crypto.randomBytes/randomUUID/webcrypto。B 错误：Math.random 是普通伪随机算法（确定性、内部状态可被观察或还原），其设计目标是统计分布而非抗攻击，用于 Token 会被预测劫持。C 错误：时间戳空间有限、可枚举，且常可从其他信息推断，毫无抗猜测能力。D 否认二者本质差异，普通 PRNG 不提供不可预测性保证，安全场景不可互换。",
+    "gapCheck": [
+      "易漏点：判断标准是『不可预测』而非『看起来随机』，普通 PRNG 统计随机但可被还原状态",
+      "常见误区：用 Math.random 或时间戳拼 Token，图方便埋下可预测凭据隐患",
+      "加分项：能讲 UUID v4 由 CSPRNG 生成才安全、以及随机数熵不足时的阻塞/降级风险"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.crypto.random-secret"],
+      "related": ["cs.seceq.crypto.sym-asym", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "CSPRNG 的种子熵来自哪里？容器环境熵不足可能导致什么问题？",
+        "随机 Token 的长度（熵位数）应该如何估算才能抗暴力枚举？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "CSPRNG 与普通随机数单选题" },
+    "tags": ["CSPRNG", "安全随机数", "Math.random", "Token"]
+  },
+  {
+    "id": "Q-cs-seceq-crypto-0008",
+    "nodeId": "cs.seceq.crypto.random-secret",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于敏感数据的密钥/密文存储、脱敏与合规，下列做法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "密钥与被保护数据分离存储：数据加密后入库，密钥交给 KMS/专门的密钥管理体系托管，应用只持密钥引用，避免拖库即拿到密钥" },
+      { "key": "B", "text": "按场景脱敏：界面展示用掩码（如手机号 138****1234）、日志中对身份证/银行卡等做脱敏、生产数据导入测试环境前做匿名化/假名化" },
+      { "key": "C", "text": "落实数据分类分级与最小化收集，明确留存期限并支持删除/更正请求，加密存储个人敏感信息以满足个人信息保护合规的基本要求" },
+      { "key": "D", "text": "为了排查问题方便，把用户完整身份证号、密码和密钥明文打印到应用日志，并把生产库直接复制给开发调试" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 是密钥管理基本原则：密钥与数据分离，即使数据库被拖走，没有 KMS 中的密钥也无法解密；配合信封加密与访问审计。B 体现按用途脱敏——展示掩码兼顾可用与隐私，日志脱敏防止敏感信息随日志系统扩散，测试环境匿名化避免真实个人数据流入低安全环境。C 对应合规框架（如个人信息保护相关法规）的核心要求：合法正当必要、最小化收集、分类分级、加密存储、限定留存期限、保障主体的查询更正删除等权利。D 严重违规且高危：明文密码本就不应可逆存储，密钥/身份证入日志扩大泄露面，生产数据未经脱敏直接外发违反最小权限与合规，是典型的数据泄露源头。",
+    "gapCheck": [
+      "易漏点：脱敏要分场景——展示、日志、分析、测试环境的脱敏强度与可逆性要求不同",
+      "常见误区：认为内网日志/测试环境是安全区，忽视权限扩散与日志集中存储的泄露面",
+      "加分项：能讲静态加密/传输加密/字段级加密的层次，以及匿名化与假名化的合规差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.crypto.random-secret"],
+      "related": ["cs.seceq.crypto.tls-pki", "cs.seceq.sec-eng.audit"],
+      "followUps": [
+        "需要按手机号精确查询又要加密存储，字段级加密/检索有哪些工程方案？",
+        "匿名化和假名化在合规与可恢复性上有什么区别？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "密钥存储/脱敏/合规多选题" },
+    "tags": ["密钥管理", "数据脱敏", "数据合规", "分类分级"]
+  },
+  {
+    "id": "Q-cs-seceq-crypto-0009",
+    "nodeId": "cs.seceq.crypto.random-secret",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：前端 JS 的 Math.random() 与后端普通 Random 类都不是密码学安全随机源，其输出由确定性算法和内部状态决定，可能被预测；凡是用于安全凭据（重置密码 Token、会话 ID、盐、密钥、抽奖防作弊随机数）的随机值，都应当调用平台提供的 CSPRNG。",
+    "answer": { "judge": true },
+    "analysis": "正确。Math.random/Random 类属于通用伪随机数生成器，目标是良好的统计特性与高性能，内部状态有限且确定性演化，攻击者获得足够输出或状态后可推断后续序列，历史上多次出现据此预测会话 Token、赌博随机数的真实案例。安全场景要求不可预测性，必须用 CSPRNG：浏览器端 crypto.getRandomValues，Node 端 crypto.randomBytes/randomUUID/webcrypto，Java 的 SecureRandom 等。还要保证足够长度（足够熵），仅算法正确但 Token 过短仍可被枚举。非安全用途（如随机样式、洗牌动画）用普通 PRNG 即可，避免无谓占用熵源，关键是分场景选对工具。",
+    "gapCheck": [
+      "易漏点：即使使用 CSPRNG，Token/密钥长度不足、熵位数太低仍会被暴力枚举",
+      "常见误区：把『随机分布均匀』等同于『不可预测』，二者是不同的安全属性",
+      "加分项：能讲 CSPRNG 自动重播种机制、以及安全随机数误用阻塞式接口导致的性能坑"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.crypto.random-secret"],
+      "related": ["cs.seceq.crypto.sym-asym", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "如何根据可接受的碰撞/枚举概率反推随机 Token 的最小字节数？",
+        "密码重置链接里的 Token 还需要配合哪些过期与一次性约束？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "安全随机数适用场景判断题" },
+    "tags": ["CSPRNG", "Math.random", "安全凭据", "判断"]
+  }
+]

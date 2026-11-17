@@ -1,0 +1,31 @@
+[
+  { "id": "fe.ts.type-system", "title": "类型系统与结构化类型", "level": 3, "domain": "fe", "stack": "ts", "topic": "type-system", "mustMaster": true, "estMinutes": 50,
+    "summary": "结构化类型 vs 名义类型、类型擦除、顶层/底层类型、any 与 unknown 的安全边界、类型守卫与窄化" },
+
+  { "id": "fe.ts.type-system.structural-typing", "title": "结构化类型、鸭子类型与类型兼容", "level": 4, "domain": "fe", "stack": "ts", "topic": "type-system",
+    "prerequisites": ["fe.ts.type-system", "fe.js.es6.modern"],
+    "related": ["fe.ts.type-system.type-narrowing"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲结构化类型的兼容判定（成员子集即可赋）、与名义类型的区别、对象字面量的额外属性检查（excess property check）、函数参数逆变与返回协变、strictFunctionTypes 的影响" },
+
+  { "id": "fe.ts.type-system.type-narrowing", "title": "类型守卫与控制流窄化", "level": 4, "domain": "fe", "stack": "ts", "topic": "type-system",
+    "prerequisites": ["fe.ts.type-system", "fe.ts.type-system.structural-typing"],
+    "related": ["fe.ts.advanced.generics-utility"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 typeof/instanceof/in/字面量判别联合（discriminated union）、用户自定义类型谓词 is、真值窄化与可空处理、! 非空断言的风险、switch 穷尽检查 never" },
+
+  { "id": "fe.ts.advanced", "title": "泛型、工具类型与类型体操", "level": 3, "domain": "fe", "stack": "ts", "topic": "advanced", "mustMaster": true, "estMinutes": 55,
+    "summary": "泛型约束与推断、keyof/typeof/infer、内置工具类型原理、条件类型与映射类型、类型体操的度" },
+
+  { "id": "fe.ts.advanced.generics-utility", "title": "泛型约束、infer 与内置工具类型原理", "level": 4, "domain": "fe", "stack": "ts", "topic": "advanced",
+    "prerequisites": ["fe.ts.advanced", "fe.ts.type-system.type-narrowing"],
+    "related": ["fe.ts.advanced.mapped-conditional"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能手写 Partial/Required/Pick/Record/ReturnType/Parameters 的实现、讲清 extends 泛型约束、infer 推断位置、keyof 索引访问、默认泛型参数，以及泛型在函数/组件 props 上的复用" },
+
+  { "id": "fe.ts.advanced.mapped-conditional", "title": "映射类型、条件类型与模板字面量类型", "level": 4, "domain": "fe", "stack": "ts", "topic": "advanced",
+    "prerequisites": ["fe.ts.advanced", "fe.ts.advanced.generics-utility"],
+    "related": ["fe.ts.type-system.structural-typing"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 [K in keyof T] 映射、readonly/? 修饰符增删、条件类型 T extends U ? X : Y 分发行为、infer 递归、模板字面量类型与字符串操作类型，以及何时该停止过度体操改用 interface" }
+]

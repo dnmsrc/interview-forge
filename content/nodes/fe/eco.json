@@ -1,0 +1,37 @@
+[
+  { "id": "fe.eco.react", "title": "React 机制对照", "level": 3, "domain": "fe", "stack": "eco", "topic": "react", "mustMaster": false, "estMinutes": 30,
+    "summary": "以 Vue 为参照理解 React 的调度、diff 与响应式哲学差异" },
+
+  { "id": "fe.eco.react.mechanism", "title": "React 机制速览：Fiber 调度、re-render 模型与 Signals 风向", "level": 4, "domain": "fe", "stack": "eco", "topic": "react",
+    "prerequisites": ["fe.vue.ecosystem.vue-vs-react"],
+    "related": ["fe.vue.runtime.diff-key", "fe.vue.reactivity.effect-dep"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "以「Vue 候选人被问 React 对比」的面试真实场景为目标：讲清更新模型根差异——React 状态不可变+更新即组件函数重执行（子树默认全重渲染，靠 memo/useMemo/ useCallback 手工圈边界，闭包陷阱与依赖数组是日常税），Vue 是信号级精确更新（template 编译绑定 render effect，依赖自动追踪到字段）；React Fiber 把协调拆成可中断单元（render 阶段可 yield、commit 同步）对应浏览器时间切分哲学，Scheduler 优先级（InputTransition 等 lane 模型）与 useTransition/useDeferredValue 的低优更新；2024+ 范式转移：React Compiler 自动 memo 化（编译期消除手写 memo）、RSC 把组件划分 server/client 边界（呼应 SSR 节点）；Signals 行业合流——Preact/Angular/SolidJS 与 TC39 Signals Stage1 提案、Vue ref 早已是同族实现，答题时点出「细粒度响应式回潮但框架边界（编译 vs 运行时）不变」的 2026 视角；hooks 规则（调用序索引链表）为何禁条件调用一句话讲透" },
+
+  { "id": "fe.eco.ssr", "title": "SSR/全栈框架", "level": 3, "domain": "fe", "stack": "eco", "topic": "ssr", "mustMaster": false, "estMinutes": 30,
+    "summary": "Next/Nuxt 架构谱系与渲染模式选型" },
+
+  { "id": "fe.eco.ssr.frameworks", "title": "Next.js 与 Nuxt：App Router、RSC、缓存语义与渲染模式矩阵", "level": 4, "domain": "fe", "stack": "eco", "topic": "ssr",
+    "prerequisites": ["fe.perf.loading.critical-path", "fe.vue.router.history-mode"],
+    "related": ["fe.network.realtime.sse", "fe.electron.ship.package"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能画渲染模式矩阵并按场景选：CSR/SSR/SSG/ISR/Streaming 各自的缓存位置、时效性与成本（电商详情页 ISR+按需 revalidate、营销页 SSG、后台系统 CSR、强个性化首屏 SSR+流式 Suspense 分段）；Next App Router 心智：Server Components 默认服务端执行（bundle 不出境、直连数据源）、'use client' 边界与序列化 props 限制（函数不可传）、Server Actions 表单 mutation+revalidatePath/Tag 缓存失效、缓存四层（Router Cache 请求级 dedupe→Full Route Cache 构建期 SSG/ISR→Client Cache 的 keepFresh? 规范叫法 Client Router Cache→Data Cache fetch 跨请求）与 Next15 把 fetch 默认改 no-store、components 默认非 memo 的语义纠偏史；流式 SSR=RSC payload 经 Suspense 边界分块 flush（技术上是 SSE 家族，呼应网络课）；Nuxt3 对照：nitro 统一 server 引擎（node/bun/cloudflare workers 一处部署多端）、route rules 混合渲染（island=false/hybrid）、useAsyncData+payload 水合、Nuxt Content/Hub 生态；两框架共同考点：水合成本治理（岛屿化趋势、Selective Hydration vs Vue 的 island? Nuxt 实验性 islands）、hydration Mismatch 成因（随机值/日期/locale/扩展插件）、SEO 与 meta 管理（unhead vs metadata API）、迁移叙事（pages router→app router 的心智迁移成本）" },
+
+  { "id": "fe.eco.desktop", "title": "新一代桌面容器", "level": 3, "domain": "fe", "stack": "eco", "topic": "desktop", "mustMaster": false, "estMinutes": 25,
+    "summary": "Tauri 架构与 Electron 的取舍谱系" },
+
+  { "id": "fe.eco.desktop.tauri", "title": "Tauri 2：系统 WebView、Rust Core 与移动端延伸", "level": 4, "domain": "fe", "stack": "eco", "topic": "desktop",
+    "prerequisites": ["fe.electron.process.model", "fe.electron.security.csp"],
+    "related": ["fe.build.toolchain.vite", "fe.electron.ship.package"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能与 Electron 对照讲 Tauri 的三条设计线：①渲染层用系统自带 WebView（Windows WebView2/ macOS WKWebView/ Linux WebKitGTK、移动端 2.0 加 iOS WKWebView+Android WebView/tauri-android Kotlin+Swift UI），换来安装包 5-10MB 与内存大幅下降，代价是渲染一致性风险——WebView 版本随系统更新走（Win7 无 WebView2 预装需 bootstrapper、Safari/Chromium 行为分裂要测），不再像 Electron 那样自带锁定版 Chromium；②核心用 Rust（wry 封装 WebView、 tao 事件循环），能力扩展写 Rust command（#[tauri::command] 进程内调用替代 IPC 序列化? 仍是 serde JSON 但同进程开销小）、高频流用 channel API、插件体系官方化（fs/http/shell/dialog 皆插件+capability 权限清单 JSON 按窗口粒度收口，比 Electron「代码里自律」更进一步声明式）、sidecar 带原生二进制跑重任务；③前端集成 Vite 一等公民（create-tauri-app 模板）、dev 复用 vite HMR；答题给结论不站队：要确定性渲染/老系统兼容/Node 生态直用（pdf 生成、puppeteer 类）→Electron；要体积内存敏感/工具型常驻软件/愿写 Rust/移动桌面一份代码→Tauri；并提迁移评估三查：WebView 覆盖矩阵、原生模块清单在 Rust 侧有无等价 crate、安全模型能否映射（contextBridge 面→capability）" },
+
+  { "id": "fe.eco.styles", "title": "样式工程与原子化 CSS", "level": 3, "domain": "fe", "stack": "eco", "topic": "styles", "mustMaster": false, "estMinutes": 25,
+    "summary": "Tailwind/UnoCSS 原理、设计 token 与 CSS-in-JS 退潮" },
+
+  { "id": "fe.eco.styles.tailwind", "title": "Tailwind/UnoCSS：JIT 扫描、设计 token 与 CSS-in-JS 退潮", "level": 4, "domain": "fe", "stack": "eco", "topic": "styles",
+    "prerequisites": ["fe.css.foundation.selector-cascade", "fe.build.toolchain.vite"],
+    "related": ["fe.css.responsive.media-query", "fe.build.bundle.optimization"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲原子化的成立逻辑：utility class 正交原子组合替代「语义类名×BEM 心算」，命名税归零、改动不怕全局污染（每个类只有一处定义多处复用但语义唯一）、设计约束进 token（spacing 阶梯/color scale 天然防随手写 px）；JIT 原理：构建期扫描源文件（content/glob 含 vue sfc 模板字符串拼接的动态类要 safelist 或完整字面量，动态拼类失效是新手第一坑）按需产 CSS——产物从「全量几 MB purge」时代进化为「用到才有」几十 KB，这使 2020 后「Tailwind 产物大」的旧论断失效；v4 变化要点：Rust oxc-tailwind 引擎重写（@tailwindcss/vite 取代 postcss 链）、CSS-first 配置（@theme 令牌/@variant/@custom-utility 直接写在 css，js config 退役）、OKLCH 色板默认、嵌套与原生化特性依赖 Baseline 支持；UnoCSS 对照：零预设/规则引擎（preset-wind3/wind4/icons）、attributify 模式、热重载快、VS Code 补全生态；CSS-in-JS 退潮叙事：styled-components emotion 运行时注入与 SSR 流式不友好+hydration 成本，2024 React 圈转向 Tailwind+CSS Modules+vanilla-extract/Radix/grant 类静态方案，Emotion 维护放缓、Astro/Svelte scoped 原生样式复兴；面试平衡观点：原子化适合协作规模与迭代速度优先的业务仓，设计系统深水区仍需组件层封装（cva/twMerge 治类名冲突合并），别宗教化" }
+]

@@ -1,0 +1,530 @@
+[
+  {
+    "id": "Q-fe-css-selector-0001",
+    "nodeId": "fe.css.foundation.selector-cascade",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "下列 CSS 选择器中，**优先级（specificity）最高**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "div { color: red; }"
+      },
+      {
+        "key": "B",
+        "text": ".box { color: red; }"
+      },
+      {
+        "key": "C",
+        "text": "#app { color: red; }"
+      },
+      {
+        "key": "D",
+        "text": "div.box { color: red; }"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "C"
+      ]
+    },
+    "analysis": "C 最高。优先级按 (行内, id, 类/伪类/属性, 标签/伪元素) 四组从左到右比较：#app 是 id 选择器（0,1,0,0）。D 的 div.box 是「标签+类」=（0,0,1,1）；B 的 .box=（0,0,1,0）；A 的 div=（0,0,0,1）。id 的权重高于任意多个类，所以即使类选择器写得再多也压不过一个 id。行内样式（style 属性，1,0,0,0）又高于 id，!important 则凌驾于普通声明之上，应尽量避免滥用。",
+    "gapCheck": [
+      "易漏点：优先级是分组比较，不是把数字相加——id 位一旦有 1，就压过所有类/标签位",
+      "常见误区：以为选择器写得越长优先级越高，长度不决定权重，组成才决定",
+      "加分项：能写出 (a,b,c,d) 四元组并比较，知道 !important 与行内样式的层级"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.foundation.selector-cascade"
+      ],
+      "related": [
+        "fe.html.foundation.semantic-tags"
+      ],
+      "followUps": [
+        "两个优先级相同的规则冲突时听谁的？",
+        "!important 为什么不推荐用？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "选择器优先级入门单选题"
+    },
+    "tags": [
+      "CSS基础",
+      "选择器优先级",
+      "送分题",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-css-selector-0002",
+    "nodeId": "fe.css.foundation.selector-cascade",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：color、font 这类文字属性默认会从父元素继承，而 width、margin、border 等盒模型属性默认不继承；层叠发生在同优先级规则之间，后出现的声明覆盖先出现的。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。CSS 属性分可继承与不可继承：文字排版类（color、font-*、line-height、text-align 等）默认继承，所以在 body 上设 color 能让整站文字生效；盒模型类（width/height、margin、padding、border、display、position 等）默认不继承，每个元素各自计算。层叠（cascade）则决定同一元素同一属性被多条规则命中时谁生效：先比来源与 !important，再比优先级，优先级相同才比书写顺序（后者覆盖前者）。继承的值优先级最低，会被元素自身任何匹配规则覆盖。",
+    "gapCheck": [
+      "易漏点：继承来的值在层叠中权重最低，元素自身的直接声明（哪怕是标签选择器）都能盖过继承",
+      "常见误区：以为所有属性都继承，给父元素设 margin 期待子元素也缩进",
+      "加分项：能说出 inherit/initial/unset/revert 等显式控制继承与初始值的关键字"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.foundation.selector-cascade"
+      ],
+      "related": [
+        "fe.css.box.box-model"
+      ],
+      "followUps": [
+        "inherit 和 initial 分别做什么？",
+        "a 标签设了 body 的 color 为什么有时不变色？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "继承与层叠机制判断题"
+    },
+    "tags": [
+      "CSS基础",
+      "层叠",
+      "继承"
+    ]
+  },
+  {
+    "id": "Q-fe-css-boxmodel-0001",
+    "nodeId": "fe.css.box.box-model",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "一个元素设置 width: 200px; padding: 20px; border: 5px solid #000; 且 box-sizing: content-box（默认值），它在页面上实际占据的总宽度是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "200px"
+      },
+      {
+        "key": "B",
+        "text": "225px"
+      },
+      {
+        "key": "C",
+        "text": "250px"
+      },
+      {
+        "key": "D",
+        "text": "240px"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "C"
+      ]
+    },
+    "analysis": "C 正确（200 + 20×2 + 5×2 = 250px）。content-box（标准/W3C 盒模型）下，width 只表示内容区 content 的宽度，padding 和 border 都额外往外加，左右各一份所以乘 2。若改成 box-sizing: border-box（IE/怪异盒模型），width:200px 表示「content+padding+border」的总宽，内容区会被压缩为 200-40-10=150px，元素总宽仍是 200px。工程上常用全局 *{box-sizing:border-box}，这样设宽度时符合直觉、布局不易被 padding 撑破。",
+    "gapCheck": [
+      "易漏点：padding 和 border 左右各一份，要乘 2；margin 不计入元素自身宽度但影响外部占位",
+      "常见误区：把 content-box 和 border-box 下 width 的含义搞反",
+      "加分项：能解释为什么现代 reset 普遍用 border-box，以及它对响应式百分比宽度的好处"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.box.box-model"
+      ],
+      "related": [
+        "fe.html.foundation.block-inline"
+      ],
+      "followUps": [
+        "margin 算进元素的点击/背景区域吗？",
+        "border-box 下内容区宽度怎么算？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "盒模型宽度计算题"
+    },
+    "tags": [
+      "CSS基础",
+      "盒模型",
+      "box-sizing",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-css-boxmodel-0002",
+    "nodeId": "fe.css.box.box-model",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "补全：CSS 盒模型从内到外由 content、______、______、margin 四部分组成；让 width 包含 padding 和 border 的属性写法是 box-sizing: ______。",
+    "answer": {
+      "blanks": [
+        "padding",
+        "border",
+        "border-box"
+      ],
+      "synonyms": {
+        "padding": [
+          "内边距",
+          "填充"
+        ],
+        "border": [
+          "边框"
+        ],
+        "border-box": [
+          "border box",
+          "borderbox"
+        ]
+      }
+    },
+    "analysis": "盒模型四件套从内到外是 content（内容）→ padding（内边距，有背景）→ border（边框）→ margin（外边距，透明、用于外部间距）。box-sizing 控制 width/height 的口径：content-box 只含内容（默认），border-box 让 width 把 padding 和 border 也算进去（IE 盒模型行为），是现代布局重置的标配。",
+    "gapCheck": [
+      "易漏点：padding 在 border 内侧、margin 在 border 外侧，顺序别记反",
+      "常见误区：把 margin 当成元素盒子的一部分——它透明且不承载背景",
+      "加分项：能说明 padding 会撑大可点击区域、margin 不会"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.box.box-model"
+      ],
+      "related": [
+        "fe.css.box.bfc"
+      ],
+      "followUps": [
+        "为什么给按钮加 padding 比加 margin 更能扩大点击热区？",
+        "负 margin 会产生什么效果？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "盒模型组成填空题"
+    },
+    "tags": [
+      "CSS基础",
+      "盒模型",
+      "填空题"
+    ]
+  },
+  {
+    "id": "Q-fe-css-bfc-0001",
+    "nodeId": "fe.css.box.bfc",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "父容器内所有子元素都浮动（float）后，父元素高度塌陷为 0。下列方案中，**利用 BFC 特性**清除浮动、让父元素重新包裹浮动子元素的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "给父元素设置 overflow: hidden（或 display: flow-root）"
+      },
+      {
+        "key": "B",
+        "text": "给父元素设置 color: red"
+      },
+      {
+        "key": "C",
+        "text": "给浮动子元素设置 font-size: 0"
+      },
+      {
+        "key": "D",
+        "text": "把父元素的 position 改成 static"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：overflow 非 visible（hidden/auto/scroll）或 display:flow-root 会让父元素建立 BFC，而 BFC 的特性之一是「计算高度时包含内部浮动元素」，于是父容器重新被浮动子元素撑起（清除浮动）。flow-root 是为此专门设计、无裁切副作用的现代写法；overflow:hidden 也能建 BFC 但可能裁掉溢出内容。B 的 color 与布局无关；C 只影响字号；D 的 static 是默认定位、不建立 BFC。传统 clearfix（::after 伪元素 + clear:both）是另一种不依赖 BFC 的清浮动方案。",
+    "gapCheck": [
+      "易漏点：BFC 清除浮动的原理是「BFC 高度包含浮动后代」，不是 overflow 本身会清除浮动",
+      "常见误区：只记得 overflow:hidden 这个招式，不知道 display:flow-root 才是无副作用正解",
+      "加分项：能列举其他触发 BFC 的条件（float、绝对定位、inline-block、table-cell、flex/grid 子项等）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.box.bfc"
+      ],
+      "related": [
+        "fe.css.layout.position"
+      ],
+      "followUps": [
+        "BFC 还能解决哪些经典问题？",
+        "overflow:hidden 清除浮动有什么副作用？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "BFC 清除浮动应用题"
+    },
+    "tags": [
+      "CSS",
+      "BFC",
+      "清除浮动",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-css-bfc-0002",
+    "nodeId": "fe.css.box.bfc",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "排查样式时发现：普通块布局里相邻元素的垂直 margin 没有按预期叠加，而是被「折叠（margin collapse）」了。请回答：(1) 哪些情况下会发生垂直 margin 折叠？折叠后的间距如何取值？(2) 在现代 CSS 工程实践里要规避折叠、稳定控制元素间距，你会怎么选方案？请说明 flex/grid 的 gap、display:flow-root、margin-trim 各自的角色与浏览器支持现状。(3) 有人说「给两个相邻兄弟元素中的一个加 overflow:hidden 建立 BFC，它们之间的 margin 就不折叠了」，这个说法对吗？为什么？",
+    "answer": {
+      "ref": "参考骨架：(1) 折叠规则——只发生在普通块格式化上下文（BFC）的垂直方向，水平 margin 永不折叠；三类场景：①相邻在流兄弟元素的上下 margin（后者无需清除浮动时）；②父块与第一个/最后一个在流子元素之间，若无 border/padding/inline 内容/clearance（首）或 height/min-height/border/padding（尾）隔开，子元素 margin 会「穿透」到父元素外侧；③无内容隔开的空块，其自身上下 margin 折叠。取值：全正取最大的一个；含负值取「最大正 margin + 最小（最负）负 margin」；全负取最负者。浮动、绝对定位元素以及 flex/grid 容器的子项不折叠。(2) 现代选型——①兄弟元素等距间距首选 flex/grid + gap：gap 只作用于项与项之间、不加在外边缘，且 flex/grid 格式化上下文内根本不发生 margin 折叠，是组件库主流做法；②父子 margin 穿透/清除浮动用 display:flow-root 建立无副作用 BFC，替代会裁切溢出内容的 overflow:hidden hack；③margin-trim 可由容器裁掉贴边子元素的 margin，但截至 2026 年仍是 Limited availability、非 Baseline：Safari 16.4+、Chrome 134+ 支持，Firefox 尚未支持，不能作为生产环境通用答案。(3) 说法错误——BFC 元素的 margin 只与它自己内部的在流子元素隔离，并不与它的外部相邻兄弟隔离；两个兄弟仍同处父级的同一个 BFC 中，垂直 margin 照样折叠。要隔离兄弟，需把其中一个再包一层 BFC 包裹盒（如外包一层 display:flow-root 容器），或更推荐直接改用 flex/grid + gap 从布局层面规避。"
+    },
+    "scoringPoints": [
+      {
+        "point": "说清垂直 margin 折叠的三类场景（兄弟/父子穿透/空块），且只发生在垂直方向、普通 BFC 内",
+        "weight": 2
+      },
+      {
+        "point": "讲对折叠取值规则（全正取 max；含负=最大正+最小负；全负取最负）",
+        "weight": 2
+      },
+      {
+        "point": "现代选型到位：兄弟间距用 flex/grid 的 gap（不进折叠逻辑）、父子隔离/清浮动用 display:flow-root",
+        "weight": 2
+      },
+      {
+        "point": "知道 margin-trim 的定位与 Firefox 不支持、非 Baseline 的现状，不把它当通用正解",
+        "weight": 2
+      },
+      {
+        "point": "识破 BFC 误区：BFC 只隔离内部子元素、不隔离相邻兄弟，并给出包裹盒或 gap 的正确解法",
+        "weight": 2
+      }
+    ],
+    "analysis": "本题已从「背诵折叠规则」升级为「机制理解 + 现代方案选型 + 误区辨析」的综合题。基础分在折叠三场景与取 max 规则；区分度在于：①知道现代工程里兄弟间距默认走 flex/grid 的 gap，而不是靠 margin 硬凑；②清楚 display:flow-root 是无副作用的 BFC 正解，overflow:hidden 只是历史 hack；③能讲清 BFC 的作用边界——它阻断的是容器与其在流子元素之间的穿透，并不阻止它与外部兄弟折叠。常见失分：把折叠当成相加、以为水平 margin 也折叠、以为给单个兄弟建 BFC 就能阻止兄弟间折叠、把 margin-trim 当成已全面可用。",
+    "gapCheck": [
+      "易漏点：折叠取 max 不是求和，且只发生在垂直方向；flex/grid 子项与浮动、绝对定位元素不折叠",
+      "常见误区：以为给相邻兄弟之一加 overflow:hidden 建 BFC 就能阻止兄弟折叠——BFC 只隔离内部子元素，兄弟仍在父级同一 BFC 内",
+      "现代选型：兄弟间距优先 flex/grid + gap，父子穿透/清浮动用 display:flow-root；margin-trim 因 Firefox 不支持暂不能当通用方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.box.bfc"
+      ],
+      "related": [
+        "fe.css.box.box-model",
+        "fe.css.layout.flex"
+      ],
+      "followUps": [
+        "为什么 flex/grid 容器内 margin 不折叠？",
+        "display:flow-root 相比 overflow:hidden 解决了什么副作用？",
+        "margin-trim 想解决什么问题，目前为什么还不能放心用？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "外边距折叠机制 + 现代间距方案选型综合题（2026 现代化改造）"
+    },
+    "tags": [
+      "CSS",
+      "BFC",
+      "margin折叠",
+      "flow-root",
+      "gap",
+      "现代CSS",
+      "高频辨析"
+    ]
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.css.box.bfc",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于块格式化上下文（BFC）的触发条件与布局约束，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "display: flow-root 会创建 BFC，且不会像 overflow: hidden 那样裁切溢出内容，是清除浮动的现代无副作用写法"
+      },
+      {
+        "key": "B",
+        "text": "BFC 内部的块盒仍按正常流垂直排列，但其高度计算会包含内部的浮动元素，因此可用于修复父元素高度塌陷"
+      },
+      {
+        "key": "C",
+        "text": "两个相邻兄弟元素只要其中一个建立 BFC，它们之间的垂直 margin 就一定不再折叠"
+      },
+      {
+        "key": "D",
+        "text": "BFC 的区域不会与外部浮动元素重叠，因此可用来实现「固定侧栏 + 自适应主栏」的两栏布局"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A、B、D 正确。A：flow-root 的设计目的就是生成一个纯 BFC 容器，display 计算值为 block 且内部建立独立格式化上下文，没有 overflow 裁切、绝对定位包含块改变等副作用，2026 年已是全 Baseline 可用。B：BFC 包含浮动后代是其核心特性之一，浮动元素参与 BFC 高度计算，父容器因此被浮动子元素撑起。D：BFC 盒的边框盒不与同 BFC 中的浮动盒的外边距盒重叠，浏览器会自动为 BFC 预留浮动之外的宽度，这正是 overflow:hidden 自适应两栏布局的原理，现代写法换成 flow-root 即可。C 错误：BFC 只隔离容器与其内部在流子元素之间的 margin 穿透，两个兄弟仍同处父级的同一个 BFC 中，给其中一个兄弟加 overflow:hidden 并不会阻止兄弟间的垂直 margin 折叠；要隔离必须再包一层 BFC 包裹盒，或直接改用 flex/grid + gap。",
+    "gapCheck": [
+      "易漏点：BFC 隔离的是容器内部子元素，并不隔离它与外部相邻兄弟的 margin 折叠。",
+      "常见误区：把 overflow:hidden 清除浮动等同于 overflow 本身的能力，真正起作用的是它顺带创建了 BFC，且它有裁切副作用。",
+      "排查线索：需要无副作用 BFC 时优先 display: flow-root；遇到 margin 仍折叠，先确认两个元素是否处于同一个 BFC 内。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.box.bfc"
+      ],
+      "related": [
+        "fe.css.box.box-model",
+        "fe.css.layout.flex",
+        "fe.css.layout.position"
+      ],
+      "followUps": [
+        "display: flow-root 相比 overflow: hidden 消除了哪些副作用？",
+        "BFC 实现自适应两栏布局的底层规则是什么？",
+        "为什么 flex/grid 容器内部不存在 margin 折叠？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 CSS 2.1 格式化上下文规范与 display: flow-root 现代特性语义编写"
+    },
+    "tags": [
+      "BFC",
+      "flow-root",
+      "高频辨析"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0073"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.css.box.box-model",
+    "type": "essay",
+    "difficulty": 3,
+    "stem": "某卡片组件同时设置了 width: 240px、padding: 16px、border: 2px solid #ddd，开发同学发现卡片实际占位宽达 276px，撑破了父容器的栅格。请系统回答：(1) 在默认 box-sizing 下逐项算出 276px 的构成，并说明改用 border-box 后内容区与占位宽度分别是多少；(2) 现代工程里全局重置 box-sizing: border-box 的常见写法是什么，为什么通常用 *, *::before, *::after 一起声明；(3) 进一步说明百分比 padding、负 margin 以及 min-width/max-width 在 border-box 口径下分别如何作用，并举一个 border-box 也无法阻止溢出的场景。",
+    "scoringPoints": [
+      {
+        "point": "content-box 计算正确：240 + 16×2 + 2×2 = 276，width 只含 content，padding/border 外加",
+        "weight": 2
+      },
+      {
+        "point": "border-box 换算正确：占位仍为 240，content 被压缩为 240-32-4=204px",
+        "weight": 2
+      },
+      {
+        "point": "全局重置写法 *, *::before, *::after { box-sizing: border-box; } 并解释伪元素一并覆盖的原因",
+        "weight": 2
+      },
+      {
+        "point": "百分比 padding 按包含块宽度（非自身宽度）计算；负 margin 不改变盒模型口径但改变外部占位；min/max-width 在 border-box 下约束的是 border 盒总尺寸",
+        "weight": 2
+      },
+      {
+        "point": "给出 border-box 也溢出的场景：内容 min-content 过宽（长英文串/固定宽图片/white-space:nowrap）触发 min-width:auto，需 overflow-wrap/min-width:0 配合",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "参考骨架：(1) 默认 content-box（标准盒模型）下 width 只定义 content 宽度，总占位 = 240 + 左右 padding 32 + 左右 border 4 = 276px；margin 不计入自身宽度。切到 border-box 后，width:240px 表示 border 盒总宽（content+padding+border），占位恒为 240px，content 实际宽度 = 240-32-4 = 204px。(2) 现代 reset：*, *::before, *::after { box-sizing: border-box; }；伪元素默认不被通配选择器之外的规则覆盖，而组件常用 ::before/::after 做装饰盒，三者一起声明保证装饰盒与主盒口径一致；更严谨的写法是 html { box-sizing: border-box; } *, *::before, *::after { box-sizing: inherit; }，便于第三方组件按需改回 content-box。(3) 百分比 padding/margin 一律相对包含块的 inline 方向尺寸（宽度）解析，即使是 padding-top 也按宽度算，这是固定宽高比盒子（aspect-ratio 普及前的 padding-top:100% 技巧）的基础；负 margin 不改变 width 口径，而是让 border 盒向相邻方向外扩、可能与邻居重叠或被父级折叠；min-width/max-width 在 border-box 下约束的是整个 border 盒，因此 max-width:100% 能保证含 padding 时也不超出包含块。border-box 失效场景：flex/grid 项目默认 min-width:auto，当内容存在不可断行长单词、nowrap 文本或固有宽度大于轨道的图片/画布时，盒子会被内容强行撑到 min-content 宽，width 与 max-width 都拦不住，需显式 min-width:0（或 overflow-wrap:anywhere、图片 max-width:100%）释放收缩能力。"
+    },
+    "analysis": "本题把盒模型从「套公式」拉到工程口径辨析。基础分在两种 box-sizing 的宽度构成；区分度有三处：①知道伪元素也要纳入重置，以及 inherit 版 reset 的可覆盖性优势；②百分比 padding 相对包含块宽度而非自身高度，是很多比例盒面试追问点；③理解 border-box 只改 width 的记账口径，不改变内容固有尺寸对 min-content 的约束，flex 项目 min-width:auto 溢出是 2026 年仍高频的实战坑。常见失分：把 margin 算进元素宽度、以为 border-box 下 padding 不再占位、认为设了 width 就绝不会溢出而忽略 min-content 底线。",
+    "gapCheck": [
+      "易漏点：border-box 改变的是 width/height 的包含口径，padding 与 border 仍然占位，只是从 content 额度里扣。",
+      "常见误区：以为设了 width 就能限制最终宽度，忽略 flex/grid 项目 min-width:auto 与长内容 min-content 的强制撑大。",
+      "排查线索：溢出先量 border 盒与 content 盒的实际尺寸，再查 white-space、word-break、图片固有宽与 min-width 计算值。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.box.box-model"
+      ],
+      "related": [
+        "fe.css.box.bfc",
+        "fe.css.layout.flex",
+        "fe.css.layout.grid"
+      ],
+      "followUps": [
+        "为什么 padding-top: 50% 能做 2:1 比例盒？aspect-ratio 普及后该技巧还有意义吗？",
+        "flex 子项加 min-width: 0 为什么就能收缩？",
+        "inherit 版 box-sizing reset 相比通配直接声明有什么工程优势？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 CSS Box Model 与 CSS Sizing 规范语义、现代 reset 实践编写"
+    },
+    "tags": [
+      "盒模型",
+      "box-sizing",
+      "min-content",
+      "工程实践"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0074"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.css.foundation.selector-cascade",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "层叠机制填空：CSS @layer 声明的多个级联层，当不同层中的规则优先级（specificity）不同时，最终以 ______ 的顺序为准，层内才比较优先级；未放入任何 @layer 的非 important 声明，其层叠位置 ______（填「高于」或「低于」）所有具名层；同来源、同优先级、同层的声明冲突时，由 ______ 决定胜负。",
+    "answer": {
+      "blanks": [
+        "层声明先后（后声明的层优先）",
+        "高于",
+        "书写顺序（源码顺序，后者覆盖前者）"
+      ],
+      "synonyms": {
+        "层声明先后（后声明的层优先）": [
+          "层顺序",
+          "级联层顺序",
+          "后声明的层优先",
+          "layer 顺序"
+        ],
+        "高于": [
+          "高",
+          "在……之上"
+        ],
+        "书写顺序（源码顺序，后者覆盖前者）": [
+          "源码顺序",
+          "书写顺序",
+          "顺序",
+          "后者覆盖前者"
+        ]
+      }
+    },
+    "analysis": "级联层（Cascade Layers，2022 年起跨浏览器 Baseline）改写了优先级的比较次序：层叠先按来源与 important 划分大等级，再按「层的顺序」比较——@layer reset, base, components, utilities; 中后声明的层整体压过先声明的层，层与层之间根本不看选择器 specificity，所以 utilities 层里的单类名可以击败 base 层里的 id 选择器；只有同一层内部才回到经典 specificity 比较。未分层（unlayered）的普通声明被隐式放在所有具名层之后参与排序，因此它高于一切具名层，这也是迁移旧代码时要小心的点：旧的未分层样式可能意外盖过分层体系。important 声明顺序整体反转：分层中的 important 反而先于未分层 important，最早声明层的 important 最强。最后才是同条件下的源码顺序决胜，后者覆盖前者。",
+    "gapCheck": [
+      "易漏点：层间比较只看层顺序、不看 specificity；specificity 被降级为层内决胜规则。",
+      "常见误区：以为未分层样式会被 @layer 体系收纳管理，实际上未分层普通声明优先级高于所有具名层。",
+      "排查线索：样式不生效时按「origin/important → 层顺序 → specificity → 源码顺序」逐级定位，DevTools 样式面板会标注规则所属级联层。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.css.foundation.selector-cascade"
+      ],
+      "related": [
+        "fe.css.box.box-model"
+      ],
+      "followUps": [
+        "@layer 中 important 声明的排序为什么要整体反转？",
+        "如何用级联层治理第三方组件库样式覆盖问题？",
+        "层顺序与 :where()/:is() 的零优先级技巧如何配合？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 CSS Cascading and Inheritance Level 5 级联层规范语义编写"
+    },
+    "tags": [
+      "层叠",
+      "@layer",
+      "级联层",
+      "现代CSS"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0075"
+  }
+]

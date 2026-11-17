@@ -1,0 +1,359 @@
+[
+  {
+    "id": "Q-fe-ts-generic-0001",
+    "nodeId": "fe.ts.advanced.generics-utility",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "短答：不使用内置 Partial/Pick/ReturnType，请分别写出它们的类型实现，并解释 `keyof T`、`T extends U`、`infer` 各自起什么作用。",
+    "answer": {
+      "ref": "type Partial<T> = { [K in keyof T]?: T[K] }；type Pick<T, K extends keyof T> = { [P in K]: T[P] }；type ReturnType<T extends (...args: any) => any> = T extends (...args: any) => infer R ? R : never。作用：①keyof T 取 T 的所有键组成字符串字面量联合，Partial 用 [K in keyof T] 遍历这些键并加 ? 把每个属性变可选；②T extends U 是泛型约束/条件判定，Pick 里 K extends keyof T 约束 K 只能是 T 的键，ReturnType 里约束入参必须是函数类型；③infer R 在条件类型的 extends 模式里声明一个待推断的类型变量，把函数返回位置的类型捕获为 R，命中分支返回 R、不满足函数形态走 never。要点：映射类型负责『按键重建对象』，条件类型负责『按形状选择/提取』，infer 是条件类型里做类型提取的手段。"
+    },
+    "scoringPoints": [
+      {
+        "point": "Partial 用 keyof+映射+? 正确实现",
+        "weight": 2
+      },
+      {
+        "point": "Pick 带 K extends keyof T 约束并按 K 映射",
+        "weight": 2
+      },
+      {
+        "point": "ReturnType 用 extends 函数约束 + infer R + never 兜底",
+        "weight": 3
+      },
+      {
+        "point": "准确解释 keyof / extends / infer 三者职责",
+        "weight": 3
+      }
+    ],
+    "analysis": "这题区分『用过工具类型』和『懂类型系统运算』。常见塌房点：ReturnType 漏写对 T 的函数约束导致非函数类型入参不报错；infer 只能出现在条件类型 extends 右侧的模式里，不能在普通位置声明；Pick 的 K 必须先约束为 keyof T 的子集，否则 T[P] 无索引签名。能再补一句『Partial 是同态映射类型、保留修饰符』属于加分。",
+    "gapCheck": [
+      "易漏点：infer 的合法位置与『推断变量不能手动传参』",
+      "常见误区：把 extends 只当继承，忽略它在泛型约束和条件类型里的双重角色",
+      "追问延伸：infer 出现在协变/逆变位置时推断结果为何不同？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.advanced.generics-utility"
+      ],
+      "related": [
+        "fe.ts.advanced.mapped-conditional",
+        "fe.ts.type-system.type-narrowing"
+      ],
+      "followUps": [
+        "手写 Parameters<T> 和 InstanceType<T>",
+        "Required<T> 怎么在映射时去掉可选？",
+        "infer 在模板字面量类型里怎么用？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "official",
+      "url": "https://www.typescriptlang.org/docs/handbook/utility-types.html",
+      "retrievedAt": "2026-11-11",
+      "note": "TS 手册 Utility Types + Conditional Types infer 章节"
+    },
+    "tags": [
+      "泛型",
+      "工具类型",
+      "infer",
+      "手写实现",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-ts-generic-0002",
+    "nodeId": "fe.ts.advanced.generics-utility",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于泛型约束 `function get<T extends { id: string }>(x: T): T['id']`，下列说法**正确的是**：",
+    "options": [
+      {
+        "key": "A",
+        "text": "T 可以是任意类型，extends 只是文档注释，编译期不强制"
+      },
+      {
+        "key": "B",
+        "text": "T 必须是结构上含有 string 类型 id 属性的类型；T['id'] 用索引访问类型把返回值精确绑定到入参 id 的实际类型"
+      },
+      {
+        "key": "C",
+        "text": "调用时必须显式写出全部类型参数，TS 不会推断 T"
+      },
+      {
+        "key": "D",
+        "text": "T['id'] 与 any 等价，失去类型信息"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "extends 在这里是泛型上界约束：传入值必须满足含 id: string 的结构，否则编译报错，T 被约束为该形状的子类型；T['id'] 是索引访问类型（indexed access），返回类型随实际 T 的 id 字段类型走，比写死 string 更精确（若 id 是字面量联合也能保留）。A 把约束当注释，错误。C 错：TS 能从实参推断 T，多数泛型函数无需显式传参。D 错：索引访问保留具体类型，恰恰是为了不丢类型信息。",
+    "gapCheck": [
+      "易漏点：约束后 T 仍是『具体入参类型』而非约束类型本身，返回 T 能保留更精确的字面量类型",
+      "常见误区：混淆泛型约束与默认类型参数",
+      "追问延伸：T extends keyof U 这种双重约束在写 getProperty 时怎么用？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.advanced.generics-utility"
+      ],
+      "related": [
+        "fe.ts.type-system.structural-typing"
+      ],
+      "followUps": [
+        "默认泛型参数 <T = string> 和约束 <T extends X> 区别？",
+        "索引访问 T[K] 在 K 是联合时返回什么？",
+        "const 类型参数（const type parameter）解决什么问题？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "official",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/generics.html#generic-constraints",
+      "retrievedAt": "2026-11-11",
+      "note": "TS 手册 Generic Constraints 与 Indexed Access Types"
+    },
+    "tags": [
+      "泛型约束",
+      "索引访问类型",
+      "单选"
+    ]
+  },
+  {
+    "id": "Q-fe-ts-mapped-0001",
+    "nodeId": "fe.ts.advanced.mapped-conditional",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：条件类型 `T extends U ? X : Y` 在 T 是裸类型参数且传入联合类型时会『分发』，即对联合的每个成员分别求值再合并成联合；把 T 包成元组 `[T] extends [U]` 可以阻止这种分发。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。裸类型参数（naked type parameter）出现在条件类型左侧时，传入联合触发 distributive conditional types：对联合每个成员独立套用条件再 union，例如 Exclude<T,U> 正是靠分发逐个剔除。若想整体判定（不让联合拆开），用元组/数组包裹两侧 [T] extends [U]，此时 T 不再是『裸』参数，分发关闭，整个联合作为一个整体参与判定。这是写类型工具时控制是否分发的关键技巧，也是很多『条件类型行为反直觉』的根源。",
+    "gapCheck": [
+      "易漏点：只有裸类型参数才分发，包一层 tuple/对象/函数就关闭分发",
+      "常见误区：以为所有条件类型对联合都分发",
+      "追问延伸：Exclude/Extract/NonNullable 分别依赖分发实现什么？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.advanced.mapped-conditional"
+      ],
+      "related": [
+        "fe.ts.advanced.generics-utility"
+      ],
+      "followUps": [
+        "手写 NonNullable 并解释分发过程",
+        "为什么 [T] extends [never] 能判断 never？",
+        "映射类型里的 as 键重映射怎么过滤属性？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "official",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/conditional-types.html#distributive-conditional-types",
+      "retrievedAt": "2026-11-11",
+      "note": "TS 手册 Distributive Conditional Types"
+    },
+    "tags": [
+      "条件类型",
+      "分发",
+      "判断题",
+      "进阶"
+    ]
+  },
+  {
+    "id": "Q-fe-ts-mapped-0002",
+    "nodeId": "fe.ts.advanced.mapped-conditional",
+    "type": "blank",
+    "difficulty": 5,
+    "stem": "类型体操填空：要把对象类型 T 的所有属性值改为 `() => 值` 的 getter，用映射类型写 `type Getters<T> = { [K in keyof T]: ______ }`，横线处应为 ______；要在映射时只保留函数类型的键、过滤掉其他键，应使用键重映射 `[K in keyof T as ______]`，横线处通常配合 ______ 条件判断。",
+    "answer": {
+      "blanks": [
+        "() => T[K]",
+        "条件保留键的表达式（如 K extends 某条件 ? K : never）",
+        "extends（条件类型）"
+      ],
+      "synonyms": {
+        "() => T[K]": [
+          "()=>T[K]",
+          "函数返回 T[K]",
+          "() => T[K]"
+        ],
+        "条件保留键的表达式（如 K extends 某条件 ? K : never）": [
+          "K extends ... ? K : never",
+          "as 条件键",
+          "键重映射条件"
+        ],
+        "extends（条件类型）": [
+          "extends",
+          "条件类型 extends"
+        ]
+      }
+    },
+    "analysis": "第一空：映射类型逐键重建，值类型位置写 () => T[K]，用索引访问取原属性类型并包成无参函数。第二、三空：TS 4.1+ 的键重映射（key remapping）用 as，在 as 后放条件类型，命中保留 K、不命中返回 never，never 的键会被自动剔除，从而实现按条件过滤属性（如只留函数键：as T[K] extends Function ? K : never）。这是『改值』与『改键集合』两类映射操作的组合，也是复杂工具类型（如自定义 PickByType/OmitByType）的基础。",
+    "gapCheck": [
+      "易漏点：as 后返回 never 的键被删除这一隐式规则",
+      "常见误区：试图在值位置用条件过滤键，过滤键必须在 as 子句",
+      "追问延伸：怎么实现 PickByType<T, U> 和 OmitByType<T, U>？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.advanced.mapped-conditional"
+      ],
+      "related": [
+        "fe.ts.advanced.generics-utility"
+      ],
+      "followUps": [
+        "用 as 重映射实现 RemoveIndexSignature",
+        "模板字面量类型怎么把键改成 getter 命名（getXxx）？",
+        "readonly/可选修饰符 - 与 + 在映射里怎么用？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "official",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/mapped-types.html#key-remapping-via-as",
+      "retrievedAt": "2026-11-11",
+      "note": "TS 手册 Mapped Types · Key Remapping via as"
+    },
+    "tags": [
+      "映射类型",
+      "键重映射",
+      "类型体操",
+      "填空题",
+      "压轴"
+    ]
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.ts.advanced.generics-utility",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "类型填空：①要约束泛型参数 T 必须拥有 id 属性，应写 T extends ______；②在条件类型中提取函数返回值类型，常写 `type R<T> = T extends (...args: any[]) => infer P ? ______ : never`，其中 infer 的作用是声明一个 ______ 类型变量；③`keyof` 作用于对象类型得到其键的 ______ 类型；④内置 `Parameters<T>` 与 `ReturnType<T>` 的实现都依赖 ______ 关键字在函数类型上做模式匹配。",
+    "answer": {
+      "blanks": [
+        "{ id: any }（或 { id: unknown }/带具体类型的约束对象）",
+        "P",
+        "可被推断（待推断）的",
+        "联合（union）",
+        "infer"
+      ],
+      "synonyms": {
+        "{ id: any }（或 { id: unknown }/带具体类型的约束对象）": [
+          "{ id: any }",
+          "{ id: unknown }",
+          "带 id 的对象类型",
+          "Record<string, any> 形式的约束"
+        ],
+        "P": [
+          "P（推断出的返回值类型）"
+        ],
+        "可被推断（待推断）的": [
+          "待推断",
+          "推断",
+          "由编译器推断的"
+        ],
+        "联合（union）": [
+          "union",
+          "联合"
+        ],
+        "infer": [
+          "infer（推断）"
+        ]
+      }
+    },
+    "analysis": "①泛型约束用 extends 给出结构下限，T extends { id: string | number } 保证内部可安全访问 id。②infer P 在 extends 的类型模式里声明「待推断变量」，匹配成功时把对应位置的实际类型绑定给 P；这里 P 捕获返回值类型，故真分支直接返回 P。③keyof 产生键名的字面量联合类型，如 keyof {a:1;b:2} 为 \"a\" | \"b\"。④Parameters 用 infer P 匹配参数元组 `(...args: infer P) => any`，ReturnType 匹配返回位置，两者都是条件类型 + infer 模式匹配的经典应用，理解了这一组合即可自行推导大部分内置工具类型。",
+    "gapCheck": [
+      "易漏点：infer 只能出现在条件类型 extends 右侧的模式中，不能在普通类型别名里独立声明。",
+      "常见误区：把 keyof 的结果当成 string，忽略它是精确的字面量联合。",
+      "排查线索：推断不出预期类型时，检查 infer 变量的位置是否与真实类型结构对齐（参数元组、数组元素、Promise 包裹层等）。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.advanced.generics-utility"
+      ],
+      "related": [
+        "fe.ts.advanced.mapped-conditional"
+      ],
+      "followUps": [
+        "infer 在协变与逆变位置上的推断差异（函数参数 infer 的多候选合并规则）是什么？",
+        "如何用 infer 提取 Promise<T> 里的 T 并支持嵌套解包？",
+        "const 类型参数（const T）与 infer const 解决了什么字面量拓宽问题？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 TypeScript 泛型条件类型与 infer 官方手册语义编写"
+    },
+    "tags": [
+      "TypeScript",
+      "infer",
+      "类型体操"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0061"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.ts.advanced.mapped-conditional",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "阅读下列类型代码，选出描述正确的一项：\n```ts\ntype NonNullableKeys<T> = {\n  [K in keyof T as null extends T[K] ? never : K]: T[K]\n}\ntype Demo = NonNullableKeys<{ a: string; b: string | null; c: number }>\n```",
+    "options": [
+      {
+        "key": "A",
+        "text": "Demo 等价于 { a: string; b: string | null; c: number }，as 子句不影响键集合"
+      },
+      {
+        "key": "B",
+        "text": "Demo 等价于 { a: string; c: number }，键重映射中条件为真时映射到 never 的键会被整体移除，b 因 null 是其联合成员而被过滤"
+      },
+      {
+        "key": "C",
+        "text": "Demo 等价于 { a: string; b: never; c: number }，只是把 b 的值类型改成 never，键仍然保留"
+      },
+      {
+        "key": "D",
+        "text": "编译报错，as 子句里不能使用条件类型，只能写固定字面量"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：映射类型的键重映射 `as ...` 中，当映射结果为 never（或 PropertyKey 之外的类型）时该键被删除，这是 TS 实现「键过滤」的标准手法。对 b: string | null，null extends string | null 成立，条件返回 never，键 b 被移除；a、c 不含 null，保留原键值。A 错在忽略 as 的过滤语义；C 描述的是「值映射为 never」，而 as 作用在键层面，效果是删键而非改值；D 错误，as 后可以接任意类型表达式包括条件类型与模板字面量类型，这正是 4.1+ 键重映射的核心能力。扩展：若想过滤「值可能为 undefined」的键，把条件换成 undefined extends T[K] 即可。",
+    "gapCheck": [
+      "易漏点：过滤发生在键重映射阶段（as never 删键），与值位置上的 Exclude 是两种不同手法。",
+      "常见误区：混淆「null extends T[K]」（null 是否可赋给该属性类型）与「T[K] extends null」（属性是否就是 null 系），两者筛选方向相反。",
+      "排查线索：映射后键意外消失时，优先检查 as 条件是否对可选属性的 undefined 联合也成立。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.advanced.mapped-conditional"
+      ],
+      "related": [
+        "fe.ts.advanced.generics-utility"
+      ],
+      "followUps": [
+        "如何写一个 PickByValueType<T, U> 只保留值类型可赋给 U 的键？",
+        "模板字面量类型与 capitalize  intrinsic 类型如何组合做事件名映射？",
+        "映射类型加 readonly/可选修饰符的 +、- 前缀规则是什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 TypeScript 映射类型键重映射官方手册语义编写"
+    },
+    "tags": [
+      "TypeScript",
+      "映射类型",
+      "条件类型"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0062"
+  }
+]

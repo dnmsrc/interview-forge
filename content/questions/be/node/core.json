@@ -1,0 +1,171 @@
+[
+  {
+    "id": "Q-be-node-el-0001",
+    "nodeId": "be.node.core.eventloop",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 Node.js 基于 libuv 的事件循环阶段，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "事件循环按 timers → pending callbacks → idle/prepare → poll → check → close callbacks 的顺序分阶段循环，每个阶段末尾会清空 process.nextTick 与 Promise 微任务队列" },
+      { "key": "B", "text": "Node 和浏览器一样只有一个统一的宏任务队列，setTimeout 和 setImmediate 谁先注册谁先执行" },
+      { "key": "C", "text": "setImmediate 的回调在 timers 阶段执行，setTimeout 的回调在 check 阶段执行" },
+      { "key": "D", "text": "process.nextTick 属于宏任务，要等到下一轮事件循环才执行" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确描述了 libuv 事件循环的阶段模型：timers 处理到期定时器、pending 处理系统级回调、poll 轮询 I/O 事件、check 阶段执行 setImmediate、close 处理关闭回调；每个阶段切换之间都会清空 nextTickQueue 和 Promise 微任务队列（microtask）。B 错：Node 是分阶段的多个队列，不像浏览器把宏任务放进统一队列，这是两者最大结构差异。C 说反了：setTimeout 在 timers 阶段、setImmediate 在 check 阶段。D 错：nextTick 是微任务且优先级最高，在当前操作结束后、事件循环进入下一阶段前立即清空，比 Promise.then 还要先执行。经典时序题：主模块里 setTimeout(fn,0) 与 setImmediate(fn) 顺序不确定（受进程性能影响 timer 未必立即到期），但放在 I/O 回调里则 setImmediate 一定先于 setTimeout（poll 之后先 check 再绕回 timers）。对照前端：浏览器的微任务在每个宏任务后清空，Node 则是在每个「阶段」之间清空，粒度不同。",
+    "gapCheck": [
+      "易漏点：六阶段顺序，以及微任务在阶段之间清空而非仅在宏任务后",
+      "常见误区：把 Node 当成浏览器单宏任务队列；混淆 setTimeout 与 setImmediate 所属阶段",
+      "加分项：能解释主模块 vs I/O 回调里 timer/immediate 时序差异的根因"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["fe.browser.events.event-loop"],
+      "related": ["be.node.core.async-stream", "fe.js.async.event-loop"],
+      "followUps": ["为什么 I/O 回调里 setImmediate 总比 setTimeout(0) 先执行？", "nextTick 递归滥用为什么会饿死事件循环？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "libuv 事件循环阶段高频题" },
+    "tags": ["Node.js", "事件循环", "libuv", "setImmediate", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-node-el-0002",
+    "nodeId": "be.node.core.eventloop",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：Node 主线程是单线程执行 JS 的，但文件 I/O、DNS 查询等阻塞操作会被 libuv 丢给线程池（默认 4 个工作线程）处理，完成后再把回调放回事件循环；而网络 I/O 主要依赖操作系统的 epoll/kqueue/IOCP 多路复用，并不占用线程池。",
+    "answer": { "judge": true },
+    "analysis": "正确。这是理解 Node「单线程却能高并发」的核心。JS 代码、定时器、回调都在主线程单线程串行执行，没有并行的 JS 计算；但遇到阻塞型系统调用，libuv 用一个大小默认 UV_THREADPOOL_SIZE=4 的线程池异步执行，主要包括文件系统 I/O（各系统对本地文件缺乏可靠的异步接口）、getaddrinfo/getnameinfo 这类 DNS 解析、以及部分 crypto 操作，工作线程完成后把完成事件通知主线程，回调在 poll 阶段被取出执行。网络 I/O 不同：socket 默认设为非阻塞，靠 Linux epoll、macOS kqueue、Windows IOCP 等内核多路复用机制，一个线程就能监听海量连接的就绪事件，不消耗线程池线程，这正是 C10K 场景下 Node 的优势。所以「Node 单线程」准确说是「JS 执行单线程」，底层 I/O 并非单线程。代价是 CPU 密集型 JS 计算会独占主线程、卡住整个事件循环，需要用 worker_threads 或多进程分担。对照后端：这和 Java 用 NIO/epoll 的 Reactor 单线程处理接入、业务再交线程池是同一类思路。",
+    "gapCheck": [
+      "易漏点：线程池默认 4、只服务文件/DNS/crypto，网络 I/O 走 epoll 不占线程池",
+      "常见误区：以为 Node 所有 I/O 都靠线程池，或以为 CPU 密集也能靠事件循环并行",
+      "加分项：知道 UV_THREADPOOL_SIZE 可调，以及 worker_threads 解决 CPU 密集"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["fe.browser.events.event-loop"],
+      "related": ["cs.os.io.epoll", "be.node.runtime.cluster-bff"],
+      "followUps": ["为什么文件 I/O 不像网络 I/O 一样用 epoll？", "worker_threads 和 cluster 分别解决什么问题？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "libuv 线程池与多路复用边界" },
+    "tags": ["Node.js", "libuv", "线程池", "epoll", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-node-stream-0001",
+    "nodeId": "be.node.core.async-stream",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "用 Node Stream 处理一个超大文件，关于背压（backpressure），下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "当可写流消费速度跟不上可读流产生速度、内部缓冲超过 highWaterMark 时，writable.write() 返回 false，可读流应暂停 data 事件，等 drain 事件触发再恢复，避免数据在内存里无限堆积" },
+      { "key": "B", "text": "背压是指磁盘读取太慢，应该把 highWaterMark 调到无限大来消除背压" },
+      { "key": "C", "text": "只要用了 Stream 就自动管理背压，readable.pipe(writable) 和手写 data 监听在任何情况下都不会有内存问题" },
+      { "key": "D", "text": "背压发生时应该直接丢弃多余数据，Stream 会自动补齐丢失的部分" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确。背压是流式处理的核心保护机制：上游 readable 产出数据的速度快于下游 writable 处理速度时，数据先堆在 writable 的内部缓冲，一旦超过 highWaterMark（默认 16KB），write() 返回 false 告知「我快满了」，正确做法是暂停可读流（pipe/pipeline 会自动处理；手写时要 removeData 监听或调用 readable.pause()），等下游缓冲排空触发 'drain' 事件再 resume 继续写，从而把内存占用钉在一个有界范围内。B 错：调大 highWaterMark 只是推迟问题、反而占用更多内存，不能消除速率不匹配这个根本矛盾。C 错：pipe 和 pipeline 确实自动处理背压，但如果手动监听 'data' 事件又往一个慢 writable 里 write 而不检查返回值，照样会积压内存，Stream 不会替你的业务逻辑兜底。D 错：Stream 保证数据完整有序，不会静默丢数据。补充：pipeline 相比老旧的 pipe 还能在某段出错时自动销毁所有流并把错误向上传递，是当前推荐写法。对照前端：背压就像视频播放缓冲——网络比解码快时先缓存，缓冲满了就暂停下载，drain 类似「缓冲腾出空间」再继续。",
+    "gapCheck": [
+      "易漏点：write() 返回 false 与 drain 事件的配对，highWaterMark 是有界缓冲阈值",
+      "常见误区：以为用了 Stream 就零成本、或手动 data 监听不处理背压也安全",
+      "加分项：能说清 pipeline 相比 pipe 的错误传播与自动销毁优势"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.node.core.eventloop"],
+      "related": ["cs.os.io.models"],
+      "followUps": ["为什么 pipeline 能避免 pipe 的内存和错误处理坑？", "Readable 的 flowing 与 paused 两种模式如何切换？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Stream 背压机制经典题" },
+    "tags": ["Node.js", "Stream", "背压", "drain", "highWaterMark"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-node-stream-0002",
+    "nodeId": "be.node.core.async-stream",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：处理几个 GB 的大文件时，用 fs.createReadStream 分块流式处理通常比 fs.readFile 一次性读入内存更省内存、更不容易触发 OOM，因为 readFile 会把整个文件内容都缓冲到内存里。",
+    "answer": { "judge": true },
+    "analysis": "正确。fs.readFile 是「全部读完再回调」，内部会把整个文件缓冲到内存（大文件时还可能反复扩容 Buffer），几个 GB 的文件会让常驻内存暴涨、触发 V8 堆上限（默认约 1.5-4GB）抛 OOM，且在读完前无法处理任何数据、延迟高。createReadStream 把文件切成默认 64KB 的块逐次吐出，配合 writeStream 或转换流，内存里同一时刻只保留一个或几个块，常驻内存与文件总大小无关、几乎恒定，还能边读边处理（如逐行解析、边收边转发），首字节延迟低。这也是日志解析、大文件上传转发、CSV/JSON 流式处理的标准做法。需要注意流式处理要正确处理背压和错误（推荐 pipeline），并在 JSON 等需要完整结构的场景用流式解析器（如 readline、stream-json）而不是 JSON.parse 整个 Buffer。对照前端：readFile 像一次性把整个大列表渲染成 DOM（卡顿+爆内存），stream 像虚拟列表只渲染可视窗口的那一小段。",
+    "gapCheck": [
+      "易漏点：readFile 内存随文件线性增长，stream 常驻内存近似恒定",
+      "常见误区：图省事对大文件也用 readFile，直到 OOM 才意识到问题",
+      "加分项：知道默认块大小 64KB，以及结构化数据需要流式解析器"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.node.core.eventloop"],
+      "related": ["be.node.core.eventloop"],
+      "followUps": ["V8 默认堆内存上限是多少？如何调整？", "流式解析一个巨大 JSON 有哪些方案？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "流式 vs 全量读的内存取舍" },
+    "tags": ["Node.js", "Stream", "readFile", "OOM", "内存优化"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-node-el-0003",
+    "nodeId": "be.node.core.eventloop",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "在 I/O 回调（如读文件回调）内部同时注册 `setTimeout(fn, 0)` 和 `setImmediate(fn)`，先执行的通常是 ______；二者的执行顺序在主模块顶层是 ______（确定/不确定）的；优先级最高、在当前操作结束后立即清空的微任务队列是 ______（填 process.nextTick 或 Promise.then）。",
+    "answer": {
+      "blanks": ["setImmediate", "不确定", "process.nextTick"],
+      "synonyms": {
+        "setImmediate": ["immediate", "setImmediate(fn)"],
+        "不确定": ["不固定", "随机"],
+        "process.nextTick": ["nextTick", "process.nextTick()"]
+      }
+    },
+    "analysis": "三个空考事件循环时序的精髓。① I/O 回调是在 poll 阶段被处理的，poll 之后紧接着是 check 阶段（执行 setImmediate），要再绕一圈才回到 timers 阶段执行到期的 setTimeout，所以在 I/O 回调里 setImmediate 一定先于 setTimeout(0)。② 但在主模块顶层，二者顺序不确定：事件循环启动进入 timers 阶段时，那个 0ms 定时器（实际最小约 1ms）可能已到期也可能还没，取决于进程准备耗时，因此两种顺序都可能出现，这是经典陷阱题，不能想当然认为注册早的先执行。③ process.nextTick 注册的回调进 nextTickQueue，在当前操作完成后、事件循环进入下一个阶段前就全部清空，优先级高于 Promise 微任务（microtaskQueue）和所有阶段，递归调用 nextTick 会饿死事件循环（I/O、定时器都得不到执行），官方建议若无特殊需求优先用 setImmediate/queueMicrotask。对照浏览器：浏览器没有分阶段模型，宏任务按任务队列取、每次取一个后清空全部微任务，Node 的阶段化是它独有的复杂度。",
+    "gapCheck": [
+      "易漏点：I/O 回调里 setImmediate 必胜、主模块里二者顺序不定这个关键对比",
+      "常见误区：机械地认为 setTimeout 总在 setImmediate 前，或不清楚 nextTick 优先级",
+      "加分项：能解释 nextTick 递归为何饿死循环，以及 queueMicrotask 的定位"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["fe.browser.events.event-loop"],
+      "related": ["fe.js.async.event-loop"],
+      "followUps": ["process.nextTick 和 queueMicrotask 有什么区别？", "为什么 setTimeout 的最小延迟不是 0 而是约 1ms？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "timer/immediate 时序与 nextTick 填空题" },
+    "tags": ["Node.js", "事件循环", "setImmediate", "nextTick", "填空题", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-node-stream-0003",
+    "nodeId": "be.node.core.async-stream",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Node 的四种 Stream 与 Buffer、异步演进，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "Readable（可读）、Writable（可写）、Duplex（双工，既可读又可写，如 socket）、Transform（转换，读写过程中改数据，如 gzip 压缩）是四类基本流" },
+      { "key": "B", "text": "Buffer 用来在 V8 堆外处理二进制字节数据，是 Stream 分块传输的载体，支持多种编码（utf8/base64/hex）互转" },
+      { "key": "C", "text": "异步写法经历了 callback（回调地狱）→ Promise → async/await 的演进，util.promisify 可把 error-first 风格的回调 API 包装成 Promise" },
+      { "key": "D", "text": "async/await 会阻塞主线程，等待期间事件循环完全停转，无法处理其他请求" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确概括四类流：Readable 生产数据（如 createReadStream）、Writable 消费数据（createWriteStream）、Duplex 同时具备两端（TCP socket、net.Socket）、Transform 继承自 Duplex，在写入和读出之间做变换（zlib 压缩、crypto 加密、行解析）。B 正确：JS 早期没有原生二进制类型，Node 引入 Buffer（底层基于 Uint8Array，分配在堆外原生内存）专门承载 TCP 流、文件流的字节，Stream 的每个 chunk 默认就是 Buffer，可在字符串与 base64/hex/latin1 等编码间转换。C 正确：Node 原生 API 历史上是 error-first 回调（(err, data)=>{}），嵌套深了形成回调地狱；Promise 化后可用 .then 链，async/await 再用同步写法表达异步、可读性最好，util.promisify 和 fs.promises 就是这条演进路线的工具。D 错：await 等待的是非阻塞异步操作，等待时当前协程挂起、主线程和事件循环继续处理其他连接/回调，这正是高并发的根基，真正会阻塞主线程的是同步重计算或阻塞式系统调用。对照前端：浏览器的 ReadableStream/WritableStream（Streams API）与 Node 流概念同源，ArrayBuffer/Uint8Array 对应 Buffer 的字节处理。",
+    "gapCheck": [
+      "易漏点：四类流的区分（Transform 是特殊 Duplex）、Buffer 在堆外处理二进制",
+      "常见误区：以为 await 会阻塞主线程、事件循环停转",
+      "加分项：能讲 error-first 回调、promisify、fs.promises 的演进与流的背压配合"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.node.core.eventloop"],
+      "related": ["be.node.core.eventloop", "cs.os.io.models"],
+      "followUps": ["Duplex 和 Transform 的内部实现关系是什么？", "Buffer 分配在 V8 堆内还是堆外？有什么影响？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "四类流、Buffer 与异步演进多选题" },
+    "tags": ["Node.js", "Stream", "Buffer", "async-await", "Duplex"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  }
+]

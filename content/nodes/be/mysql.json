@@ -17,6 +17,7 @@
     "domain": "be",
     "stack": "mysql",
     "topic": "jdbc-type-mapping",
+    "prerequisites": ["be.java.core.syntax-basics"],
     "related": [
       "be.mysql.jdbc-type-mapping.bigdecimal-precision",
       "be.mysql.jdbc-type-mapping.rowmapper-naming"

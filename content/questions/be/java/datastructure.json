@@ -1,0 +1,508 @@
+[
+  {
+    "id": "Q-be-java-dsa-linear-0001",
+    "nodeId": "be.java.dsa.linear",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "在 Java 后端开发中，下列关于线性结构使用方式的说法，**正确**的是：",
+    "options": [
+      { "key": "A", "text": "需要频繁按下标随机访问、遍历时多、中间插入删除少时，首选 ArrayList；需要频繁在头尾增删、实现栈/队列时，优先用 ArrayDeque" },
+      { "key": "B", "text": "LinkedList 按下标 get(i) 也是 O(1)，随机访问比 ArrayList 更快" },
+      { "key": "C", "text": "ArrayDeque 内部基于链表实现，addFirst 与 removeLast 都要沿链遍历" },
+      { "key": "D", "text": "Stack 类是 JDK 推荐的栈实现，新项目应优先 new Stack<>()" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确概括了 JDK 线性结构的选型：ArrayList 底层是 Object[] 动态数组，get(index) 靠基址偏移一次定位 O(1)，但中间 add/remove 要 System.arraycopy 搬移元素 O(n)；ArrayDeque 基于可扩容的循环数组，头尾指针均摊 O(1) 增删，官方明确推荐用它（或 LinkedList）替代遗留的 Stack。B 错：LinkedList 是双向链表，get(i) 只能从头或尾逐节点跳转，O(n)，而且每个 Node 额外持有 prev/next 两个指针、内存开销更大，随机访问远不如 ArrayList。C 把实现说反了：ArrayDeque 是循环数组而非链表，依靠 head/tail 下标与取模（位与）运算在两端 O(1) 增删。D 错：java.util.Stack 继承 Vector、方法全部带 synchronized，竞争下有锁开销且设计古老，JDK 文档建议用 Deque 接口（ArrayDeque）表达栈语义（push/pop/peek）。工程上还要注意 ArrayList 扩容为旧容量的 1.5 倍、ArrayDeque 容量始终是 2 的幂且不允许 null 元素。",
+    "gapCheck": [
+      "易漏点：ArrayDeque 基于循环数组、两端均摊 O(1)，且不能存 null；LinkedList 同时实现 List 与 Deque",
+      "常见误区：以为链表 get(i) 也很快——链表随机访问是 O(n)，这正是多数场景 ArrayList 胜出的原因",
+      "加分项：能说出 ArrayList 1.5 倍扩容、推荐 Deque 替代 Stack/Vector，并用方法调用栈、任务队列解释栈/队列语义"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.linear"],
+      "related": ["be.java.core.collection", "be.java.dsa.complexity"],
+      "followUps": ["为什么 JDK 文档推荐用 ArrayDeque 而不是 Stack 实现栈？", "ArrayDeque 的循环数组是如何处理 head/tail 回绕与扩容的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "JDK 线性结构选型入门单选题" },
+    "tags": ["数据结构", "线性结构", "ArrayList", "ArrayDeque", "送分题"]
+  },
+  {
+    "id": "Q-be-java-dsa-linear-0002",
+    "nodeId": "be.java.dsa.linear",
+    "type": "code",
+    "difficulty": 3,
+    "stem": "手写题：给定单链表头节点 `head`，实现链表反转（LeetCode 206 风格）。节点定义为 `static class ListNode { int val; ListNode next; ListNode(int v){this.val=v;} }`。要求：①分别给出**迭代**与**递归**两种写法；②迭代版只允许 O(1) 额外空间；③说明两种写法的时间/空间复杂度，并处理 head 为 null 或只有一个节点的边界。",
+    "answer": {
+      "ref": "设计要点：迭代版用三指针 prev/curr/next，核心是「先存后继 next=curr.next，再把 curr.next 反向指向 prev，然后 prev、curr 同步前移」，循环结束 prev 即新头；关键是反转指针前必须先保存 next，否则断链后无法继续。递归版把问题拆成「反转子链表」：先递归到尾节点作为新头，回归时让 head.next.next=head、head.next=null 完成局部反向。易错点：忘记 head.next=null 导致环、循环里先改指针后存 next、递归深度等于链长有爆栈风险。加分：能指出递归空间 O(n) 来自调用栈、迭代 O(1) 才满足常数空间要求，并联系 LRU 中双向链表节点的摘除与头插。",
+      "code": "public class ReverseList {\n    static class ListNode {\n        int val;\n        ListNode next;\n        ListNode(int v) { this.val = v; }\n    }\n\n    // 迭代版：三指针，时间 O(n)、空间 O(1)\n    public ListNode reverseIterative(ListNode head) {\n        ListNode prev = null;\n        ListNode curr = head;\n        while (curr != null) {\n            ListNode next = curr.next; // 先保存后继，防止断链\n            curr.next = prev;          // 反向指针\n            prev = curr;\n            curr = next;\n        }\n        return prev; // prev 即新头\n    }\n\n    // 递归版：时间 O(n)、空间 O(n)（调用栈深度 = 链长）\n    public ListNode reverseRecursive(ListNode head) {\n        if (head == null || head.next == null) {\n            return head; // 空链表或只有一个节点，直接返回\n        }\n        ListNode newHead = reverseRecursive(head.next);\n        head.next.next = head; // 后一个节点反向指回自己\n        head.next = null;      // 断开旧方向，避免成环\n        return newHead;\n    }\n\n    // 用例\n    public static void main(String[] args) {\n        ReverseList sol = new ReverseList();\n        ListNode head = new ListNode(1);\n        head.next = new ListNode(2);\n        head.next.next = new ListNode(3);\n        ListNode r1 = sol.reverseIterative(head); // 3 -> 2 -> 1\n        System.out.println(sol.reverseRecursive(null)); // null，边界安全\n    }\n}"
+    },
+    "scoringPoints": [
+      { "point": "迭代三指针骨架正确：先存 next 再反指 prev，最后返回 prev 作新头", "weight": 2 },
+      { "point": "递归版子问题拆分正确，head.next.next=head 且 head.next=null 防环", "weight": 2 },
+      { "point": "边界处理：head 为 null 与单节点均安全返回", "weight": 1 },
+      { "point": "复杂度说清：两者时间 O(n)，迭代空间 O(1)、递归空间 O(n) 调用栈", "weight": 1 },
+      { "point": "能联系双向链表/LRU 的节点指针操作，指出递归爆栈风险", "weight": 1 }
+    ],
+    "analysis": "这是后端与大厂算法面最高频的链表手写题，本质考对「指针/引用赋值顺序」的掌控。迭代法每一步只做常数次引用修改，整条链扫一遍 O(n)，仅用三个指针、额外空间 O(1)，是工程首选。递归法代码短但每层方法调用压入 JVM 虚拟机栈，链长 n 时空间 O(n)，超长链表可能抛 StackOverflowError。典型失分：①在保存 next 之前就执行 curr.next=prev，导致后续节点丢失；②递归版漏掉 head.next=null，反转后 1 的 next 仍指向 2，形成环；③把节点的值交换当成反转。延伸：LRU 缓存里用 HashMap+双向链表实现 O(1) 淘汰时，节点的 moveToHead、remove 操作与本题的指针重排是同一套基本功；判断链表是否有环（快慢指针）、合并两个有序链表也是同源考点。",
+    "gapCheck": [
+      "易漏点：反转指针前必须先保存 curr.next；递归回归必须 head.next=null，否则链表成环",
+      "常见误区：以为递归空间也是 O(1)——调用栈深度随链长增长，实为 O(n)，极端长度会爆栈",
+      "加分项：主动对比迭代/递归复杂度，并把指针重排能力迁移到 LRU 双向链表的摘除与头插"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.linear"],
+      "related": ["be.java.dsa.hash", "be.java.dsa.complexity"],
+      "followUps": ["如何反转链表的指定区间 [left, right]？", "用 HashMap + 手写双向链表实现 LRU 时，remove 与 addFirst 分别怎么改指针？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "单链表反转高频手写代码题" },
+    "tags": ["手写题", "链表", "递归", "LRU", "高频"]
+  },
+  {
+    "id": "Q-be-java-dsa-hash-0001",
+    "nodeId": "be.java.dsa.hash",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 JDK 8+ `HashMap` 的哈希、冲突与扩容机制，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "put 时对 key 的 hashCode 做一次扰动（高 16 位异或低 16 位），让高位也参与桶下标计算，降低哈希冲突概率" },
+      { "key": "B", "text": "容量始终保持 2 的幂，桶下标用 (n-1) & hash 位运算替代取模；扩容时元素要么留在原桶，要么移动到「原下标 + 旧容量」的桶" },
+      { "key": "C", "text": "默认负载因子 0.75，元素数超过 capacity × loadFactor 时触发扩容，容量翻倍并对已有节点重哈希分布" },
+      { "key": "D", "text": "HashMap 采用开放寻址法解决冲突，冲突后线性探测下一个空位，删除元素需要墓碑标记" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 是扰动函数（hash 方法）的意义：当数组长度较小（如 16）时只有低位参与取模，直接用 hashCode 易冲突；把高 16 位与低 16 位异或，让高位信息混合进低位，配合 2 的幂容量显著减少碰撞，且位运算开销极低。B 是 HashMap 性能设计的核心：容量恒为 2 的幂，(n-1) 的二进制全是 1，(n-1)&hash 等价于 hash%n 但更快；扩容翻倍后新掩码只多一位，节点新位置只取决于该位是 0 还是 1，因此要么不动、要么平移 oldCap 个位置，JDK 8 用尾插法（lo/hi 两条链）避免了 JDK 7 头插法在并发下可能产生的环形链表。C 正确：threshold = capacity × loadFactor，size 超过阈值即 resize，默认 0.75 是空间与冲突的折中。D 错：HashMap 用的是链地址法（桶挂链表，过长再树化为红黑树），不是开放寻址；Java 中 ThreadLocal 的 ThreadLocalMap 才是开放寻址（线性探测）的典型，开放寻址删除才需要墓碑/重新探测。",
+    "gapCheck": [
+      "易漏点：扰动是高 16 位异或低 16 位；扩容后节点位置只分「原位」与「原位+oldCap」两种，源于掩码多出的一位",
+      "常见误区：把链地址法与开放寻址混淆——HashMap/HashSet 是链地址，ThreadLocalMap 才是线性探测",
+      "加分项：能讲 JDK 7 头插并发环化与 JDK 8 尾插 lo/hi 链表的改进，以及容量为 2 的幂的位运算依据"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.hash"],
+      "related": ["be.java.core.collection", "be.java.dsa.complexity"],
+      "followUps": ["为什么容量必须是 2 的幂？如果强制传入非 2 的幂初始容量会怎样？", "ThreadLocalMap 的开放寻址与 HashMap 的链地址在删除元素时有什么不同？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "HashMap 扰动/扩容/冲突解法多选题" },
+    "tags": ["哈希表", "HashMap", "哈希冲突", "扩容", "高频必考"]
+  },
+  {
+    "id": "Q-be-java-dsa-hash-0002",
+    "nodeId": "be.java.dsa.hash",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：基于 JDK 集合实现一个线程无需安全保证的 LRU（最近最少使用）缓存类 `LRUCache`。要求：构造方法 `LRUCache(int capacity)`；`int get(int key)` 命中返回 value 并把该条目刷新为最近使用，未命中返回 -1；`void put(int key, int value)` 写入或更新，容量满时先淘汰最久未使用的条目；get 与 put 平均时间复杂度均为 O(1)。优先用 `LinkedHashMap` 实现，并说明若改用 HashMap + 手写双向链表的等价做法。",
+    "answer": {
+      "ref": "设计要点：LinkedHashMap 支持 accessOrder=true，get/put 命中后会把节点移到双向链表尾部，头部天然就是最久未使用元素；重写 removeEldestEntry，当 size>capacity 时返回 true，框架自动在插入后淘汰头节点，从而把 get/put 维持在均摊 O(1)。注意构造后 get 命中会触发 afterNodeAccess 重排，所以不要用 getOrDefault 之类不刷新顺序的方式实现 get；put 已存在键会更新值并刷新顺序。手写等价方案：HashMap 存 key→Node，Node 带 prev/next 组成双向链表并维护 head（傀儡头）/tail，get 命中后 remove 节点再 moveToHead，淘汰时删 tail 前驱并同步移除 map 中的键，两处操作都 O(1)。易错点：忘记 accessOrder、淘汰与写入顺序、capacity<=0 的边界。",
+      "code": "import java.util.Iterator;\nimport java.util.LinkedHashMap;\nimport java.util.Map;\n\npublic class LRUCache {\n    private final int capacity;\n    private final LinkedHashMap<Integer, Integer> map;\n\n    public LRUCache(int capacity) {\n        if (capacity <= 0) {\n            throw new IllegalArgumentException(\"capacity 必须为正数\");\n        }\n        this.capacity = capacity;\n        // accessOrder=true：访问（get/put 命中）后把条目移到链表尾部\n        this.map = new LinkedHashMap<Integer, Integer>(capacity, 0.75f, true) {\n            @Override\n            protected boolean removeEldestEntry(Map.Entry<Integer, Integer> eldest) {\n                return size() > LRUCache.this.capacity; // 超容量自动淘汰最老条目\n            }\n        };\n    }\n\n    public int get(int key) {\n        Integer v = map.get(key); // 命中即触发 afterNodeAccess，刷新为最近使用\n        return v == null ? -1 : v;\n    }\n\n    public void put(int key, int value) {\n        map.put(key, value); // 已存在则更新并刷新顺序；超限由 removeEldestEntry 淘汰\n    }\n\n    // 用例\n    public static void main(String[] args) {\n        LRUCache cache = new LRUCache(2);\n        cache.put(1, 1);\n        cache.put(2, 2);\n        System.out.println(cache.get(1)); // 1，键 1 刷新为最近使用\n        cache.put(3, 3);                  // 容量超限，淘汰最久未使用的键 2\n        System.out.println(cache.get(2)); // -1\n        System.out.println(cache.get(3)); // 3\n    }\n}"
+    },
+    "scoringPoints": [
+      { "point": "正确选择 LinkedHashMap 并开启 accessOrder=true 表达访问顺序", "weight": 2 },
+      { "point": "重写 removeEldestEntry 在 size>capacity 时自动淘汰最老条目", "weight": 2 },
+      { "point": "get 命中刷新顺序、未命中返回 -1；put 更新已有键也刷新顺序", "weight": 1 },
+      { "point": "处理 capacity 边界，说明 get/put 均摊 O(1) 的依据", "weight": 1 },
+      { "point": "能讲清 HashMap + 手写双向链表（傀儡头尾、remove/moveToHead、同步删 map）等价实现", "weight": 2 }
+    ],
+    "analysis": "LRU 是后端缓存面的常驻题（本地缓存、连接池、热点数据淘汰都用得到）。核心矛盾是「既要哈希级 O(1) 查找，又要维护访问新旧顺序」。教科书答案是哈希表 + 双向链表：HashMap 负责 O(1) 定位节点，双向链表负责 O(1) 的节点摘除与头插，两者配合使 get/put 都为均摊 O(1)；用数组或 LinkedList 做淘汰会因 indexOf/remove 退化为 O(n)。JDK 里 LinkedHashMap 本身就是「HashMap + 双向链表」的成品：默认按插入序，构造传 accessOrder=true 后改为访问序，每次 get/put 命中触发 afterNodeAccess 把节点移到链尾，再借助 removeEldestEntry 钩子在插入后自动淘汰链头。典型扣分：①不知道 accessOrder 参数，只当普通 HashMap 用，顺序不刷新；②自己轮询找最老键变成 O(n)；③忽略 capacity<=0；④误以为它线程安全——LinkedHashMap 非线程安全，并发场景应加锁或改用 Caffeine 等成熟缓存库。",
+    "gapCheck": [
+      "易漏点：必须 accessOrder=true 才按访问序；get 命中会重排，getOrDefault 这类封装可能绕过刷新语义",
+      "常见误区：用普通 HashMap 配合 List 存键、淘汰时遍历找最老，put 退化为 O(n)，不满足复杂度要求",
+      "加分项：能手写 HashMap+双向链表版本（傀儡节点、moveToHead、删除 tail 并同步删 map），并说明并发下应加锁或用 Caffeine"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.hash"],
+      "related": ["be.java.dsa.linear", "be.java.core.collection"],
+      "followUps": ["LinkedHashMap 的 afterNodeAccess/afterNodeInsertion 在 HashMap 源码里是怎么被回调的？", "如果要求线程安全的 LRU，你会如何加锁？Caffeine 的 W-TinyLFU 相比纯 LRU 好在哪里？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "LinkedHashMap 实现 LRU 高频手写题" },
+    "tags": ["手写题", "LRU", "LinkedHashMap", "缓存", "高频"]
+  },
+  {
+    "id": "Q-be-java-dsa-tree-0001",
+    "nodeId": "be.java.dsa.tree",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "一棵二叉搜索树（BST）结构为：根 6，左孩子 2（其左 1、右 4），右孩子 8（其右 9）。对它做**中序遍历（LNR）**得到的序列是：",
+    "options": [
+      { "key": "A", "text": "6, 2, 1, 4, 8, 9" },
+      { "key": "B", "text": "1, 2, 4, 6, 8, 9" },
+      { "key": "C", "text": "1, 4, 2, 9, 8, 6" },
+      { "key": "D", "text": "6, 2, 8, 1, 4, 9" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确。中序遍历顺序为「左子树 → 根 → 右子树」，对 BST 而言左子树键都小于根、右子树键都大于根，因此中序遍历必然得到严格升序序列 1,2,4,6,8,9，这也是验证一棵树是否合法 BST 的经典手段（也可在递归中传入上下界判断）。A 是前序遍历（根-左-右）：6,2,1,4,8,9；C 是后序遍历（左-右-根）：1,4,2,9,8,6；D 不符合任何标准深度优先序列。工程对应：JDK 的 TreeMap/TreeSet 底层是红黑树，其 key 有序迭代本质上就是对平衡 BST 做中序遍历，subMap/floorKey 等范围查询也依赖 BST 的大小关系；层序遍历（BFS）则必须借助 Queue，逐层展开。",
+    "gapCheck": [
+      "易漏点：三种 DFS 根节点位置——前序根最前、中序根居中、后序根最后；左右子树规则递归套用",
+      "常见误区：把「中序有序」当成所有二叉树的性质——只有满足左小右大约束的 BST 才成立",
+      "加分项：能写迭代版中序（显式栈一路压左孩子），并把中序有序对应到 TreeMap 的有序迭代与范围查询"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.tree"],
+      "related": ["be.java.dsa.linear", "be.java.dsa.heap"],
+      "followUps": ["不用递归，如何用 Deque 实现中序遍历？空间复杂度是多少？", "TreeMap 的 floorKey/subMap 是如何利用红黑树的 BST 性质实现的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "BST 中序遍历序列单选题" },
+    "tags": ["树", "二叉树", "BST", "遍历"]
+  },
+  {
+    "id": "Q-be-java-dsa-tree-0002",
+    "nodeId": "be.java.dsa.tree",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：普通二叉搜索树按 key 递增顺序依次插入会退化成一条高度为 n 的链表，查找从平均 O(log n) 退化到 O(n)；AVL 树通过旋转严格保证左右子树高度差不超过 1，而红黑树靠「节点着色 + 旋转 + 变色」维持近似平衡，JDK 的 TreeMap/TreeSet 底层正是红黑树，因此其 get/put/remove 都保证 O(log n)。",
+    "answer": { "judge": true },
+    "analysis": "正确，整句三个层次都成立。①BST 的效率取决于树高：随机数据下期望树高约 log₂n，查找 O(log n)；递增插入时每个新键都成为上一个节点的右孩子，树高变成 n，结构等同链表，查找退化 O(n)，这正是平衡树要解决的问题。②AVL 是严格平衡：任意节点左右子树高度差（平衡因子）只能是 -1/0/1，插入/删除后失衡就用单旋或双旋修复，查找更快但维护旋转更频繁。③红黑树是近似平衡：依靠「根黑、叶子（NIL）黑、红节点的孩子必黑、任一节点到其叶子的路径黑节点数相同」等规则，把最长路径限制在最短路径两倍以内，树高不超过 2log(n+1)，插入多用变色、旋转次数少，增删综合代价更平稳。JDK 8 的 TreeMap/TreeSet 与 HashMap 的树化桶都采用红黑树，故有序 Map 的 get/put/remove/ceilingKey 等均为 O(log n)，而普通 HashMap 平均 O(1)。",
+    "gapCheck": [
+      "易漏点：BST 的 O(log n) 以平衡为前提，有序插入会退化成 O(n) 链表",
+      "常见误区：以为 AVL 与红黑树是一回事——AVL 严格高度平衡、查找快但旋转多；红黑树近似平衡、增删更平滑",
+      "加分项：能说出红黑树的着色规则与树高界 2log(n+1)，并对应 TreeMap 与 HashMap 树化桶两处实际应用"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.tree"],
+      "related": ["be.java.dsa.hash", "be.java.dsa.complexity"],
+      "followUps": ["红黑树的五条性质分别是什么？为什么这些性质能保证树高 O(log n)？", "HashMap 桶链表树化时为什么选红黑树而不是 AVL？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "BST 退化与 AVL/红黑树平衡思想判断题" },
+    "tags": ["树", "红黑树", "AVL", "TreeMap", "判断题"]
+  },
+  {
+    "id": "Q-be-java-dsa-heap-0001",
+    "nodeId": "be.java.dsa.heap",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "堆与 PriorityQueue 填空：①用数组（0 基下标）模拟完全二叉树时，下标 i 节点的左孩子下标是 ______，右孩子下标是 ______，父节点下标是 ______；②JDK 的 `PriorityQueue` 默认是 ______ 堆（填小顶/大顶），插入元素先放数组末尾再做「______」（填 siftUp/siftDown）；③堆顶元素读取是 O(______)，插入与弹出堆顶是 O(______)。",
+    "answer": {
+      "blanks": ["2i+1", "2i+2", "(i-1)/2", "小顶", "siftUp", "1", "log n"],
+      "synonyms": {
+        "2i+1": ["2*i+1", "2i + 1"],
+        "2i+2": ["2*i+2", "2i + 2"],
+        "(i-1)/2": ["(i-1)/2", "floor((i-1)/2)", "（i-1）/2", "(i-1)÷2"],
+        "小顶": ["小顶堆", "最小堆", "min-heap", "小根堆"],
+        "siftUp": ["上浮", "上滤", "bubbleUp"],
+        "1": ["O(1)", "常数"],
+        "log n": ["O(log n)", "logn", "O(logn)", "对数"]
+      }
+    },
+    "analysis": "①0 基数组下标公式：左孩子 2i+1、右孩子 2i+2，父节点 (i-1)/2（整数除法自动向下取整）；若是 1 基数组则是 2i、2i+1 与 i/2，答题先看清下标约定。②PriorityQueue 内部用 Object[] 实现「最小堆」，队首 queue[0] 永远是全局最小元素（按自然顺序或 Comparator）；想得到大顶堆可传入 Collections.reverseOrder()。新增元素 offer 时追加到数组末尾再 siftUp（上浮）：不断与父节点比较，违反堆序就交换直到满足；poll 弹出堆顶时用末尾元素顶替再 siftDown（下沉）。③堆顶即数组第 0 个元素，peek 为 O(1)；插入与弹出的调整路径长度等于树高，O(log n)；无序数组批量建堆 heapify 是 O(n)。后端典型用途：Top-K 统计、延迟/定时任务队列（如 ScheduledThreadPoolExecutor、NetHix 时间轮之外的优先调度）、合并 K 个有序数据流。",
+    "gapCheck": [
+      "易漏点：0 基与 1 基公式不同；PriorityQueue 默认小顶堆，大顶堆要传 reverseOrder 比较器",
+      "常见误区：以为删堆顶直接删数组首位——那会 O(n) 搬移，标准做法是末尾顶替再 siftDown",
+      "加分项：能讲批量建堆为何是 O(n)（按层求和的收敛级数），并举 Top-K、延迟队列等后端落地场景"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.heap"],
+      "related": ["be.java.dsa.tree", "be.java.dsa.sort"],
+      "followUps": ["PriorityQueue 允许 null 吗？插入不可比较（未实现 Comparable）的对象会怎样？", "手写最小堆的 offer/poll/peek 分别怎么实现？为什么建堆是 O(n)？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "数组堆下标与 PriorityQueue 调整操作填空题" },
+    "tags": ["堆", "PriorityQueue", "填空题", "优先队列"]
+  },
+  {
+    "id": "Q-be-java-dsa-heap-0002",
+    "nodeId": "be.java.dsa.heap",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "实时日志平台每秒涌入大量接口耗时记录，需要在海量数据中持续维护「耗时最高的前 K 条（Top-K）」用于慢请求看板。下列基于 JDK 的方案中综合性能最优的是：",
+    "options": [
+      { "key": "A", "text": "每来一条记录就对全量 List 调用 Collections.sort 降序，再取前 K 个" },
+      { "key": "B", "text": "用 PriorityQueue 维护一个容量为 K 的小顶堆：新元素比堆顶大则替换堆顶；堆中始终是当前 Top-K，整体约 O(n log K)、空间 O(K)" },
+      { "key": "C", "text": "全部记录塞进一个 ArrayList，每次看板刷新时遍历一遍手动挑 K 个最大值" },
+      { "key": "D", "text": "用 TreeMap 保存全部记录并按耗时排序，每次取最后 K 个 key" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确，这是 Top-K 的标准答案。维护容量 K 的小顶堆（注意是小顶堆：堆顶是当前 Top-K 里最小的「守门员」），新元素只与堆顶比一次：小于堆顶直接丢弃 O(1)，大于则 poll 堆顶再 offer 新元素（或替换后 siftDown），单次 O(log K)；n 个元素总代价 O(n log K)，K 固定时 log K 接近常数，空间仅 O(K)，天然适合流式数据。JDK 里用 PriorityQueue（默认小顶）即可实现，求最大的 K 个却用小顶堆，是因为要快速淘汰候选中最小的那个。A 每次全量排序 O(n log n) 且反复重排，数据量一大直接压垮。C 每次刷新 O(n) 全表扫描，无法实时维护。D 的 TreeMap 要保存全部 n 个元素、空间 O(n)，每次插入 O(log n)，且保留了用不到的全量有序数据，成本明显高于固定 K 的堆。同类后端场景：定时/延迟任务取最早到期任务、任务调度优先级、网关保留最慢 N 个请求。",
+    "gapCheck": [
+      "易漏点：求最大的 K 个用小顶堆而非大顶堆——堆顶是候选中的最小值，便于新来者比较淘汰",
+      "常见误区：张口就 sort 取前 K，忽视全量排序 O(n log n) 与流式数据下重复排序的成本",
+      "加分项：能写出 PriorityQueue 的 offer/poll 组合，并说明 K 接近 n 时可改用大顶堆或全量排序的边界"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.heap"],
+      "related": ["be.java.dsa.sort", "be.java.dsa.complexity"],
+      "followUps": ["如果 K 接近 n（例如要前 90%），小顶堆方案还是最优吗？", "如何用一个 PriorityQueue 合并 K 个有序数据流？复杂度是多少？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "PriorityQueue 求解 Top-K 方案选型单选题" },
+    "tags": ["堆", "PriorityQueue", "Top-K", "任务调度"]
+  },
+  {
+    "id": "Q-be-java-dsa-sort-0001",
+    "nodeId": "be.java.dsa.sort",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：排序的稳定性是指 key 相等的两个元素排序前后相对次序不变；对订单列表先按「金额」排序、再按「状态」排序的多字段排序，使用稳定排序能保证同状态内部仍保留之前的金额次序。JDK 中 `Collections.sort`/`List.sort` 对引用类型采用 TimSort（稳定），而 `Arrays.sort` 对基本类型采用双轴快排（Dual-Pivot Quicksort，不保证稳定）。",
+    "answer": { "judge": true },
+    "analysis": "正确。稳定性定义：key 相等的 a、b，若排序前 a 在 b 前，排序后 a 仍在 b 前。冒泡、插入、归并、TimSort 是稳定的；选择、快速、堆排序天然不稳定（远距离交换可能跨过相等元素）。多字段排序正是稳定性的典型应用：可以把次要关键字先排、主要关键字后排，后一次稳定排序不会冲掉前一次在相等 key 内建立的次序；在 Java 里更推荐直接在 Comparator 里用 thenComparing 串联多个比较条件，一次排序表达多关键字。JDK 实现差异也确有其事：对象排序走 TimSort（归并 + 插入的混合稳定算法，在「基本有序」真实数据上很快）；int/long 等基本类型排序走双轴快排，因为基本类型相等元素无身份差异、稳定性无意义，换取更快的速度与更少的额外空间。若用不稳定算法又要保序，可在比较器末尾追加原始下标做 tie-breaker 人为稳定化。",
+    "gapCheck": [
+      "易漏点：稳定性只约束相等 key 元素的相对次序，不影响不同 key 的正确性",
+      "常见误区：以为快排/堆排序稳定，或以为 Arrays.sort 对所有类型都用同一套算法——基本类型与引用类型实现不同",
+      "加分项：知道 TimSort 的混合策略与适用数据特征，并用 Comparator.thenComparing 替代多次稳定排序"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.sort"],
+      "related": ["be.java.dsa.complexity", "be.java.dsa.heap"],
+      "followUps": ["Comparable 与 Comparator 有什么区别？什么时候用 thenComparing？", "TimSort 为什么在分段有序的真实数据上特别快？run 与 galloping 是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "排序稳定性与 JDK 排序实现差异判断题" },
+    "tags": ["排序", "稳定性", "TimSort", "Comparator", "判断题"]
+  },
+  {
+    "id": "Q-be-java-dsa-sort-0002",
+    "nodeId": "be.java.dsa.sort",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于经典排序算法及其在 Java 后端中的应用，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "快速排序平均 O(n log n)、最坏 O(n²)（如对已排序数组取首元素为基准），原地排序额外空间 O(log n)；归并排序最坏也是 O(n log n) 且稳定，但需要 O(n) 辅助空间" },
+      { "key": "B", "text": "插入排序在小规模或近乎有序的数据上接近 O(n)，TimSort 会把短分段（run）交给插入排序处理" },
+      { "key": "C", "text": "对象列表只要实现了 Comparable 就能直接 Collections.sort；不想改类本身或需要多种排序规则时，应额外传 Comparator" },
+      { "key": "D", "text": "堆排序是稳定排序，且 PriorityQueue 内部用的就是归并排序" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 对比两大 O(n log n) 主力：快排原地分区、递归栈平均 O(log n)，但基准选取差导致分区极度不均时最坏 O(n²)，工程上用随机基准、三数取中、小数组切插入排序规避；归并分治后合并，最坏仍 O(n log n) 且稳定，代价是 O(n) 辅助空间（对链表可做到 O(1) 额外空间）。B 点明插入排序的价值：每轮只在局部有序区找位置，数据近乎有序时内层几乎不移动元素、接近 O(n)，这正是 TimSort 在短 run 上采用二分插入排序（binarySort）的原因。C 正确描述 JDK 两套排序契约：类实现 Comparable 定义自然顺序（如 String、Integer），Collections.sort(list) 即可；Comparator 是外部策略，可在不修改类的前提下提供多种排序规则，支持 Lambda 与 thenComparing 链式组合。D 错两处：堆排序在建堆与下沉交换中会跨越相等元素，天然不稳定；PriorityQueue 内部是二叉堆（基于数组的堆序维护），与归并排序毫无关系。",
+    "gapCheck": [
+      "易漏点：快排最坏 O(n²) 的触发条件与规避手段；归并用 O(n) 空间换稳定与最坏复杂度保证",
+      "常见误区：以为 O(n²) 排序一无是处——插入排序常数极小，是 TimSort/快排 base case 的常客",
+      "加分项：能区分 Comparable（内聚自然顺序）与 Comparator（外部策略），并指出堆排序不稳定、PriorityQueue 是堆不是排序算法"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.sort"],
+      "related": ["be.java.dsa.complexity", "be.java.dsa.heap", "be.java.dsa.linear"],
+      "followUps": ["手写一个随机化基准的快速排序，如何规避已排序输入的最坏情况？", "Comparator 比较器返回正/负/0 分别代表什么？写错会导致什么排序异常？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "经典排序复杂度与 Comparable/Comparator 多选题" },
+    "tags": ["排序", "快排", "归并", "Comparable", "Comparator"]
+  },
+  {
+    "id": "Q-be-java-dsa-complexity-0001",
+    "nodeId": "be.java.dsa.complexity",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "复杂度填空（写大 O 形式，如 O(n)）：①`ArrayList` 的 `get(i)` 随机访问是 O(______)，`add(0, x)` 头插是 O(______)；②`HashMap` 的 `get/put` 平均是 O(______)、最坏（全部冲突挤一个桶且未树化）是 O(______)；③单层 for 循环遍历长度 n 的集合是 O(______)，嵌套两层各自到 n 的循环是 O(______)。",
+    "answer": {
+      "blanks": ["1", "n", "1", "n", "n", "n²"],
+      "synonyms": {
+        "1": ["O(1)", "常数", "O（1）"],
+        "n": ["O(n)", "线性", "O（n）"],
+        "n²": ["O(n²)", "O(n^2)", "O（n²）", "n^2"]
+      }
+    },
+    "analysis": "①ArrayList 的 get(i) 靠数组基址加偏移一次定位 O(1)；头插要把现有 n 个元素整体后移（System.arraycopy），O(n)，循环里反复头插会累乘成 O(n²)，这也是常用尾插 + 反转技巧的原因。②HashMap 基于哈希表，理想哈希下 get/put 平均 O(1)；但大 O 要区分平均与最坏：当大量 key 落到同一个桶、链表又未达到树化条件时，沿链表查找是 O(n)（JDK 8 树化后该桶最坏降为 O(log n)），严谨表述是「平均 O(1)、最坏 O(n)」。③单层循环与数据规模线性增长 O(n)；两层独立到 n 的嵌套循环执行 n×n 次 O(n²)，典型如朴素双重循环、冒泡/选择排序。大 O 关注 n 趋于无穷时的渐近上界，忽略常数与低阶项（3n²+5n 记 O(n²)）。后端落地：把「List 循环 contains 建查找表」换成 HashMap/HashSet，是把 O(n) 降到平均 O(1) 的典型空间换时间。",
+    "gapCheck": [
+      "易漏点：ArrayList 头插/中间插是 O(n)（元素搬移）；HashMap 要区分平均 O(1) 与最坏 O(n)，不能说成绝对 O(1)",
+      "常见误区：把嵌套循环里的内层 API 复杂度漏掉——例如双层循环中每层再 contains 一个 List，整体可达 O(n³)",
+      "加分项：能区分最好/最坏/平均/均摊口径，并用 HashSet 替换 List.contains 举例空间换时间"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.complexity"],
+      "related": ["be.java.dsa.linear", "be.java.dsa.hash"],
+      "followUps": ["ArrayList 的 add 尾插为什么是均摊 O(1)？扩容那一次 O(n) 为何不改变均摊结论？", "把 List.contains 去重改成 HashSet 后，时间与空间复杂度各自怎么变？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "JDK 常用操作与循环复杂度填空题" },
+    "tags": ["复杂度", "大O", "填空题", "高频"]
+  },
+  {
+    "id": "Q-be-java-dsa-complexity-0002",
+    "nodeId": "be.java.dsa.complexity",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "「两数之和」：给定 int 数组 `nums` 与目标值 `target`，找出和为 target 的两个不同元素的下标（保证有解）。下列方案中最优且复杂度描述**正确**的是：",
+    "options": [
+      { "key": "A", "text": "两层 for 循环枚举所有下标对，时间 O(n²)、空间 O(1)，且已是最优" },
+      { "key": "B", "text": "一次遍历 + HashMap：边扫描边查 target-nums[i] 是否已在表中，在则返回，否则存入当前值与下标，时间 O(n)、空间 O(n)" },
+      { "key": "C", "text": "先 Arrays.sort 排序再双指针夹逼，时间 O(n)、空间 O(1)" },
+      { "key": "D", "text": "对每个元素用 Arrays.binarySearch 找补数，时间 O(n)、空间 O(1)" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确，这是「空间换时间」的标杆题。维护 值→下标 的 HashMap：扫描到 nums[i] 时先查补数 target-nums[i] 是否在表中（且不是自身），命中即返回两个下标；否则把 nums[i]→i 放入表中继续。每个元素平均 O(1) 查表、只扫一遍，时间 O(n)，哈希表最多存 n 个条目、空间 O(n)。A 的双重枚举能做但 O(n²)，「已是最优」错误。C 有两处问题：排序本身 O(n log n) 而非 O(n)，且题目要返回原始下标，排序会打乱下标，需额外记录原下标、空间也不是 O(1)；双指针夹逼在「有序数组两数之和」里才是 O(n) 最优。D 的二分查找前提是数组有序，无序数组上 binarySearch 结果不可靠；即使先排序也仍是 O(n log n)。延伸套路：同一套哈希表思路可解决字母异位词分组、最长无重复子串（滑动窗口+Map）等高频题，后端开发里用 Map 做索引/去重也是同一思想。",
+    "gapCheck": [
+      "易漏点：要返回原始下标就不能先排序；查表时要保证补数对应的不是当前元素自身",
+      "常见误区：把双指针 O(n) 的结论套到无序数组——夹逼法依赖有序性，排序先要付 O(n log n)",
+      "加分项：能讲清哈希表把内层 O(n) 查找降为平均 O(1) 的本质，并迁移到异位词分组、滑动窗口等题"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.complexity"],
+      "related": ["be.java.dsa.hash", "be.java.dsa.linear"],
+      "followUps": ["如果数组有序，双指针夹逼相比哈希表在空间复杂度上有什么优势？", "把两数之和升级为三数之和，思路和复杂度分别怎么变？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "两数之和哈希表方案与复杂度单选题" },
+    "tags": ["复杂度", "哈希表", "空间换时间", "高频"]
+  },
+  {
+    "id": "Q-be-java-dsa-complexity-0003",
+    "nodeId": "be.java.dsa.complexity",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于时间/空间复杂度与常见算法套路，下列说法正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "双指针夹逼（如有序数组两数之和、盛最多水容器）通常把嵌套循环的 O(n²) 降到一次遍历 O(n)，但前提往往是数据有序" },
+      { "key": "B", "text": "滑动窗口通过维护一个不回头的左右边界、窗口元素只进出各一次，可在 O(n) 内解决最长/最短满足条件子串问题" },
+      { "key": "C", "text": "二分查找要求底层支持随机访问且数据有序，时间 O(log n)，对链表这类非随机访问结构不适用" },
+      { "key": "D", "text": "递归算法的空间复杂度只取决于递归深度，与每层是否额外分配辅助数据结构完全无关" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确，D 错。A 点出双指针降复杂度的前提：有序数组上左右指针根据当前和与目标的关系单侧收缩，每个元素最多被访问一次，故 O(n)；若数据无序，先排序要付 O(n log n)，不能直接套用。B 是滑动窗口的精髓：右指针持续扩张、左指针在不满足条件时收缩，由于两个指针都只单调前进、元素最多进窗一次出窗一次，整体 O(n)，配合哈希表记录窗口内频次可解最长无重复子串、最小覆盖子串等。C 强调二分的两个硬条件——可随机访问（数组，按中点 O(1) 跳转）与有序性；链表找中点本身要 O(n)，每次折半都遍历，退化为 O(n log n) 甚至更高，故一般不在链表上二分（跳表是另一种加索引的解法）。D 错：递归空间复杂度 = 递归调用栈深度 × 每层栈帧占用，而每层若还 new 了数组、集合等辅助结构，这部分空间也要计入（每层都分配时还要乘以深度）。例如每层复制数组的归并排序，栈深 O(log n) 但还有 O(n) 的辅助数组，总空间是 O(n) 而非仅 O(log n)。大 O 分析还应区分均摊（amortized）与最坏情况，如动态数组扩容均摊 O(1)。",
+    "gapCheck": [
+      "易漏点：双指针依赖有序、滑动窗口两指针只单调前进、二分依赖随机访问+有序",
+      "常见误区：忽略递归每层的辅助空间，把空间复杂度简单等同于递归深度",
+      "加分项：能区分最坏/均摊复杂度，并说明归并 O(n) 辅助空间的来源"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.complexity"],
+      "related": ["be.java.dsa.linear", "be.java.dsa.sort"],
+      "followUps": ["滑动窗口的左右指针为什么能保证整体 O(n) 而不是 O(n²)？", "归并排序的栈深 O(log n) 与辅助数组 O(n) 是怎么叠加出总空间 O(n) 的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "复杂度分析与双指针/滑窗/二分套路多选题" },
+    "tags": ["复杂度", "双指针", "滑动窗口", "二分", "多选"]
+  },
+  {
+    "id": "Q-be-java-dsa-hash-0003",
+    "nodeId": "be.java.dsa.hash",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "把自定义对象作为 HashMap 的 key 时，若只重写 equals() 而不重写 hashCode()，最可能出现的问题是：",
+    "options": [
+      { "key": "A", "text": "编译报错，Java 强制两者必须同时重写" },
+      { "key": "B", "text": "两个 equals 相等的对象可能落在不同桶，get 时按默认 hashCode（通常与内存地址相关）定位不到，导致 put 进去却取不到、去重失效" },
+      { "key": "C", "text": "HashMap 会自动检测并在运行时补全 hashCode，功能不受影响" },
+      { "key": "D", "text": "只会影响遍历顺序，不影响存取正确性" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确。HashMap 先用 key 的 hashCode 经扰动函数定位桶下标，再在桶内用 equals 逐一比较找精确匹配。Object 默认的 hashCode 是本地方法，通常基于对象身份（与内存地址相关的整数），两个 new 出来但内容 equals 相等的对象默认 hashCode 不同，于是被分配到不同桶——put 时各占一个桶位、被当成两个 key，get 时用新对象算出的 hashCode 又指向另一个桶，自然找不到先前存入的值。这直接破坏了『相等对象必须有相等哈希』的契约，导致去重、缓存查找全部失效。A 错：编译器不强制，这是规范约定而非语法约束，IDE/检查工具只会告警。C 错：JVM 不会自动补全业务语义的 hashCode。D 错：影响的是正确性而非仅遍历顺序（HashMap 本就不保证顺序）。正确做法是同时重写 equals 与 hashCode，且 hashCode 必须由 equals 用到的同一组字段计算，保证 equals 相等⇒hashCode 相等；反过来 hashCode 相等的对象 equals 不一定相等（哈希碰撞，由桶内链表/红黑树处理）。重写时可借助 Objects.hash(...) 与 IDE 生成，并保持字段不可变以避免 key 入表后哈希漂移。",
+    "gapCheck": [
+      "易漏点：HashMap 先按 hashCode 定桶、再用 equals 匹配，二者契约是 equals 相等则 hashCode 必相等",
+      "常见误区：以为只重写 equals 即可，或以为编译器/JVM 会强制或自动补全 hashCode",
+      "加分项：能解释哈希碰撞与契约单向性，并提 key 字段不可变防止入表后哈希漂移"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.hash"],
+      "related": ["be.java.core.collection", "be.java.core.syntax-basics"],
+      "followUps": ["为什么说 hashCode 相等 equals 不一定相等，而 equals 相等 hashCode 必须相等？", "可变对象做 HashMap key 会引发什么问题，如何规避？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "equals/hashCode 契约与自定义 key 失效单选题" },
+    "tags": ["哈希表", "hashCode", "equals契约", "HashMap", "单选"]
+  },
+  {
+    "id": "Q-be-java-dsa-heap-0003",
+    "nodeId": "be.java.dsa.heap",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "（堆考点）关于二叉堆与 Java PriorityQueue，下列说法正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "PriorityQueue 默认是小顶堆，堆顶（队首）总是当前最小元素；要大顶堆可传 Collections.reverseOrder() 比较器" },
+      { "key": "B", "text": "堆用数组存储时，下标 i 的左孩子是 2i+1、右孩子 2i+2、父节点是 (i-1)/2，插入上浮和删除堆顶下沉均为 O(log n)" },
+      { "key": "C", "text": "求 Top-K 最大值用大小为 K 的小顶堆、求 Top-K 最小值用大顶堆，整体 O(n log K)，优于全量排序的 O(n log n)" },
+      { "key": "D", "text": "PriorityQueue 是线程安全的，多线程并发 offer/poll 无需额外同步" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确，D 错。A：PriorityQueue 基于优先级堆，元素自然排序下队首是最小元（小顶堆），自定义 Comparator 可反转成大顶堆或按对象字段排序；注意它不是 FIFO 队列，迭代顺序也不保证有序，只有逐个 poll 才得到有序序列。B 是数组化完全二叉树的下标公式（0 基），利用它无需指针即可在数组上做堆：插入放到末尾再 siftUp 上浮与父比较交换，删除堆顶用末元素顶替再 siftDown 下沉，路径长度等于树高 O(log n)；建堆（heapify）从最后一个非叶节点向前下沉，整体 O(n)。C 是 Top-K 的标准堆思路：求最大的 K 个用容量 K 的小顶堆，遍历中比堆顶大就替换并下沉，最终堆里留下 K 个最大元；求最小 K 个则用大顶堆。每个元素最多触发一次 O(log K) 调整，故 O(n log K)，当 K≪n 时显著优于先排序 O(n log n) 再截取，且适合数据流/内存受限场景。D 错：PriorityQueue 非线程安全，并发下内部数组扩容与 modCount 会出问题，多线程应使用 PriorityBlockingQueue（基于锁的阻塞堆）或外部加锁。",
+    "gapCheck": [
+      "易漏点：默认小顶堆及 reverseOrder 反转；数组堆下标公式与上浮下沉 O(log n)",
+      "常见误区：以为 Top-K 要全量排序，或把 PriorityQueue 当成线程安全/迭代有序",
+      "加分项：能讲 heapify O(n)、Top-K 用反向堆 O(n log K)，并提 PriorityBlockingQueue"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.heap"],
+      "related": ["be.java.dsa.complexity", "be.java.dsa.tree"],
+      "followUps": ["为什么 heapify 建堆是 O(n) 而不是 O(n log n)？", "求 Top-K 时为什么用『反向』的堆（求最大用小顶堆）？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "二叉堆/PriorityQueue 与 Top-K 综合多选题" },
+    "tags": ["堆", "PriorityQueue", "Top-K", "上浮下沉", "多选"]
+  },
+  {
+    "id": "Q-be-java-dsa-linear-0003",
+    "nodeId": "be.java.dsa.linear",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于数组、链表、栈、队列等线性结构的特性与选型，下列说法正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "数组内存连续、支持 O(1) 随机访问，但中间插入删除要搬移元素 O(n)；链表增删改指针 O(1)（已定位节点），随机访问需 O(n)" },
+      { "key": "B", "text": "栈是 LIFO、队列是 FIFO；栈适合括号匹配、表达式求值、DFS/递归模拟，队列适合 BFS、任务排队与消息缓冲" },
+      { "key": "C", "text": "ArrayDeque 基于可扩容数组实现双端队列，作为栈使用时比遗留的 Stack 类（继承 Vector、带 synchronized）更推荐、性能更好" },
+      { "key": "D", "text": "单向链表要删除某节点必须从头遍历找到其前驱，而双向链表可借助前驱指针 O(1) 删除已知节点" }
+    ],
+    "answer": { "keys": ["A", "B", "C", "D"] },
+    "analysis": "四项全部正确。A 是数组与链表的根本取舍：连续内存带来 O(1) 下标随机访问和优秀的 CPU 缓存局部性，代价是插入删除需移动元素、扩容要复制；链表节点离散、改指针即可增删（前提是已持有目标/前驱节点），但不支持随机访问、每节点额外存指针且缓存不友好，所以工程里基于数组的 ArrayList/ArrayDeque 往往比 LinkedList 更实用。B 区分两种受限线性表的语义与典型场景：栈后进先出天然契合嵌套/对称结构（括号匹配、单调栈、函数调用栈、DFS 的迭代实现），队列先进先出契合公平排队与层序扩展（BFS、线程池任务队列、消息队列缓冲）。C 是 API 选型建议：java.util.Stack 继承 Vector、方法全 synchronized、属于历史遗留设计；现代 Java 用 ArrayDeque 的 push/pop/peek 当栈，基于可扩容循环数组、无同步开销、通常更快，需要线程安全再选并发集合。D 点出单双向链表删除的差异：单链表删除节点需要其前驱的 next 指针，只能从头遍历 O(n)（技巧性的『复制下一节点再删下一节点』可 O(1) 但有尾节点等限制）；双向链表（如 LinkedHashMap、LinkedList 的 Node）保存 prev，已知节点即可 O(1) 摘除。",
+    "gapCheck": [
+      "易漏点：数组连续内存的缓存优势、链表增删 O(1) 的前提是已定位节点",
+      "常见误区：无脑用 LinkedList/Stack，忽略 ArrayDeque 更优与 Stack 的遗留同步设计",
+      "加分项：能结合单调栈、BFS/DFS、循环数组扩容等具体场景谈选型"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.linear"],
+      "related": ["be.java.core.collection", "be.java.dsa.complexity"],
+      "followUps": ["为什么实践中 ArrayDeque/ArrayList 常比 LinkedList 更快，缓存局部性起了什么作用？", "如何用栈把一个递归算法改写成迭代，需要保存哪些现场？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "数组链表栈队列特性与选型综合多选题" },
+    "tags": ["线性表", "数组链表", "栈队列", "ArrayDeque", "多选"]
+  },
+  {
+    "id": "Q-be-java-dsa-sort-0003",
+    "nodeId": "be.java.dsa.sort",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "JDK 的 Collections.sort() / Arrays.sort() 对对象数组排序时，底层主要采用 TimSort。下列关于 TimSort 与常见排序的描述，正确的是：",
+    "options": [
+      { "key": "A", "text": "TimSort 是归并排序与插入排序的混合算法，能识别数组中已有的有序片段（run），对基本有序的数据接近 O(n)，且是稳定排序" },
+      { "key": "B", "text": "TimSort 最坏情况下退化为 O(n²)，因此对象排序通常不用它" },
+      { "key": "C", "text": "快速排序在任何输入下都稳定且最坏也是 O(n log n)，所以 JDK 用它排对象" },
+      { "key": "D", "text": "Comparable 与 Comparator 没有区别，实现哪个都一样，sort 也不依赖它们" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确。TimSort 是归并 + 插入的混合稳定排序，核心思想是现实数据往往局部有序：它扫描出若干天然有序的 run（升降序片段，降序会反转），短 run 用二分插入排序补足到最小长度，再按规则归并这些 run，并借助 galloping（奔马查找）加速一边持续占优时的归并。因此对基本有序输入接近 O(n)，最坏仍保证 O(n log n)，且稳定性好，成为 Python sorted 与 Java 对象排序的默认实现。B 错：TimSort 最坏是 O(n log n) 而非 O(n²)，稳定性正是对象排序选它而非快排的关键原因之一。C 错：快排不稳定（分区交换可能改变相等元素相对顺序），且最坏（如已序输入配 naive pivot）退化 O(n²)；JDK 对 int 等基本类型用双轴快排（DualPivotQuicksort，基本类型无需考虑稳定性、追求平均速度），对对象数组用 TimSort 以保证稳定。D 错：Comparable 是类自身实现的『内在排序』（compareTo，一个类只能一种自然序），Comparator 是外部策略对象（compare，可按需定义多种排序规则、解耦数据与排序逻辑），sort 重载分别接收二者；二者返回值都遵循负/零/正的比较契约。",
+    "gapCheck": [
+      "易漏点：TimSort=归并+插入混合、稳定、识别 run、基本有序近 O(n)、最坏 O(n log n)",
+      "常见误区：混淆对象排序（TimSort 稳定）与基本类型排序（双轴快排），误以为快排稳定",
+      "加分项：能区分 Comparable 内在序与 Comparator 外部策略，及稳定性对对象排序的意义"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.sort"],
+      "related": ["be.java.dsa.complexity", "be.java.core.oop"],
+      "followUps": ["为什么对象排序要求稳定性而基本类型不要求？", "TimSort 的 run 和 galloping 机制分别解决了什么问题？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "TimSort 原理与 Comparable/Comparator 单选题" },
+    "tags": ["排序", "TimSort", "稳定排序", "Comparator", "单选"]
+  },
+  {
+    "id": "Q-be-java-dsa-tree-0003",
+    "nodeId": "be.java.dsa.tree",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于二叉树遍历、二叉搜索树（BST）与平衡树，下列说法正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "BST 的中序遍历结果是严格（或非严格）递增序列，因此可用中序遍历判断一棵树是否为合法 BST" },
+      { "key": "B", "text": "前序=根左右、中序=左根右、后序=左右根；层序遍历借助队列实现，前/中/后序的迭代写法常借助栈" },
+      { "key": "C", "text": "普通 BST 在极端输入（如顺序插入）会退化成链表、高度变 n，查询退化为 O(n)；AVL/红黑树通过旋转维持平衡把高度控制在 O(log n)" },
+      { "key": "D", "text": "红黑树通过严格保证任意节点左右子树高度差不超过 1（像 AVL 那样）来维持平衡，因此查询比 AVL 更快" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确，D 错。A 是 BST 的核心性质：左子树所有节点 < 根 < 右子树所有节点，中序遍历（左-根-右）自然得到有序序列；验证 BST 时不能只比较父子，要用中序递增性或给每个节点递归传递合法取值区间（min,max）。B 梳理遍历范式：前/中/后序按访问根的时机区分，天然是递归/栈的 DFS；层序（level-order）是 BFS，用队列逐层展开；迭代实现 DFS 时用显式栈模拟调用栈，中序还可用指针 + 栈的标准模板。C 点出平衡的必要性：朴素 BST 的性能取决于树高，随机插入约 O(log n)，但有序插入会形成单支树、树高 n，查找退化成 O(n)；AVL 用严格平衡因子（左右高度差 ≤1）+ 旋转保证高度 O(log n)，红黑树用着色规则（根黑、红节点子必黑、任一节点到叶的黑节点数相同等）维持近似平衡，同样保证 O(log n)，TreeMap/HashMap 桶内树化都用红黑树。D 错：『高度差不超过 1』是 AVL 的严格平衡约束，不是红黑树；红黑树是弱平衡，允许一定高度差，换来插入删除时更少的旋转（AVL 更平衡、查询略快但调整更频繁，红黑树增删旋转更少、综合更适合频繁修改场景），说红黑树查询必然更快也不成立。",
+    "gapCheck": [
+      "易漏点：BST 中序有序、遍历的栈/队列归属、BST 退化与平衡树 O(log n) 保证",
+      "常见误区：验证 BST 只比父子节点；把 AVL 的严格高度差约束安到红黑树上",
+      "加分项：能比较 AVL（严格平衡、查询优）与红黑树（弱平衡、增删旋转少）的工程取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.tree"],
+      "related": ["be.java.dsa.heap", "be.java.core.collection"],
+      "followUps": ["验证 BST 为什么要传 (min,max) 区间而不能只比较父子？", "红黑树与 AVL 在查询、插入、删除的旋转次数上各有什么取舍？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "二叉树遍历/BST/AVL 与红黑树综合多选题" },
+    "tags": ["二叉树", "BST", "红黑树", "遍历", "多选"]
+  }
+]

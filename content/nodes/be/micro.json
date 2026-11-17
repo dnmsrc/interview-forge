@@ -1,0 +1,112 @@
+[
+  {
+    "id": "be.micro.governance",
+    "title": "注册发现、网关与服务治理",
+    "level": 3,
+    "domain": "be",
+    "stack": "micro",
+    "topic": "governance",
+    "mustMaster": false,
+    "estMinutes": 70,
+    "summary": "服务注册发现、API 网关、负载均衡与熔断限流降级，是微服务可运行、可自保的治理骨架"
+  },
+  {
+    "id": "be.micro.governance.registry-gateway",
+    "title": "注册中心（Nacos/Eureka/Consul）、负载均衡与 API 网关",
+    "level": 4,
+    "domain": "be",
+    "stack": "micro",
+    "topic": "governance",
+    "prerequisites": ["be.spring.mvc.autoconfig"],
+    "related": ["cs.net.dns.resolve"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 35,
+    "summary": "要能讲服务注册与发现的心跳/健康检查/服务列表推送、AP 型 Eureka 与 CP 型 Nacos(CAP 可切)/Consul(Zab+Raft) 的取舍、客户端负载均衡 Ribbon/LoadBalancer 与服务端负载均衡 Nginx 的区别、API 网关（Spring Cloud Gateway）做路由/鉴权/限流/灰度的统一入口职责，以及注册中心宕机时本地缓存为何能让调用短期不中断"
+  },
+  {
+    "id": "be.micro.governance.resilience",
+    "title": "熔断、限流、降级与重试（Sentinel/Resilience4j）",
+    "level": 4,
+    "domain": "be",
+    "stack": "micro",
+    "topic": "governance",
+    "prerequisites": ["be.micro.governance.registry-gateway"],
+    "related": ["cs.design.limit.circuit-breaker", "cs.design.limit.algorithm"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 35,
+    "summary": "要能讲雪崩如何由下游故障级联放大、熔断器 closed→open→half-open 三态与失败率阈值、限流算法（计数器/滑动窗口/漏桶/令牌桶）与单机/分布式限流、降级兜底返回、重试的幂等前提与重试风暴风险、超时时间如何层层设置，以及 Sentinel 与 Resilience4j/Hystrix 在实现上的差异"
+  },
+
+  {
+    "id": "be.micro.distributed-tx",
+    "title": "分布式事务与一致性",
+    "level": 3,
+    "domain": "be",
+    "stack": "micro",
+    "topic": "distributed-tx",
+    "mustMaster": true,
+    "estMinutes": 60,
+    "summary": "CAP/BASE、2PC/TCC/本地消息表/Saga，是跨服务、跨库数据一致性的核心取舍"
+  },
+  {
+    "id": "be.micro.distributed-tx.cap-base",
+    "title": "CAP/BASE 理论与一致性级别",
+    "level": 4,
+    "domain": "be",
+    "stack": "micro",
+    "topic": "distributed-tx",
+    "prerequisites": [],
+    "related": ["cs.design.capacity.ddia-tradeoff", "cs.design.cache.consistency"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲 CAP 三选二的真实含义（分区容错 P 必选、网络分区时在 C 与 A 间取舍）、为什么注册中心 Eureka 选 AP 而 Zookeeper/etcd 选 CP、BASE 的基本可用/软状态/最终一致、强一致/弱一致/读写一致/因果一致的级别，以及为什么互联网业务普遍用最终一致而非强一致"
+  },
+  {
+    "id": "be.micro.distributed-tx.solutions",
+    "title": "2PC、TCC、本地消息表、Saga 与 Seata",
+    "level": 4,
+    "domain": "be",
+    "stack": "micro",
+    "topic": "distributed-tx",
+    "prerequisites": ["be.micro.distributed-tx.cap-base"],
+    "related": ["be.mq.reliability.delivery", "cs.design.mq-dedup.idempotent"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲 2PC 两阶段提交的 prepare/commit 与同步阻塞/协调者单点问题、3PC 改进、TCC 的 Try-Confirm-Cancel 与空回滚/悬挂/幂等三大坑、本地消息表 + MQ 最终一致方案、Saga 正向/补偿事务编排、Seata 的 AT/TCC/Saga/XA 四种模式与 undo_log，以及如何按业务一致性要求选型"
+  },
+
+  {
+    "id": "be.micro.communication",
+    "title": "服务间通信与分布式协调",
+    "level": 3,
+    "domain": "be",
+    "stack": "micro",
+    "topic": "communication",
+    "mustMaster": false,
+    "estMinutes": 50,
+    "summary": "同步/异步通信选型、分布式 ID 与分布式锁等协调原语，补齐微服务落地的工程细节"
+  },
+  {
+    "id": "be.micro.communication.id-lock",
+    "title": "Feign/gRPC 通信、分布式 ID 与分布式锁选型",
+    "level": 4,
+    "domain": "be",
+    "stack": "micro",
+    "topic": "communication",
+    "prerequisites": ["be.micro.governance.registry-gateway"],
+    "related": ["cs.design.sharding.id-gen", "be.redis.cache.distributed-lock"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲 OpenFeign 声明式 HTTP 调用与 gRPC 基于 HTTP/2 + Protobuf 的高性能 RPC 选型、同步调用与 MQ 异步解耦的边界、分布式 ID 方案（UUID/数据库自增/号段模式/雪花算法 Snowflake 的时钟回拨问题）、分布式锁在 Redis（AP）与 Zookeeper/etcd（CP、临时顺序节点）上的实现差异，以及接口超时、幂等 token 在服务调用中的落地"
+  }
+]

@@ -6,25 +6,73 @@
     "difficulty": 2,
     "stem": "列表 `[a(id:1), b(id:2), c(id:3)]` 变为 `[c(id:3), a(id:1), b(id:2)]`（元素对象引用全换了但 key 稳定）。Vue3 patchChildren 对这段的处理路径是：",
     "options": [
-      { "key": "A", "text": "从左到右逐个比较 type，全部不匹配则整段卸载重建三个 DOM" },
-      { "key": "B", "text": "key→index 映射找到 c/a/b 的旧位置，对需要前移的节点算最长递增子序列，只把 c 一个节点 insert 到最前，a、b 原位复用后 patch" },
-      { "key": "C", "text": "双端指针先比头尾，恰好两端都匹配所以一轮交换完成" },
-      { "key": "D", "text": "无 key 模式按 index 复用，DOM 只是改了文本内容" }]
-    ,
-    "answer": { "keys": ["B"] },
-    "analysis": "带 key 且乱序：unkeyed 前置的双端扫描失败后，建 keyToNewIndexMap，按 newIndexToOldIdxList 跑 LIS——本例 [2,0,1] 的最长递增子序列是 [0,1]（即 a、b 相对顺序未变），故只有 c 需要真实移动（move/insert），其余复用原 DOM 再 patchProps。A 是 React 早期无 key 的灾难路径；C 幻想双端『恰好匹配』——首尾 key 都不等直接进 map 分支；D 是无 key 的行为，题干已给 key。",
-    "gapCheck": ["易漏点：LIS 是在**新序列的下标**上求的，方向答反（在旧下标求）说明没读过 updateChildren", "常见误区：以为 Vue3.4 起删双端就没了——双端快扫仍在，只是统一走 sequence 算法收尾", "加分：能提 move 语义用 insert(el, anchor) 找后继实现、无 DOM 删除"],
-    "knowledgeLinks": {
-      "prereq": ["fe.vue.runtime.diff-key", "cs.algo"],
-      "related": ["fe.vue.compiler.block-tree", "fe.vue.ecosystem.vue-vs-react"],
-      "followUps": ["为什么 LIS 能把移动次数降到最少？（不动的点构成递增子序列，其余全 move——最少移动=最大不动集）", "key 用 index 时上面这个场景会发生什么？（文本错位+组件状态串位）", "Vue2 双端 diff 在什么输入下退化最惨？"]
+      {
+        "key": "A",
+        "text": "从左到右逐个比较 type，全部不匹配则整段卸载重建三个 DOM"
+      },
+      {
+        "key": "B",
+        "text": "key→index 映射找到 c/a/b 的旧位置，对需要前移的节点算最长递增子序列，只把 c 一个节点 insert 到最前，a、b 原位复用后 patch"
+      },
+      {
+        "key": "C",
+        "text": "双端指针先比头尾，恰好两端都匹配所以一轮交换完成"
+      },
+      {
+        "key": "D",
+        "text": "无 key 模式按 index 复用，DOM 只是改了文本内容"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
     },
-    "resources": [{ "title": "Vue 官方 guide·列表渲染", "digest": "key 的作用与不复用错位问题；官方示例：无 key 时 input 焦点/状态随复用转移。" }],
+    "analysis": "带 key 且乱序：unkeyed 前置的双端扫描失败后，建 keyToNewIndexMap，按 newIndexToOldIdxList 跑 LIS——本例 [2,0,1] 的最长递增子序列是 [0,1]（即 a、b 相对顺序未变），故只有 c 需要真实移动（move/insert），其余复用原 DOM 再 patchProps。A 是 React 早期无 key 的灾难路径；C 幻想双端『恰好匹配』——首尾 key 都不等直接进 map 分支；D 是无 key 的行为，题干已给 key。",
+    "gapCheck": [
+      "易漏点：LIS 是在**新序列的下标**上求的，方向答反（在旧下标求）说明没读过 updateChildren",
+      "常见误区：以为 Vue3.4 起删双端就没了——双端快扫仍在，只是统一走 sequence 算法收尾",
+      "加分：能提 move 语义用 insert(el, anchor) 找后继实现、无 DOM 删除"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.runtime.diff-key",
+        "cs.algo"
+      ],
+      "related": [
+        "fe.vue.compiler.block-tree",
+        "fe.vue.ecosystem.vue-vs-react"
+      ],
+      "followUps": [
+        "为什么 LIS 能把移动次数降到最少？（不动的点构成递增子序列，其余全 move——最少移动=最大不动集）",
+        "key 用 index 时上面这个场景会发生什么？（文本错位+组件状态串位）",
+        "Vue2 双端 diff 在什么输入下退化最惨？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "Vue 官方 guide·列表渲染",
+        "digest": "key 的作用与不复用错位问题；官方示例：无 key 时 input 焦点/状态随复用转移。"
+      }
+    ],
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://jishuzhan.net/article/1929748127988363265", "retrievedAt": "2026-11-09", "note": "Vue2/Vue3/React diff 对比长文；LIS 细节对照 runtime-core renderer updateChildren" },
-    "tags": ["高频", "必考", "diff"],
+    "source": {
+      "kind": "web",
+      "url": "https://jishuzhan.net/article/1929748127988363265",
+      "retrievedAt": "2026-11-09",
+      "note": "Vue2/Vue3/React diff 对比长文；LIS 细节对照 runtime-core renderer updateChildren"
+    },
+    "tags": [
+      "高频",
+      "必考",
+      "diff"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "加约束：同样乱序但这次**不带 key**。请推演 DOM 的最终动作序列（几个节点被 patch 文本、几个组件实例被复用），并解释为什么『DOM 很便宜但状态全乱』在这种场景成立。", "analysis": "无 key 走 unkeyed sameType 循环：三个 vnode type 相同 → 逐个 patchComponent/patchElement，DOM 零增删只做 props/text 更新；组件实例也按位复用，于是 id=3 组件的内部 state/输入框值留给了现在显示 a 的位置——数据串位而 DOM 极快。结论句：无 key 把『复用』从可选变成强制按位，性能省在 DOM、代价付在状态语义与内部 effect 的 watch source（oldProps 比对失效）。能画出串位示意即满分。" }
+      {
+        "angle": "加约束",
+        "stem": "加约束：同样乱序但这次**不带 key**。请推演 DOM 的最终动作序列（几个节点被 patch 文本、几个组件实例被复用），并解释为什么『DOM 很便宜但状态全乱』在这种场景成立。",
+        "analysis": "无 key 走 unkeyed sameType 循环：三个 vnode type 相同 → 逐个 patchComponent/patchElement，DOM 零增删只做 props/text 更新；组件实例也按位复用，于是 id=3 组件的内部 state/输入框值留给了现在显示 a 的位置——数据串位而 DOM 极快。结论句：无 key 把『复用』从可选变成强制按位，性能省在 DOM、代价付在状态语义与内部 effect 的 watch source（oldProps 比对失效）。能画出串位示意即满分。"
+      }
     ]
   },
   {
@@ -34,24 +82,66 @@
     "difficulty": 3,
     "stem": "```vue\n<ul>\n  <li v-for=\"(t, i) in todos\" :key=\"i\">\n    <input :placeholder=\"t.text\" />\n  </li>\n</ul>\n```\ntodos 初始两条，用户在第一条输入『abc』后点『删除第一条』。关于页面上剩下的那条 input 显示内容：",
     "options": [
-      { "key": "A", "text": "显示空，因为删除第一条连带其 DOM 一起销毁了" },
-      { "key": "B", "text": "显示 'abc'——index key 让旧第一条的 DOM 被复用给了现第二条，用户输入是 DOM 原生 value，未被 Vue 管理所以留存" },
-      { "key": "C", "text": "显示第二条原本的 placeholder 对应文字，因为 Vue 会同步清空被复用节点的 value" },
-      { "key": "D", "text": "随机，取决于浏览器对 display 节点的重排时机" }]
-    ,
-    "answer": { "keys": ["B"] },
+      {
+        "key": "A",
+        "text": "显示空，因为删除第一条连带其 DOM 一起销毁了"
+      },
+      {
+        "key": "B",
+        "text": "显示 'abc'——index key 让旧第一条的 DOM 被复用给了现第二条，用户输入是 DOM 原生 value，未被 Vue 管理所以留存"
+      },
+      {
+        "key": "C",
+        "text": "显示第二条原本的 placeholder 对应文字，因为 Vue 会同步清空被复用节点的 value"
+      },
+      {
+        "key": "D",
+        "text": "随机，取决于浏览器对 display 节点的重排时机"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
     "analysis": "key=i 时删除头元素使剩余项 key 从 [0,1] 变 [1]→重编号为 [0]，sameVNodeType 判定新旧第 0 位同构 → li 与 input DOM 整体复用，只是 placeholder patch 成新值。input 的 value 不在任何 prop/v-model 里，属于 DOM 自有状态，复用时原封不动 → 显示 'abc'（经典『删第一条，剩下那条带着上一条的输入』事故）。A 忽略了 index key 的复用；C 虚构了 value 清理逻辑；D 混淆了布局重排与 vnode 复用。",
-    "gapCheck": ["易漏点：v-if/v-else 共用 index key 时状态互串是同源问题（两分支复用同一 DOM 实例）", "常见误区：『没有绑定 value 就不会有问题』——恰恰是不受控的原生状态最怕复用", "延伸：v-model 绑定的 input 换 key 后状态跟谁走？（跟组件实例/绑定走，不再是 DOM 残留）"],
+    "gapCheck": [
+      "易漏点：v-if/v-else 共用 index key 时状态互串是同源问题（两分支复用同一 DOM 实例）",
+      "常见误区：『没有绑定 value 就不会有问题』——恰恰是不受控的原生状态最怕复用",
+      "延伸：v-model 绑定的 input 换 key 后状态跟谁走？（跟组件实例/绑定走，不再是 DOM 残留）"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.runtime.diff-key"],
-      "related": ["fe.vue.perf.dom-reuse", "fe.vue.lifecycle.mount-unmount"],
-      "followUps": ["什么情况下 index key 是可接受的？（纯展示、永不重排、无表单/动画状态）", "官方文档哪句话给 index key 定了性？（非稳定 DOM/组件状态的禁用清单）", "focus 丢失也是 key 问题吗？（是——document.activeElement 在被 remove 的节点上会 blur）"]
+      "prereq": [
+        "fe.vue.runtime.diff-key"
+      ],
+      "related": [
+        "fe.vue.perf.dom-reuse",
+        "fe.vue.lifecycle.mount-unmount"
+      ],
+      "followUps": [
+        "什么情况下 index key 是可接受的？（纯展示、永不重排、无表单/动画状态）",
+        "官方文档哪句话给 index key 定了性？（非稳定 DOM/组件状态的禁用清单）",
+        "focus 丢失也是 key 问题吗？（是——document.activeElement 在被 remove 的节点上会 blur）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "official", "url": "https://vuejs.org/guide/essentials/list.html", "retrievedAt": "2026-11-09", "note": "『In-place Patch』章节原文场景：删除第一个 item 后剩余 input 携带错误内容" },
-    "tags": ["经典事故", "必考", "key"],
+    "source": {
+      "kind": "official",
+      "url": "https://vuejs.org/guide/essentials/list.html",
+      "retrievedAt": "2026-11-09",
+      "note": "『In-place Patch』章节原文场景：删除第一个 item 后剩余 input 携带错误内容"
+    },
+    "tags": [
+      "经典事故",
+      "必考",
+      "key"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "反向问：有人反驳『index key 反正 diff 更快，大厂面板数据都是全量替换的数组，用 index 是不是反而最优？』请说出这个论断成立的两个前提，以及一旦违反任意一个会出的具体 bug。", "analysis": "成立前提：①列表从不重排/中间删除（全量替换但顺序恒定时按位复用等价于稳定 key 且省 map 开销）；②行内无 DOM 原生状态与组件内部状态（纯 props 驱动展示）。违反①：中途插入导致后续行的本地编辑态/展开态整体上移一位（key=i 的第 i 行永远复用同一 DOM，装的是别人的状态）；违反②：富交互行（拖拽排序、canvas 图表缓存）出现状态串位。加分：提到全量替换+index key 时 shouldUpdateComponent 仍逐行比 props，收益只在 DOM 层不在组件层。" }
+      {
+        "angle": "反向问",
+        "stem": "反向问：有人反驳『index key 反正 diff 更快，大厂面板数据都是全量替换的数组，用 index 是不是反而最优？』请说出这个论断成立的两个前提，以及一旦违反任意一个会出的具体 bug。",
+        "analysis": "成立前提：①列表从不重排/中间删除（全量替换但顺序恒定时按位复用等价于稳定 key 且省 map 开销）；②行内无 DOM 原生状态与组件内部状态（纯 props 驱动展示）。违反①：中途插入导致后续行的本地编辑态/展开态整体上移一位（key=i 的第 i 行永远复用同一 DOM，装的是别人的状态）；违反②：富交互行（拖拽排序、canvas 图表缓存）出现状态串位。加分：提到全量替换+index key 时 shouldUpdateComponent 仍逐行比 props，收益只在 DOM 层不在组件层。"
+      }
     ]
   },
   {
@@ -60,19 +150,45 @@
     "type": "judge",
     "difficulty": 3,
     "stem": "判断正误：组件的『渲染 effect』就是 setup() 里用户写的 effect/watch 之外额外创建的一条 pre-flush effect，它订阅的范围 = render 函数本次执行读到的所有响应式属性，因此模板没用到的 data 字段变化不会触发该组件重渲。",
-    "answer": { "judge": true },
+    "answer": {
+      "judge": true
+    },
     "analysis": "对。setupRenderEffect 创建 `new ReactiveEffect(componentUpdateFn)` 且 scheduler 走 queueJob（pre-flush，id=uid）；依赖收集发生在 componentUpdateFn→renderComponentRoot 执行期间，读到谁订阅谁——这正是『模板未引用的字段变更不重渲』的机制保证（对比 Vue2 的 Watcher 是 data 级粗订阅，任何字段都通知）。这也是组合式相对选项式的细粒度红利之一。",
-    "gapCheck": ["易漏点：render effect 的『订阅重置』发生在每次 run 前 cleanup，条件渲染分支的依赖会自动增删", "常见误区：把 watch 的 source getter 也算进 render effect——它们是独立 effect", "追问延伸：Suspense 的 pendingBranch 如何暂停这条 effect？（effect 挂起+fallback 并行渲染，resolve 后 commit）"],
+    "gapCheck": [
+      "易漏点：render effect 的『订阅重置』发生在每次 run 前 cleanup，条件渲染分支的依赖会自动增删",
+      "常见误区：把 watch 的 source getter 也算进 render effect——它们是独立 effect",
+      "追问延伸：Suspense 的 pendingBranch 如何暂停这条 effect？（effect 挂起+fallback 并行渲染，resolve 后 commit）"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.runtime.update-flow", "fe.vue.reactivity.effect-dep"],
-      "related": ["fe.vue.scheduler.flush-jobs", "fe.vue.composition.options-vs-composition"],
-      "followUps": ["那 computed 变化是怎么走到这条 effect 的？（computed 的 dep 通知 effect 的 scheduler）", "组件没重渲但 watch 回调跑了，说明两者订阅范围有何差异？", "async setup 返回 Promise 时这条 effect 怎么延迟建立？"]
+      "prereq": [
+        "fe.vue.runtime.update-flow",
+        "fe.vue.reactivity.effect-dep"
+      ],
+      "related": [
+        "fe.vue.scheduler.flush-jobs",
+        "fe.vue.composition.options-vs-composition"
+      ],
+      "followUps": [
+        "那 computed 变化是怎么走到这条 effect 的？（computed 的 dep 通知 effect 的 scheduler）",
+        "组件没重渲但 watch 回调跑了，说明两者订阅范围有何差异？",
+        "async setup 返回 Promise 时这条 effect 怎么延迟建立？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "基于 runtime-core componentRenderEffect 与 reactive effect 订阅模型编写" },
-    "tags": ["概念精确性", "渲染流程"],
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 runtime-core componentRenderEffect 与 reactive effect 订阅模型编写"
+    },
+    "tags": [
+      "概念精确性",
+      "渲染流程"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "换场景判断题：某组件模板只用了 state.a，但 setup 顶层写了 `watchEffect(() => console.log(state.b))`。现在 b 变化而 a 不变：『组件会重渲』还是『只有 watchEffect 重跑、组件 render effect 不跑』？如果 console.log 里又读了 state.a 呢？", "analysis": "默认后者：两条 effect 独立订阅——b 只通知 watchEffect，render effect 没订阅 b 所以组件不重渲。陷阱在最后半句：若 watchEffect 的副作用**写入**了 render 读过的派生状态（如 b→computed 或 b 的 watcher 改了 a），则间接把 render effect 拉起来；单纯 log 读 a 不会让 render effect 订阅 b（订阅关系不传染）。考察『effect 是各自独立的订阅单元』这一心智模型是否牢固。" }
+      {
+        "angle": "换场景",
+        "stem": "换场景判断题：某组件模板只用了 state.a，但 setup 顶层写了 `watchEffect(() => console.log(state.b))`。现在 b 变化而 a 不变：『组件会重渲』还是『只有 watchEffect 重跑、组件 render effect 不跑』？如果 console.log 里又读了 state.a 呢？",
+        "analysis": "默认后者：两条 effect 独立订阅——b 只通知 watchEffect，render effect 没订阅 b 所以组件不重渲。陷阱在最后半句：若 watchEffect 的副作用**写入**了 render 读过的派生状态（如 b→computed 或 b 的 watcher 改了 a），则间接把 render effect 拉起来；单纯 log 读 a 不会让 render effect 订阅 b（订阅关系不传染）。考察『effect 是各自独立的订阅单元』这一心智模型是否牢固。"
+      }
     ]
   },
   {
@@ -82,25 +198,74 @@
     "difficulty": 4,
     "stem": "你要用 `createRenderer<NodeOp, PropsOp>` 给 canvas/SDL 写一个自定义渲染器。下列说法**正确**的有：",
     "options": [
-      { "key": "A", "text": "必须提供 patchProp、insert、remove、createElement、createText 五个核心操作，再补 createComment 才能支持注释占位与 Fragment" },
-      { "key": "B", "text": "runtime-core 完全平台无关，vnode/diff/组件系统/computed 都在 core，平台差异只经 rendererOptions 注入" },
-      { "key": "C", "text": "自定义渲染器可以直接复用 @vue/compiler-dom 不改任何东西，因为编译产物只含字符串标签与通用 props" },
-      { "key": "D", "text": "insertStaticContent 是可选优化：实现它可让 hoist 的静态内容走字符串快速路径，不实现则退回逐节点 mount" }]
-    ,
-    "answer": { "keys": ["A", "B", "D"] },
-    "analysis": "A 对：BaseRenderer 的核心 nodeOps 五件套 + createComment（Fragment/Suspense/Teleport anchor 都要注释节点）；官方 vue-example-renderers 即此结构。B 对：分层正是 core/dom 拆分的目的，vue-gl/vue-terminal/canvas 都只喂 rendererOptions。C 错：compiler-dom 的产物带 DOM 语义——事件 invoker、v-html/v-text、asset URL import、class/style 字符串合并都是 DOM 专属；自定义平台通常要配自己的 compiler 或至少 patchProp 层消化（vue-gl 用 runtime-dom 兼容子集是妥协不是免费）。D 对：insertStaticContent 缺省时 hoisted 字符串退化为 vnode 树逐建，SDL/Canvas 常省略。",
-    "gapCheck": ["易漏点：Hydration 相关 op（setDynamicProperties/defer）也是平台可选注入，SSR 定制才需要", "常见误区：以为换渲染器就能跑 .vue 文件全家桶——指令/Transition 等内置组件的 DOM 假设会漏进 core（Transition 在 runtime-dom！core 里没有）", "加分：点出 Transition/v-show 是 runtime-dom 注入的特殊 type，自定义渲染器默认没有"],
-    "knowledgeLinks": {
-      "prereq": ["fe.vue.runtime.custom-renderer"],
-      "related": ["fe.vue.runtime.builtin-components", "fe.vue.compiler.ast-pipeline"],
-      "followUps": ["为什么 Transition 不放 core？（依赖 class/样式/nextFrame 的 DOM 时序）", "自定义渲染器怎么处理 ref 拿到的实例？（host 类型参数决定，ref 拿的是你的 NodeOp）", "weex/小程序的 vue 渲染器当年是怎么处理 style 归一化的？"]
+      {
+        "key": "A",
+        "text": "必须提供 patchProp、insert、remove、createElement、createText 五个核心操作，再补 createComment 才能支持注释占位与 Fragment"
+      },
+      {
+        "key": "B",
+        "text": "runtime-core 完全平台无关，vnode/diff/组件系统/computed 都在 core，平台差异只经 rendererOptions 注入"
+      },
+      {
+        "key": "C",
+        "text": "自定义渲染器可以直接复用 @vue/compiler-dom 不改任何东西，因为编译产物只含字符串标签与通用 props"
+      },
+      {
+        "key": "D",
+        "text": "insertStaticContent 是可选优化：实现它可让 hoist 的静态内容走字符串快速路径，不实现则退回逐节点 mount"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
     },
-    "resources": [{ "title": "Vue 官方 API·custom-renderer", "digest": "createRenderer(nodeOps) 签名与 NodeOps 接口清单（create/insert/remove/patchProp/createText/createComment/querySelector/nextSibling/parentNode/insertStaticContent），官方示例仓库 vue-example-renderers。" }],
+    "analysis": "A 对：BaseRenderer 的核心 nodeOps 五件套 + createComment（Fragment/Suspense/Teleport anchor 都要注释节点）；官方 vue-example-renderers 即此结构。B 对：分层正是 core/dom 拆分的目的，vue-gl/vue-terminal/canvas 都只喂 rendererOptions。C 错：compiler-dom 的产物带 DOM 语义——事件 invoker、v-html/v-text、asset URL import、class/style 字符串合并都是 DOM 专属；自定义平台通常要配自己的 compiler 或至少 patchProp 层消化（vue-gl 用 runtime-dom 兼容子集是妥协不是免费）。D 对：insertStaticContent 缺省时 hoisted 字符串退化为 vnode 树逐建，SDL/Canvas 常省略。",
+    "gapCheck": [
+      "易漏点：Hydration 相关 op（setDynamicProperties/defer）也是平台可选注入，SSR 定制才需要",
+      "常见误区：以为换渲染器就能跑 .vue 文件全家桶——指令/Transition 等内置组件的 DOM 假设会漏进 core（Transition 在 runtime-dom！core 里没有）",
+      "加分：点出 Transition/v-show 是 runtime-dom 注入的特殊 type，自定义渲染器默认没有"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.runtime.custom-renderer"
+      ],
+      "related": [
+        "fe.vue.runtime.builtin-components",
+        "fe.vue.compiler.ast-pipeline"
+      ],
+      "followUps": [
+        "为什么 Transition 不放 core？（依赖 class/样式/nextFrame 的 DOM 时序）",
+        "自定义渲染器怎么处理 ref 拿到的实例？（host 类型参数决定，ref 拿的是你的 NodeOp）",
+        "weex/小程序的 vue 渲染器当年是怎么处理 style 归一化的？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "Vue 官方 API·custom-renderer",
+        "digest": "createRenderer(nodeOps) 签名与 NodeOps 接口清单（create/insert/remove/patchProp/createText/createComment/querySelector/nextSibling/parentNode/insertStaticContent），官方示例仓库 vue-example-renderers。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "official", "url": "https://vuejs.org/api/custom-renderer.html", "retrievedAt": "2026-11-09", "note": "Custom Renderer API 页 + vue-example-renderers 仓库 README" },
-    "tags": ["架构分层", "跨端", "大厂"],
+    "source": {
+      "kind": "official",
+      "url": "https://vuejs.org/api/custom-renderer.html",
+      "retrievedAt": "2026-11-09",
+      "note": "Custom Renderer API 页 + vue-example-renderers 仓库 README"
+    },
+    "tags": [
+      "架构分层",
+      "跨端",
+      "大厂"
+    ],
     "variants": [
-      { "angle": "追问延伸", "stem": "追问延伸：面试官接着问『那 runtime-dom 相对 core 到底多做了什么？列不全就别说你懂分层』。请按模块列举 runtime-dom 的增量（至少 4 类），并指出其中哪一类是你自定义渲染器最难复刻的、为什么。", "analysis": "增量清单：①nodeOps 的 DOM 实现 + insertStaticContent innerHTML 快速路径；②patchProp 家族（attr/class/style/event invoker/自定义元素判定）；③内置组件 Transition/KeepAlive?（注意：KeepAlive/Suspense/Teleport 在 core，**Transition/TransitionGroup/v-show/v-html/v-cloak 在 dom**——能纠出这个归属即源码级）；④CSS 变量注入 useCssVars、自定义元素 isCustomElement 编译选项桥接；⑤directives 运行时(v-once/v-pre?)——v-once/v-pre 属 compiler 优化不在 dom。最难复刻：patchProp 的 event invoker+style 归一化（含 !important/多值）或 Transition（rAF/nextFrame/getComputedStyle 时序依赖）。纠错能力是这题的满分开关。" }
+      {
+        "angle": "追问延伸",
+        "stem": "追问延伸：面试官接着问『那 runtime-dom 相对 core 到底多做了什么？列不全就别说你懂分层』。请按模块列举 runtime-dom 的增量（至少 4 类），并指出其中哪一类是你自定义渲染器最难复刻的、为什么。",
+        "analysis": "增量清单：①nodeOps 的 DOM 实现 + insertStaticContent innerHTML 快速路径；②patchProp 家族（attr/class/style/event invoker/自定义元素判定）；③内置组件 Transition/KeepAlive?（注意：KeepAlive/Suspense/Teleport 在 core，**Transition/TransitionGroup/v-show/v-html/v-cloak 在 dom**——能纠出这个归属即源码级）；④CSS 变量注入 useCssVars、自定义元素 isCustomElement 编译选项桥接；⑤directives 运行时(v-once/v-pre?)——v-once/v-pre 属 compiler 优化不在 dom。最难复刻：patchProp 的 event invoker+style 归一化（含 !important/多值）或 Transition（rAF/nextFrame/getComputedStyle 时序依赖）。纠错能力是这题的满分开关。"
+      }
     ]
   },
   {
@@ -109,19 +274,72 @@
     "type": "blank",
     "difficulty": 3,
     "stem": "内置组件机制填空：KeepAlive/Teleport/Suspense 不走 mountComponent，而是在 process* 里按 vnode.type 的 ______ 身份分发（如 Teleport 的 type 附带 ______ 标记）；Teleport 挂载时把真实 DOM 移到 ______ 选择器指向的容器，但其组件实例仍挂在虚拟树的 ______ 位置；3.5 起 Teleport 支持 ______ 属性让移动推迟到整个 flush 结束，避免嵌套 Teleport 互相读到半移动状态。",
-    "answer": { "blanks": ["Symbol", "teleport flag", "target", "原位置", "defer"], "synonyms": { "Symbol": ["unique symbol", "特殊 symbol"], "teleport flag": ["isTeleport", "Teleport 标记"], "target": ["to", "目标容器"], "原位置": ["逻辑位置", "虚拟 DOM 原处", "原位"] } },
+    "answer": {
+      "blanks": [
+        "Symbol",
+        "teleport flag",
+        "target",
+        "原位置",
+        "defer"
+      ],
+      "synonyms": {
+        "Symbol": [
+          "unique symbol",
+          "特殊 symbol"
+        ],
+        "teleport flag": [
+          "isTeleport",
+          "Teleport 标记"
+        ],
+        "target": [
+          "to",
+          "目标容器"
+        ],
+        "原位置": [
+          "逻辑位置",
+          "虚拟 DOM 原处",
+          "原位"
+        ]
+      }
+    },
     "analysis": "process 分发以 type 的特殊对象为主：isTeleport 是 Symbol.for('v-teleport')，isSuspense/isKeepAlive 同理（vnode.ts 导出）。Teleport 的『虚拟位置 vs 物理位置』二元性是它一切怪异行为（disabled 移动、嵌套 teleport、SSR 占位 comment）的根源。3.5 新增 defer：官方 release note 原文场景是嵌套 teleport 互相依赖对方容器就绪。",
-    "gapCheck": ["易漏点：isKeepAlive/isSuspense/isAsyncWrapper 等 Symbol 清单背全不丢分", "常见误区：以为 Teleport 的 provide/inject 链也物理搬家——inject 沿虚拟树，不受 to 影响", "追问延伸：Teleport 与 SSR 的水合靠什么锚点？（TeleportStart/End comment）"],
+    "gapCheck": [
+      "易漏点：isKeepAlive/isSuspense/isAsyncWrapper 等 Symbol 清单背全不丢分",
+      "常见误区：以为 Teleport 的 provide/inject 链也物理搬家——inject 沿虚拟树，不受 to 影响",
+      "追问延伸：Teleport 与 SSR 的水合靠什么锚点？（TeleportStart/End comment）"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.runtime.builtin-components"],
-      "related": ["fe.vue.lifecycle.keepalive", "fe.vue.runtime.update-flow"],
-      "followUps": ["disabled 切换时 Teleport 怎么把 children 搬回来再搬走？（move/insert anchor 机制）", "为什么 Teleport 内不能用 position:fixed 之外的滚动跟随？（物理容器独立）", "Suspense 的 fallback 超时 prop 叫什么？（timeout，超时切 fallback 并可配合 onPendingResolve）"]
+      "prereq": [
+        "fe.vue.runtime.builtin-components"
+      ],
+      "related": [
+        "fe.vue.lifecycle.keepalive",
+        "fe.vue.runtime.update-flow"
+      ],
+      "followUps": [
+        "disabled 切换时 Teleport 怎么把 children 搬回来再搬走？（move/insert anchor 机制）",
+        "为什么 Teleport 内不能用 position:fixed 之外的滚动跟随？（物理容器独立）",
+        "Suspense 的 fallback 超时 prop 叫什么？（timeout，超时切 fallback 并可配合 onPendingResolve）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "official", "url": "https://blog.vuejs.org/posts/vue-3-5", "retrievedAt": "2026-11-09", "note": "3.5 公告 Deferred Teleports 段；Symbol 清单核对 vnode.ts" },
-    "tags": ["内置组件", "3.5特性", "填空偏难"],
+    "source": {
+      "kind": "official",
+      "url": "https://blog.vuejs.org/posts/vue-3-5",
+      "retrievedAt": "2026-11-09",
+      "note": "3.5 公告 Deferred Teleports 段；Symbol 清单核对 vnode.ts"
+    },
+    "tags": [
+      "内置组件",
+      "3.5特性",
+      "填空偏难"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "场景辨析：弹窗组件写成 Teleport to='body'，路由离开时该页面组件被卸载，但有人反馈 body 里残留了弹窗 DOM。请给出两个可能的真凶（一个与 Teleport anchor 有关、一个与动态 to 有关），并各给修法。", "analysis": "真凶一：Teleport 卸载依赖自身 children 的 remove 与 anchor comment 定位——若弹窗内容是 v-html 注入或第三方库直接 appendChild 进 teleport 容器，Vue 不知情，remove 只清自己管理的节点 → 残留。修法：交给 Vue 渲染或用 beforeUnmount 手动清。真凶二：to 动态绑定在卸载竞态里先变了（body→#modal-root 已不存在），unmount 时 querySelector 失败走 fallback 只摘 anchor。修法：to 保持恒定或用 :disabled 控制显隐替代条件渲染 Teleport。考点：Teleport 的物理挂载与虚拟卸载的对账边界。" }
+      {
+        "angle": "换场景",
+        "stem": "场景辨析：弹窗组件写成 Teleport to='body'，路由离开时该页面组件被卸载，但有人反馈 body 里残留了弹窗 DOM。请给出两个可能的真凶（一个与 Teleport anchor 有关、一个与动态 to 有关），并各给修法。",
+        "analysis": "真凶一：Teleport 卸载依赖自身 children 的 remove 与 anchor comment 定位——若弹窗内容是 v-html 注入或第三方库直接 appendChild 进 teleport 容器，Vue 不知情，remove 只清自己管理的节点 → 残留。修法：交给 Vue 渲染或用 beforeUnmount 手动清。真凶二：to 动态绑定在卸载竞态里先变了（body→#modal-root 已不存在），unmount 时 querySelector 失败走 fallback 只摘 anchor。修法：to 保持恒定或用 :disabled 控制显隐替代条件渲染 Teleport。考点：Teleport 的物理挂载与虚拟卸载的对账边界。"
+      }
     ]
   },
   {
@@ -130,26 +348,70 @@
     "type": "short",
     "difficulty": 3,
     "stem": "短答：一次组件更新里，`watch(props.x)` 的 pre 回调、组件重新 render、onUpdated、watch(..., {flush:'post'}) 回调、nextTick(cb) 五个动作的执行顺序请排序，并各用一句话说明为什么在这个位置。",
-    "answer": { "ref": "顺序：① watch(pre) 回调 → ② 组件 render（renderComponentRoot+patch）→ ③ onUpdated 与 ④ watch(flush:'post') 同期（post 队列内部按注册序，二者是兄弟关系不分先后，通常 updated 钩子先注册先跑）→ ⑤ nextTick 回调。因果链：pre job 与渲染 job 同在 preQueue、watcher id 小于等于组件 uid 且先入队故先跑；渲染 job 就是 componentUpdateFn（跑完 DOM 已新）；updated/post watcher 由 queuePostRenderEffect 进 postQueue，flushJobs 见 pre 空才整队转 post；nextTick 挂在 currentFlushPromise 链尾、flushJobs 全程（含 post）结束后才 resolve。特例声明：若该组件是子组件而本次由父驱动，pre 回调也可能晚于父 render——排序仅在『同一个组件的更新周期』内成立。" },
+    "answer": {
+      "ref": "顺序：① watch(pre) 回调 → ② 组件 render（renderComponentRoot+patch）→ ③ onUpdated 与 ④ watch(flush:'post') 同期（post 队列内部按注册序，二者是兄弟关系不分先后，通常 updated 钩子先注册先跑）→ ⑤ nextTick 回调。因果链：pre job 与渲染 job 同在 preQueue、watcher id 小于等于组件 uid 且先入队故先跑；渲染 job 就是 componentUpdateFn（跑完 DOM 已新）；updated/post watcher 由 queuePostRenderEffect 进 postQueue，flushJobs 见 pre 空才整队转 post；nextTick 挂在 currentFlushPromise 链尾、flushJobs 全程（含 post）结束后才 resolve。特例声明：若该组件是子组件而本次由父驱动，pre 回调也可能晚于父 render——排序仅在『同一个组件的更新周期』内成立。"
+    },
     "scoringPoints": [
-      { "point": "给出 pre→render→(updated≈post watcher)→nextTick 的总体次序", "weight": 3 },
-      { "point": "解释 pre watcher 先于 render 的原因（同队列+id/入队序）", "weight": 1 },
-      { "point": "说明 updated 与 post watcher 同属 postQueue 的兄弟关系而非嵌套", "weight": 2 },
-      { "point": "说明 nextTick 位于整条 flush 之后的机制（promise 链尾）", "weight": 2 },
-      { "point": "主动标注跨组件场景的例外或 keep-alive 失活时 post 队列的行为", "weight": 1 }
+      {
+        "point": "给出 pre→render→(updated≈post watcher)→nextTick 的总体次序",
+        "weight": 3
+      },
+      {
+        "point": "解释 pre watcher 先于 render 的原因（同队列+id/入队序）",
+        "weight": 1
+      },
+      {
+        "point": "说明 updated 与 post watcher 同属 postQueue 的兄弟关系而非嵌套",
+        "weight": 2
+      },
+      {
+        "point": "说明 nextTick 位于整条 flush 之后的机制（promise 链尾）",
+        "weight": 2
+      },
+      {
+        "point": "主动标注跨组件场景的例外或 keep-alive 失活时 post 队列的行为",
+        "weight": 1
+      }
     ],
     "analysis": "排序本身简单，难在各位置的一句『为什么』。updated 与 post watcher 的『同期兄弟』关系是最多人含糊的点（说成谁包含谁扣分）；nextTick 的定位要落到 currentFlushPromise 而不是『下一个 tick』玄学。能标出『同组件周期』前提属于 3 分档。",
-    "gapCheck": ["易漏点：onUpdated 本身就是 post-flush 注册（queuePostRenderEffect），和 flush:'post' watcher 同机制", "常见误区：以为 nextTick 在 updated 之前——updated 也在 flush 内，nextTick 在其后", "keep-alive 特例：失活组件的 post 回调在 deactivate 时也会跑一轮"],
+    "gapCheck": [
+      "易漏点：onUpdated 本身就是 post-flush 注册（queuePostRenderEffect），和 flush:'post' watcher 同机制",
+      "常见误区：以为 nextTick 在 updated 之前——updated 也在 flush 内，nextTick 在其后",
+      "keep-alive 特例：失活组件的 post 回调在 deactivate 时也会跑一轮"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.runtime.update-flow", "fe.vue.scheduler.watcher-flush"],
-      "related": ["fe.vue.lifecycle.mount-unmount", "fe.vue.scheduler.nexttick"],
-      "followUps": ["onMounted 在这条序列的哪个位置？（首次挂载走 queuePostRenderEffect，与 post watcher 同期、nextTick 前）", "如果 pre 回调里又改了这个组件的状态会二次渲染吗？（不会——同 job 去重，本轮 render 用的是新值）", "watchSyncEffect 插在哪里？（trigger 现场，先于一切队列）"]
+      "prereq": [
+        "fe.vue.runtime.update-flow",
+        "fe.vue.scheduler.watcher-flush"
+      ],
+      "related": [
+        "fe.vue.lifecycle.mount-unmount",
+        "fe.vue.scheduler.nexttick"
+      ],
+      "followUps": [
+        "onMounted 在这条序列的哪个位置？（首次挂载走 queuePostRenderEffect，与 post watcher 同期、nextTick 前）",
+        "如果 pre 回调里又改了这个组件的状态会二次渲染吗？（不会——同 job 去重，本轮 render 用的是新值）",
+        "watchSyncEffect 插在哪里？（trigger 现场，先于一切队列）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "http://aqpgk.com/article/coeoipe.html", "retrievedAt": "2026-11-09", "note": "从 JS 事件循环看 nextTick 执行机制（pre/post/nextTick 时序文）" },
-    "tags": ["时序题", "追问连环", "高频"],
+    "source": {
+      "kind": "web",
+      "url": "http://aqpgk.com/article/coeoipe.html",
+      "retrievedAt": "2026-11-09",
+      "note": "从 JS 事件循环看 nextTick 执行机制（pre/post/nextTick 时序文）"
+    },
+    "tags": [
+      "时序题",
+      "追问连环",
+      "高频"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "加约束：在上述序列基础上追加两个动作——子组件的 mounted（首次渲染场景）与 computed 的 getter 求值。它们分别插在哪？要求指出『首次』与『更新』两版答案的差异。", "analysis": "computed getter 没有固定槽位：惰性，出现在第一次**被读取**处——通常是 render 求值期间（模板用到时），所以首次与更新都在②内部；若 watch 订阅了该 computed 则还会在 watch 初始化 pull 时求一次。子组件 mounted：首次场景它在②的内部——patch 递归 mount 子组件时 queuePostRenderEffect 入 postQueue，真正回调仍在③阶段（与父 updated 同期，且按 queue 序父 mounted 可能晚于子 mounted——mounted 自底向上）。更新场景无 mounted 只有子 updated。这题拆的是『时机=队列槽位』与『时机=代码行号』两种心智模型的混淆。" }
+      {
+        "angle": "加约束",
+        "stem": "加约束：在上述序列基础上追加两个动作——子组件的 mounted（首次渲染场景）与 computed 的 getter 求值。它们分别插在哪？要求指出『首次』与『更新』两版答案的差异。",
+        "analysis": "computed getter 没有固定槽位：惰性，出现在第一次**被读取**处——通常是 render 求值期间（模板用到时），所以首次与更新都在②内部；若 watch 订阅了该 computed 则还会在 watch 初始化 pull 时求一次。子组件 mounted：首次场景它在②的内部——patch 递归 mount 子组件时 queuePostRenderEffect 入 postQueue，真正回调仍在③阶段（与父 updated 同期，且按 queue 序父 mounted 可能晚于子 mounted——mounted 自底向上）。更新场景无 mounted 只有子 updated。这题拆的是『时机=队列槽位』与『时机=代码行号』两种心智模型的混淆。"
+      }
     ]
   },
   {
@@ -158,27 +420,75 @@
     "type": "essay",
     "difficulty": 5,
     "stem": "压轴论述：『Vue 的 diff 快，不是因为算法花哨，而是因为它根本不怎么 diff。』请围绕这句话，从编译期信息（patchFlag/block/hoist）、运行时分发（process 按 type 短路、shouldUpdateComponent）、列表算法（双端快扫+LIS）、以及 React 对照（无编译器全量下钻 vs Fiber 可中断）四层论证；最后给出这套设计在『手写 render / JSX 项目』里收益打折的分析。",
-    "answer": { "ref": "论点骨架：【编译期】diff 的成本预算早在 codegen 就定好：静态子树 hoist（引用相等→sameVNodeType 短路）、block tree 把每层『需要看的节点清单』扁平化（patchBlockChildren 只遍历 dc）、patchFlag 把『看什么字段』也编出来（TEXT 只动文本节点，PROPS 只比 dynamicProps）——O(n) 的 n 被压缩成『本层动态数』。【运行时分发】process 按 type 与 flag 的多态分发：HOISTED(-1)/CACHED(64) 直接 return；组件节点 shouldUpdateComponent 对全静态 props+stable slot 判 skip；Fragment 单 child 快路径。这一层与编译期协同才有效——手写 vnode 不带 flag 就退化为 FULL_DIFF。【列表】unkeyed 双端四连比（头头/尾尾/头尾/尾头）吃掉大量常见形态（逆序、替换两端），剩余乱序才进 map+LIS；3.4 简化后仍是『快扫 + 一次 sequence 求解』的组合，最坏 O(n log n)。【React 对照】React 无编译器信息，render 即全量重建 vnode，靠 memo/稳定引用人为剪枝，剪枝失败整棵下钻；换来 JSX 图灵完备表达力与 Fiber 的时间切片（diff 可中断续跑）——Vue 的 diff 同步不可中断，但每帧要做的量少；这是『少干活 vs 可打断』的两种路线，别比数量级要比常数。【打折分析】JSX/h 手写无 hoist/dc/flag：Vue 官方 h 的 patchFlag 需手传、hoist 不发生，列表也无 dc 可走 → diff 近似 unkeyed 全量；vue/jsx 插件（jsx-compiler）通过常量折叠+inline hoist 部分找回，但组件级 stable 判定仍弱于模板。结论：Vue 的速度=编译器补贴，离了模板就自费。加分：举 jsx-vite 插件的 hoistStatic 选项、solid 连补贴都不要直接命令式。" },
+    "answer": {
+      "ref": "论点骨架：【编译期】diff 的成本预算早在 codegen 就定好：静态子树 hoist（引用相等→sameVNodeType 短路）、block tree 把每层『需要看的节点清单』扁平化（patchBlockChildren 只遍历 dc）、patchFlag 把『看什么字段』也编出来（TEXT 只动文本节点，PROPS 只比 dynamicProps）——O(n) 的 n 被压缩成『本层动态数』。【运行时分发】process 按 type 与 flag 的多态分发：HOISTED(-1)/CACHED(64) 直接 return；组件节点 shouldUpdateComponent 对全静态 props+stable slot 判 skip；Fragment 单 child 快路径。这一层与编译期协同才有效——手写 vnode 不带 flag 就退化为 FULL_DIFF。【列表】unkeyed 双端四连比（头头/尾尾/头尾/尾头）吃掉大量常见形态（逆序、替换两端），剩余乱序才进 map+LIS；3.4 简化后仍是『快扫 + 一次 sequence 求解』的组合，最坏 O(n log n)。【React 对照】React 无编译器信息，render 即全量重建 vnode，靠 memo/稳定引用人为剪枝，剪枝失败整棵下钻；换来 JSX 图灵完备表达力与 Fiber 的时间切片（diff 可中断续跑）——Vue 的 diff 同步不可中断，但每帧要做的量少；这是『少干活 vs 可打断』的两种路线，别比数量级要比常数。【打折分析】JSX/h 手写无 hoist/dc/flag：Vue 官方 h 的 patchFlag 需手传、hoist 不发生，列表也无 dc 可走 → diff 近似 unkeyed 全量；vue/jsx 插件（jsx-compiler）通过常量折叠+inline hoist 部分找回，但组件级 stable 判定仍弱于模板。结论：Vue 的速度=编译器补贴，离了模板就自费。加分：举 jsx-vite 插件的 hoistStatic 选项、solid 连补贴都不要直接命令式。"
+    },
     "scoringPoints": [
-      { "point": "编译期三层（hoist/block/flag）各自压缩了 diff 的哪个维度说清楚", "weight": 3 },
-      { "point": "运行时分发举出 -1/CACHED 短路或 shouldUpdateComponent 实例", "weight": 2 },
-      { "point": "列表算法讲出双端快扫的定位（常见形态吃掉后再 LIS）而非背 LIS", "weight": 2 },
-      { "point": "React 对比落在机制权衡（补贴式少做 vs 纪律式可做但费心 + Fiber 可中断）", "weight": 2 },
-      { "point": "JSX 打折分析具体到 flag 手传/hoist 缺失/插件找回路径", "weight": 2 },
-      { "point": "观点自洽：全文扣题『不怎么 diff』并有反例边界", "weight": 1 }
+      {
+        "point": "编译期三层（hoist/block/flag）各自压缩了 diff 的哪个维度说清楚",
+        "weight": 3
+      },
+      {
+        "point": "运行时分发举出 -1/CACHED 短路或 shouldUpdateComponent 实例",
+        "weight": 2
+      },
+      {
+        "point": "列表算法讲出双端快扫的定位（常见形态吃掉后再 LIS）而非背 LIS",
+        "weight": 2
+      },
+      {
+        "point": "React 对比落在机制权衡（补贴式少做 vs 纪律式可做但费心 + Fiber 可中断）",
+        "weight": 2
+      },
+      {
+        "point": "JSX 打折分析具体到 flag 手传/hoist 缺失/插件找回路径",
+        "weight": 2
+      },
+      {
+        "point": "观点自洽：全文扣题『不怎么 diff』并有反例边界",
+        "weight": 1
+      }
     ],
     "analysis": "d5 题考的是组织论据的能力：四层每一层都要有具体机制名词+一个可验证的行为（引用相等短路、-1 return、双端命中样例）。React 对比最忌拉踩，给出『光谱论』（Vue 模板=强补贴，React=弱补贴强表达，Solid=零 vnode）的考生能让面试官眼前一亮。JSX 打折是本题的隐藏区分器：知道 vue jsx 插件也在做 hoist 的人极少。",
-    "gapCheck": ["易漏点：『diff 不可中断』要说 Vue 靠的是单次工作量小而非抢占，漏了会被 React 背景面试官追击", "常见误区：把 patchFlag 说成 diff 算法的一部分——它是编译期产物被 diff **消费**", "叙事安全垫：先抛论点再分层递进，中途被打断也能带走结构分"],
+    "gapCheck": [
+      "易漏点：『diff 不可中断』要说 Vue 靠的是单次工作量小而非抢占，漏了会被 React 背景面试官追击",
+      "常见误区：把 patchFlag 说成 diff 算法的一部分——它是编译期产物被 diff **消费**",
+      "叙事安全垫：先抛论点再分层递进，中途被打断也能带走结构分"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.runtime.diff-key", "fe.vue.compiler.block-tree", "fe.vue.ecosystem.vue-vs-react"],
-      "related": ["fe.vue.ecosystem.vapor-signals", "fe.vue.perf.dom-reuse"],
-      "followUps": ["那 Suspense/Fiber 谁更治得好长列表渲染卡顿？（虚拟列表 vs 时间切片——正交方案）", "如果给你的 JSX 团队迁模板，你预期收益最大的是哪类组件？（深层展示型）", "Vapor 之后这句话还成立吗？（升级成『根本没有 diff』）"]
+      "prereq": [
+        "fe.vue.runtime.diff-key",
+        "fe.vue.compiler.block-tree",
+        "fe.vue.ecosystem.vue-vs-react"
+      ],
+      "related": [
+        "fe.vue.ecosystem.vapor-signals",
+        "fe.vue.perf.dom-reuse"
+      ],
+      "followUps": [
+        "那 Suspense/Fiber 谁更治得好长列表渲染卡顿？（虚拟列表 vs 时间切片——正交方案）",
+        "如果给你的 JSX 团队迁模板，你预期收益最大的是哪类组件？（深层展示型）",
+        "Vapor 之后这句话还成立吗？（升级成『根本没有 diff』）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://www.csdn.net/detail/webblog_79189108/65826", "retrievedAt": "2026-11-09", "note": "React/Vue Diff 工程实践对比 + 2026 框架光谱文 releaserun.com/modern-frontend-framework-guide（交叉印证）" },
-    "tags": ["压轴", "观点题", "大厂三面"],
+    "source": {
+      "kind": "web",
+      "url": "https://www.csdn.net/detail/webblog_79189108/65826",
+      "retrievedAt": "2026-11-09",
+      "note": "React/Vue Diff 工程实践对比 + 2026 框架光谱文 releaserun.com/modern-frontend-framework-guide（交叉印证）"
+    },
+    "tags": [
+      "压轴",
+      "观点题",
+      "大厂三面"
+    ],
     "variants": [
-      { "angle": "换问法", "stem": "换问法（面试官是 React 转岗者，带敌意）：『我们 React 团队觉得 Vue 的 diff 就是双端指针老掉牙的东西，你们凭什么说自己快？』请用不超过 10 句话反击，必须包含一个他们无法反驳的数字性事实和一个诚实承认的短板。", "analysis": "合格反击骨架：数字事实——Vue3 的 patch 每层只访问 block 清单里的动态节点，典型 CRUD 表格一次 cell 更新的访问 vnode 数是常数级（官方 benchmark js-framework-benchmark 长期第一梯队，1k 行 create/replace 毫秒级领先）；机制点——你们的 memo 是我们编译器的免费午餐。诚实短板——Fiber 的可中断渲染与并发优先级（transition/startTransition）Vue 同步 diff 给不了，超大一次性渲染（首挂 5k 行）会卡帧，只能靠虚拟列表自救。全攻击不给承认 = 减分；只承认不打 = 也减分；这题本质测技术人格。" }
+      {
+        "angle": "换问法",
+        "stem": "换问法（面试官是 React 转岗者，带敌意）：『我们 React 团队觉得 Vue 的 diff 就是双端指针老掉牙的东西，你们凭什么说自己快？』请用不超过 10 句话反击，必须包含一个他们无法反驳的数字性事实和一个诚实承认的短板。",
+        "analysis": "合格反击骨架：数字事实——Vue3 的 patch 每层只访问 block 清单里的动态节点，典型 CRUD 表格一次 cell 更新的访问 vnode 数是常数级（官方 benchmark js-framework-benchmark 长期第一梯队，1k 行 create/replace 毫秒级领先）；机制点——你们的 memo 是我们编译器的免费午餐。诚实短板——Fiber 的可中断渲染与并发优先级（transition/startTransition）Vue 同步 diff 给不了，超大一次性渲染（首挂 5k 行）会卡帧，只能靠虚拟列表自救。全攻击不给承认 = 减分；只承认不打 = 也减分；这题本质测技术人格。"
+      }
     ]
   },
   {
@@ -187,26 +497,309 @@
     "type": "code",
     "difficulty": 3,
     "stem": "手写题：实现一个『JSON 树渲染器』的最小 createRenderer 等价物——宿主节点为普通 JS 对象 {type,children,props}，输出最终为嵌套对象树。要求写出 nodeOps 的核心五件套（createElement/createText/insert/remove/patchProp）+ createApp 入口（用你的 render 函数替代 DOM 挂载）。语言不限，重点看接口设计。",
-    "answer": { "ref": "设计要点：宿主节点即 plain object；createElement(type,props)=>({type,props:{},children:[]})；createText(text)=>({text})；insert(child,parent,anchor) 按 anchor indexOf splice；remove 从 parent.children splice；patchProp(node,key,next,prev) 直接 node.props[key]=next；可选 createComment 支持 Fragment。入口 render(vnode,rootHost)：递归 mount 或复用 Vue 的 createRenderer(baseCreateRenderer(nodeOps).createApp) 思路手写 mount(vnode,parent)。得分关键：anchor 语义（null 则 push，否则插到 anchor 前且处理 anchor 不在 list 的容错）、remove 的幂等、patchProp 不做多余 diff。", "code": "const hostNode = (type, props = {}) => ({ type, props, children: [] })\nconst nodeOps = {\n  createElement: (tag, _ns, _p, props) => hostNode(tag, { ...props }),\n  createText: (t) => ({ text: t }),\n  createComment: (t) => ({ comment: t }),\n  parentNode: (n) => n.parent || null,\n  nextSibling: (n) => {\n    const p = n.parent; if (!p) return null\n    return p.children[p.children.indexOf(n) + 1] || null\n  },\n  insert(child, parent, anchor = null) {\n    if (child.parent) child.parent.children.splice(child.parent.children.indexOf(child), 1)\n    child.parent = parent\n    const i = anchor ? parent.children.indexOf(anchor) : -1\n    if (i > -1) parent.children.splice(i, 0, child)\n    else parent.children.push(child)\n  },\n  remove: (child) => {\n    const p = child.parent; if (!p) return\n    const i = p.children.indexOf(child)\n    if (i > -1) { p.children.splice(i, 1); child.parent = null }\n  },\n  patchProp: (el, key, prev, next) => { el.props[key] = next },\n}\n// 迷你 mount：vnode={type,props,children|text}\nfunction mount(vnode, parent) {\n  const host = vnode.text != null ? nodeOps.createText(vnode.text)\n    : nodeOps.createElement(vnode.type, null, null, vnode.props || {})\n  for (const c of vnode.children || []) if (c) mount(c, host)\n  nodeOps.insert(host, parent)\n  return host\n}\nfunction createJsonApp(rootVnode) {\n  const root = hostNode('#root')\n  return { mount: () => mount(rootVnode, root), toJSON: () => root }\n}" },
+    "answer": {
+      "ref": "设计要点：宿主节点即 plain object；createElement(type,props)=>({type,props:{},children:[]})；createText(text)=>({text})；insert(child,parent,anchor) 按 anchor indexOf splice；remove 从 parent.children splice；patchProp(node,key,next,prev) 直接 node.props[key]=next；可选 createComment 支持 Fragment。入口 render(vnode,rootHost)：递归 mount 或复用 Vue 的 createRenderer(baseCreateRenderer(nodeOps).createApp) 思路手写 mount(vnode,parent)。得分关键：anchor 语义（null 则 push，否则插到 anchor 前且处理 anchor 不在 list 的容错）、remove 的幂等、patchProp 不做多余 diff。",
+      "code": "const hostNode = (type, props = {}) => ({ type, props, children: [] })\nconst nodeOps = {\n  createElement: (tag, _ns, _p, props) => hostNode(tag, { ...props }),\n  createText: (t) => ({ text: t }),\n  createComment: (t) => ({ comment: t }),\n  parentNode: (n) => n.parent || null,\n  nextSibling: (n) => {\n    const p = n.parent; if (!p) return null\n    return p.children[p.children.indexOf(n) + 1] || null\n  },\n  insert(child, parent, anchor = null) {\n    if (child.parent) child.parent.children.splice(child.parent.children.indexOf(child), 1)\n    child.parent = parent\n    const i = anchor ? parent.children.indexOf(anchor) : -1\n    if (i > -1) parent.children.splice(i, 0, child)\n    else parent.children.push(child)\n  },\n  remove: (child) => {\n    const p = child.parent; if (!p) return\n    const i = p.children.indexOf(child)\n    if (i > -1) { p.children.splice(i, 1); child.parent = null }\n  },\n  patchProp: (el, key, prev, next) => { el.props[key] = next },\n}\n// 迷你 mount：vnode={type,props,children|text}\nfunction mount(vnode, parent) {\n  const host = vnode.text != null ? nodeOps.createText(vnode.text)\n    : nodeOps.createElement(vnode.type, null, null, vnode.props || {})\n  for (const c of vnode.children || []) if (c) mount(c, host)\n  nodeOps.insert(host, parent)\n  return host\n}\nfunction createJsonApp(rootVnode) {\n  const root = hostNode('#root')\n  return { mount: () => mount(rootVnode, root), toJSON: () => root }\n}"
+    },
     "scoringPoints": [
-      { "point": "五件套签名齐全且 insert 实现了 anchor 语义（含移动已有节点）", "weight": 3 },
-      { "point": "remove 幂等、parentNode/nextSibling 可实现（diff 移动节点时要反查）", "weight": 2 },
-      { "point": "mount/render 入口清晰：vnode→host 映射 + children 递归", "weight": 2 },
-      { "point": "createComment 或注释锚点被提及（Fragment/Suspense 依赖）", "weight": 1 },
-      { "point": "口述：哪些 Vue core 行为依赖这些 op 的语义正确（如 move=findNextHostParent+insert(anchor)）", "weight": 1 }
+      {
+        "point": "五件套签名齐全且 insert 实现了 anchor 语义（含移动已有节点）",
+        "weight": 3
+      },
+      {
+        "point": "remove 幂等、parentNode/nextSibling 可实现（diff 移动节点时要反查）",
+        "weight": 2
+      },
+      {
+        "point": "mount/render 入口清晰：vnode→host 映射 + children 递归",
+        "weight": 2
+      },
+      {
+        "point": "createComment 或注释锚点被提及（Fragment/Suspense 依赖）",
+        "weight": 1
+      },
+      {
+        "point": "口述：哪些 Vue core 行为依赖这些 op 的语义正确（如 move=findNextHostParent+insert(anchor)）",
+        "weight": 1
+      }
     ],
     "analysis": "评分核心不在代码而在接口理解：insert 的 anchor 分支（插前/追加/先摘后插）是 diff move 的地基；nextSibling/parentNode 缺了移动算法就找不到参照物；createComment 缺失则 Fragment/Suspense/Teleport 全崩。能把『op 语义契约』讲出来的人可以直接上手写 weex/canvas 渲染器。",
-    "gapCheck": ["易漏点：insert 先 remove 再插（move 语义），忘了摘旧位置会数组重复", "常见误区：把 patchProp 写成全量重建节点——违背复用原则", "加分项：主动提出 patchProp 里 prev===next 早退与 style 合并策略"],
+    "gapCheck": [
+      "易漏点：insert 先 remove 再插（move 语义），忘了摘旧位置会数组重复",
+      "常见误区：把 patchProp 写成全量重建节点——违背复用原则",
+      "加分项：主动提出 patchProp 里 prev===next 早退与 style 合并策略"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.runtime.custom-renderer"],
-      "related": ["fe.vue.runtime.builtin-components", "fe.vue.compiler.ast-pipeline"],
-      "followUps": ["现在给这个渲染器加 SSR：你需要额外提供哪些 op？（toString/流式 push，参考 @vue/server-renderer 只需 querySelector 例外?）", "patchProp 想支持 class 合并（静态+动态）你在哪层做？（编译期 class 归一 or patchProp）", "你的 nextSibling 用 indexOf，真实 DOM 用什么？（node.nextSibling O(1)，这是宿主差异导致的复杂度）"]
+      "prereq": [
+        "fe.vue.runtime.custom-renderer"
+      ],
+      "related": [
+        "fe.vue.runtime.builtin-components",
+        "fe.vue.compiler.ast-pipeline"
+      ],
+      "followUps": [
+        "现在给这个渲染器加 SSR：你需要额外提供哪些 op？（toString/流式 push，参考 @vue/server-renderer 只需 querySelector 例外?）",
+        "patchProp 想支持 class 合并（静态+动态）你在哪层做？（编译期 class 归一 or patchProp）",
+        "你的 nextSibling 用 indexOf，真实 DOM 用什么？（node.nextSibling O(1)，这是宿主差异导致的复杂度）"
+      ]
     },
     "openBookAllowed": true,
-    "source": { "kind": "official", "url": "https://vuejs.org/api/custom-renderer.html", "retrievedAt": "2026-11-09", "note": "NodeOps 接口定义；原型参考 vue-example-renderers 的 json/sdl 示例" },
-    "tags": ["手写题", "渲染器", "架构"],
+    "source": {
+      "kind": "official",
+      "url": "https://vuejs.org/api/custom-renderer.html",
+      "retrievedAt": "2026-11-09",
+      "note": "NodeOps 接口定义；原型参考 vue-example-renderers 的 json/sdl 示例"
+    },
+    "tags": [
+      "手写题",
+      "渲染器",
+      "架构"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "反向 debug 题：你的 JSON 渲染器在 v-if 切换时偶现节点丢失（不是错位是彻底消失）。同事怀疑 diff 算法，但你确认 Vue 版本正常。请沿『move 依赖哪些 op』的思路给出两个最可能的 op 实现 bug。", "analysis": "bug①：remove 没把 child.parent 置空/indexOf 找不到（引用比较失效因每次新建 host），unmount/move 摘除时 splice 未生效留下孤儿子树；bug②：nextSibling/parentNode 实现返回 null（parent 指针维护遗漏），findNextHostParent 找不到容器 → insert(null) 静默丢节点。定位法：在 move 路径打日志（remove 后 child.parent 应为 null；insert 前 anchor.parentNode 应存在）。考点：渲染器 bug 九成出在 op 契约违约而非 diff 逻辑——这句总结是满分句。" }
+      {
+        "angle": "反向问",
+        "stem": "反向 debug 题：你的 JSON 渲染器在 v-if 切换时偶现节点丢失（不是错位是彻底消失）。同事怀疑 diff 算法，但你确认 Vue 版本正常。请沿『move 依赖哪些 op』的思路给出两个最可能的 op 实现 bug。",
+        "analysis": "bug①：remove 没把 child.parent 置空/indexOf 找不到（引用比较失效因每次新建 host），unmount/move 摘除时 splice 未生效留下孤儿子树；bug②：nextSibling/parentNode 实现返回 null（parent 指针维护遗漏），findNextHostParent 找不到容器 → insert(null) 静默丢节点。定位法：在 move 路径打日志（remove 后 child.parent 应为 null；insert 前 anchor.parentNode 应存在）。考点：渲染器 bug 九成出在 op 契约违约而非 diff 逻辑——这句总结是满分句。"
+      }
     ]
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.vue.runtime.builtin-components",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 Vue 3.5 的内置组件，下列说法正确的是？",
+    "options": [
+      {
+        "key": "A",
+        "text": "<KeepAlive> 缓存的实例数超过 max 限制时，会按最近最久未使用（LRU）策略销毁最旧的缓存实例"
+      },
+      {
+        "key": "B",
+        "text": "<Teleport> 的目标节点必须位于 Vue 应用挂载容器的内部，否则报错"
+      },
+      {
+        "key": "C",
+        "text": "<Suspense> 在 Vue 3.5 中已经转为稳定 API，未来不再变化"
+      },
+      {
+        "key": "D",
+        "text": "<Transition> 只能包裹原生 HTML 元素，不能用于组件切换"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：KeepAlive 维护缓存实例集合，超过 max 时按 LRU 淘汰最久未访问的实例并触发其完整卸载流程；include/exclude 还会按组件 name 过滤。B 错误：Teleport 的 to 接受 CSS 选择器或真实节点，可以指向 app 容器之外（常见 target 为 body），只要挂载时目标已存在。C 错误：截至 Vue 3.5，Suspense 仍被官方标记为实验性特性，API 与行为可能调整，生产使用需谨慎评估。D 错误：Transition 可包裹组件（含异步组件），配合 mode=\"out-in\" 还能编排组件切换的进出动画。",
+    "gapCheck": [
+      "易漏点：include/exclude 按组件 name 匹配，<script setup> 组件需用 defineOptions({ name }) 或依赖文件名推断。",
+      "常见误区：以为 Teleport 会切断组件逻辑关系；props、emit、provide/inject 仍按原组件树工作，变的只是真实 DOM 位置。",
+      "排查线索：对照 DevTools 组件树与 Elements 面板 DOM 树，分别确认逻辑父级与物理父级；用日志观察 LRU 淘汰时的卸载钩子。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.runtime.builtin-components"
+      ],
+      "related": [
+        "fe.vue.runtime.update-flow",
+        "fe.vue.composition.setup-lifecycle"
+      ],
+      "followUps": [
+        "KeepAlive 的 LRU 淘汰发生时，被淘汰组件会走哪些生命周期钩子？",
+        "Teleport 内容在 disabled 切换时 DOM 会如何移动，状态是否保留？",
+        "Suspense 的 experimental 状态对生产选型意味着什么风险？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vue 3.5 内置组件官方文档语义编写"
+    },
+    "tags": [
+      "内置组件",
+      "KeepAlive",
+      "Teleport"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0021"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.vue.runtime.builtin-components",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "简述 <Teleport> 的 to 与 disabled 两个 prop 的作用。被传送内容在真实 DOM 上位于目标容器内，请说明其 Vue 组件逻辑关系（props/emit、provide/inject）与原生 DOM 事件冒泡分别沿什么路径工作，并举出该特性的典型用途。",
+    "scoringPoints": [
+      {
+        "point": "to 指定目标容器（选择器或节点），挂载时目标必须存在；disabled 为 true 时内容不传送、回退渲染在组件原位置，切换时 DOM 被移动但组件状态保留",
+        "weight": 3
+      },
+      {
+        "point": "组件逻辑关系不变：props/emit、provide/inject、生命周期仍挂在原父组件的逻辑组件树上，与物理 DOM 位置无关",
+        "weight": 3
+      },
+      {
+        "point": "原生 DOM 事件按真实 DOM 树冒泡，即沿 Teleport 目标容器的祖先链，而不是逻辑组件树",
+        "weight": 2
+      },
+      {
+        "point": "典型用途：模态框、Tooltip、通知、全屏弹层挂到 body，规避父级 overflow:hidden、transform 层叠上下文与 z-index 陷阱",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "Teleport 通过 to 声明内容要传送到的目标节点（CSS 选择器或 DOM 元素，常见 'body'），要求挂载时目标已存在；disabled 为 true 时传送失效，内容回退渲染到组件在原组件树中的占位位置，该 prop 动态切换时 Vue 会移动真实 DOM 但保留组件实例与内部状态。需要区分两条路径：Vue 层面的关系完全不受物理位置影响，props 向下传递、emit 向上派发、provide/inject 注入、生命周期注册都按原逻辑组件树运作，父组件依然是 Teleport 标签所在的组件；而原生 DOM 事件（click 等）遵循 DOM 规范，沿元素真实的 DOM 祖先冒泡，也就是目标容器那条链路，不会“穿”回原占位容器的 DOM 监听器（组件自定义 emit 则另当别论）。典型用途是把模态框、下拉浮层、Tooltip、全局通知渲染到 body 末尾，绕过祖先元素 overflow:hidden 裁剪、transform/filter 创建的包含块与层叠上下文导致的定位和 z-index 问题，同时保持组件化的数据流与注入能力。"
+    },
+    "analysis": "本题的题眼是“双树模型”：Vue 维护逻辑组件树，浏览器维护物理 DOM 树，Teleport 只移动后者中的真实节点。to/disabled 的语义是基础分；props/emit、provide/inject 沿逻辑树工作而原生事件沿真实 DOM 冒泡，是最易混淆的辨析点，必须明确两条路径的结论；最后用模态框/浮层场景说明工程动机——绕过 overflow、包含块与层叠上下文限制。答题时若只回答“把 DOM 传到别处”而不区分事件冒泡与组件通信路径，属于理解不到位。",
+    "gapCheck": [
+      "易漏点：to 的目标在 Teleport 挂载时必须已经存在，通常选 body 或确保先渲染的容器节点。",
+      "常见误区：在原容器上监听原生 click 指望捕获弹窗内冒泡；物理祖先已变为目标容器，应在组件树层面用 emit 通信。",
+      "排查线索：同时打开 DevTools 组件树与 Elements DOM 树对照，区分逻辑父级（组件树）与物理父级（DOM 树）。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.runtime.builtin-components"
+      ],
+      "related": [
+        "fe.vue.runtime.update-flow",
+        "fe.js.dom.event"
+      ],
+      "followUps": [
+        "disabled 从 false 切到 true 时，组件内部的输入框内容与滚动位置会丢失吗？",
+        "多个 Teleport 指向同一目标时，渲染顺序如何决定？",
+        "为什么弹窗内元素的 position:fixed 仍可能受祖先 transform 影响，Teleport 如何规避？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vue Teleport 组件规范与 DOM/组件双树模型编写"
+    },
+    "tags": [
+      "Teleport",
+      "组件树",
+      "弹窗"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0022"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.vue.runtime.custom-renderer",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "Vue 的自定义渲染器能力由 @vue/runtime-core 暴露的 ______ 工厂函数创建；入参是一组宿主节点操作，习惯命名为 ______，需要实现 createElement、createText、insert、remove 等方法；属性与特性如何写入宿主节点则由单独的 ______ 函数负责，渲染到 Canvas、终端、原生 UI 等非 DOM 目标时通常要重写它。",
+    "answer": {
+      "blanks": [
+        "createRenderer",
+        "nodeOps",
+        "patchProp"
+      ],
+      "synonyms": {
+        "createRenderer": [
+          "createRenderer()"
+        ],
+        "nodeOps": [
+          "nodeOps 对象",
+          "宿主节点操作对象"
+        ],
+        "patchProp": [
+          "patchProp()"
+        ]
+      }
+    },
+    "analysis": "createRenderer(options) 是自定义渲染器的入口，options 中 nodeOps 提供创建/插入/删除文本与元素等宿主操作，patchProp 定义 class/style/attr/event/prop 等各类属性如何 patch 到目标节点。返回的渲染器对象自带 createApp 方法，用它创建应用实例并挂载到自定义宿主容器。@vue/runtime-dom 本身就是一份参考实现：它把 DOM 版 nodeOps 与 patchProp 传给 createRenderer，再导出大家平时用的 createApp。响应式系统、虚拟 DOM diff、调度器全部复用 runtime-core，平台方只需替换宿主适配层，因此同一套组件可以跑在小程序、Canvas、终端等不同目标上。",
+    "gapCheck": [
+      "易漏点：要用渲染器实例返回的 renderer.createApp 挂载，不能直接用 runtime-dom 的 createApp，后者已经绑定 DOM 宿主。",
+      "常见误区：以为自定义渲染器要重写响应式或 diff；核心算法全部复用，工作量集中在 nodeOps 与 patchProp 适配。",
+      "排查线索：直接阅读 @vue/runtime-dom 源码，它就是一份最权威的 DOM 平台自定义渲染器样板。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.runtime.custom-renderer"
+      ],
+      "related": [
+        "fe.vue.runtime.update-flow",
+        "fe.vue.runtime.builtin-components"
+      ],
+      "followUps": [
+        "createRenderer 返回的对象上有哪些方法，与 runtime-dom 的 createApp 是什么关系？",
+        "把渲染目标换成 Canvas 时，insert/remove 这类节点操作要如何映射？",
+        "自定义渲染器场景下，组件的生命周期与响应式更新是否仍然完整可用？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 @vue/runtime-core 自定义渲染器 API 与 runtime-dom 实现结构编写"
+    },
+    "tags": [
+      "自定义渲染器",
+      "createRenderer",
+      "runtime-core"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0023"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.vue.runtime.update-flow",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "在同一个点击事件回调中，连续三次修改同一个组件依赖的响应式状态，Vue 3 的调度器默认会如何安排该组件的重新渲染？",
+    "options": [
+      {
+        "key": "A",
+        "text": "每次修改都同步触发一次完整重渲染，组件共渲染 3 次"
+      },
+      {
+        "key": "B",
+        "text": "渲染任务入队并按组件去重，在当前轮次的微任务刷新阶段合并为一次重渲染；await nextTick() 后可读到更新后的 DOM"
+      },
+      {
+        "key": "C",
+        "text": "更新被推迟到下一个 setTimeout 宏任务中才执行渲染"
+      },
+      {
+        "key": "D",
+        "text": "连续修改会被忽略，必须显式调用 forceUpdate 才会重新渲染"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：Vue 3 的调度器把组件渲染函数包装成 job 放入队列，同一组件的 job 按实例去重，状态变更只触发入队而非立即渲染；队列在当前同步代码结束后的微任务中批量 flush，因此无论改多少次，该组件默认只重渲染一次。nextTick 返回的 Promise 在队列刷新、DOM patch 完成后 resolve，适合在改完状态后读取新 DOM。A 错误，同步重复渲染正是调度器要消除的浪费。C 错误，刷新基于 Promise 微任务而非 setTimeout 宏任务，时序更早。D 错误，响应式依赖会自动触发调度，forceUpdate 仅用于绕过响应式强制刷新的罕见场景。",
+    "gapCheck": [
+      "易漏点：去重粒度是组件渲染 job，同一组件多次变更合并一次；不同组件各自入队，且队列还会按父子关系与 id 排序。",
+      "常见误区：改完状态立刻读取 DOM 文本得到旧值，需 await nextTick() 或使用 flush:'post' 的 watcher。",
+      "排查线索：Performance 面板确认一次交互只产生一次组件 Render，日志对比 nextTick 前后 DOM 内容验证刷新时机。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.runtime.update-flow"
+      ],
+      "related": [
+        "fe.vue.composition.setup-lifecycle",
+        "fe.browser.events.event-loop",
+        "fe.vue.runtime.builtin-components"
+      ],
+      "followUps": [
+        "watch 的 flush 选项 pre/post/sync 分别在调度队列的什么时机执行？",
+        "nextTick 为什么能用微任务保证 DOM 已更新，它与直接 await Promise.resolve() 等价吗？",
+        "父组件与多个子组件在同一轮变更中，渲染 job 的排序规则是什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vue 3 调度器队列去重与 nextTick 微任务刷新机制编写"
+    },
+    "tags": [
+      "调度器",
+      "nextTick",
+      "更新时机"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0024"
   }
 ]

@@ -1,0 +1,61 @@
+[
+  { "id": "be.java.core", "title": "Java 语言核心", "level": 3, "domain": "be", "stack": "java", "topic": "core", "mustMaster": true, "estMinutes": 120,
+    "summary": "基本数据类型与语法、面向对象三大特性、String 与常用类、集合框架、异常与泛型，是整条后端学习路线的语言地基" },
+
+  { "id": "be.java.core.syntax-basics", "title": "基本语法、数据类型与流程控制", "level": 4, "domain": "be", "stack": "java", "topic": "core",
+    "related": ["be.java.core.oop"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 8 种基本数据类型与取值范围、基本类型与包装类型、变量与常量、运算符、if/switch/for/while 流程控制、方法定义与重载入门。这是后端整条路线的零前置起点，对应 JavaGuide『Java 基础』第一章" },
+
+  { "id": "be.java.core.oop", "title": "面向对象：封装、继承与多态", "level": 4, "domain": "be", "stack": "java", "topic": "core",
+    "prerequisites": ["be.java.core.syntax-basics"],
+    "related": ["be.java.core.collection"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 40,
+    "summary": "要能讲类与对象、封装（private+getter/setter）、继承（extends/super）、多态（向上转型、动态绑定、方法重写 vs 重载）、抽象类与接口的区别、构造方法执行顺序" },
+
+  { "id": "be.java.core.string-common", "title": "String、包装类与常用 API", "level": 4, "domain": "be", "stack": "java", "topic": "core",
+    "prerequisites": ["be.java.core.oop"],
+    "related": ["be.java.core.syntax-basics"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 String 不可变性与字符串常量池、String/StringBuilder/StringBuffer 区别与选型、自动装箱拆箱与 Integer 缓存（-128~127）、equals 与 hashCode 约定、Object 常用方法" },
+
+  { "id": "be.java.core.collection", "title": "集合框架：List、Set、Map 与选型", "level": 4, "domain": "be", "stack": "java", "topic": "core",
+    "prerequisites": ["be.java.core.oop"],
+    "related": ["be.java.core.string-common"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 45,
+    "summary": "要能讲 Collection 体系、ArrayList 与 LinkedList 区别、HashMap 底层（数组+链表+红黑树）与 put 流程、HashSet 去重原理、HashMap 与 HashTable/ConcurrentHashMap、遍历方式与 fail-fast" },
+
+  { "id": "be.java.core.exception-generic", "title": "异常体系与泛型基础", "level": 4, "domain": "be", "stack": "java", "topic": "core",
+    "prerequisites": ["be.java.core.collection"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲受检异常与运行时异常的区别、try-catch-finally 与 try-with-resources、throw/throws、自定义异常；泛型类/方法、通配符 ? extends/super、类型擦除" },
+
+  { "id": "be.java.concurrent", "title": "并发编程", "level": 3, "domain": "be", "stack": "java", "topic": "concurrent", "mustMaster": true, "estMinutes": 90,
+    "summary": "线程生命周期、synchronized 与 Lock、volatile 与 JMM、线程池、ThreadLocal，是后端中高级面试核心" },
+
+  { "id": "be.java.concurrent.thread-basics", "title": "线程创建、生命周期与 synchronized", "level": 4, "domain": "be", "stack": "java", "topic": "concurrent",
+    "prerequisites": ["be.java.core.collection"],
+    "related": ["be.java.concurrent.threadpool-lock"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 40,
+    "summary": "要能讲创建线程的几种方式（继承 Thread/实现 Runnable/Callable+Future）、六种线程状态与转换、synchronized 锁方法/代码块与锁升级、wait/notify 与 sleep 区别、线程安全问题的成因" },
+
+  { "id": "be.java.concurrent.threadpool-lock", "title": "线程池、Lock、volatile 与 JMM", "level": 4, "domain": "be", "stack": "java", "topic": "concurrent",
+    "prerequisites": ["be.java.concurrent.thread-basics"],
+    "related": ["be.java.jvm.memory-gc"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 45,
+    "summary": "要能讲线程池核心参数与工作流程、拒绝策略、为何不用 Executors 而用 ThreadPoolExecutor、ReentrantLock 与 synchronized 区别、volatile 的可见性/有序性与 JMM 内存模型、CAS 与 Atomic 类、ThreadLocal 原理与内存泄漏" },
+
+  { "id": "be.java.jvm", "title": "JVM 虚拟机", "level": 3, "domain": "be", "stack": "java", "topic": "jvm", "mustMaster": true, "estMinutes": 80,
+    "summary": "运行时数据区、垃圾回收与算法、类加载机制与双亲委派，是排查 OOM/调优的基础" },
+
+  { "id": "be.java.jvm.memory-gc", "title": "运行时数据区与垃圾回收", "level": 4, "domain": "be", "stack": "java", "topic": "jvm",
+    "prerequisites": ["be.java.concurrent.thread-basics"],
+    "related": ["be.java.jvm.classloader"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 45,
+    "summary": "要能讲 JVM 运行时数据区（堆/栈/方法区/程序计数器/本地方法栈）、对象创建与内存布局、判断对象存活的可达性分析、GC  Roots、标记-清除/复制/标记-整理/分代收集、Minor GC 与 Full GC、常见垃圾收集器" },
+
+  { "id": "be.java.jvm.classloader", "title": "类加载机制与双亲委派模型", "level": 4, "domain": "be", "stack": "java", "topic": "jvm",
+    "prerequisites": ["be.java.jvm.memory-gc"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲类加载的加载-验证-准备-解析-初始化五个阶段、类加载器层次（启动/扩展/应用）、双亲委派模型的过程与意义（避免重复加载、防止核心类被篡改）、什么场景需要打破双亲委派（SPI/Tomcat）" }
+]

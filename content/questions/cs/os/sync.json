@@ -1,0 +1,585 @@
+[
+  {
+    "id": "Q-cs-os-sync-0001",
+    "nodeId": "cs.os.sync.lock-vs-spinlock",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于互斥锁（mutex）与自旋锁（spinlock），下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "互斥锁获取失败时线程会进入阻塞睡眠、让出 CPU，被唤醒时涉及上下文切换；自旋锁获取失败时在原地循环忙等，不主动让出 CPU，锁可用时几乎无切换延迟" },
+      { "key": "B", "text": "自旋锁适合锁持有时间极短、且运行在多核 CPU 上的场景；如果临界区很长或在单核上忙等，自旋只会空耗 CPU 甚至迟迟等不到持锁线程被调度" },
+      { "key": "C", "text": "自旋锁因为不睡眠，所以无论临界区多长都比互斥锁性能好" },
+      { "key": "D", "text": "Linux 内核中很多锁采用『先自旋有限次、再睡眠』的混合策略（如 futex/自适应自旋），目的是在短临界区省切换、长临界区不空转" }
+    ],
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A、B、D 正确。A 对比了两种等待方式的本质：睡眠-唤醒有上下文切换成本但等待时不占 CPU，忙等零切换延迟但持续烧 CPU。B 给出自旋锁成立的两个前提——多核（持锁线程能在别的核上真正并行推进）与短临界区（忙等时间短于一次切换开销才划算）。D 描述了工程上的折中：自适应自旋先赌锁马上释放，超时再睡。C 错在绝对化：临界区长时自旋会把一个核跑满却等不到结果，比直接睡眠更差；单核下若持锁线程同处一个核，忙等线程不让出 CPU，持锁线程根本没机会运行，形成类似活锁的局面。",
+    "gapCheck": [
+      "易漏点：自旋锁的效率优势依赖多核+短临界区两个前提，离开前提就是反优化",
+      "常见误区：把『不进内核、不切换』当成无条件优点——忙等期间该核无法做任何有用工作",
+      "加分项：知道 pthread_mutex 在 Linux 基于 futex：无竞争时全在用户态原子操作完成，只有真冲突才陷入内核睡眠"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.lock-vs-spinlock"],
+      "related": ["cs.os.sync.cas-lockfree", "cs.os.process.context-switch"],
+      "followUps": [
+        "为什么 Linux 内核的中断上下文里只能用自旋锁而不能用互斥锁？",
+        "futex 为什么在无竞争场景下不需要系统调用？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "互斥锁与自旋锁对比多选题" },
+    "tags": ["互斥锁", "自旋锁", "临界区", "高频"]
+  },
+  {
+    "id": "Q-cs-os-sync-0002",
+    "nodeId": "cs.os.sync.lock-vs-spinlock",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：在单核 CPU 系统中，一个线程持有自旋锁后如果被时间片抢占，另一个在该核上自旋等待同一把锁的线程会在整个时间片内空转，且持锁线程在它重新被调度前无法释放锁，因此单核环境下自旋锁通常退化为关抢占式的短临界区保护，不能指望忙等来提升性能。",
+    "answer": { "judge": true },
+    "analysis": "正确。这正是自旋锁在单核上的根本约束：忙等线程占着唯一的核不放（或被调度后轮到它就在它的时间片里空转），持锁线程得不到运行机会，锁无法释放，等待纯属浪费。因此内核在单核上实现自旋锁时，加锁实际等价于关闭内核抢占（必要时关中断），临界区必须极短且不能睡眠；用户态在单核上更应该直接用互斥锁。多核下持锁线程可在另一核并行执行，忙等才有意义。",
+    "gapCheck": [
+      "易漏点：自旋锁有效依赖『持锁者能并行推进』，单核不具备这个条件",
+      "常见误区：以为自旋锁在任何机器上都是免切换的免费午餐",
+      "加分项：能讲内核自旋锁加锁时同时关本地中断，防止中断处理函数再争同一把锁造成死锁"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.lock-vs-spinlock"],
+      "related": ["cs.os.process.context-switch", "cs.os.sync.deadlock"],
+      "followUps": [
+        "自旋锁临界区里为什么严禁睡眠和发起可能阻塞的 IO？",
+        "关中断和关抢占分别防住了哪类并发？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "单核自旋锁行为判断题" },
+    "tags": ["自旋锁", "单核", "抢占", "内核"]
+  },
+  {
+    "id": "Q-cs-os-sync-0003",
+    "nodeId": "cs.os.sync.lock-vs-spinlock",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：基于 CAS 原子操作实现一个自旋锁 `SpinLock`，提供 `lock()` 与 `unlock()` 两个方法（可用 C/C++ 原子内置或 Java `AtomicBoolean`，任选一种语言，用伪代码讲清思路也可）。要求：①说明 CAS 的参数与语义；②解释为什么 `unlock()` 可以直接原子写 0 而不需要 CAS；③指出这种实现的两个局限。",
+    "answer": {
+      "ref": "设计要点：用一个初值 0 的原子变量 locked 表示锁状态，0=空闲、1=持有。lock() 循环调用 CAS(locked, 期望值0, 新值1)：仅当当前值等于期望 0 时才原子地改成 1 并返回成功，否则说明锁被占，继续自旋。unlock() 由持有者执行，此刻它合法持有锁、不存在与其他持有者竞争（竞争者只会把 0 改成 1，不会把 1 改成 0），因此原子写 0 即可，无需 CAS。局限：①单核+持锁者被抢占时空转浪费（应关抢占或改睡眠锁）；②无公平性，多个等待者抢锁可能饥饿，且高竞争下缓存行乒乓（cache line bouncing）严重；③临界区长时忙等烧 CPU；④还可能遭遇 ABA（锁场景下状态只有 0/1 且释放路径受控，ABA 影响小，但通用 CAS 编程要警惕）。",
+      "code": "// C11 版本\n#include <stdatomic.h>\ntypedef struct { _Atomic int locked; } SpinLock;\n\nvoid spin_init(SpinLock* lk) { atomic_store(&lk->locked, 0); }\n\nvoid spin_lock(SpinLock* lk) {\n  // CAS：期望 0（空闲），成功则置 1；失败就忙等重试\n  int expected = 0;\n  while (!atomic_compare_exchange_weak(&lk->locked, &expected, 1)) {\n    expected = 0;  // 失败后 expected 会被写成当前值，需重置\n    // 可加 PAUSE/YIELD 指令降低功耗与缓存压力\n  }\n}\n\nvoid spin_unlock(SpinLock* lk) {\n  atomic_store(&lk->locked, 0);  // 持有者独占写，无需 CAS\n}\n\n/* Java 版本\nclass SpinLock {\n  private final AtomicBoolean locked = new AtomicBoolean(false);\n  public void lock() {\n    while (!locked.compareAndSet(false, true)) { Thread.onSpinWait(); }\n  }\n  public void unlock() { locked.set(false); }\n}\n*/"
+    },
+    "scoringPoints": [
+      { "point": "CAS 语义讲对：比较内存值与期望值，相等才原子更新并返回成功，否则失败", "weight": 2 },
+      { "point": "lock() 自旋骨架正确、失败后能持续重试", "weight": 2 },
+      { "point": "解释 unlock 直接写 0 的合法性：只有持有者会释放，不存在并发改 1→0 的竞争", "weight": 2 },
+      { "point": "指出至少两个局限（单核空转、不公平/饥饿、缓存乒乓、长临界区烧 CPU）", "weight": 2 }
+    ],
+    "analysis": "这道题把原子操作、内存模型与锁实现串起来。常见失分：①把 CAS 写成先 get 再 set 的两步操作，丢掉原子性；②C11 版忘记 compare_exchange 失败会修改 expected，必须重置；③解释不了 unlock 为什么不用 CAS，答不出『持有者单点写』；④局限只会背『浪费 CPU』，讲不到缓存行乒乓和公平性。能补充 weak/strong CAS 的区别（weak 允许伪失败适合循环）、PAUSE 指令、TTAS（test-and-test-and-set）优化，属于加分。",
+    "gapCheck": [
+      "易漏点：compare_exchange_weak 失败时 expected 会被刷新成实际值，循环里要重置",
+      "常见误区：以为所有原子写都得用 CAS——无竞争的单写者场景普通原子 store 就够",
+      "加分项：能讲 TTAS 先普通读减少缓存一致性流量、以及 MESI 协议下缓存行乒乓的成因"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.cas-lockfree"],
+      "related": ["cs.os.sync.lock-vs-spinlock", "cs.os.process.context-switch"],
+      "followUps": [
+        "如何用同样的 CAS 原语实现一个公平的排队锁（CLH/MCS 锁）？",
+        "atomic_compare_exchange_weak 和 strong 的区别是什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "CAS 自旋锁手写代码题" },
+    "tags": ["手写题", "CAS", "自旋锁", "原子操作"]
+  },
+
+  {
+    "id": "Q-cs-os-sync-0004",
+    "nodeId": "cs.os.sync.semaphore-classic",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于信号量（semaphore）的 P、V 原语，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "P（wait）操作把计数加 1 并唤醒一个等待者；V（signal）把计数减 1，计数为负时阻塞" },
+      { "key": "B", "text": "P 操作申请资源：计数减 1，若结果小于 0 则调用者阻塞进等待队列；V 操作释放资源：计数加 1，若有等待者则唤醒一个。两个原语都是原子的" },
+      { "key": "C", "text": "信号量只能用于互斥，不能用于表达『先生产后消费』的同步顺序" },
+      { "key": "D", "text": "二元信号量（初值 1）和普通互斥锁完全等价，可以在任意线程中 unlock 别人持有的锁" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确描述了记录型信号量的语义：S 表示可用资源数，P 减 1，不够（小于 0，负值绝对值即等待者数）就阻塞；V 加 1 并负责唤醒，P/V 由内核或原子指令保证不可分割。A 把 P、V 方向完全说反。C 错：信号量既能互斥（初值 1 的二元信号量）也能同步（初值 0，等待方先 P、通知方后 V，用计数表达事件/资源数量，生产者-消费者的 empty/full 就是同步信号量）。D 前半句对一半——二元信号量可当锁用，但它与互斥锁有本质区别：互斥锁有『所有权』概念，谁加锁谁解锁，而信号量没有所有权，任何线程都可 V，所以不能说完全等价；递归加锁等语义也只有 mutex 提供。",
+    "gapCheck": [
+      "易漏点：信号量计数为负时绝对值等于阻塞等待的进程/线程数",
+      "常见误区：把信号量和互斥锁等同——信号量无所有权、可跨线程 V，mutex 有属主且支持重入",
+      "加分项：能用初值区别用途：初值 1 管互斥、初值 0 管事件同步、初值 N 管 N 个同类资源"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.semaphore-classic"],
+      "related": ["cs.os.sync.lock-vs-spinlock", "cs.os.sync.deadlock"],
+      "followUps": [
+        "为什么二值信号量不能替代可重入互斥锁？",
+        "P、V 原语的原子性在单核和多核上分别靠什么保证？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "信号量 PV 原语单选题" },
+    "tags": ["信号量", "PV操作", "同步互斥", "高频"]
+  },
+  {
+    "id": "Q-cs-os-sync-0005",
+    "nodeId": "cs.os.sync.semaphore-classic",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于生产者-消费者问题（有界缓冲区，容量为 N）的信号量解法，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "需要两个同步信号量：empty 初值 N（空槽位数）、full 初值 0（产品数），另需一个初值 1 的互斥信号量 mutex 保护缓冲区" },
+      { "key": "B", "text": "生产者先 P(empty) 再 P(mutex)，放入产品后 V(mutex)、V(full)；消费者先 P(full) 再 P(mutex)，取出后 V(mutex)、V(empty)" },
+      { "key": "C", "text": "互斥信号量 mutex 的 P 操作可以放到 empty/full 的 P 操作之前，结果完全一样，不会死锁" },
+      { "key": "D", "text": "如果缓冲区实现本身是线程安全队列（内部自带锁），可以省略 mutex，但 empty/full 两个计数信号量仍需保留" }
+    ],
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A、B、D 正确。A 是经典三信号量结构：empty/full 管『资源数量』的同步，mutex 管缓冲区的互斥。B 的顺序是标准答案模板。D 对：若用 Java LinkedBlockingQueue 这类自带锁的阻塞队列，容器级互斥已内置，业务代码只需面对容量/计数（其 put/take 内部等价实现了 empty/full 的阻塞唤醒）。C 是经典死锁陷阱：若生产者先 P(mutex) 拿到缓冲区锁，再 P(empty) 时发现槽位满而阻塞；此时消费者要取货必须先 P(mutex)，但锁在阻塞的生产者手里——生产者等消费者腾槽、消费者等生产者放锁，循环等待形成死锁。规则是：先 P 资源信号量（empty/full），再 P 互斥信号量；V 的顺序则不影响正确性。",
+    "gapCheck": [
+      "易漏点：两个 P 的顺序敏感（先资源后互斥），两个 V 的顺序不敏感",
+      "常见误区：以为信号量越多越安全，忽略 P 顺序错误本身就是死锁来源",
+      "加分项：能指出 V 操作通常放在临界区外尽早做以减小临界区，以及阻塞队列对该模型的封装关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.semaphore-classic"],
+      "related": ["cs.os.sync.deadlock", "cs.os.sync.lock-vs-spinlock"],
+      "followUps": [
+        "如果有多个生产者多个消费者，mutex 去掉会发生什么具体问题？",
+        "Java 的 wait/notify 或 Condition 的 await/signal 怎么等价实现这套逻辑？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "生产者消费者信号量多选题" },
+    "tags": ["生产者消费者", "信号量", "死锁", "经典题"]
+  },
+  {
+    "id": "Q-cs-os-sync-0006",
+    "nodeId": "cs.os.sync.semaphore-classic",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：读者-写者问题中，『读者优先』策略允许多个读者同时进入临界区（读读共享），但只要有一个读者在读，后到的写者就必须等待，持续到来的读者流可能让写者长期得不到服务，产生写者饥饿。",
+    "answer": { "judge": true },
+    "analysis": "正确。读者-写者的约束是：读读共享、读写互斥、写写互斥。读者优先实现用一个 readcount 计数加 mutex 保护，第一个读者 P(写锁)、最后一个读者 V(写锁)，读者之间不互斥；问题在于只要读者接连不断，readcount 始终不归零，写锁永不释放，写者被无限期推迟，这就是写者饥饿。改进版『写者优先』或公平策略（如读者到达时若已有写者排队则读者也排队，或用全局门禁信号量）可以兼顾，但可能反过来增加读者延迟。",
+    "gapCheck": [
+      "易漏点：readcount 自身也要互斥访问，保护计数的锁与保护数据的读写锁是两回事",
+      "常见误区：以为共享读没有任何代价——读者计数管理和写者饥饿都是真实问题",
+      "加分项：能讲读写锁的两种偏好实现，以及工程中写少读多场景下写者饥饿的实际表现（配置更新长期不生效）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.semaphore-classic"],
+      "related": ["cs.os.sync.lock-vs-spinlock", "cs.os.sync.deadlock"],
+      "followUps": [
+        "怎么改造信号量逻辑实现写者优先或先来先服务的公平读写锁？",
+        "pthread_rwlock 默认偏好读者还是写者？为什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "读者写者写者饥饿判断题" },
+    "tags": ["读者写者", "读写锁", "饥饿", "信号量"]
+  },
+  {
+    "id": "Q-cs-os-sync-0007",
+    "nodeId": "cs.os.sync.semaphore-classic",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用信号量与伪代码写出有界缓冲区（容量 N）的生产者-消费者解法。要求：①声明所有信号量及初值并解释含义；②写出生产者与消费者的完整流程，标注 P/V 顺序；③解释为什么互斥 P 不能放在资源 P 前面；④说明 V 的顺序为什么可以互换。",
+    "answer": {
+      "ref": "设计要点：三个信号量——empty=N（空槽，同步）、full=0（产品，同步）、mutex=1（缓冲区互斥）。生产者：P(empty) 申请空槽 → P(mutex) 进临界区放入 → V(mutex) 出临界区 → V(full) 增加产品计数并可能唤醒消费者。消费者镜像：P(full)→P(mutex)→取出→V(mutex)→V(empty)。死锁分析：若先 P(mutex) 再 P(empty)，缓冲区满时生产者持锁等空槽，消费者拿不到 mutex 无法消费，循环等待死锁；先资源后互斥则拿不到资源时根本不持锁，对方仍可进临界区推进。V 可互换是因为释放操作只增加计数/唤醒等待者，不构成『持有一样等另一样』的环路，且把 mutex 的 V 放前面还能缩短临界区。",
+      "code": "semaphore empty = N;   // 空槽位数\nsemaphore full  = 0;   // 已生产产品数\nsemaphore mutex = 1;   // 缓冲区互斥\nbuffer_t buf[N];\n\nproducer() {\n  while (true) {\n    item x = produce();\n    P(empty);          // 1. 先申请资源：没槽位就阻塞，但不持锁\n    P(mutex);          // 2. 再申请互斥进入临界区\n    buf[in] = x; in = (in + 1) % N;\n    V(mutex);          // 3. 出临界区，尽早放锁\n    V(full);           // 4. 通知消费者有货\n  }\n}\n\nconsumer() {\n  while (true) {\n    P(full);           // 1. 没产品就阻塞，不持锁\n    P(mutex);          // 2. 进临界区\n    item x = buf[out]; out = (out + 1) % N;\n    V(mutex);          // 3. 放锁\n    V(empty);          // 4. 归还槽位、唤醒生产者\n    consume(x);\n  }\n}"
+    },
+    "scoringPoints": [
+      { "point": "三个信号量声明与初值正确，解释 empty/full 管同步、mutex 管互斥", "weight": 2 },
+      { "point": "生产者/消费者 P/V 流程完整且顺序正确（先资源后互斥）", "weight": 3 },
+      { "point": "死锁分析到位：先 mutex 后资源会形成持锁等待的循环依赖", "weight": 2 },
+      { "point": "说明 V 顺序不敏感的原因（释放不构成环路），并知道尽早放锁缩小临界区", "weight": 1 }
+    ],
+    "analysis": "这是同步章节的招牌手写题，面试官用它同时检查信号量建模能力与死锁直觉。常见失分：①漏掉 mutex 以为 empty/full 就能互斥；②P 顺序写反且讲不出死锁过程；③V 与 P 配对错乱（生产者忘记 V(full)）；④把信号量初值全设成 1。能进一步用 Java Semaphore/BlockingQueue 或 Go channel 做等价对照，说明语言级封装与裸信号量的对应关系，属于工程加分。",
+    "gapCheck": [
+      "易漏点：empty/full 是资源计数不是锁，三者缺一不可",
+      "常见误区：认为 P 顺序无所谓——死锁恰恰藏在顺序里",
+      "加分项：能对照 BlockingQueue.put/talk 或 Go 带缓冲 channel 说明同一模型的现代封装"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.semaphore-classic"],
+      "related": ["cs.os.sync.deadlock", "cs.os.sync.lock-vs-spinlock"],
+      "followUps": [
+        "如果缓冲区无界（N 无限），三个信号量里可以去掉哪个？",
+        "用管程（monitor）的 condition variable 重写这套逻辑，wait/signal 怎么摆？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "生产者消费者信号量手写代码题" },
+    "tags": ["手写题", "生产者消费者", "信号量", "PV操作", "高频"]
+  },
+  {
+    "id": "Q-cs-os-sync-0008",
+    "nodeId": "cs.os.sync.semaphore-classic",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请回答经典同步两连问：①哲学家进餐问题中，5 位哲学家各需左右两根筷子才能吃饭，为什么『每个人都先拿左筷子再等右筷子』会死锁？至少给出两种破坏死锁的策略并写出信号量思路；②说明信号量方法与管程（monitor）方法在写法上的本质区别。",
+    "answer": {
+      "ref": "参考骨架：【死锁成因】5 根筷子各是一个初值 1 的信号量，若 5 人同时拿起左筷子，则 5 个信号量全为 0，所有人再 P 右筷子时全部阻塞，且没有人会释放自己手里的筷子——循环等待 + 占有且等待齐备，系统进入死锁。\n【破解策略（任选两种以上）】①资源有序分配（破坏循环等待）：给筷子编号，规定每个人都先拿编号小的再拿大的（最后一位哲学家变成先右后左），不可能形成环，最经典的解法；②最多允许 4 人同时进餐（破坏占有且等待的成立条件之一，用一个初值 4 的房间信号量限流，至少一人能拿到两根）；③同时拿两根才成功（破坏占有且等待）：用 mutex 包住『拿左+拿右』，要么一次拿到两根要么一根不拿、阻塞时不持有资源；④奇数位先拿左、偶数位先拿右（奇偶法，本质也是打破对称环）。\n【信号量 vs 管程】信号量是底层原语，P/V 由程序员手动配对散布在业务代码里，漏 V、错序即死锁，编译器不兜底；管程（monitor）是语言/编译器级构造：共享数据与操作封装在一起，临界区自动互斥（同一时刻只有一个线程在管程内执行），线程用 condition variable 的 wait/signal 等待条件，wait 会原子地释放管程锁并睡眠、被唤醒后重新拿锁，避免了『持锁睡眠』的手工错误。Java 的 synchronized + wait/notify、C++ std::condition_variable 都是管程思想的实现。"
+    },
+    "scoringPoints": [
+      { "point": "讲清死锁过程：同时拿左后五人集体等右、无人释放，循环等待成立", "weight": 2 },
+      { "point": "给出 ≥2 种策略并落到具体信号量/编号思路", "weight": 3 },
+      { "point": "讲清管程的自动互斥与 condition wait 原子释放锁的语义", "weight": 2 },
+      { "point": "能对照 Java synchronized/wait/notify 等真实实现", "weight": 1 }
+    ],
+    "analysis": "这题考经典问题的『为什么』和『怎么破』，不是背代码。失分高发点：只说『会死锁』却讲不出五根筷子全占的循环过程；策略只记得一个且落不到信号量；管程只会背名词，讲不出 wait 原子放锁这个关键语义。能把四个死锁必要条件与具体策略对应起来（哪个策略破坏哪条），并联系 Java 显式锁的 Condition，回答就有体系。",
+    "gapCheck": [
+      "易漏点：限流法允许 4 人进餐的数学依据——至少一人左右筷子都空闲可得",
+      "常见误区：把管程当成另一种锁；管程是『封装+自动互斥+条件变量』的整体机制",
+      "加分项：能指出 wait/signal 与 P/V 的对应关系，以及 signal 后锁的转移时机（Hoare vs Mesa 语义）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.semaphore-classic"],
+      "related": ["cs.os.sync.deadlock", "cs.os.sync.lock-vs-spinlock"],
+      "followUps": [
+        "Mesa 语义下 condition 被唤醒后为什么必须重新检查条件（while 而不是 if）？",
+        "资源有序分配能推广到任意锁的使用上吗？工程上怎么定序？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "哲学家进餐与管程对比主观题" },
+    "tags": ["哲学家进餐", "死锁", "管程", "信号量", "经典题"]
+  },
+
+  {
+    "id": "Q-cs-os-sync-0009",
+    "nodeId": "cs.os.sync.cas-lockfree",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 CAS（Compare-And-Swap）原子操作，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "CAS 由两条普通指令组成：先读内存、再比较写入，中间即使被其他线程打断也不影响正确性" },
+      { "key": "B", "text": "CAS 是硬件级原子指令（如 x86 的 LOCK CMPXCHG），它原子地完成『内存值==期望值则写入新值并返回成功，否则失败』，无锁算法通常用 CAS + 重试循环实现并发更新" },
+      { "key": "C", "text": "CAS 成功就说明数据从头到尾没被任何线程修改过" },
+      { "key": "D", "text": "使用 CAS 完全不需要内存屏障，编译器和 CPU 都不会重排序" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确：CAS 的原子性靠锁总线或缓存一致性协议（MESI）保证的单条硬件指令，软件层面看到的是不可分割的比较-交换；无锁/乐观并发套路就是读旧值→算新值→CAS 提交，失败就重读重试。A 错：分两条指令就有竞态窗口，必须是单条原子指令或 LL/SC 对（ARM 的 ldrex/strex）。C 错且正是 ABA 问题的入口：CAS 只证明『此刻值等于期望值』，中间值可能经历 A→B→A，CAS 无法识别。D 错：CAS 自带一定屏障语义，但无锁算法中其他读写的顺序仍需 acquire/release 等内存序约束，否则编译器和硬件的重排会破坏算法。",
+    "gapCheck": [
+      "易漏点：CAS 原子的是比较+交换这一步，整个『读-改-写』循环不是原子的，靠重试收敛",
+      "常见误区：把 CAS 成功等同于过程无修改——ABA 就利用了这个认知漏洞",
+      "加分项：知道 LL/SC 架构与 x86 CMPXCHG 的实现差异，以及 CAS 重试在高竞争下的活锁/饥饿问题"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.cas-lockfree"],
+      "related": ["cs.os.sync.lock-vs-spinlock"],
+      "followUps": [
+        "x86 的 LOCK 前缀在多核下具体锁什么？缓存锁定怎么降低代价？",
+        "乐观锁版本号机制和 CAS 是什么关系？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "CAS 原理单选题" },
+    "tags": ["CAS", "原子操作", "无锁", "硬件原语"]
+  },
+  {
+    "id": "Q-cs-os-sync-0010",
+    "nodeId": "cs.os.sync.cas-lockfree",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 ABA 问题与无锁编程，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "ABA 指线程 1 读到值 A 后被抢占，期间值被改成 B 又改回 A；线程 1 恢复后 CAS(A→新值) 成功，但期间的状态变化可能已破坏算法假设（如栈顶节点被回收复用）" },
+      { "key": "B", "text": "加版本号（stamped reference）是常见解法：每次修改同时递增版本，CAS 同时比较值与版本，A→B→A 后版本不同从而失败" },
+      { "key": "C", "text": "Java 的 AtomicStampedReference、AtomicMarkableReference 就是为解决 ABA 提供的带标记/版本原子类" },
+      { "key": "D", "text": "无锁算法天然没有任何等待问题，线程不会饿死，也不用考虑内存回收" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 说清 ABA 的危害不在整数本身（值确实又是 A），而在伴随状态：无锁栈场景下节点可能已被 pop、释放、重新压入，旧指针复用会破坏链表完整性。B 是标准解法，版本戳让『值相同但代不同』可被识别。C 是 Java 侧的现成工具。D 错两处：①CAS 重试循环在高竞争下可能反复失败，存在活锁/饥饿风险（可用指数退避或队列化公平 CAS 缓解）；②无锁编程最大的工程难题恰是内存回收——线程可能正持有即将被别的线程释放的指针，C/C++ 需要 hazard pointer、RCU、epoch-based reclamation 等机制，Java 靠 GC 兜底才让无锁集合实用化。",
+    "gapCheck": [
+      "易漏点：ABA 的真正破坏力在指针/节点复用场景，单纯计数器值变回去通常无害",
+      "常见误区：以为无锁=无等待（lock-free ≠ wait-free），无锁只保证系统整体推进，个别线程可能一直重试",
+      "加分项：能讲 hazard pointer/RCU 的基本思路，或 Java GC 如何让 ABA 内存风险下降"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.cas-lockfree"],
+      "related": ["cs.os.sync.lock-vs-spinlock", "cs.os.sync.deadlock"],
+      "followUps": [
+        "lock-free 和 wait-free 的严格定义差别是什么？",
+        "无锁链表删除节点时，hazard pointer 是怎么保护悬垂指针的？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "ABA 与无锁编程多选题" },
+    "tags": ["ABA", "无锁编程", "版本号", "CAS", "拔高"]
+  },
+  {
+    "id": "Q-cs-os-sync-0011",
+    "nodeId": "cs.os.sync.cas-lockfree",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：无锁（lock-free）算法不会发生死锁，因为它不使用互斥量、线程不会因等锁而阻塞；但它仍可能出现活锁——多个线程的 CAS 同时失败、同时重试，互相干扰导致谁都难以推进。",
+    "answer": { "judge": true },
+    "analysis": "正确。无锁算法消除了锁带来的阻塞与死锁（没有『持有并等待』的实体），系统级保证至少有一个线程能推进（lock-free 的 progress guarantee）。但单个线程可能在竞争中持续 CAS 失败、反复重试，表现为活锁或饥饿，整体虽在推进、个别线程却拿不到结果。常见缓解是指数退避（失败后随机/递增延迟再试）、退避让出执行权，或改用带排队的公平原语。要注意 lock-free 与 wait-free 的层次差别：wait-free 保证每个线程都在有限步内完成，是更强的保证。",
+    "gapCheck": [
+      "易漏点：活锁的特征是线程都在『动』（持续重试）但系统没有有效进展",
+      "常见误区：把无锁等同于无等待、无饥饿——progress condition 分 obstruction/lock/wait-free 三档",
+      "加分项：能举 ConcurrentHashMap 分段/CAS 化、无锁队列 Michael-Scott 算法等真实无锁数据结构"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.cas-lockfree"],
+      "related": ["cs.os.sync.lock-vs-spinlock", "cs.os.sync.deadlock"],
+      "followUps": [
+        "obstruction-free、lock-free、wait-free 三种进展保证的强弱关系？",
+        "指数退避为什么能缓解 CAS 活锁？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "无锁活锁与进展保证判断题" },
+    "tags": ["无锁", "活锁", "CAS", "进展保证"]
+  },
+
+  {
+    "id": "Q-cs-os-sync-0012",
+    "nodeId": "cs.os.sync.deadlock",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "下列哪一项**不属于**死锁的四个必要条件？",
+    "options": [
+      { "key": "A", "text": "互斥条件：资源一次只能被一个进程占用" },
+      { "key": "B", "text": "占有且等待：持有至少一个资源的同时等待其他被占资源" },
+      { "key": "C", "text": "不可抢占：资源只能由持有者主动释放，不能被强行夺走" },
+      { "key": "D", "text": "时间片耗尽：进程的 CPU 时间片用完被抢占" }
+    ],
+    "answer": { "keys": ["D"] },
+    "analysis": "D 不属于。死锁四个必要条件是：①互斥（mutual exclusion）；②占有且等待（hold and wait）；③不可抢占（no preemption）；④循环等待（circular wait，存在进程-资源的环路）。四者同时成立才可能死锁，破坏任意一条即可预防死锁。时间片耗尽是正常的 CPU 调度行为，它反而会让进程让出 CPU，与死锁无关——死锁中的进程恰恰是永久阻塞、再调度多少次也推进不了。",
+    "gapCheck": [
+      "易漏点：第四条是循环等待（资源分配图成环），不是『资源不足』",
+      "常见误区：把调度抢占和资源抢占混淆——CPU 可抢占，死锁讨论的是不可抢占的资源",
+      "加分项：能把预防策略逐条对应到破坏的条件——资源定序破坏循环等待、一次性申请破坏占有等待、虚拟资源弱化互斥"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.deadlock"],
+      "related": ["cs.os.sync.semaphore-classic", "cs.os.sync.lock-vs-spinlock"],
+      "followUps": [
+        "四个必要条件是『同时满足就一定死锁』还是『才可能死锁』？",
+        "可抢占资源（CPU、内存）和不可抢占资源（打印机、锁）在死锁分析中有何不同？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "死锁四必要条件单选题" },
+    "tags": ["死锁", "必要条件", "高频开场"]
+  },
+  {
+    "id": "Q-cs-os-sync-0013",
+    "nodeId": "cs.os.sync.deadlock",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于死锁的预防、避免、检测与解除，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "死锁预防是静态策略，通过破坏四个必要条件之一让死锁在结构上不可能发生，如资源有序分配破坏循环等待、一次性申请全部资源破坏占有且等待" },
+      { "key": "B", "text": "银行家算法属于死锁避免：分配前模拟本次分配后系统是否仍处于安全状态（存在安全序列），不安全就拒绝分配，它允许四个必要条件存在但规避不安全状态" },
+      { "key": "C", "text": "银行家算法要求进程事先声明最大资源需求，且资源数量固定；它运行开销大，实际通用操作系统很少启用，多用于数据库等特定系统" },
+      { "key": "D", "text": "死锁检测发现环路后，解除手段包括撤销/终止部分进程、剥夺其资源，或让进程回滚到检查点；选择牺牲者时通常考虑优先级、已执行时间与回滚代价" }
+    ],
+    "answer": { "keys": ["A", "B", "C", "D"] },
+    "analysis": "四项全部正确，正好覆盖死锁处理的四种思路。A 区分『预防』：事前破坏条件，代价是资源利用率下降（一次性申请会长期占着不用的资源）。B 区分『避免』：条件可以存在，但每次分配做安全性检查，安全序列保证能找到一个进程执行顺序让大家都跑完。C 点出银行家算法的工程局限：要预知最大需求、进程数与资源数动态变化时难维护、每次分配 O(n²m) 检查，Linux/Windows 通用内核并不实现它，而是采用『鸵鸟策略』加工程规范。D 是检测后的恢复手段，牺牲者选择本身是个策略问题（杀低优先级、杀年轻进程、杀重启成本低的）。",
+    "gapCheck": [
+      "易漏点：预防（破坏条件）与避免（允许条件但规避不安全状态）是两个层次，面试常混",
+      "常见误区：以为银行家算法是主流操作系统的标配——它更多是教材与数据库领域的方法",
+      "加分项：能讲安全状态与安全序列的判定过程，以及实际工程靠锁排序、tryLock 超时、看门狗来防死锁"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.deadlock"],
+      "related": ["cs.os.sync.semaphore-classic", "cs.os.linux.troubleshoot-cmds"],
+      "followUps": [
+        "手写一遍银行家算法的安全性检查流程，复杂度是多少？",
+        "MySQL 遇到锁等待超时（innodb_lock_wait_timeout）属于哪一类死锁处理思想？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "死锁处理策略综合多选题" },
+    "tags": ["死锁", "银行家算法", "安全序列", "死锁检测"]
+  },
+  {
+    "id": "Q-cs-os-sync-0014",
+    "nodeId": "cs.os.sync.deadlock",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：系统处于不安全状态不等于已经发生死锁；安全状态一定不会发生死锁，而不安全状态只是存在发生死锁的可能性，若进程实际释放资源的顺序有利，系统仍可能顺利运行完所有进程。",
+    "answer": { "judge": true },
+    "analysis": "正确。这是银行家算法最容易被考歪的概念：安全状态定义为存在至少一个安全序列，按该序列分配所有进程都能完成，因此安全 ⇒ 不会死锁。不安全状态只意味着当前找不到保证全员完成的序列，是一种风险状态而非既成事实——如果某些进程提前释放资源或放弃申请，死锁未必发生。银行家算法的保守之处就是宁可拒绝让系统进入不安全状态的分配请求，以确定性换取资源利用率。",
+    "gapCheck": [
+      "易漏点：不安全 ⇏ 死锁，这是单向蕴含不是等价关系",
+      "常见误区：把银行家算法理解成『检测到死锁再处理』，它其实是事前避免",
+      "加分项：能现场用一组 Available/Max/Allocation 数据手推安全序列并解释拒绝分配的时机"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.deadlock"],
+      "related": ["cs.os.sync.semaphore-classic"],
+      "followUps": [
+        "安全序列唯一吗？找到一个安全序列为什么就能保证安全？",
+        "死锁避免和死锁检测在运行时开销和时机上有什么差别？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "不安全状态与死锁关系判断题" },
+    "tags": ["银行家算法", "安全状态", "死锁避免"]
+  },
+  {
+    "id": "Q-cs-os-sync-0015",
+    "nodeId": "cs.os.sync.deadlock",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：破坏死锁四个必要条件时，把所有资源统一编号并要求进程按编号递增顺序申请，破坏的是 ______ 条件；要求进程一次性申请它需要的全部资源、要么全给要么不给，破坏的是 ______ 条件；而引入虚拟设备（如 SPOOLing 把打印机变成可共享的打印队列）削弱的是 ______ 条件。",
+    "answer": {
+      "blanks": ["循环等待", "占有且等待", "互斥"],
+      "synonyms": {
+        "循环等待": ["环路等待", "循环等待条件"],
+        "占有且等待": ["持有并等待", "保持并等待", "占有等待"],
+        "互斥": ["互斥条件"]
+      }
+    },
+    "analysis": "①资源有序分配使资源分配图不可能形成环（每个进程只从小编号走向大编号，边无法回头闭合），破坏循环等待，是工程上最常用的锁排序手段（如 ABBA 死锁就靠全局锁序根治）。②一次性申请让进程在等待时手里不持有任何资源，破坏占有且等待，代价是资源占着不用、利用率低且难预判全部需求。③SPOOLing 把独占设备虚拟成共享服务，弱化互斥条件；但互斥条件对很多资源（锁、临界区）是天然属性无法破坏，所以实际预防主要在后三条上做文章。不可抢占条件的破坏则靠允许剥夺/超时重试。",
+    "gapCheck": [
+      "易漏点：互斥条件对固有独占资源无法破坏，SPOOLing 只是用虚拟化绕开",
+      "常见误区：记混策略与条件的对应表，建议按『定序→破环、全申请→破占有、虚拟化→破互斥』口诀记",
+      "加分项：能联系实际代码讲锁排序、tryLock 超时回退、数据库死锁检测杀事务的对应关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.deadlock"],
+      "related": ["cs.os.sync.semaphore-classic"],
+      "followUps": [
+        "两个线程以相反顺序申请两把锁（ABBA）为什么死锁？用锁排序怎么改？",
+        "tryLock 带超时属于破坏哪条必要条件，还是属于死锁检测恢复？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "死锁预防策略对应填空题" },
+    "tags": ["死锁预防", "资源定序", "SPOOLing", "填空题"]
+  },
+  {
+    "id": "Q-cs-os-sync-0016",
+    "nodeId": "cs.os.sync.deadlock",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "线上场景题：你的 Java 服务日志显示多个业务线程长时间卡住，监控发现 CPU 占用很低、请求大量超时。请给出一套完整的死锁排查与防御方案：①怎么确认是不是死锁、用什么工具；②确认后如何应急恢复；③代码层面怎么系统性防御；④顺带辨析死锁、活锁、饥饿三者的区别。",
+    "answer": {
+      "ref": "参考骨架：【确认死锁】①jstack <pid> 打印线程栈，自带 deadlock 检测段，直接列出『线程 X 持有锁 A 等锁 B、线程 Y 持有锁 B 等锁 A』的环；或 jcmd <pid> Thread.print、JConsole/VisualVM/Arthas 的 thread -b 一键找阻塞其他线程的源头。②操作系统层面可用 kill -3 让 JVM 打印栈、或用 perf/ftrace 观察 futex 等待；数据库类死锁看 InnoDB status（SHOW ENGINE INNODB STATUS 的 LATEST DETECTED DEADLOCK）。死锁的典型指纹：线程全在 BLOCKED/WAITING、CPU 闲、栈顶停在 lock 入口、存在锁等待环。\n【应急恢复】死锁不会自行解开，只能打断环：重启进程是最快兜底；更精细可 kill 选定线程/事务（数据库主动 ROLLBACK 牺牲者，InnoDB 默认自动检测并回滚代价小的事务）；保留现场（jstack/堆 dump/日志）后再操作。\n【代码防御】①全局锁排序：所有多锁路径按统一顺序（对象 id/类名/哈希定序）申请，消灭循环等待；②定时 tryLock（tryLock(timeout)）拿不到就回退释放已持锁、重试，破不可抢占/占有等待；③缩短临界区、减小锁粒度（分段锁/ConcurrentHashMap 思路）；④能用无锁结构/原子类/CAS 就不用显式锁；⑤静态扫描与代码评审检查嵌套加锁；⑥数据库侧保证事务短小、固定表访问顺序、合理索引减少锁范围。\n【三者辨析】死锁：参与者互相持有对方要的资源形成环，全部永久阻塞、都不推进；活锁：参与者没阻塞、都在不断改变状态响应对方（如互相谦让让路同时闪到同一侧），系统在动但无有效进展，常用随机退避打破；饥饿：某些线程因调度策略长期抢不到资源（高优先级流不断、锁不公平），别的线程正常推进而它无限等待，老化/公平锁可缓解。死锁是集体卡死，活锁是集体空转，饥饿是个体被遗忘。"
+    },
+    "scoringPoints": [
+      { "point": "排查工具具体可用：jstack/jcmd/Arthas/数据库 INNODB STATUS，并描述死锁指纹", "weight": 2 },
+      { "point": "应急方案：保留现场后重启或 kill 牺牲者/事务回滚", "weight": 1 },
+      { "point": "防御成体系：锁排序、tryLock 超时、缩小临界区、无锁化、评审与 DB 侧措施", "weight": 3 },
+      { "point": "准确辨析死锁/活锁/饥饿三者定义与打破手段", "weight": 2 }
+    ],
+    "analysis": "这是把死锁理论拉到线上排障的综合题，区分『背过四条件』和『真处理过事故』。失分典型：只答 jstack 却讲不清输出里看什么；防御只说『加锁小心点』没有可落地机制；活锁与饥饿混为一谈。能讲出 Arthas thread -b、InnoDB 自动死锁检测、tryLock 回退模式和公平锁，回答就具备工程可信度。",
+    "gapCheck": [
+      "易漏点：CPU 闲+线程集体 WAITING+锁等待环是死锁区别于死循环（CPU 高）的关键指纹",
+      "常见误区：以为死锁会自己超时恢复——JVM 不做死锁抢占，必须外部打断",
+      "加分项：能讲 jstack 之外的 async-profiler/原生线程栈，以及微服务下分布式锁（Redis/ZooKeeper）的死锁防护"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.deadlock"],
+      "related": ["cs.os.sync.semaphore-classic", "cs.os.sync.cas-lockfree", "cs.os.linux.troubleshoot-cmds"],
+      "followUps": [
+        "分布式环境下两台机器上的线程互相等对方的 Redis 锁，怎么检测和解除？",
+        "jstack 采样多次栈都一样说明什么？和 CPU 100% 的排查路径有何不同？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "死锁线上排查与防御场景主观题" },
+    "tags": ["死锁", "线上排查", "jstack", "锁排序", "战例"]
+  },
+  {
+    "id": "Q-cs-os-sync-0017",
+    "nodeId": "cs.os.sync.lock-vs-spinlock",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于临界区与互斥机制的基本概念，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "临界资源是多个进程/线程可以同时使用而互不影响的资源，临界区是程序里任意一段代码" },
+      { "key": "B", "text": "临界资源是一次仅允许一个执行流访问的共享资源，临界区是访问临界资源的那段代码；同步机制要满足空闲让进、忙则等待、有限等待、让权等待四条准则" },
+      { "key": "C", "text": "只要临界区足够短，多个线程同时进入也不会出问题" },
+      { "key": "D", "text": "『让权等待』要求线程拿不到锁时在原地自旋，绝不放弃 CPU" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 给出标准定义与互斥四准则：空闲让进（无竞争时不阻挡）、忙则等待（有竞争时互斥）、有限等待（等待者不会饿死）、让权等待（等不到时让出 CPU，避免忙等）。A 把临界资源的互斥属性说反，临界区也不是任意代码而是访问共享资源的特定片段。C 错：竞态与临界区长短无关，只要交错执行产生非原子的读改写就可能出错，短只降低概率不消除问题。D 把让权等待说反了——自旋锁恰恰不满足让权等待（忙等占 CPU），互斥锁睡眠等待才符合该准则。",
+    "gapCheck": [
+      "易漏点：四准则里『有限等待』防饥饿、『让权等待』防空转，是评价锁实现的两把尺子",
+      "常见误区：以为加锁只是为了防止同时写——读改写复合操作的原子性才是本质问题",
+      "加分项：能指出自旋锁违反让权等待但换来零切换延迟，以及可重入锁解决同线程自死锁"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.lock-vs-spinlock"],
+      "related": ["cs.os.sync.cas-lockfree", "cs.os.sync.semaphore-classic"],
+      "followUps": [
+        "为什么 i++ 在多核下不是线程安全的？它被编译成哪几条指令？",
+        "可重入锁（递归锁）解决了什么问题，它内部需要记录哪些状态？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "临界区与互斥准则单选题" },
+    "tags": ["临界区", "互斥", "同步准则", "基础"]
+  },
+  {
+    "id": "Q-cs-os-sync-0018",
+    "nodeId": "cs.os.sync.lock-vs-spinlock",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请回答：①互斥锁与自旋锁在等待方式、CPU 消耗、切换开销上的区别；②各自的适用场景（结合临界区长度、单核/多核、内核/用户态）；③什么是读写锁，它在读多写少场景下怎么提升并发；④可重入锁解决什么问题、又有什么代价。",
+    "answer": {
+      "ref": "参考骨架：【区别】互斥锁：加锁失败时线程进入睡眠（等待队列），主动让出 CPU，被唤醒要经历一次上下文切换，等待期间不耗 CPU，适合持锁时间长或不确定的场景；基于 futex 的实现无竞争时在用户态原子操作即可完成，只有真冲突才进内核。自旋锁：加锁失败就在循环里不停 CAS/读状态忙等，不睡眠、不切换，锁一释放立刻获得、延迟最低，但等待期间独占一个核空转。\n【适用场景】自旋锁：多核 + 临界区极短（短于一次切换开销，如保护一个链表节点更新），Linux 内核中断/原子上下文（不能睡眠）只能用自旋锁；单核下自旋锁退化为关抢占，忙等无意义。互斥锁：用户态绝大多数业务场景、临界区可能阻塞或较长、单核环境。工程上常用自适应自旋（先自旋若干次再睡眠，如 Java synchronized 的偏向→轻量级→重量级升级、pthread mutex 的 futex 快速路径）。\n【读写锁】把访问分读者共享、写者独占：读读不互斥可并发，读写/写写互斥。读多写少（配置、路由表、缓存元数据）下多读者并行显著提高吞吐；代价是写者可能饥饿（读者优先实现），且读者计数本身也要原子维护，写少时锁开销未必比普通互斥锁划算。\n【可重入锁】同一线程可对同一把锁多次加锁、按次数解锁，内部记录持有线程与重入计数；解决嵌套调用或回调中重复加锁导致的自死锁。代价：要存属主线程 id 与计数、释放时校验属主，实现更重；过度使用掩盖同步设计问题，且不可跨线程释放。"
+    },
+    "scoringPoints": [
+      { "point": "等待方式/CPU/切换三维对比准确，点出 futex 快速路径", "weight": 2 },
+      { "point": "场景判断结合临界区长短、核数、内核态可睡眠性三个条件", "weight": 3 },
+      { "point": "读写锁读读共享的收益与写者饥饿代价讲清", "weight": 2 },
+      { "point": "可重入锁的属主+计数机制、自死锁场景与代价", "weight": 2 }
+    ],
+    "analysis": "这是锁机制的体系化题。典型失分：只背『自旋不睡眠、互斥睡眠』却给不出选型条件；不知道内核中断上下文不能用互斥锁；把读写锁当成无成本升级；重入锁只会说『可以重复加』讲不出计数与属主。能结合 Java 锁升级、futex、自适应自旋回答，就达到中高级水平。",
+    "gapCheck": [
+      "易漏点：自旋锁在多核才有意义，且临界区内严禁睡眠/阻塞 IO",
+      "常见误区：认为读写锁总比互斥锁好——写频繁或临界区极短时，读写锁的计数维护反而更慢",
+      "加分项：能讲 synchronized 锁升级路径、futex 两阶段（用户态快路径+内核慢路径）与乐观自旋的工程融合"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.lock-vs-spinlock"],
+      "related": ["cs.os.sync.cas-lockfree", "cs.os.sync.deadlock"],
+      "followUps": [
+        "Java synchronized 的偏向锁、轻量级锁、重量级锁分别对应本文哪些机制？",
+        "读写锁的写者饥饿有哪些公平化改法？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "锁家族对比与选型主观题" },
+    "tags": ["互斥锁", "自旋锁", "读写锁", "可重入锁", "选型"]
+  },
+  {
+    "id": "Q-cs-os-sync-0019",
+    "nodeId": "cs.os.sync.cas-lockfree",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请回答：①CAS 原子操作的语义是什么，硬件如何保证它的原子性；②用 CAS 实现『读-改-写』并发更新的标准套路（伪代码）；③ABA 问题怎么产生、怎么解决；④无锁编程相比互斥锁有哪些优势和代价。",
+    "answer": {
+      "ref": "参考骨架：【CAS 语义】CAS(内存地址, 期望值 old, 新值 new)：当且仅当内存当前值等于 old 时，原子地写入 new 并返回成功；否则失败、内存不变，调用方可重读再试。硬件上 x86 用 LOCK CMPXCHG（锁缓存行/总线 + MESI 缓存一致性），ARM/ RISC-V 用 LL/SC（load-linked/store-conditional）对，保证比较与交换之间不可分割。\n【标准套路】do { old = atomic_load(&v); new = f(old); } while (!CAS(&v, old, new)); 即『读旧值→计算新值→尝试提交，失败就重试』。计数器累加、栈/队列入队都是这个骨架；配合内存序（acquire/release/relaxed）保证可见性与顺序。\n【ABA】线程 1 读到 A 后被抢占，期间其他线程把值 A→B→A，线程 1 恢复后 CAS(A→new) 仍成功，但中间的状态变化（尤其指针场景：节点被删除、释放、同地址重新分配）可能已破坏数据结构。解法：①带版本号/时间戳的标记引用，CAS 同时比对值与版本（Java AtomicStampedReference）；②布尔标记位（AtomicMarkableReference）表达『是否被改过』；③GC 环境或 hazard pointer/RCU/epoch 回收机制避免内存立即复用。\n【优势与代价】优势：无死锁（不持有阻塞性锁）、线程不会被挂起、无上下文切换与优先级反转问题，系统整体保证推进；高并发读多写少场景扩展性好。代价：①高竞争下 CAS 反复失败重试，活锁/饥饿与缓存行乒乓；②ABA 与内存回收是两大工程难题，C/C++ 无 GC 时尤其棘手；③只能原子更新一个字大小，复合数据结构算法复杂、验证困难；④仍需内存屏障约束重排序，调试困难。"
+    },
+    "scoringPoints": [
+      { "point": "CAS 语义准确并点出 CMPXCHG/LL-SC 硬件保证", "weight": 2 },
+      { "point": "读-改-写重试循环伪代码正确且提到内存序", "weight": 2 },
+      { "point": "ABA 机理（指针复用场景）与版本号/标记位/安全回收三类解法", "weight": 3 },
+      { "point": "优势（无死锁无切换）与代价（活锁、回收、复杂度、屏障）平衡陈述", "weight": 2 }
+    ],
+    "analysis": "这题覆盖无锁编程的全部核心概念。常见失分：把 CAS 说成两条指令；ABA 只举整数例子讲不出指针复用的真实危害；无锁只吹优势不提活锁和内存回收；不知道 lock-free 与 wait-free 的区别。能提到 MESI、hazard pointer、AtomicStampedReference、缓存行乒乓，回答就有足够深度。",
+    "gapCheck": [
+      "易漏点：CAS 原子的是单次比较交换，整个读改写靠重试收敛，不是一次原子完成",
+      "常见误区：以为用了 CAS 就不需要内存屏障——多变量顺序仍靠 acquire/release 约束",
+      "加分项：能讲 lock-free 保证系统推进而 wait-free 保证每线程有限步完成，以及 Michael-Scott 无锁队列"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.sync.cas-lockfree"],
+      "related": ["cs.os.sync.lock-vs-spinlock", "cs.os.sync.deadlock"],
+      "followUps": [
+        "为什么无锁栈的 ABA 危害比无锁计数器大？",
+        "hazard pointer 和 RCU 各自怎么保证待回收内存不被提前释放？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "CAS/ABA/无锁体系化主观题" },
+    "tags": ["CAS", "ABA", "无锁编程", "内存屏障"]
+  }
+]

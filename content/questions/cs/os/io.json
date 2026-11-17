@@ -1,0 +1,404 @@
+[
+  {
+    "id": "Q-cs-os-io-0001",
+    "nodeId": "cs.os.io.models",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "一次读操作可以分成两个阶段：①等待数据就绪（数据从网卡/磁盘进入内核缓冲区）；②把数据从内核缓冲区拷贝到用户缓冲区。关于五种 IO 模型在这两个阶段的阻塞行为，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "阻塞 IO 在阶段①阻塞、阶段②不阻塞；非阻塞 IO 两个阶段都不阻塞" },
+      { "key": "B", "text": "IO 多路复用在阶段①通过 select/poll/epoll 阻塞等待多个 fd 中的至少一个就绪，阶段②仍由用户线程调用 recvfrom/read 同步完成拷贝（此阶段可能阻塞），因此它本质上仍是同步 IO" },
+      { "key": "C", "text": "异步 IO（AIO）在阶段①不阻塞，但阶段②的拷贝仍需用户线程亲自完成" },
+      { "key": "D", "text": "非阻塞 IO 通过反复返回 EAGAIN 轮询，一旦 read 返回成功，说明数据拷贝是内核在后台异步完成的" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确抓住了同步/异步的分界线：真正的异步 IO 要求两个阶段都由内核完成、完成后再通知用户态；多路复用只把『等就绪』批量化了，数据拷贝仍由用户线程同步执行，所以属于同步 IO。A 错：阻塞 IO 两阶段都阻塞；非阻塞 IO 只在阶段①不阻塞（立即返回 EAGAIN），阶段②拷贝时一样阻塞。C 错：AIO（如 Linux 原生 aio/io_uring 的异步语义）正是两阶段都由内核做完，用户态收到完成通知时数据已在用户缓冲区。D 错：非阻塞 read 成功只代表数据已就绪并由这次系统调用同步拷回，轮询与异步无关。",
+    "gapCheck": [
+      "易漏点：阻塞/非阻塞讨论的是『等就绪』阶段，同步/异步讨论的是『拷数据』由谁做，两组概念别混",
+      "常见误区：把 epoll 当成异步 IO——它是同步多路复用，Linux 真正的异步是 AIO/io_uring",
+      "加分项：能讲信号驱动 IO（SIGIO）介于其间：就绪时收信号，但拷贝仍同步"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.models"],
+      "related": ["cs.os.io.epoll", "cs.os.io.zero-copy"],
+      "followUps": [
+        "Java 的 NIO 属于五种模型里的哪一种？AIO（NIO.2）呢？",
+        "io_uring 相比传统 epoll + read 的组合，异步性体现在哪里？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "五种 IO 模型两阶段行为单选题" },
+    "tags": ["IO模型", "多路复用", "同步异步", "高频"]
+  },
+  {
+    "id": "Q-cs-os-io-0002",
+    "nodeId": "cs.os.io.models",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 select、poll、epoll 的对比，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "select 有 fd 数量上限（FD_SETSIZE，常见 1024），且每次调用都要把整个 fd 集合从用户态拷贝到内核；poll 用链表式 pollfd 数组去掉了固定上限，但仍需每次全量拷贝与线性遍历" },
+      { "key": "B", "text": "epoll 通过 epoll_ctl 把 fd 注册一次、长期保存在内核，epoll_wait 只返回真正就绪的 fd，无需每次传全量集合，时间复杂度从 O(n) 降到接近 O(就绪数)" },
+      { "key": "C", "text": "select 返回后用户态必须自己遍历全部 fd 用 FD_ISSET 找出就绪的几个；epoll_wait 直接给出就绪列表，避免了『万级连接只有几十个活跃却要全扫』的浪费" },
+      { "key": "D", "text": "连接数很少且每次都很活跃时，epoll 一定远快于 select/poll，没有任何场景适合 select" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确，完整覆盖三者在 fd 上限、拷贝方式、就绪通知形式与复杂度上的差异。select 的位图模型有 1024 硬上限且每次重传重扫；poll 解决了上限但本质问题不变；epoll 靠内核态红黑树管理注册 fd + 就绪回调链表，实现增量通知。D 错：epoll 的管理结构（红黑树注册、回调建立）有固定成本，在 fd 数量小、几乎全部活跃（如本地少量管道、低并发工具）时，select/poll 的简单线性处理反而可能更快、更可移植；epoll 的碾压优势出现在『高并发、活跃连接占比低』的 C10K 场景。",
+    "gapCheck": [
+      "易漏点：epoll 高效的前提是连接多而活跃比例低；全活跃场景它与 poll 的差距收窄",
+      "常见误区：以为 select 慢只是因为 1024 上限——全量拷贝和 O(n) 扫描才是主因",
+      "加分项：能讲 epoll 红黑树管 fd、就绪链表靠网卡中断回调维护的内核结构"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.models"],
+      "related": ["cs.os.io.epoll"],
+      "followUps": [
+        "epoll_ctl 的 EPOLL_CTL_ADD/MOD/DEL 分别什么时候用？",
+        "为什么 macOS 没有 epoll，它的 kqueue 与 epoll 设计上有什么异同？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "select/poll/epoll 对比多选题" },
+    "tags": ["select", "poll", "epoll", "C10K"]
+  },
+  {
+    "id": "Q-cs-os-io-0003",
+    "nodeId": "cs.os.io.models",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：同步非阻塞 IO 中把 socket 设置为 O_NONBLOCK 后，read 在数据尚未就绪时立即返回 -1 并置 errno 为 EAGAIN/EWOULDBLOCK 而不是让线程睡眠；应用线程可以利用不等待的时间做别的事，但需要自行轮询，持续轮询会白白消耗 CPU。",
+    "answer": { "judge": true },
+    "analysis": "正确。非阻塞的语义就是『等不得』：阶段①立刻返回错误码告知『现在没数据』，线程不阻塞，可以去干别的或稍后重试。单独用它做忙轮询（tight loop read）会把一个核跑满却大部分时间拿到 EAGAIN，效率很差；它的真正价值是和多路复用配合——epoll 的 ET 模式要求 fd 必须是非阻塞的，才能在循环里读到 EAGAIN 确认『这次读干净了』而不会卡住整个事件循环。EAGAIN 与 EWOULDBLOCK 在 Linux 上是同一个值。",
+    "gapCheck": [
+      "易漏点：非阻塞返回 -1 不都是错误，EAGAIN 是『稍后再试』的正常状态，要与真正错误区分",
+      "常见误区：以为非阻塞=高性能；裸轮询非阻塞 IO 反而浪费 CPU，高性能靠的是多路复用",
+      "加分项：能解释 ET 模式为什么强制配非阻塞 fd，以及阻塞 fd 配 ET 可能饿死事件循环的机理"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.models"],
+      "related": ["cs.os.io.epoll"],
+      "followUps": [
+        "EINTR 和 EAGAIN 都是 read 返回 -1，处理方式有什么不同？",
+        "为什么事件循环库（libuv/Netty）都把监听 socket 设成非阻塞？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "非阻塞 IO 与 EAGAIN 判断题" },
+    "tags": ["非阻塞IO", "EAGAIN", "轮询"]
+  },
+  {
+    "id": "Q-cs-os-io-0004",
+    "nodeId": "cs.os.io.models",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：IO 多路复用的三个系统调用中，______ 存在 1024 个 fd 的默认上限；______ 去掉了 fd 上限但仍需每次线性扫描整个集合；Linux 特有的 ______ 采用内核注册 + 就绪通知机制，能在万级连接下保持高性能。",
+    "answer": {
+      "blanks": ["select", "poll", "epoll"],
+      "synonyms": {
+        "select": ["select()"],
+        "poll": ["poll()"],
+        "epoll": ["epoll()"]
+      }
+    },
+    "analysis": "①select 用 fd_set 位图，受 FD_SETSIZE（通常 1024）限制，且每次调用要重新初始化位图、全量拷贝进内核。②poll 改用 struct pollfd 数组，没有硬上限，但『每次全量传入 + 内核线性扫描 + 用户态线性复查』的 O(n) 模式没变。③epoll 把『注册关注』与『等待事件』拆成 epoll_ctl/epoll_wait 两步，内核维护持久状态，就绪 fd 由回调挂入就绪链表，wait 只取就绪者，复杂度与活跃连接数挂钩而非总连接数。",
+    "gapCheck": [
+      "易漏点：poll 解决的是上限问题，没有解决全量拷贝和线性扫描问题",
+      "常见误区：把三者当成简单的新旧替代，低并发下 select 的可移植性（POSIX 全平台）仍是优势",
+      "加分项：能补充 BSD/macOS 的 kqueue、Solaris 的 /dev/poll、Windows IOCP 各自的定位"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.models"],
+      "related": ["cs.os.io.epoll"],
+      "followUps": [
+        "IOCP 与 epoll 的同步/异步模型差异是什么？",
+        "Redis 单线程模型里 epoll 具体承担了什么角色？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "三大多路复用机制填空题" },
+    "tags": ["select", "poll", "epoll", "填空题"]
+  },
+  {
+    "id": "Q-cs-os-io-0005",
+    "nodeId": "cs.os.io.models",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请系统讲清五种 IO 模型：①分别说明阻塞 IO、非阻塞 IO、IO 多路复用、信号驱动 IO、异步 IO 的工作流程；②用『两阶段是否阻塞、谁做数据拷贝』作为主线区分同步与异步；③说明为什么多路复用是高并发网络编程的主流选择，而真正的异步 IO 在 Linux 上长期不好用；④结合 Reactor 模式讲事件循环的基本结构。",
+    "answer": {
+      "ref": "参考骨架：【五模型流程】①阻塞 IO：应用调用 recvfrom 后线程睡眠，直到数据就绪且拷贝到用户缓冲区才返回，两阶段全程阻塞，编程最简单但一个线程只能盯一个 fd。②非阻塞 IO：fd 设 O_NONBLOCK，没就绪立即返回 EAGAIN，线程可做别的，但要持续轮询，CPU 浪费大，实际很少裸用。③IO 多路复用：先用 select/poll/epoll 一次等待多个 fd，某个就绪后再用 read/recvfrom 同步拷贝数据；一个线程管海量连接，等待阶段批量阻塞、拷贝阶段同步执行。④信号驱动 IO：先注册 SIGIO 处理函数，fd 就绪时内核发信号通知，应用在信号处理里或主循环中再 read，拷贝仍同步；信号语义复杂、使用较少。⑤异步 IO（POSIX AIO/io_uring 异步路径）：应用提交请求后立即返回，内核把『等就绪 + 拷贝到用户缓冲区』两阶段全部做完，再以完成通知/完成队列告知，用户态拿到的就是现成数据。\n【同步异步主线】两阶段：等待数据 + 内核→用户拷贝。前四种模型的第二阶段都由用户线程同步执行（线程在 read 上阻塞直到拷贝完），统称同步 IO；只有第五种两阶段都不阻塞用户线程，才是异步 IO。阻塞与非阻塞只刻画第一阶段等不等，同步与异步刻画第二阶段谁干活、控制权何时返回。\n【为什么多路复用成主流】瓶颈在 C10K：阻塞模型一连接一线程，万级线程的栈内存与切换成本不可接受；裸非阻塞轮询烧 CPU；信号驱动难写难维护。epoll 提供 O(活跃连接) 的事件通知，配合单线程事件循环即可支撑数万连接，线程数≈核数，上下文切换最少。Linux 原生 AIO 长期只支持 O_DIRECT 直读异步、对网络套接字与缓冲 IO 支持差、接口难用，导致实践长期停在 epoll；io_uring（2019 年后逐步成熟）用共享环形队列统一提交/完成通道，才让通用异步 IO 真正可用。\n【Reactor 结构】核心是事件循环：①同步事件分离器（epoll_wait）阻塞等待事件；②事件分发器根据 fd 与事件类型（读/写/接受）回调预先注册的处理器；③处理器执行非阻塞读写与业务逻辑，处理完立即返回循环，绝不在回调里阻塞。单 Reactor 单线程（Redis 6 前）、单 Reactor 多线程（业务丢线程池）、主从 Reactor 多线程（Netty 的 boss/worker 两组 EventLoop）是三种典型演进。"
+    },
+    "scoringPoints": [
+      { "point": "五模型流程准确，各自的等待与返回行为讲清", "weight": 2 },
+      { "point": "用两阶段主线正确区分同步/异步，明确多路复用仍是同步", "weight": 3 },
+      { "point": "解释 epoll 胜出的工程原因与 Linux AIO 历史局限、io_uring 的补位", "weight": 2 },
+      { "point": "Reactor 事件循环三要素与三种线程模型演进", "weight": 2 }
+    ],
+    "analysis": "这是 IO 章节的体系化大题，答得好不好主要看『同步/异步分界线』是否清晰——很多候选人把非阻塞和异步混为一谈。常见失分：认为 epoll 是异步 IO；说不清信号驱动处于什么位置；只背模型名讲不出两阶段；Reactor 只会背名词。能把 io_uring、Netty EventLoop、Redis 线程模型带进来，回答就具备工程纵深。",
+    "gapCheck": [
+      "易漏点：信号驱动 IO 的就绪通知是异步的，但数据拷贝仍同步，整体仍归同步 IO",
+      "常见误区：用『阻塞 vs 非阻塞』一条轴给五模型分类——正确做法是阻塞性与同步/异步两条轴",
+      "加分项：能讲 io_uring 的 SQ/CQ 环形队列、避免每个操作一次系统调用的批量提交优势"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.models"],
+      "related": ["cs.os.io.epoll", "cs.os.io.zero-copy", "cs.os.process.thread-models"],
+      "followUps": [
+        "Proactor 模式和 Reactor 的差别在哪？Windows IOCP 对应哪种？",
+        "为什么 Redis 单线程处理命令却不怎么怕慢 IO？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "五种 IO 模型与 Reactor 体系化主观题" },
+    "tags": ["IO模型", "epoll", "Reactor", "io_uring", "体系化"]
+  },
+
+  {
+    "id": "Q-cs-os-io-0006",
+    "nodeId": "cs.os.io.epoll",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 epoll 的 LT（水平触发）与 ET（边缘触发）模式，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "LT 模式下 fd 只要还有数据可读，每次 epoll_wait 都会通知；ET 模式只在状态发生变化（如新数据到达）的那一刻通知一次，没读完不会再提醒" },
+      { "key": "B", "text": "ET 模式可以配合阻塞 fd 使用，读一次就返回，简单高效" },
+      { "key": "C", "text": "LT 模式必须把 fd 设为非阻塞并循环读到 EAGAIN，否则会丢事件" },
+      { "key": "D", "text": "ET 比 LT 的通知次数多，因此编程更简单、更不容易出错" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确表述两种触发语义：LT 是『条件满足就持续报告』，像电平信号；ET 是『状态跳变只报告一次』，像边沿信号。B 错且危险：ET 必须配非阻塞 fd——若用阻塞 fd，循环读取时最后一次没有数据会永久阻塞，整个事件线程卡死。C 把要求安反了：必须循环读到 EAGAIN 的是 ET（因为不会再通知），LT 读一半也没事，下次 wait 还会提醒。D 方向相反：ET 通知次数更少（减少 epoll_wait 唤醒与回调次数，这是它的性能卖点），但编程要求高、漏读即死等，复杂度与出错概率都高于 LT。",
+    "gapCheck": [
+      "易漏点：ET 的『读干净』要靠 while 循环读到 EAGAIN 判定，EAGAIN 是正常结束信号不是错误",
+      "常见误区：以为 ET 天生更快——收益只在减少重复通知，写错了反而出现连接假死",
+      "加分项：能讲 accept 在 ET 下也要循环 accept 到 EAGAIN，否则突发多个新连接会漏处理"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.epoll"],
+      "related": ["cs.os.io.models"],
+      "followUps": [
+        "ET 模式下写事件（EPOLLOUT）一般什么时候才注册？",
+        "Nginx/Redis 默认用 LT 还是 ET？各自出于什么考虑？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "epoll LT 与 ET 区别单选题" },
+    "tags": ["epoll", "LT", "ET", "高频"]
+  },
+  {
+    "id": "Q-cs-os-io-0007",
+    "nodeId": "cs.os.io.epoll",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "epoll 能支撑 C10K 高并发，下列属于其高效原因的有：",
+    "options": [
+      { "key": "A", "text": "fd 注册与等待分离：epoll_ctl 一次注册后 fd 集合常驻内核（红黑树管理），epoll_wait 不必每次把全量 fd 从用户态拷贝到内核" },
+      { "key": "B", "text": "就绪发现基于回调：网卡数据到达触发中断与协议栈处理时，把就绪 fd 加入就绪链表，epoll_wait 只需收集就绪链表，复杂度与活跃连接数而非总连接数相关" },
+      { "key": "C", "text": "没有 fd 数量硬上限（受限于进程可打开文件数），10 万连接也只需少量描述符管理开销" },
+      { "key": "D", "text": "epoll 会把每个连接的数据自动在内核态读完并直接变成用户对象，用户程序完全不用调用 read" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 是 epoll 高效的三大支柱：避免重复拷贝（对照 select 每次传位图）、避免全量扫描（就绪回调 + 就绪队列）、无 1024 上限。红黑树保证增删改查 O(log n)，就绪链表让 wait 接近 O(1)×就绪数。D 错：epoll 只负责通知『哪个 fd 上发生了什么事件』，数据读取仍由用户程序调用 read/recv 同步完成（这也是它属于同步 IO 的原因）；真正把数据也搬到用户态再通知的是异步 IO。",
+    "gapCheck": [
+      "易漏点：epoll 的 O(1) 说法不严谨——注册是 O(log n)，wait 是 O(就绪数)，不是总连接数",
+      "常见误区：以为 epoll_wait 返回的是数据本身；它返回的是就绪事件列表",
+      "加分项：能讲 epoll 的唤醒惊群（多个线程/进程等同一个 listen fd）与 EPOLLET、EPOLLEXCLUSIVE 的应对"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.epoll"],
+      "related": ["cs.os.io.models", "cs.os.io.zero-copy"],
+      "followUps": [
+        "多个进程 epoll 同一个监听 socket 时惊群是怎么产生的？Nginx 怎么处理？",
+        "红黑树里的节点和就绪链表是什么关系，一个 fd 会同时在两处吗？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "epoll 高效原理多选题" },
+    "tags": ["epoll", "红黑树", "就绪队列", "C10K"]
+  },
+  {
+    "id": "Q-cs-os-io-0008",
+    "nodeId": "cs.os.io.epoll",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：在 ET（边缘触发）模式下，正确写法是把 fd 设置为非阻塞，并在收到可读事件后用循环反复 read，直到返回 -1 且 errno 为 EAGAIN/EWOULDBLOCK 为止，以此确保本次数据被读干净；只读一次可能导致残留数据长期得不到处理。",
+    "answer": { "judge": true },
+    "analysis": "正确。ET 只在『不可读→可读』的跳变时通知一次，若本次只读走一部分，没有新数据到达就不会再有新边沿，剩余数据滞留、对端可能因此阻塞或超时。循环读到 EAGAIN 是标准收尾动作；非阻塞是循环的前提，否则最后一次 read 会把线程睡死。写侧同理：ET 下关注 EPOLLOUT 后要写到 EAGAIN，并及时取消关注写事件，否则 fd 长期可写会让 epoll_wait 持续返回、形成 busy loop。",
+    "gapCheck": [
+      "易漏点：EAGAIN 在这里是『读完了』的正常标记，不能当错误中断处理",
+      "常见误区：ET 下沿用 LT 的『一次事件读一次』写法，表现为偶发请求挂起且很难复现",
+      "加分项：能讲连接关闭时 read 返回 0、对端 RST 时返回错误，与 EAGAIN 三种返回的分支处理"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.epoll"],
+      "related": ["cs.os.io.models"],
+      "followUps": [
+        "为什么 EPOLLOUT 不能长期注册在 epoll 上？",
+        "ET 模式下 listen socket 的 accept 为什么也要循环到 EAGAIN？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "ET 模式读到 EAGAIN 判断题" },
+    "tags": ["epoll", "ET", "EAGAIN", "事件循环"]
+  },
+  {
+    "id": "Q-cs-os-io-0009",
+    "nodeId": "cs.os.io.epoll",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 Linux epoll 写一个单线程 TCP echo 服务的核心骨架（C 语言伪代码即可），要求：①包含 socket/bind/listen、epoll_create、epoll_ctl 注册 listen fd 的完整初始化；②epoll_wait 循环中区分新连接（listen fd 可读）与已连接 fd 的可读事件；③说明你选择 LT 还是 ET，若选 ET 请写出读到 EAGAIN 的循环；④指出至少两个生产环境还需处理的边界问题。",
+    "answer": {
+      "ref": "设计要点：listen fd 与客户端 fd 都设非阻塞；epoll_create1 建实例；epoll_ctl ADD 注册 EPOLLIN。主循环 epoll_wait 拿到事件数组后按 fd 分派：listen 上循环 accept（ET 下必须到 EAGAIN），新 fd 设非阻塞后注册；客户端 fd 上循环 recv 到 EAGAIN，并把数据 send 回去（处理 send 部分写入与 EAGAIN，生产上要加发送缓冲与 EPOLLOUT）。边界问题：①accept/recv/read 的 EINTR 被信号打断要重试；②recv 返回 0 要关闭连接并从 epoll 摘除；③RST/错误事件 EPOLLERR/EPOLLHUP；④写缓冲与部分写；⑤SIGPIPE 忽略；⑥惊群（多 worker 时用 EPOLLEXCLUSIVE 或 SO_REUSEPORT）。",
+      "code": "#include <sys/epoll.h>\n#include <sys/socket.h>\n#include <netinet/in.h>\n#include <fcntl.h>\n#include <unistd.h>\n#include <errno.h>\n\nint set_nonblocking(int fd) {\n  int fl = fcntl(fd, F_GETFL, 0);\n  return fcntl(fd, F_SETFL, fl | O_NONBLOCK);\n}\n\nint main() {\n  int lfd = socket(AF_INET, SOCK_STREAM, 0);\n  int opt = 1;\n  setsockopt(lfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));\n  struct sockaddr_in addr = {AF_INET, htons(8080), {INADDR_ANY}};\n  bind(lfd, (struct sockaddr*)&addr, sizeof(addr));\n  listen(lfd, 128);\n  set_nonblocking(lfd);\n\n  int epfd = epoll_create1(0);\n  struct epoll_event ev, events[64];\n  ev.events = EPOLLIN;              // LT 模式（默认）\n  ev.data.fd = lfd;\n  epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);\n\n  for (;;) {\n    int n = epoll_wait(epfd, events, 64, -1);\n    for (int i = 0; i < n; ++i) {\n      int fd = events[i].data.fd;\n      if (fd == lfd) {                       // 新连接\n        for (;;) {\n          int cfd = accept(lfd, NULL, NULL);\n          if (cfd < 0) { if (errno == EAGAIN) break; else break; }\n          set_nonblocking(cfd);\n          ev.events = EPOLLIN;               // 若用 ET：EPOLLIN | EPOLLET\n          ev.data.fd = cfd;\n          epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);\n        }\n      } else {                               // 已连接 fd 可读\n        char buf[4096];\n        for (;;) {\n          ssize_t r = recv(fd, buf, sizeof(buf), 0);\n          if (r > 0) {\n            ssize_t off = 0;\n            while (off < r) {                // 简化：生产中要处理 send 的 EAGAIN\n              ssize_t w = send(fd, buf + off, r - off, 0);\n              if (w > 0) off += w;\n              else if (errno == EAGAIN) break; // 真实代码需缓冲剩余数据+等 EPOLLOUT\n              else break;\n            }\n          } else if (r == 0) {               // 对端关闭\n            epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);\n            close(fd);\n            break;\n          } else if (errno == EAGAIN) {      // LT 下通常一次就够；ET 下靠它收尾\n            break;\n          } else if (errno == EINTR) {\n            continue;\n          } else {                           // 真正的错误\n            epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);\n            close(fd);\n            break;\n          }\n        }\n      }\n    }\n  }\n}"
+    },
+    "scoringPoints": [
+      { "point": "初始化完整：非阻塞设置、epoll_create、epoll_ctl 注册 EPOLLIN", "weight": 2 },
+      { "point": "事件分派正确：listen fd 走 accept、客户端 fd 走 recv，ET 下循环到 EAGAIN", "weight": 3 },
+      { "point": "显式说明 LT/ET 选择及对应写法差异", "weight": 2 },
+      { "point": "边界问题 ≥2 个：EINTR、recv=0、EPOLLERR/HUP、部分写、SIGPIPE、惊群", "weight": 2 }
+    ],
+    "analysis": "这道题检验 epoll 是真写过还是只背过。常见失分：①漏设非阻塞，ET 模式下直接埋雷；②listen fd 与客户端 fd 不分派；③accept/recv 不处理 EAGAIN/EINTR；④不知道 recv 返回 0 是对端正常关闭；⑤send 假设一次写完，忽略部分写与 EPOLLOUT 机制。能主动讨论 LT/ET 取舍、SO_REUSEPORT 多 worker、连接关闭的 epoll_ctl DEL 清理，就是工程级回答。",
+    "gapCheck": [
+      "易漏点：events[i].data 是联合体，用 fd 还是 ptr 要在注册与读取时保持一致",
+      "常见误区：把 recv 返回 -1 一律当错误关闭连接，EAGAIN/EINTR 都有专门处理路径",
+      "加分项：能讲多线程 Reactor 中任务队列、写缓冲设计与 EPOLLEXCLUSIVE 防惊群"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.epoll"],
+      "related": ["cs.os.io.models", "cs.os.io.zero-copy"],
+      "followUps": [
+        "如果要把这个 echo 服务改成多 worker 进程，SO_REUSEPORT 和 EPOLLEXCLUSIVE 怎么选？",
+        "send 返回的字节数少于请求长度时，事件驱动程序该怎么组织发送缓冲区？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "epoll echo 服务手写代码题" },
+    "tags": ["手写题", "epoll", "socket", "LT/ET", "高频"]
+  },
+  {
+    "id": "Q-cs-os-io-0010",
+    "nodeId": "cs.os.io.epoll",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：epoll 的三个 API 中，______ 用于创建 epoll 实例并返回文件描述符；______ 用于向兴趣集合中添加、修改或删除关注的 fd（操作码为 ADD/MOD/DEL）；______ 用于阻塞等待就绪事件并返回就绪事件数组。",
+    "answer": {
+      "blanks": ["epoll_create", "epoll_ctl", "epoll_wait"],
+      "synonyms": {
+        "epoll_create": ["epoll_create1", "epoll_create()", "epoll_create1()"],
+        "epoll_ctl": ["epoll_ctl()"],
+        "epoll_wait": ["epoll_wait()"]
+      }
+    },
+    "analysis": "①epoll_create（新版 epoll_create1 可带 flags，如 EPOLL_CLOEXEC）创建内核事件轮询实例，返回一个 fd——所以 epoll 实例本身也占文件描述符，用完要 close。②epoll_ctl 是控制面：EPOLL_CTL_ADD 注册、MOD 修改事件掩码（如加 EPOLLET/EPOLLOUT）、DEL 摘除。③epoll_wait 是数据面：把就绪事件拷入用户给的 events 数组，返回就绪条数，timeout 控制等待策略（-1 永久阻塞、0 立即返回、正数为毫秒超时）。三 API 分工正是『注册与等待分离』设计的体现。",
+    "gapCheck": [
+      "易漏点：epoll fd 自身也要 close，进程退出前不关闭会泄漏文件描述符",
+      "常见误区：以为每次 wait 前都要重新 ADD——注册是持久的，MOD/DEL 才是后续变更",
+      "加分项：能讲 EPOLL_CLOEXEC 防止 fd 跨 fork 泄漏、timeout=0 用于轮询式集成"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.epoll"],
+      "related": ["cs.os.io.models"],
+      "followUps": [
+        "fork 之后子进程继承了 epoll fd，会带来什么问题？",
+        "epoll_pwait 相比 epoll_wait 多解决了什么信号竞态？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "epoll 三大 API 填空题" },
+    "tags": ["epoll", "系统调用", "填空题", "API"]
+  },
+
+  {
+    "id": "Q-cs-os-io-0011",
+    "nodeId": "cs.os.io.zero-copy",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "传统方式用 `read(fd, buf, n)` 再 `write(sock, buf, n)` 把磁盘文件发给网络，关于其数据拷贝与上下文切换次数，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "共 2 次上下文切换、2 次数据拷贝，且全部由 CPU 完成" },
+      { "key": "B", "text": "共 4 次用户态/内核态切换（read 进入与返回、write 进入与返回）和 4 次拷贝：2 次 DMA 拷贝（磁盘→内核缓冲区、内核 socket 缓冲区→网卡）+ 2 次 CPU 拷贝（内核→用户 buf、用户 buf→socket 缓冲区）" },
+      { "key": "C", "text": "数据只经过 2 次拷贝，用户缓冲区那一跳可以被编译器优化掉" },
+      { "key": "D", "text": "read 和 write 都是内存操作，不涉及 DMA" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 是经典教材的标准计数。流程：①read 陷入内核（切换1），DMA 把磁盘数据搬进内核页缓存（DMA 拷贝1）；②CPU 把数据从内核缓冲区拷到用户 buf（CPU 拷贝1），read 返回（切换2）；③write 陷入内核（切换3），CPU 把用户 buf 拷进内核 socket 缓冲区（CPU 拷贝2）；④DMA 把 socket 缓冲区数据搬到网卡（DMA 拷贝2），write 返回（切换4）。A 少算了一半。C 错：用户态这两跳是真实拷贝，编译器无法跨用户/内核边界优化掉。D 错：磁盘与网卡这类设备的数据搬运由 DMA 控制器完成，CPU 只负责内核缓冲区之间的拷贝与调度。",
+    "gapCheck": [
+      "易漏点：DMA 拷贝不占 CPU 但仍是物理拷贝；零拷贝省的主要是 CPU 拷贝和上下文切换",
+      "常见误区：把『零拷贝』理解成完全没有拷贝——它消掉的是冗余的 CPU 拷贝，DMA 搬运仍在",
+      "加分项：能讲 write 返回后数据未必已发到网卡，还在内核协议栈/socket 缓冲区"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.zero-copy"],
+      "related": ["cs.os.io.models", "cs.os.io.epoll"],
+      "followUps": [
+        "mmap+write 相比 read+write 省掉了哪一跳？还剩几次拷贝？",
+        "为什么零拷贝对大文件传输收益明显，对小块消息收益有限？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "传统 IO 拷贝次数单选题" },
+    "tags": ["零拷贝", "DMA", "上下文切换", "高频"]
+  },
+  {
+    "id": "Q-cs-os-io-0012",
+    "nodeId": "cs.os.io.zero-copy",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 mmap、sendfile 与零拷贝，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "mmap 把文件页缓存直接映射到用户地址空间，用户态读取不发生内核→用户的 CPU 拷贝；配合 write 时数据从页缓存经一次 CPU 拷贝进入 socket 缓冲区，总计 3 次拷贝（1 次 CPU + 2 次 DMA）" },
+      { "key": "B", "text": "sendfile 在两个 fd 之间直接在内核传输，数据不经过用户缓冲区；配合支持 scatter-gather 的网卡时可做到只有 2 次 DMA 拷贝、0 次 CPU 数据拷贝" },
+      { "key": "C", "text": "sendfile 的目的 fd 必须是 socket（早期实现限制），它适用于静态文件下发、消息队列文件转发等『用户态不需要看内容』的场景" },
+      { "key": "D", "text": "mmap 映射后访问内存永远不会缺页、不会阻塞，可以当普通内存随意用" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 的 mmap+write 路径：DMA 磁盘→页缓存（1），CPU 页缓存→socket 缓冲（1），DMA socket→网卡（1），省掉了传统路径中用户缓冲区的两跳中的一跳 CPU 拷贝。B 的 sendfile + SG-DMA：内核只把文件描述信息（地址/偏移/长度）传给 socket，真正的数据由 DMA 从页缓存 gather 到网卡，实现严格意义的零 CPU 拷贝；不支持 SG 的旧硬件上仍有一次内核内部 CPU 拷贝。C 说明 sendfile 的适用边界：用户态不需要解析/修改内容的纯转发，Kafka、Nginx、静态文件服务器都靠它提升吞吐。D 错：mmap 只是建立映射，首次触碰每个页仍会触发缺页，文件不在页缓存时是要读磁盘的 major fault、可能阻塞；映射区还可能因文件被截断收到 SIGBUS，写入共享映射涉及 msync 回写语义。",
+    "gapCheck": [
+      "易漏点：零拷贝有两个层次——mmap 省 1 次 CPU 拷贝，sendfile+SG 才是 0 次 CPU 拷贝",
+      "常见误区：以为 mmap 后访问就是普通内存无开销，缺页、回写、截断信号都是真实陷阱",
+      "加分项：能讲 sendfile 的 Linux 2.6.33 后支持的 DMA scatter-gather、splice 管道零拷贝与 Kafka 的使用方式"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.zero-copy"],
+      "related": ["cs.os.memory.virtual-memory", "cs.os.io.models"],
+      "followUps": [
+        "Kafka 为什么同时用 sendfile 和 mmap（日志写入与消费发送分别用哪个）？",
+        "多个进程 mmap 同一个文件，修改的可见性和一致性怎么保证？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "mmap/sendfile 零拷贝多选题" },
+    "tags": ["零拷贝", "sendfile", "mmap", "DMA"]
+  },
+  {
+    "id": "Q-cs-os-io-0013",
+    "nodeId": "cs.os.io.zero-copy",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请回答：①对比传统 read+write、mmap+write、sendfile 三条路径各自的上下文切换次数、CPU 拷贝次数与 DMA 拷贝次数；②DMA 是什么，它如何解放 CPU；③中断驱动与轮询各自的优缺点，什么情况下会采用轮询（busy polling）；④举两个中间件/服务器利用零拷贝的实例并说明收益。",
+    "answer": {
+      "ref": "参考骨架：【三条路径计数】传统 read+write：4 次态切换、2 次 CPU 拷贝（内核↔用户缓冲区两跳）、2 次 DMA（磁盘进、网卡出），共 4 次拷贝。mmap+write：mmap 建映射一次系统调用，write 时 4 次态切换（mmap 本身另计），CPU 拷贝降为 1 次（页缓存→socket 缓冲），DMA 2 次，共 3 次拷贝；用户态像访问内存一样读文件页，省掉内核→用户那一跳。sendfile（含 SG-DMA）：1 次系统调用 2 次态切换，CPU 数据拷贝 0 次（只传递描述符），DMA 2 次，共 2 次拷贝；不支持 SG 的硬件上退化为 1 次内核内 CPU 拷贝。\n【DMA】直接内存访问控制器是主板上的专用硬件，经总线仲裁获得内存访问权后，设备与内存之间的数据搬运由 DMA 独立完成，CPU 只在传输开始时配置源/目的/长度、结束时接收中断，期间可以执行别的任务。没有 DMA 则每个字/块都要 CPU 亲自搬运（PIO 模式），高速设备会把 CPU 打满。\n【中断 vs 轮询】中断：设备就绪时主动通知 CPU，延迟低、空闲时零消耗，但高 IOPS 下中断频繁、每次中断有保存现场与上下文切换成本，甚至形成『中断风暴』；轮询：CPU 主动循环查状态，无中断开销、吞吐稳定、延迟可预测，但空闲也烧 CPU。高吞吐场景（如 10G/25G 网卡、NVMe、DPDK）采用 busy polling/内核 NAPI：NAPI 在流量小时用中断唤醒，流量大时切换为轮询模式把一批包一次收完，兼顾两者；DPDK 甚至完全绕过内核中断在用户态轮询。\n【工程实例】①Kafka：消费端发送历史消息用 sendfile 把日志段从页缓存直送 socket，写入端用 mmap 把日志文件映射进内存追加，broker 不解析消息内容，零拷贝让高吞吐下 CPU 占用显著下降；②Nginx：静态文件服务开启 sendfile 直接下发文件，配合 tcp_nopush 控制报文攒批；③Java NIO 的 FileChannel.transferTo 在 Linux 上就落到 sendfile。收益主要是减少 CPU 拷贝与态切换、降低 CPU 占用和缓存污染、提升单连接吞吐与单机并发连接数。"
+    },
+    "scoringPoints": [
+      { "point": "三条路径的切换/CPU 拷贝/DMA 计数准确（4-2-2 / 4-1-2 / 2-0-2）", "weight": 3 },
+      { "point": "DMA 解放 CPU 的机理与 PIO 对比讲清", "weight": 2 },
+      { "point": "中断与轮询取舍到位，能讲 NAPI/busy polling 的混合策略", "weight": 2 },
+      { "point": "Kafka/Nginx 实例与具体收益对应正确", "weight": 2 }
+    ],
+    "analysis": "这题把零拷贝、DMA、中断轮询串成『数据搬运效率』主线。常见失分：计数背错（尤其 mmap 与 sendfile 的差别）；把零拷贝说成零 DMA；不知道 NAPI 的中断/轮询混合；举例子只说 Kafka 但讲不清它写用 mmap、读用 sendfile 的分工。能提到 transferTo、SG-DMA、DPDK、缓存污染（用户 buf 会污染 CPU cache）等细节，回答就有深度。",
+    "gapCheck": [
+      "易漏点：mmap 省的是『内核→用户』那跳 CPU 拷贝，sendfile 进一步把用户态完全绕开",
+      "常见误区：只数拷贝不数态切换——系统调用次数减少本身也是零拷贝收益的一部分",
+      "加分项：能讲零拷贝减少 CPU cache 污染、NAPI 中断聚合与 DPDK 用户态轮询的适用场景"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.io.zero-copy"],
+      "related": ["cs.os.io.models", "cs.os.io.epoll", "cs.os.memory.tlb-pagefault"],
+      "followUps": [
+        "splice 和 sendfile 有什么区别？为什么说 splice 更通用？",
+        "零拷贝传输中数据需要 TLS 加密时会遇到什么问题？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "零拷贝/DMA/中断轮询体系化主观题" },
+    "tags": ["零拷贝", "sendfile", "DMA", "NAPI", "体系化"]
+  }
+]

@@ -1,0 +1,224 @@
+[
+  {
+    "id": "Q-be-py-asyncio-0001",
+    "nodeId": "be.python.web.asyncio",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 asyncio 协程与事件循环，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "async def 定义的协程函数被调用时返回一个协程对象而不会立即执行，需由事件循环驱动；遇到 await 时当前协程挂起、事件循环转去执行其他就绪协程，await 的对象就绪后再恢复，从而单线程并发处理大量 I/O"
+      },
+      {
+        "key": "B",
+        "text": "协程能在单线程里并行执行 CPU 计算，是绕过 GIL 的官方方案"
+      },
+      {
+        "key": "C",
+        "text": "asyncio.gather 会为每个协程创建一个独立线程来并行运行"
+      },
+      {
+        "key": "D",
+        "text": "在协程里调用 requests.get 这种同步阻塞库，事件循环会自动把它变成异步，不影响其他协程"
+      }
+    ],
+    "answer": {
+      "keys": ["A"]
+    },
+    "analysis": "A 准确描述了 asyncio 机制：调用协程函数只是构造协程对象，真正运行要交给事件循环（asyncio.run 或 await）；协程在 await 一个可等待对象（另一个协程、Task、Future）时主动挂起，把控制权交还事件循环，循环去跑其他就绪协程，等 I/O 完成的回调把 Future 置为完成，原协程再从挂起点恢复。全程单线程、协作式调度，没有线程切换，适合海量 I/O 并发。B 错：协程不绕过 GIL，CPU 密集计算在协程里照样占住唯一线程、阻塞整个循环，CPU 密集仍要靠多进程。C 错：gather 只是把多个协程包装成 Task 调度到同一个事件循环并发等待，不开线程。D 是高频错误：同步阻塞调用（requests、time.sleep、同步文件 IO）不会自动异步化，会冻结事件循环，正确做法是用 aiohttp/httpx.AsyncClient、await asyncio.sleep、异步文件 IO，或用 loop.run_in_executor 把阻塞任务丢到 ThreadPoolExecutor。对照 Node：asyncio 的 event loop、await 挂起恢复、阻塞调用卡死循环，与 Node 事件循环完全同构。",
+    "gapCheck": [
+      "易漏点：协程函数调用只返回对象、由事件循环驱动；await 是协作式让出而非阻塞",
+      "常见误区：以为协程能并行 CPU 计算，或在协程里直接用同步阻塞库",
+      "加分项：知道 gather/wait/Task 区别，以及 run_in_executor 隔离阻塞调用"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.python.core.gil-concurrency"],
+      "related": ["be.node.core.eventloop"],
+      "followUps": ["asyncio.gather 和 asyncio.wait 在异常处理上有什么区别？", "Task 和 Future 是什么关系？"]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "asyncio 事件循环核心机制题"
+    },
+    "tags": ["Python", "asyncio", "协程", "事件循环", "高频必考"],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-be-py-asyncio-0002",
+    "nodeId": "be.python.web.asyncio",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：asyncio 是单线程协作式并发，协程之间不会被事件循环随时抢占，只能在 await 点主动让出；因此一个不含任何 await、纯计算的长协程会一直占用线程，导致同循环里的其他协程全部得不到执行。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。这是协作式（cooperative）多任务与抢占式（preemptive）多任务的根本区别。线程由操作系统调度，可在任意指令处被抢占、时间片用尽强制切换；而 asyncio 协程的切换只发生在 await 点，事件循环没有能力打断一个正在同步执行的协程。所以若协程里写了一个不 await 的大循环或重计算，它会一直占着唯一的事件循环线程，其他协程（包括定时器、网络回调）全部停摆，表现为服务「假死」。应对：① 把 CPU 密集逻辑拆成多段并在段间 await asyncio.sleep(0) 主动让出（仅适合可拆分场景）；② 用 run_in_executor 丢进进程池/线程池，不阻塞循环；③ CPU 密集整体交给 multiprocessing。这个特性也解释了为什么异步代码里所有 I/O 必须用异步库——一个同步阻塞调用就是一个不释放控制权的「长协程」。对照前端：JS 的 async/await 同样是协作式，一段同步死循环也会卡死整个页面和宏任务/微任务调度，原理一致。",
+    "gapCheck": [
+      "易漏点：协作式调度只在 await 点切换，纯同步长协程会饿死其他协程",
+      "常见误区：把协程当成会被自动抢占的线程，忽略让出控制权的责任",
+      "加分项：能给出 sleep(0) 让出、executor、多进程三种应对并说明取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.python.web.asyncio"],
+      "related": ["be.node.core.eventloop", "be.python.core.gil-concurrency"],
+      "followUps": ["await asyncio.sleep(0) 到底做了什么？", "协作式和抢占式调度各自的优缺点是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "协作式调度与事件循环阻塞"
+    },
+    "tags": ["Python", "asyncio", "协作式并发", "事件循环阻塞"],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-be-py-fw-0001",
+    "nodeId": "be.python.web.framework",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "关于 Django、Flask、FastAPI 三个 Python Web 框架的定位，下列说法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "Django 是大而全的「全家桶」，自带 ORM、Admin 后台、认证、模板，约定重、开发快，传统同步为主"
+      },
+      {
+        "key": "B",
+        "text": "Flask 是微内核轻量框架，路由和基本能力之外几乎都靠扩展拼装，灵活、自由度高，适合小服务和学习"
+      },
+      {
+        "key": "C",
+        "text": "FastAPI 基于 Starlette + Pydantic，原生 async/await 异步，靠类型注解自动做参数校验、序列化和 OpenAPI 文档"
+      },
+      {
+        "key": "D",
+        "text": "三者都只能写同步接口，Python 完全不支持异步 Web 服务"
+      }
+    ],
+    "answer": {
+      "keys": ["A", "B", "C"]
+    },
+    "analysis": "A 正确：Django 奉行 batteries-included，内置 ORM、Admin、auth、migrations、模板引擎，约定优于配置，适合中大型、重 CRUD、需要后台管理的业务，传统走同步 WSGI（Django 3.1+ 也支持部分异步视图）。B 正确：Flask 核心只给路由和请求上下文，ORM、表单、认证都选扩展（SQLAlchemy、Flask-Login 等），轻量灵活，小项目和原型快，但大型项目的技术规范要自己定。C 正确：FastAPI 是异步框架，跑在 ASGI 上（uvicorn/hypercorn 服务器），用类型注解 + Pydantic 模型自动完成请求体校验、查询参数解析、响应序列化，并自动生成 /docs 的 Swagger/OpenAPI 接口文档，性能在 Python 框架里属第一梯队，适合高并发 API、微服务、AI 推理服务。D 明显错误。WSGI（同步，如 gunicorn 跑 Django/Flask）与 ASGI（异步，支持长连接/WebSocket，跑 FastAPI）是两套服务器协议。选型经验：重后台/团队求稳用 Django，轻量定制用 Flask，高并发异步 API/AI 服务用 FastAPI。对照 Node：FastAPI 的注解驱动校验很像用 TypeScript 类型 + Zod 做运行时校验，ASGI/WSGI 之分类似 Node 里异步框架与传统同步处理的差别。",
+    "gapCheck": [
+      "易漏点：Django 全家桶同步 WSGI、Flask 微内核、FastAPI 异步 ASGI+Pydantic 自动文档",
+      "常见误区：以为三框架都同步，或不清楚 WSGI/ASGI 的区别",
+      "加分项：能结合团队、并发量、是否要 Admin/文档来给选型建议"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.python.web.asyncio"],
+      "related": ["be.spring.mvc.request-flow"],
+      "followUps": ["WSGI 和 ASGI 在处理一个请求时的模型有何不同？", "Pydantic 的类型校验和手写 if 校验相比好在哪？"]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "三大 Python Web 框架选型多选题"
+    },
+    "tags": ["Python", "Django", "Flask", "FastAPI", "框架选型"],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-be-py-fw-0002",
+    "nodeId": "be.python.web.framework",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：使用 Django ORM 时，在循环里对查询集中的每个对象再触发一次关联查询（如 for book in books: print(book.author.name)）会产生经典的 N+1 查询问题，应用 select_related / prefetch_related 提前把关联数据一次性查出，以减少数据库往返。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。N+1 是 ORM 最常见的性能陷阱：先 1 条 SQL 查出 N 个 book，遍历访问每个 book.author 时因关联未加载，又各自触发 1 条 SQL，总共 1+N 次数据库往返，N 一大延迟和 DB 压力急剧上升。Django ORM 的解法：① select_related 用于一对一、多对一（ForeignKey/OneToOne），在主查询用 JOIN 把关联对象一次查出，SQL 仍是一条；② prefetch_related 用于一对多、多对多（无法简单 JOIN），分别查主表和关联表再在 Python 层按外键拼合，是 IN 查询而非 N 次。排查手段是打开 QuerySet.query 或 Django Debug Toolbar 看实际 SQL 条数。这与 MyBatis 的嵌套查询、JPA 的 FetchType.LAZY + @EntityGraph/@Fetch JOIN 是同一类问题和同一类解法（批量预加载/抓取）。延伸：FastAPI 常用 SQLAlchemy，其 joinedload/selectinload 分别对应这里的 select_related/prefetch_related。对照前端：N+1 很像渲染列表时每个 item 再单独发一个请求拿详情，正确做法是后端聚合或批量接口一次拿全。",
+    "gapCheck": [
+      "易漏点：select_related 走 JOIN 解决多对一，prefetch_related 用 IN 解决一对多/多对多",
+      "常见误区：只关注单条 SQL 慢，忽视循环里隐藏的 N 次往返",
+      "加分项：能迁移到 SQLAlchemy joinedload/selectinload、JPA EntityGraph"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.python.web.framework"],
+      "related": ["be.mysql.index.left-prefix-explain"],
+      "followUps": ["select_related 和 prefetch_related 在 SQL 层面分别发生什么？", "如何用 Django Debug Toolbar 定位 N+1？"]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "ORM N+1 问题与预加载，闭卷高频"
+    },
+    "tags": ["Python", "Django ORM", "N+1", "select_related", "闭卷题"],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-be-py-asyncio-0003",
+    "nodeId": "be.python.web.asyncio",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "用 asyncio 编写高并发网络程序，下列做法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "所有可能阻塞的 I/O 都使用异步库（如 aiohttp、asyncpg），并用 await 等待，绝不在协程里直接调用 requests、time.sleep 等同步阻塞 API" },
+      { "key": "B", "text": "对无法替换的同步阻塞调用，用 loop.run_in_executor 丢到线程池执行，避免它卡住事件循环线程" },
+      { "key": "C", "text": "用 asyncio.gather 并发调度多个协程，并对整体设置超时（asyncio.wait_for / timeout），防止个别任务无限挂起拖垮服务" },
+      { "key": "D", "text": "在协程里写一个不 await 的纯计算大循环来处理数据，事件循环会自动并行调度它，不影响其他协程" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 是异步编程的铁律：事件循环单线程协作式调度，只有 await 真正的异步 I/O 才会让出控制权，同步阻塞调用会冻结整个循环、所有连接一起卡，所以必须全链路异步化（异步 HTTP 客户端、异步数据库驱动、await asyncio.sleep）。B 是处理「绕不开的同步库」的标准手段：run_in_executor 把阻塞函数提交到默认 ThreadPoolExecutor（或自定义进程池处理 CPU 密集），循环线程不等待、任务完成后通过 Future 回到协程，用可控的少量线程隔离阻塞。C 是生产可靠性要求：gather 并发等待多个协程，默认一个抛异常其他仍在跑，需配合 return_exceptions 或 try/except 处理；同时务必加超时，否则下游 hang 住会让协程和连接越积越多、最终资源耗尽，这与微服务调用要设超时是同一道理。D 错误：不含 await 的同步重计算不会让出线程，事件循环无法抢占它，期间其他协程全部停摆，CPU 密集应拆段 await sleep(0) 让出、或丢进程池。对照 Node：这套规则与 Node「别在事件循环里做阻塞操作、用 worker/executor 隔离重活」完全同构。",
+    "gapCheck": [
+      "易漏点：全链路异步、阻塞调用用 executor 隔离、并发必须配超时三条工程纪律",
+      "常见误区：在协程里混用同步 requests/time.sleep，或写无 await 的重计算以为会并行",
+      "加分项：知道 gather 的异常传播、return_exceptions、进程池处理 CPU 密集"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.python.web.asyncio"],
+      "related": ["be.node.core.async-stream", "be.python.core.gil-concurrency"],
+      "followUps": ["gather 默认情况下某个协程抛异常，其他协程会怎样？", "run_in_executor 默认用的是线程池还是进程池？如何切换？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "asyncio 工程实践多选题" },
+    "tags": ["Python", "asyncio", "事件循环", "run_in_executor", "超时控制"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-py-fw-0003",
+    "nodeId": "be.python.web.framework",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：FastAPI 用 Pydantic 模型配合 Python 类型注解声明请求体，框架会在进入视图函数前自动完成 JSON 解析、类型转换和数据校验，校验失败直接返回 422 错误，并能据这些模型自动生成 OpenAPI/Swagger 文档。",
+    "answer": { "judge": true },
+    "analysis": "正确。这是 FastAPI 区别于传统框架的核心生产力。开发者定义一个继承 BaseModel 的 Pydantic 类并标注字段类型（如 age: int、email: EmailStr、tags: list[str]），把它声明为视图参数，FastAPI 在请求进入时自动：① 解析请求体 JSON；② 按注解做类型转换与校验，类型不符、缺必填字段、违反约束（gt/lt/长度/正则）时，不进入业务代码就直接返回 422 Unprocessable Entity 并带详细错误位置；③ 校验通过后传入一个有类型提示、IDE 能自动补全的模型实例。响应也可用 response_model 控制输出字段、做序列化和文档生成。因为类型信息在运行时可读，FastAPI 据此自动生成 /docs（Swagger UI）和 /redoc 的 OpenAPI 规范，接口文档与代码永远同步、无需手写。这本质是「把校验和文档从重复劳动变成类型声明的副产品」，类似 Node 生态用 TypeScript + Zod/ class-validator 在运行时做 schema 校验、再从 schema 生成 OpenAPI。要注意 Pydantic v2 用 Rust 重写的 pydantic-core 性能大幅提升，且类型注解不只是给人看的提示，在 FastAPI 里承担了真实运行时职责。",
+    "gapCheck": [
+      "易漏点：类型注解在 FastAPI 里是运行时校验依据，失败返回 422 且自动生成 OpenAPI",
+      "常见误区：以为 Python 类型注解只在静态检查时有用、运行时被忽略",
+      "加分项：知道 response_model 控制输出、Pydantic v2 的 Rust 内核与性能提升"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.python.web.framework"],
+      "related": ["be.spring.mvc.request-flow"],
+      "followUps": ["Pydantic 的校验和手写 if/raise 相比在维护上有什么优势？", "422 和 400 在语义上有什么区别？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Pydantic 类型驱动校验与自动文档判断题" },
+    "tags": ["Python", "FastAPI", "Pydantic", "类型注解", "OpenAPI"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  }
+]

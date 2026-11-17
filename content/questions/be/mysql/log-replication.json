@@ -1,0 +1,86 @@
+[
+  {
+    "id": "Q-be-mysql-log-0001",
+    "nodeId": "be.mysql.log.redo-binlog-replication",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 InnoDB 的 redo log、undo log 与 Server 层 binlog，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "redo log 是物理日志记录「某数据页某偏移改成什么」，binlog 是逻辑日志记录语句/行变更；redo log 循环写、binlog 追加写" },
+      { "key": "B", "text": "undo log 只用于事务回滚，和 MVCC 没有任何关系" },
+      { "key": "C", "text": "binlog 是 InnoDB 引擎层特有的日志，redo log 是 Server 层所有引擎共用的" },
+      { "key": "D", "text": "只要写了 redo log 就保证事务持久化，binlog 可有可无，崩溃恢复用不到 binlog" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确。redo log 是 InnoDB 引擎层的物理日志（WAL，Write-Ahead Logging，先写日志再刷数据页），记录对具体页的物理修改，固定大小循环覆盖写，用于崩溃后已提交事务的前滚（crash recovery），靠它实现 WAL 与持久化、把随机刷盘变成顺序写日志。binlog 是 Server 层的逻辑日志，所有引擎都有，记录的是 statement/row/mixed 形式的逻辑变更，追加写不覆盖，用于主从复制和 Point-in-Time 归档恢复。B 错：undo log 既用于事务失败时回滚，也通过 roll_pointer 版本链支撑 MVCC 快照读，一身二任。C 把两层归属说反了。D 错：单靠 redo log 只能保证 InnoDB 实例自身崩溃恢复，主从复制和按时间点恢复依赖 binlog；正因为 redo 与 binlog 是两个独立日志，才需要两阶段提交保证二者一致（见下一题）。对照前端：redo log 像操作日志先落盘再异步改视图，崩溃后能重放；binlog 像可导出的完整变更流，供别的副本同步。",
+    "gapCheck": [
+      "易漏点：redo 是引擎层物理日志+循环写，binlog 是 Server 层逻辑日志+追加写",
+      "常见误区：把两层日志归属说反，或以为 undo log 只做回滚不参与 MVCC",
+      "加分项：能讲 WAL 如何把随机 IO 转顺序 IO、提升写入性能"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.transaction.isolation-mvcc"],
+      "related": ["be.mysql.transaction.isolation-mvcc"],
+      "followUps": ["WAL 为什么能提升性能？", "binlog 的 statement/row/mixed 三种格式各有什么坑？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "三大日志职责辨析" },
+    "tags": ["MySQL", "redo log", "binlog", "undo log", "WAL"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-log-0002",
+    "nodeId": "be.mysql.log.redo-binlog-replication",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 redo log 与 binlog 的两阶段提交（2PC），下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "两阶段分为 prepare（redo log 写入并置 prepare 状态）和 commit（binlog 写完后再把 redo log 置 commit）两步" },
+      { "key": "B", "text": "它解决的是 redo log 与 binlog 两个独立日志之间的一致性问题，避免主库用一套数据恢复、从库用 binlog 同步出另一套数据" },
+      { "key": "C", "text": "崩溃恢复时若发现 redo log 处于 prepare 但没有对应完整 binlog，就回滚该事务；若 binlog 已完整写入则提交该事务" },
+      { "key": "D", "text": "两阶段提交是为了提升写入性能，让 redo log 和 binlog 可以并行无序写入且互不影响" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确描述流程：事务提交时先写 redo log 并标记为 prepare，再写 binlog，最后写 redo commit 标记，这是内部 XA 两阶段。B 正确点明动机：redo log 决定主库崩溃恢复后的状态，binlog 决定从库同步到的状态，若两者不一致（比如 binlog 没写成功但主库 redo 提交了），主从数据会分叉，2PC 把两者绑定为原子。C 正确描述崩溃恢复规则：扫描 redo log，遇到 commit 直接提交；遇到 prepare 则去检查是否存在对应的完整 binlog（有 XID 且完整）——有就补提交，没有就回滚，以此保证「binlog 里有的事务主库一定也提交，binlog 没有的主库也不提交」。D 错：2PC 是一致性机制，不是性能优化，反而增加一次日志写和状态判断；它要求有序协作而非并行无序。组提交（group commit）才是用来摊薄 fsync 成本、提升吞吐的优化。对照前端：这类似分布式里「先预写待确认、再正式确认」的两阶段，确保两个独立系统对同一笔操作达成一致。",
+    "gapCheck": [
+      "易漏点：prepare→写 binlog→commit 的顺序，以及崩溃恢复时按 binlog 是否完整决定提交/回滚",
+      "常见误区：以为 2PC 是性能优化，实际是一致性保障",
+      "加分项：知道组提交（group commit）才是性能优化，理解内部 XA"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.log.redo-binlog-replication"],
+      "related": ["be.micro.distributed-tx.solutions"],
+      "followUps": ["内部 XA 和外部 XA（跨库）有什么区别？", "组提交是怎么减少 fsync 次数的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "两阶段提交原理与崩溃恢复" },
+    "tags": ["MySQL", "两阶段提交", "redo log", "binlog", "崩溃恢复"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-log-0003",
+    "nodeId": "be.mysql.log.redo-binlog-replication",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：MySQL 主从复制中，主库把 binlog 发给从库，从库先写入 relay log（中继日志），再由 SQL 线程重放；异步复制下主库不等待从库确认即返回，因此存在主库宕机时已提交事务尚未同步、导致主从数据不一致和主从延迟的风险。",
+    "answer": { "judge": true },
+    "analysis": "正确。经典主从复制三条线程：主库上的 Binlog Dump 线程负责把 binlog 推给从库；从库的 IO 线程接收并写入本地 relay log；从库的 SQL 线程读 relay log 按序重放成数据变更。异步复制（默认）下主库提交只保证本地 binlog 落盘就返回客户端，不等从库 ack，所以主库突然宕机且未来得及同步的 binlog 丢失时，切换到从库会丢这部分已提交事务。改进方案：全同步（所有从库确认才返回，性能差、几乎不用）、半同步复制 semi-sync（至少一个从库收到 relay log 后主库才返回，在性能与安全间折中）。主从延迟的常见原因：从库单线程重放追不上主库多线程写入（MySQL 5.7+ 有基于组提交/写集的并行复制缓解）、大事务、从库硬件差、从库还承担读查询。读写分离架构必须应对延迟，典型做法是「写后读强制走主库」或对一致性敏感的读路由到主库。分库分表则进一步引入分片键、跨片查询、分布式 id 和分布式事务等复杂度。",
+    "gapCheck": [
+      "易漏点：三线程模型（Dump/IO/SQL）与 relay log 的中转角色",
+      "常见误区：以为主库提交就保证从库已持久化，忽略异步复制的丢数据窗口",
+      "加分项：能对比异步/半同步/全同步，并给出主从延迟的应对（写后读主）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.log.redo-binlog-replication"],
+      "related": ["cs.design.sharding.readwrite", "be.redis.persist.cluster"],
+      "followUps": ["半同步复制在什么情况下会退化成异步？", "读写分离时如何保证「刚写入立刻能读到」？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "主从复制与主从延迟，结合读写分离" },
+    "tags": ["MySQL", "主从复制", "relay log", "半同步", "主从延迟", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  }
+]

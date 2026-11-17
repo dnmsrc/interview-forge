@@ -1,0 +1,40 @@
+[
+  { "id": "fe.uniapp.compile", "title": "跨端编译原理与条件编译", "level": 3, "domain": "fe", "stack": "uniapp", "topic": "compile", "mustMaster": true, "estMinutes": 40,
+    "summary": "一套代码多端的编译分层、条件编译体系与运行时适配层" },
+
+  { "id": "fe.uniapp.compile.cross-platform", "title": "跨端编译全景：模板/样式/API 三层的差异化翻译", "level": 4, "domain": "fe", "stack": "uniapp", "topic": "compile",
+    "prerequisites": ["fe.vue.compiler.ast-pipeline", "fe.js.es6.modern"],
+    "related": ["fe.uniapp.compile.conditional", "fe.uniapp.mini.runtime"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能拆解「uni-app 如何一套 Vue 跑多端」的三层翻译：模板层——vue 编译器先行到 render 函数后，各平台 codegen 再改写（小程序端 v-if/v-for 映射 wx:if/wx:for、事件绑定编译成 @tap→bindtap 注册表、slot 受限用 template/is 模拟、uni 组件库按端映射为原生标签）；样式层——rpx 750 基准编译期换算目标单位、预处理器+postcss 抹平选择器差异（小程序不支持通配/属性选择器的降级改写）、scoped 哈希实现隔离；脚本层——@dcloudio/uni-api 把 uni.xxx 按端路由到 wx./my./plus./web API，生命周期桥接（onLoad/onShow 注入 Vue 组件），DOM/BOM 缺失靠运行时 shim（web 端才原生可用，App 端有 webview 而小程序没有——这就是「小程序里 document 报错」的根因）；Vue3 版走 @vue/compiled 分支与 mini-program 专用 runtime（createComponentInSetup 把 Vue 响应式接到小程序 setData 差量）；答题纪律：说清哪些能力是编译期解决、哪些必须运行时垫片、哪些根本补不齐（如第三方 DOM 库）" },
+
+  { "id": "fe.uniapp.compile.conditional", "title": "条件编译体系：JS/样式/模板/JSON 四语言分端与分包策略", "level": 4, "domain": "fe", "stack": "uniapp", "topic": "compile",
+    "prerequisites": ["fe.uniapp.compile.cross-platform"],
+    "related": ["fe.uniapp.compile.cross-platform", "fe.build.bundle.caching"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能写全四种注释形态：#ifdef/%ifdef/#ifndef 支持的端标识（APP-PLUS/APP-PLUS-NVUE/H5/MP-WEIXIN/MP-ALIPAY/MP-VUE 等）、js 用 // 或 /* */、css 用 /* */、html 用 <!-- -->、pages.json 用 jsonc 注释条件块；工程用法：API 差异点就地 ifdef、样式安全区 ifdef H5 与小程序不同 padding、按端整文件约定（main/manifest/pages.json 的 condition 与 <file>.weixin.js 后缀? uni-app 用 ifdef 为主、nvue 用 .nvue 后缀）、pages.json 条件裁剪分包减小程序主包体积；高频考点：uni.* 与 wx.* 的边界（能用 uni. 就不写裸 wx.，跨端回归时 ifdef 面越小越好）、三方 SDK 只在特定端引入需配合分包+动态 import、UTS/uni_modules 平台的条件依赖；反模式：ifdef 满天星导致「一套代码」名存实亡，正确姿势是把差异收敛进 adapter 模块单点 ifdef" },
+
+  { "id": "fe.uniapp.mini", "title": "小程序机制深水区", "level": 3, "domain": "fe", "stack": "uniapp", "topic": "mini", "mustMaster": true, "estMinutes": 45,
+    "summary": "双线程模型、setData 通信成本与分包启动优化" },
+
+  { "id": "fe.uniapp.mini.runtime", "title": "小程序双线程模型与 setData 性能治理", "level": 4, "domain": "fe", "stack": "uniapp", "topic": "mini",
+    "prerequisites": ["fe.uniapp.compile.cross-platform"],
+    "related": ["fe.uniapp.mini.lifecycle", "fe.browser.render.pipeline"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲小程序「类 SSR 双线程」架构：逻辑层 JSCore/V8（无 DOM/BOM、定时器收敛到框架托管）与渲染层 WebView 各一线程，中间由 Native 层做 JSBridge 转发——setData 全链路 = 逻辑层 diff→JSON 序列化→Native 中转→渲染层反序列化→vdom patch→布局绘制；性能铁律由此推导：单次 setData ≤1MB 硬限、数据量线性拉高序列化+渲染耗时（列表页只传变更字段路径 data['list[3].name']、大列表分页窗口化呼应虚拟列表课）、频繁小 setData 合并（帧粒度节流）、长列表用 recycle-item/IntersectionObserver 窗口、事件回传用 dataset 而非闭包大数据、页面间通信用 eventChannel/全局 store 替代 URL 长参；uni-app Vue3 的 vue3 setup 编译产物把响应式 diff 转成最小 setData path（对比 Vue2 版整对象搬运的提升点）；顺带：小程序无 Web Worker 只有 worker 目录（2.30.0+、无 DOM 且能力受限），计算密集仍要切分或后端算" },
+
+  { "id": "fe.uniapp.mini.lifecycle", "title": "小程序生命周期、分包加载与启动优化", "level": 4, "domain": "fe", "stack": "uniapp", "topic": "mini",
+    "prerequisites": ["fe.uniapp.mini.runtime"],
+    "related": ["fe.uniapp.compile.conditional", "fe.electron.ship.native-os"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能画出两级生命周期时序：App（onLaunch→onShow→onHide/onError）与 Page（onLoad→onShow→onReady→onHide→onUnload）及组件 lifetimes（attached/detached）+pageLifetimes（show/hide），与 Vue 钩子在 uni 里的映射（onLoad≠created 的取数时机争议要能评：URL 参数在 onLoad、视图就绪在 onReady）；启动链路度量：小程序冷启动=基础库初始化+入口包注入+首页 onLoad→setData 首屏，优化手段：主包瘦身（分包 subPackages+preloadRule 预热、独立分包放低频免登录页、组件按需 easycom）、tabBar 页面预加载、首屏骨架+数据预取（onLaunch 起请求、落 globalData 供 onLoad 消费）、worker/异步化非关键任务；热启动直接 onShow 需处理数据新鲜度；隐私合规弹窗（wx.requirePrivacyAuthorize/choose 前拦截）阻塞启动的现代坑；监控口径：微信后台「启动耗时」分位+自建打点（performance.now 起点差异）；与 Electron 常驻托盘、Web bfcache 对比三种容器「复用换速度」的共同哲学" },
+
+  { "id": "fe.uniapp.ecosystem", "title": "生态定位与选型", "level": 3, "domain": "fe", "stack": "uniapp", "topic": "ecosystem", "mustMaster": false, "estMinutes": 30,
+    "summary": "uni-app/Taro/Flutter/RN 谱系、uniCloud 与 uts" },
+
+  { "id": "fe.uniapp.ecosystem.cross-framework", "title": "跨端框架选型：uni-app vs Taro vs RN/Flutter vs PWA", "level": 4, "domain": "fe", "stack": "uniapp", "topic": "ecosystem",
+    "prerequisites": ["fe.uniapp.compile.cross-platform", "fe.vue.composition.options-vs-composition"],
+    "related": ["fe.uniapp.compile.conditional", "fe.electron.process.model"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能按「渲染目标×开发范式」二维矩阵给谱系定位：编译到小程序矩阵（uni-app Vue 血统/Taro React 血统，均为「编译期模板翻译+运行时适配」的同代方案，差异主要在 DSL 亲和与插件生态）、原生渲染阵营（RN 新架构 Fabric+JSI 消除桥、Hermes，Flutter Skew/skia 自绘全家桶——性能上限高但小程序缺位或体验打折）、WebView 直跑（H5/PWA 免费获得但无小程序分发与原生手势）、Web 容器混合（Capacitor/Electron 各占移动/桌面）；选型话术要素：团队栈（Vue 团队 uni-app、React 团队 Taro）、目标端权重（重小程序+轻 App 则 uni 优、重 App 体验冲 Flutter/RN）、长列表/动画等性能红线场景单独原生或 nvue/uni-x 补、存量 H5 转小程序的成本评估；2026 风向：uni-app x（UTS 编译 Kotlin/Swift 的原生渲染线）与 uniHub/UVM 的跨 JS 引擎、Taro 3 静态编译增强、React Native 小程序第三方的边缘化；uniCloud/JQL 的 serverless 取舍一句话带过即可" }
+]

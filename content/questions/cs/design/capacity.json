@@ -1,0 +1,407 @@
+[
+  {
+    "id": "Q-cs-design-capacity-0001",
+    "nodeId": "cs.design.capacity.estimation",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "面试让你估算一个日活 1 亿的短视频 App 的点赞接口容量。已知日活用户中平均每人每天点赞 20 次，读写比按 8:2 估算，流量高峰约为平峰的 4 倍。下列关于峰值写 QPS 的估算，**最合理**的是（按一天 86400 秒、先给量级再谈精确）：",
+    "options": [
+      { "key": "A", "text": "日点赞总量 1e8×20=2e9 次；平峰写 QPS≈2e9/86400≈2.3 万，峰值约 2.3万×4≈9.3 万 QPS，再按冗余留 2 倍以上余量规划" },
+      { "key": "B", "text": "直接用 1 亿 DAU 当作 QPS，峰值就是 1 亿 QPS" },
+      { "key": "C", "text": "日点赞 2e9 次除以 24 小时，得每小时约 8300 万，就按 8300 万 QPS 规划" },
+      { "key": "D", "text": "因为有缓存，所有点赞都命中缓存，所以不需要估算写 QPS，只算缓存内存即可" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：容量估算的标准路径是『总量→日均 QPS（除以 86400 秒）→乘峰值倍数』，2e9/86400≈2.3 万是平峰量级，峰值约 4 倍即 9~10 万写 QPS，工程上再留 2~5 倍冗余。B 把用户数和每秒请求数两个量纲混为一谈。C 算的是每小时量却当成每秒 QPS，单位错误（应再除以 3600）。D 错在点赞是写操作且要持久化，缓存只能扛读、异步合并写，不能因此跳过写容量估算。",
+    "gapCheck": [
+      "易漏点：先算行为总量时要把 DAU 与人均行为次数相乘，而不是直接拿 DAU 当 QPS",
+      "常见误区：混淆每小时量与每秒 QPS，忘记除以 3600/86400 做单位换算",
+      "加分项：主动声明假设（峰值倍数、读写比）并在估算后给出机器数与冗余规划，体现工程闭环"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.estimation"],
+      "related": ["cs.design.capacity.scalability"],
+      "followUps": [
+        "如果点赞还要推送给粉丝，扇出流量怎么估算？",
+        "平峰到峰值的倍数在不同业务（外卖/直播/办公）大致是什么量级？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "back-of-envelope 峰值 QPS 估算单选题" },
+    "tags": ["容量估算", "QPS", "峰值流量", "高频"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0002",
+    "nodeId": "cs.design.capacity.estimation",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "某订单系统平均每天产生 2000 万条订单记录，每条记录（含索引开销）按 4KB 估算，热数据保留近 3 个月、3 个月后归档到冷存储。下列 5 年存储估算**最接近**的是（1GB≈10^9 字节，只算订单主表原始数据量级）：",
+    "options": [
+      { "key": "A", "text": "每天约 2e7×4KB=80GB；热数据 90 天约 7.2TB；5 年冷数据约 1800 天×80GB≈144TB，冷热合计约 150TB 量级" },
+      { "key": "B", "text": "每天 2000 万条 ×4KB=8000 万字节≈80MB，5 年不到 150GB" },
+      { "key": "C", "text": "2000 万条直接当成 2000 万 KB，5 年约 36TB" },
+      { "key": "D", "text": "有了数据库压缩就不需要估算，压缩比固定按 10 倍算" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：2e7×4×1024≈8.2e10 字节≈80GB/天（按 10^9 近似量级一致）；90 天热数据约 7.2TB；5 年约 1825 天，冷数据约 146TB，合计 150TB 量级，再考虑索引、副本/三备份、预留空间要继续放大。B 把 4KB 错算成 4 字节（2000 万×4 字节才是 80MB 量级），单位错了约 1000 倍。C 条数与字节的换算关系混乱。D 错在压缩比取决于数据类型、无法拍脑袋固定，且备份、副本、binlog 都要单独算，不能省略估算。",
+    "gapCheck": [
+      "易漏点：估算存储要把热数据窗口与冷归档分开算，并计入索引、副本与预留空间",
+      "常见误区：KB/MB/GB 的千倍换算出错，或把记录条数直接当字节数",
+      "加分项：能说明三副本、binlog、快照备份会让实际采购容量在原始数据上再翻数倍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.estimation"],
+      "related": ["cs.design.sharding.strategy"],
+      "followUps": [
+        "如果订单还要建 5 个二级索引，存储估算要怎么调整？",
+        "冷热分层后，冷数据查询的延迟目标和存储选型有什么不同？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "存储容量估算单选题" },
+    "tags": ["容量估算", "存储", "冷热分层", "单位换算"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0003",
+    "nodeId": "cs.design.capacity.estimation",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于系统设计中的 back-of-envelope 估算，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "估算追求的是数量级正确而非精确数字，关键假设（用户量、行为频次、对象大小、峰值倍数）必须显式写出并与面试官对齐" },
+      { "key": "B", "text": "服务器资源要按峰值流量并预留冗余（常见 2~5 倍）规划，不能卡着平峰均值采购" },
+      { "key": "C", "text": "二八定律可用于估算集中度：例如 20% 的时间/用户可能产生 80% 的流量，热点与峰值估算要考虑这种不均匀" },
+      { "key": "D", "text": "带宽估算只看请求报文大小即可，响应体大小、压缩效果和 TCP/TLS 协议开销都不用考虑" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 点出估算的本质是量级判断+假设驱动，假设对齐比数字精确更重要。B 体现容量规划的冗余纪律，按均值采购会在大促时直接过载。C 的二八定律是估算热点和峰值的常用经验模型（如少数大 V 贡献大部分流量）。D 错：带宽要同时算请求与响应，且响应往往是大头（图片/视频/JSON 列表），还要考虑 HTTP 压缩、TLS 记录与握手开销、重传等，只看请求体严重低估。",
+    "gapCheck": [
+      "易漏点：带宽是双向的，响应体通常远大于请求体，协议头与压缩也要计入",
+      "常见误区：追求精确数字而忽视先对齐假设，或按平峰均值规划容量不留冗余",
+      "加分项：能把估算结果落到机器数、带宽套餐（Mbps/Gbps）和缓存容量的具体采购建议上"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.estimation"],
+      "related": ["cs.design.capacity.scalability"],
+      "followUps": [
+        "1Gbps 网卡的机器，响应体平均 50KB 时理论上每秒最多支撑多少响应？",
+        "如何用二八定律估算热点 key 占整体流量的比例？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "容量估算方法论多选题" },
+    "tags": ["容量估算", "二八定律", "冗余", "带宽"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0004",
+    "nodeId": "cs.design.capacity.estimation",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：容量估算里常说的『二八定律』在流量场景下指 80% 的请求集中在 20% 的时间段（或 20% 的热点数据/用户），所以峰值 QPS 不能简单用日总量除以 86400 秒的平均值代替，还必须乘上峰值倍数并对热点单独评估。",
+    "answer": { "judge": true },
+    "analysis": "正确。日总量/86400 得到的只是全天平均 QPS，而真实流量高度不均匀：工作时段、整点活动、大促开场等少数时间窗口集中了大部分请求，少数热点数据也承接大部分读流量。二八定律正是对这种集中度的经验概括，因此估算必须在均值上叠加峰值倍数（常见 2~10 倍，视业务而定），并对热点 key、热门商品单独做容量与缓存规划，否则平均水位看似健康、峰值一来直接被打穿。",
+    "gapCheck": [
+      "易漏点：平均值掩盖峰值，规划口径必须是峰值 QPS 而非日均 QPS",
+      "常见误区：以为服务器平均 CPU 不高就安全，忽视瞬时突发和热点集中",
+      "加分项：能量化举例（如大促零点峰值是平峰的数十倍）并提出热点隔离/限流预案"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.estimation"],
+      "related": ["cs.design.cache.consistency", "cs.design.limit.algorithm"],
+      "followUps": [
+        "如何通过监控数据反推自己业务的峰值倍数？",
+        "热点数据的流量集中度对缓存分片策略有什么影响？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "二八定律与峰值估算判断题" },
+    "tags": ["二八定律", "峰值", "热点", "判断"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0005",
+    "nodeId": "cs.design.capacity.estimation",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "现场估算题：让你设计一个类似 Twitter/微博的信息流服务，给定 DAU 5000 万、人均每天刷 Feed 30 次、每次刷返回 20 条推文、每条推文正文+元数据平均 1KB、图片视频走独立 CDN 不计入。请按『先声明假设→给公式→出量级』的顺序，估算：①Feed 接口的峰值读 QPS；②推文内容 3 年的存储量级；③Feed 接口的出向带宽量级（峰值，忽略压缩）。",
+    "answer": {
+      "ref": "参考骨架（量级正确即可，假设要显式声明）：\n【假设】峰值约为平峰的 3 倍（可自行声明 2~5 倍）；一天 86400 秒；1KB≈1000 字节，1Gbps≈10^9 bps。\n①峰值读 QPS：日请求总量=5e7×30=1.5e9 次；平峰 QPS≈1.5e9/86400≈1.7 万；峰值≈1.7万×3≈5~6 万 QPS。\n②推文存储：先估推文总量——假设 DAU 中 10% 每天发推、人均发 2 条，则日增推文 5e7×0.1×2=1e7 条；每天 1e7×1KB≈10GB；3 年约 1095 天≈11TB 原始数据，再计索引、多副本（如三副本×3）实际采购约 30TB+ 量级。（若候选人声明其他发帖比例，按其假设算量级即可）\n③峰值带宽：每次响应 20 条×1KB=20KB≈1.6e5 比特；峰值 5万 QPS×1.6e5≈8e9 bps≈8Gbps 的出向带宽量级，再叠加 HTTP 头与冗余按 10Gbps+ 规划；这说明正文类接口带宽不可忽视，图片走 CDN 是合理拆分。\n【收尾】由 QPS 反推无状态服务机器数（如单机扛 2000 QPS 则约需 25~30 台含冗余），存储与带宽分别落到对象存储/数据库和带宽套餐。"
+    },
+    "scoringPoints": [
+      { "point": "先显式声明假设（峰值倍数、发帖比例等），公式与单位换算正确", "weight": 2 },
+      { "point": "峰值 QPS 估算路径正确：总量→日均→乘峰值倍数，量级在 5 万 QPS 上下", "weight": 2 },
+      { "point": "存储估算区分原始数据与副本/索引，量级在十 TB 级", "weight": 2 },
+      { "point": "带宽按响应体（20KB/次）×峰值 QPS 估算并换算 bps，量级在 10Gbps 上下", "weight": 2 },
+      { "point": "能由估算结果反推机器数等资源规划，形成闭环", "weight": 1 }
+    ],
+    "analysis": "这是系统设计面试的标准开场，考的是量化思维而非精确计算。常见失分：跳过假设直接给数字导致无法检验；把 Feed 刷新次数和推文条数混为一谈；带宽忘乘每次返回的 20 条、或把字节当比特（×8）漏掉；存储只算正文不算副本。能主动声明『假设可以调整、结论随假设变化』，并在最后落到机器/带宽/存储采购，就是高分回答。",
+    "gapCheck": [
+      "易漏点：带宽单位是比特每秒 bps，字节要 ×8；每次响应是 20 条而非 1 条",
+      "常见误区：发帖总量需要自己补一个发帖率假设，不会假设就卡住或硬编数字",
+      "加分项：把估算结果继续落到实例数、缓存容量、CDN 回源带宽等可执行规划"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.estimation"],
+      "related": ["cs.design.cases.feed-timeline", "cs.design.capacity.scalability"],
+      "followUps": [
+        "如果 30% 的推文带图片且平均 200KB，CDN 带宽要怎么估？",
+        "Feed 接口加缓存后，源站 QPS 和带宽分别下降多少，怎么估命中率？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "信息流容量估算综合简答题" },
+    "tags": ["容量估算", "QPS", "存储", "带宽", "高频"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0006",
+    "nodeId": "cs.design.capacity.ddia-tradeoff",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 CAP 定理，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "CAP 指一致性（Consistency）、可用性（Availability）、分区容错（Partition tolerance），分布式系统中网络分区无法避免，因此 P 通常是必选项，权衡主要发生在 C 与 A 之间" },
+      { "key": "B", "text": "网络分区发生时，选择 C（CP）意味着拒绝或超时部分请求以保证各节点数据一致；选择 A（AP）意味着允许继续服务但接受短暂的数据不一致" },
+      { "key": "C", "text": "没有分区时，系统可以同时提供完整的一致性与可用性，CA 取舍只在分区等异常场景下才真正被迫发生" },
+      { "key": "D", "text": "CAP 意味着任何系统都只能三选二，所以日常正常运行时也必须在一致性和可用性里永久放弃一个" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 澄清了一个常见误解：跨网络的分布式系统节点间网络故障不可避免，P 不是想不想要而是客观存在，工程取舍是分区出现时保 C 还是保 A。B 准确描述了 CP（如 etcd/ZooKeeper 风格，分区时少数派不可写）与 AP（如允许各副本继续服务、事后合并）的行为差异。C 是 CAP 最容易被忽略的一点：无分区时 C 和 A 可以兼得，取舍是异常时刻的局部决策。D 把三选二教条化、绝对化，忽略了『仅在分区期间权衡』这个前提，也忽略了 PACELC 等更细致的表述。",
+    "gapCheck": [
+      "易漏点：CAP 的取舍只在网络分区发生时才被迫做出，正常时 C 与 A 可兼得",
+      "常见误区：把 CAP 理解成日常就要永久砍掉一个，或以为 P 可以主动不要",
+      "加分项：能举 CP（etcd、ZooKeeper）与 AP（典型 Cassandra/Dynamo 风格注册中心）的真实系统例子并讲场景"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.ddia-tradeoff"],
+      "related": ["cs.design.cache.consistency", "cs.design.sharding.readwrite"],
+      "followUps": [
+        "注册中心选 CP 还是 AP？服务发现场景下各自会怎么故障？",
+        "PACELC 在 CAP 之外又补充了什么维度？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "CAP 定理理解多选题" },
+    "tags": ["CAP", "一致性", "可用性", "分区容错"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0007",
+    "nodeId": "cs.design.capacity.ddia-tradeoff",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：BASE 理论（Basically Available 基本可用、Soft state 软状态、Eventually consistent 最终一致）主张允许系统在一段时间内处于中间不一致状态、通过异步补偿最终达到一致，因此采用 BASE 就意味着彻底抛弃 ACID，系统里任何本地事务都不再需要事务保证。",
+    "answer": { "judge": false },
+    "analysis": "错误。前半句对：BASE 确实是面向高并发分布式场景、用最终一致性换可用性和性能的思想，软状态允许数据副本短暂不一致。但后半句错在把 BASE 与 ACID 完全对立。二者适用层次不同：跨服务/跨库的长流程用最终一致性（如消息+本地消息表、Saga），而单个数据库内部的扣款、扣库存等操作仍然依赖本地 ACID 事务保证原子性。真实系统往往是『本地强一致+跨服务最终一致』的组合，而不是二选一。",
+    "gapCheck": [
+      "易漏点：BASE 描述的是跨节点/跨服务的宏观一致性策略，不取消单库本地事务",
+      "常见误区：把最终一致理解成『数据可以一直不一致』，忽略其『最终』收敛承诺与补偿机制",
+      "加分项：能举出本地消息表、Saga、TCC 等实现最终一致性的具体模式及其适用边界"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.ddia-tradeoff"],
+      "related": ["cs.design.mq-dedup.idempotent", "cs.design.cache.consistency"],
+      "followUps": [
+        "最终一致性系统里，如何监控数据有没有按时收敛？",
+        "Saga 的正向补偿和 TCC 的两阶段资源预留分别适合什么业务？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "BASE 与 ACID 关系判断题" },
+    "tags": ["BASE", "最终一致", "ACID", "判断"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0008",
+    "nodeId": "cs.design.capacity.ddia-tradeoff",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：ACID 事务的四个特性是原子性、______、隔离性、持久性；CAP 定理的三个维度是一致性、______、分区容错；BASE 的三个关键词是基本可用、______、最终一致性；系统设计面试标准答题框架通常是：澄清需求 → ______ → 整体架构 → 组件选型 → 瓶颈与扩展。",
+    "answer": {
+      "blanks": ["一致性", "可用性", "软状态", "容量估算"],
+      "synonyms": {
+        "一致性": ["Consistency"],
+        "可用性": ["Availability"],
+        "软状态": ["软状态（Soft state）", "Softstate", "soft-state"],
+        "容量估算": ["容量评估", "估算容量", "容量规划"]
+      }
+    },
+    "analysis": "①ACID=Atomicity 原子性、Consistency 一致性、Isolation 隔离性、Durability 持久性。②CAP=一致性、可用性、分区容错。③BASE=Basically Available 基本可用、Soft state 软状态、Eventually consistent 最终一致。④系统设计答题框架的第二步是容量估算（也常称容量评估/容量规划），先把 QPS、存储、带宽量级定下来，后续架构与选型才有量化依据，避免脱离规模谈技术。",
+    "gapCheck": [
+      "易漏点：CAP 的 C 与 ACID 的 C 含义并不相同——前者侧重多副本线性一致，后者侧重事务约束，答题时不要混用",
+      "常见误区：把 BASE 的 Soft state 漏掉或与『软删除』等概念混淆",
+      "加分项：能说明为什么容量估算必须排在组件选型之前——规模决定架构（百 QPS 与百万 QPS 的方案完全不同）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.ddia-tradeoff"],
+      "related": ["cs.design.capacity.estimation"],
+      "followUps": [
+        "ACID 的 C 和 CAP 的 C 具体差别是什么？",
+        "如果面试官只给 5 分钟，答题框架的哪几步可以压缩、哪一步不能省？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "ACID/CAP/BASE 与答题框架填空题" },
+    "tags": ["ACID", "CAP", "BASE", "答题框架", "填空"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0009",
+    "nodeId": "cs.design.capacity.ddia-tradeoff",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "面试官给你一道开放设计题『设计一个短链系统』，没有给任何数据规模。请回答：①你会先澄清哪些需求与约束（至少 4 点）？②为什么一上来就讲分库分表、Kafka、微服务是减分项？③说明『规模决定架构』在这道题里的体现。",
+    "answer": {
+      "ref": "参考骨架：\n①需要澄清的需求与约束：日活/短链生成量级与跳转 QPS（读写比，通常读远多于写）；短码长度与是否要求自定义/可猜测性；过期策略（永久有效还是 TTL）；可用性与延迟目标（跳转是否要求毫秒级、允许多长停机）；数据是否需要统计分析（PV/UV、来源）；安全约束（防恶意网址、防枚举）；预算与团队规模。\n②减分原因：脱离需求和规模堆组件，说明没有权衡能力。百级 QPS、数据量几十万的系统，单库单表加本地缓存甚至单机 SQLite 都够用，上 Kafka/微服务只会徒增运维复杂度、链路延迟和故障点；正确姿势是先问规模与目标，再按瓶颈演进。\n③规模决定架构的体现：QPS 低时单体+单库；读写 QPS 上来先加缓存（热点短链）和读写分离；写并发与存储超单机容量才考虑分库分表/发号器；跳转 QPS 到十万百万级才需要多级缓存、CDN、网关层限流；跨地域高可用才谈多活。每一层技术都对应一个被突破的瓶颈，而不是预设的标准答案。"
+    },
+    "scoringPoints": [
+      { "point": "澄清需求覆盖读写规模、短码规则、过期、可用性目标、统计/安全等至少 4 点", "weight": 3 },
+      { "point": "指出堆组件的本质问题：脱离规模与约束、缺乏成本与复杂度权衡", "weight": 2 },
+      { "point": "能用单体→缓存→读写分离→分片→多活的演进线解释规模驱动架构", "weight": 3 },
+      { "point": "表达出『先对齐再设计、按瓶颈演进』的方法论而非背组件清单", "weight": 1 }
+    ],
+    "analysis": "这题考的是系统设计面试的入口方法论。常见失分：不问需求直接画图、把热门中间件全堆上、给不出『为什么这个阶段需要它』。高分回答会先把功能需求（生成/跳转/统计）与非功能需求（QPS、延迟、可用性、成本）问清楚，再用演进式架构表达每个技术选择对应的瓶颈。能主动提到 YAGNI（过度设计的成本）和演进边界，说明具备真实工程判断力。",
+    "gapCheck": [
+      "易漏点：非功能需求（延迟、可用性、预算、安全）与功能需求同等重要，澄清时不能只问功能",
+      "常见误区：把架构设计当成中间件名词堆砌，答不出每个组件解决的具体瓶颈",
+      "加分项：能给出不同规模下的两套方案对比，说明何时从单体演进到分布式"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.ddia-tradeoff"],
+      "related": ["cs.design.capacity.estimation", "cs.design.cases.shortlink"],
+      "followUps": [
+        "如果面试官补充『日均生成 1 亿短链、跳转 100 亿次』，你的架构会做哪些改变？",
+        "如何判断一个系统该不该上微服务，临界点有哪些信号？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "设计题答题方法论简答题" },
+    "tags": ["面试框架", "需求澄清", "权衡", "演进式架构"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0012",
+    "nodeId": "cs.design.capacity.scalability",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "论述题：请系统比较垂直扩展（Scale Up）与水平扩展（Scale Out），要求覆盖：①两者的定义与典型手段；②在扩展上限、成本曲线、故障域、对状态的要求、运维复杂度五个维度的差异；③一个从零成长的业务通常如何在两者间取舍演进；④垂直扩展是否会被彻底淘汰，谈谈你的判断。",
+    "answer": {
+      "ref": "参考骨架：\n①定义与手段：垂直扩展是升级单机硬件——更强的 CPU、更大的内存、更快的 SSD、更多网卡连接数，软件架构基本不动；水平扩展是增加更多普通机器节点，把负载与数据分散到多机，依赖负载均衡、无状态化和数据分片。\n②五维对比：扩展上限——垂直扩展受单机物理上限（机柜、供电、芯片规格）约束且越高端边际价格越贵；水平扩展理论上可加大量廉价机、上限高但受分布式协调制约。成本曲线——垂直扩展在小规模时最省钱（无额外运维与冗余组件），高端小型机/大内存机器价格指数上升；水平扩展用大量商用机，单位算力便宜但要为中间件、冗余和运维团队付费。故障域——垂直扩展所有压力集中单点，机器故障影响面大；水平扩展单节点故障只影响一部分，配合冗余可自动接管，可用性更好。状态要求——垂直扩展对应用透明、有状态也能跑；水平扩展要求应用无状态化、状态层自行做复制与分片。运维复杂度——垂直扩展几乎无额外复杂度但扩容往往要停机；水平扩展引入分布式系统的一致性、网络分区、排障难度，但支持不停机弹性伸缩。\n③演进路径：初创期优先垂直扩展，单库单机能扛就不拆，架构最简、迭代最快；遇到单机规格到顶或需要跨机房高可用时，应用层先做无状态化+负载均衡横向扩展，数据层先读写分离、再分库分表，缓存与 MQ 按需引入；成熟期以水平扩展为主、垂直扩展为辅（如给数据库主力机升配作为过渡）。\n④不会被淘汰：垂直扩展在中小规模、单机数据库、专用高性能计算（如大型机、GPU 训练机、高主频交易系统）场景仍是性价比最高的选择；云厂商的超大规格虚机/裸金属也说明 Scale Up 持续演进。真实策略是二者混合——能用单机解决就不过早分布式，超出单机能力再水平拆分。"
+    },
+    "scoringPoints": [
+      { "point": "定义准确，垂直=升配、水平=加节点，手段举例具体", "weight": 2 },
+      { "point": "五个维度对比完整且能指出垂直扩展的单点风险与边际成本、水平扩展的分布式复杂度", "weight": 4 },
+      { "point": "演进路线符合『先垂直后水平、按瓶颈拆分』的工程常识", "weight": 2 },
+      { "point": "对第④问有独立判断，能举出垂直扩展仍不可替代的场景", "weight": 2 }
+    ],
+    "analysis": "这是一道方法论综合题，检验候选人是否真正理解扩展的工程经济学。常见失分：只背定义不做维度对比；把水平扩展描述得有百利而无一害，忽视分布式一致性与运维成本；认为上云后垂直扩展已死。高分回答会强调成本拐点和演进思想——分布式不是免费午餐，过早拆分是过度设计；并能结合云时代弹性伸缩、Serverless 等新形态谈两者的融合。",
+    "gapCheck": [
+      "易漏点：垂直扩展扩容通常需要停机/重启，且单点故障域更大，这两个代价常被忽略",
+      "常见误区：把水平扩展等同于必然更先进，忽视其一致性、网络与运维的隐性成本",
+      "加分项：能结合云厂商实例规格、专属硬件（GPU/高主频）与成本拐点给出具体取舍依据"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.scalability"],
+      "related": ["cs.design.capacity.ddia-tradeoff", "cs.design.sharding.strategy"],
+      "followUps": [
+        "MySQL 单库性能到顶时，你会先升配还是先分库？决策依据是什么？",
+        "水平扩展带来的分布式事务问题有哪些主流解法？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "垂直与水平扩展论述题" },
+    "tags": ["垂直扩展", "水平扩展", "无状态", "架构演进", "论述"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0013",
+    "nodeId": "cs.design.capacity.scalability",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "关于分层架构中各层的扩展方式，下列说法**错误**的是：",
+    "options": [
+      { "key": "A", "text": "接入层（负载均衡/网关）可以通过增加网关实例与 DNS/虚拟 IP 水平扩展" },
+      { "key": "B", "text": "无状态服务层增加实例后由负载均衡分发流量，可近似线性提升处理能力" },
+      { "key": "C", "text": "数据层天然支持无限水平扩展，只要不停加机器，查询性能就会线性提升，不需要任何数据拆分" },
+      { "key": "D", "text": "缓存层可通过分片（数据分片+集群）扩展容量与吞吐，但要处理热点 key 与大 key" }
+    ],
+    "answer": { "keys": ["C"] },
+    "analysis": "C 是错误项，正是本题答案：数据层是有状态的，盲目加机器不会自动提升性能——数据不做分片，新增节点上没有数据、请求无法路由过去；即使分片，跨片查询、分布式事务、一致性、扩容迁移都会带来额外开销，查询性能未必线性。A、B、D 都是正确的工程常识：接入层靠多实例+VIP/DNS 扩展，无状态服务层加实例即可扩容，缓存层靠集群分片扩容量但伴随热点/大 key 治理问题。",
+    "gapCheck": [
+      "易漏点：加机器生效的前提是数据能按分片键路由到对应节点，否则新节点空转",
+      "常见误区：把无状态层的线性扩展经验错误套用到数据库等有状态层",
+      "加分项：能补充分片后跨片 join、聚合查询反而变慢的具体场景"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.scalability"],
+      "related": ["cs.design.sharding.strategy", "cs.design.cache.consistency"],
+      "followUps": [
+        "缓存集群中一个热点 key 打满单分片时怎么办？",
+        "数据层扩容时双写和历史数据迁移具体怎么切流？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "分层扩展基础单选题" },
+    "tags": ["分层架构", "水平扩展", "数据分片", "基础"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0014",
+    "nodeId": "cs.design.capacity.ddia-tradeoff",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：网络分区发生时，注册中心为保证各副本数据一致而拒绝少数派节点写入，这是选择了 ______（填 CP 或 AP）；允许各分区继续对外服务、待分区恢复后再合并数据的是选择了 ______；系统设计中常需权衡的非功能维度包括可用性、一致性、延迟与 ______；『先更新数据库再删缓存』方案追求的是最终 ______ 而非实时强一致。",
+    "answer": {
+      "blanks": ["CP", "AP", "成本", "一致性"],
+      "synonyms": {
+        "CP": ["cp", "C"],
+        "AP": ["ap", "A"],
+        "成本": ["成本（Cost）", "cost", "开销"],
+        "一致性": ["一致"]
+      }
+    },
+    "analysis": "分区时拒绝写入保一致是 CP 取向（典型如 etcd、ZooKeeper 风格的协调系统）；继续服务接受短暂不一致是 AP 取向。架构权衡的非功能维度通常围绕可用性、一致性、延迟、成本（含运维复杂度）展开，不存在零成本的全优方案。Cache-Aside 的更库删缓存存在并发错乱窗口，靠延迟双删/binlog 兜底收敛，本质是最终一致性设计。",
+    "gapCheck": [
+      "易漏点：CP/AP 的取舍只在网络分区等异常时刻被迫发生，正常运行时 C 与 A 可兼得",
+      "常见误区：把注册中心、配置中心一律按 AP 选，协调类系统其实更需要 CP",
+      "加分项：能补充 PACELC——即使无分区（E），也要在延迟（L）与一致性（C）间取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.ddia-tradeoff"],
+      "related": ["cs.design.cache.consistency", "cs.design.limit.ha"],
+      "followUps": [
+        "服务发现场景选 CP 注册中心，分区时会怎么故障？",
+        "最终一致性系统靠哪些机制保证数据最终收敛？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "CAP 取舍与权衡维度填空题" },
+    "tags": ["CAP", "CP", "AP", "权衡", "填空"]
+  },
+  {
+    "id": "Q-cs-design-capacity-0015",
+    "nodeId": "cs.design.capacity.scalability",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：水平扩展后需要负载均衡把流量按机器权重分发。请用 JavaScript 实现『平滑加权轮询（smooth weighted round-robin）』选择器 `WeightedLoadBalancer`：构造时传入 `[{name, weight}]`，每次 `pick()` 返回一个节点，要求在一个完整周期（总权重次数）内每个节点被选中的次数严格等于其权重，且在权重允许的前提下把选择尽量打散。写出可运行代码并附 3 节点权重 5:1:1 的测试输出，再说明它相比普通取模轮询的优势。",
+    "answer": {
+      "ref": "机理（平滑加权轮询经典算法）：为每个节点维护动态当前权重 currentWeight，初始为 0。每次 pick：①所有节点的 currentWeight 各自加上自身静态权重 weight；②选出 currentWeight 最大的节点作为本次结果；③把被选中节点的 currentWeight 减去所有节点权重之和 totalWeight，其余节点保持不变。其严格数学保证是：每 totalWeight 次选择构成一个周期，每个节点在周期内恰好被选 weight 次（权重比例精确），且选择在周期内被尽量均匀地打散。需要澄清的是它并不承诺『绝不连续命中』：当某节点权重超过其余节点权重之和时（如 5:1:1 中 A 权重 5 > 1+1=2），该节点在周期内必然出现连续命中，这是权重比例本身决定的，任何满足该比例的分发算法都无法避免；等权（1:1:1）时则表现为严格轮转、天然无连续。普通 `index % 节点数` 的取模轮询只能等权、无法表达异构机器的处理能力；平滑加权轮询让高配机器按权重多拿流量、同时把命中点在周期内摊平，减少普通加权取模那种高权节点集中被打中的毛刺。",
+      "code": "class WeightedLoadBalancer {\n  constructor(nodes) {\n    // nodes: [{ name, weight }]，weight 必须为正整数\n    this.nodes = nodes.map((n) => ({ name: n.name, weight: n.weight, currentWeight: 0 }));\n    this.totalWeight = nodes.reduce((s, n) => s + n.weight, 0);\n  }\n\n  pick() {\n    // ① 每个节点当前权重 += 静态权重\n    for (const node of this.nodes) node.currentWeight += node.weight;\n    // ② 选 currentWeight 最大者（并列取第一个，保证确定性）\n    let best = this.nodes[0];\n    for (const node of this.nodes) {\n      if (node.currentWeight > best.currentWeight) best = node;\n    }\n    // ③ 被选中节点 currentWeight -= 总权重\n    best.currentWeight -= this.totalWeight;\n    return best.name;\n  }\n}\n\n// 测试：权重 A:B:C = 5:1:1，一个周期 7 次\nconst lb = new WeightedLoadBalancer([\n  { name: 'A', weight: 5 },\n  { name: 'B', weight: 1 },\n  { name: 'C', weight: 1 }\n]);\nconst seq = Array.from({ length: 14 }, () => lb.pick());\nconsole.log('连续 14 次（两个周期）:', seq.join(' '));\nconst count = {};\nfor (const n of seq) count[n] = (count[n] || 0) + 1;\nconsole.log('计数（A:B:C 应≈10:2:2）:', count);\n// 单周期（7 次）内次数严格等于权重 5:1:1\nconst lb2 = new WeightedLoadBalancer([\n  { name: 'A', weight: 5 }, { name: 'B', weight: 1 }, { name: 'C', weight: 1 }\n]);\nconst cycle = Array.from({ length: 7 }, () => lb2.pick());\nconst c2 = {};\nfor (const n of cycle) c2[n] = (c2[n] || 0) + 1;\nconsole.log('单周期计数（严格 5:1:1）:', c2);\nconsole.log('5:1:1 下 A 权重(5)超过其余之和(2)，周期内必然连续命中，这是比例决定的');\n// 对照：等权 1:1:1 时序列在三节点间均匀轮转，天然无连续\nconst lb3 = new WeightedLoadBalancer([\n  { name: 'A', weight: 1 }, { name: 'B', weight: 1 }, { name: 'C', weight: 1 }\n]);\nconst even = Array.from({ length: 9 }, () => lb3.pick());\nconsole.log('等权 1:1:1 序列:', even.join(' '));\nconst noConsecutive = even.every((n, i) => i === 0 || n !== even[i - 1]);\nconst evenCount = {};\nfor (const n of even) evenCount[n] = (evenCount[n] || 0) + 1;\nconsole.log('等权无连续命中:', noConsecutive, ' 计数:', evenCount); // true，各 3 次\n// 跨周期不变量：任意 totalWeight 的整数倍长度内，各节点被选次数严格按权重分配\nconst lb4 = new WeightedLoadBalancer([\n  { name: 'A', weight: 5 }, { name: 'B', weight: 1 }, { name: 'C', weight: 1 }\n]);\nconst twoCycles = Array.from({ length: 14 }, () => lb4.pick());\nconst tc = {};\nfor (const n of twoCycles) tc[n] = (tc[n] || 0) + 1;\nconsole.log('两个周期(14次)计数（严格 10:2:2）:', tc);"
+    },
+    "scoringPoints": [
+      { "point": "currentWeight 动态权重的三步更新（加静态权重、选最大、被选者减总权重）逻辑正确", "weight": 4 },
+      { "point": "能证明/说明一个周期内各节点被选次数严格等于权重且选择被平滑打散", "weight": 3 },
+      { "point": "测试验证权重比例 5:1:1 与无连续命中，代码可运行", "weight": 2 },
+      { "point": "对比普通取模轮询只能等权、普通加权有连续毛刺，讲清平滑加权的价值", "weight": 1 }
+    ],
+    "analysis": "这道题把水平扩展的『加机器』落到流量如何均匀分发的工程细节。常见失分：用 `index % n` 冒充加权（根本没体现权重）；加权轮询让高权节点连续被选中造成瞬时热点；动态权重更新漏了『减总权重』这一步导致算法不收敛。高分回答能讲出该算法的周期不变量，并联系异构机器（高配权重高）、慢节点降权、健康检查临时置 0 等真实网关/代理的负载均衡策略。",
+    "gapCheck": [
+      "易漏点：被选中节点要减去的是『所有节点权重之和』而不是自身权重，这是算法收敛的关键",
+      "常见误区：用取模轮询处理异构机器，忽略其只能等权分发的限制",
+      "加分项：能联系健康检查动态调权、最少连接/一致性哈希等其他负载均衡策略的选型"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.capacity.scalability"],
+      "related": ["cs.design.sharding.strategy", "cs.design.limit.algorithm"],
+      "followUps": [
+        "节点健康检查失败时如何把权重平滑降为 0 而不引起流量抖动？",
+        "平滑加权轮询和一致性哈希在有状态路由场景下分别怎么选？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "平滑加权轮询负载均衡手写代码题" },
+    "tags": ["手写题", "负载均衡", "加权轮询", "水平扩展"]
+  }
+]

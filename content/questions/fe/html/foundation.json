@@ -1,0 +1,318 @@
+[
+  {
+    "id": "Q-fe-html-semantic-0001",
+    "nodeId": "fe.html.foundation.semantic-tags",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "下列标签中，**最适合**用来表示页面顶部站点头部/导航区域的语义化标签是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "<div class=\"header\">"
+      },
+      {
+        "key": "B",
+        "text": "<header>"
+      },
+      {
+        "key": "C",
+        "text": "<head>"
+      },
+      {
+        "key": "D",
+        "text": "<heading>"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：<header> 是 HTML5 语义化标签，专门表示介绍性内容或导航区域的容器。A 的 <div> 无语义，class 名只是给人看的，浏览器和搜索引擎读不到结构含义。C 的 <head> 是文档元信息容器（放 title/meta/link），不在页面可见区域显示，别和页面「头部」混淆。D 的 <heading> 不是合法 HTML 标签（标题用 h1~h6）。",
+    "gapCheck": [
+      "易漏点：<head> 是文档头部（元数据，不可见），<header> 才是页面头部（可见区域），两者名字像但完全不同",
+      "常见误区：以为加了 class=\"header\" 就算语义化——class 不携带语义",
+      "加分项：能说出语义化对 SEO、屏幕阅读器无障碍(a11y)、代码可读性的具体帮助"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.html.foundation.semantic-tags"
+      ],
+      "related": [
+        "fe.html.foundation.block-inline"
+      ],
+      "followUps": [
+        "除了 header，HTML5 还新增了哪些语义化布局标签？",
+        "屏幕阅读器为什么能从语义标签受益？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "HTML 语义化标签入门题，参照 MDN HTML 元素参考自创"
+    },
+    "tags": [
+      "HTML基础",
+      "语义化",
+      "送分题",
+      "高频开场"
+    ]
+  },
+  {
+    "id": "Q-fe-html-semantic-0002",
+    "nodeId": "fe.html.foundation.semantic-tags",
+    "type": "judge",
+    "difficulty": 1,
+    "stem": "判断正误：<!DOCTYPE html> 声明的作用是告诉浏览器用标准模式（standards mode）解析页面；如果漏写，浏览器可能进入怪异模式（quirks mode），盒模型等行为会出现兼容差异。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。<!DOCTYPE html> 是 HTML5 的文档类型声明，必须放在文档第一行（<html> 之前）。它本身不是 HTML 标签，而是指示浏览器用哪种模式渲染。漏写或写错时，老旧浏览器会回退到怪异模式，沿用 IE5 时代的盒模型（width 含 padding/border）和其他非标准行为，导致布局在不同浏览器下不一致。现代页面统一写 <!DOCTYPE html> 即可触发标准模式。",
+    "gapCheck": [
+      "易漏点：DOCTYPE 不是标签，没有结束标签，且必须在最前面",
+      "常见误区：以为 DOCTYPE 用来声明 HTML 版本号给人看，其实它真正的作用是切换浏览器渲染模式",
+      "加分项：能解释怪异模式下 IE 盒模型与标准盒模型的差异（呼应 CSS box-sizing）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.html.foundation.semantic-tags"
+      ],
+      "related": [
+        "fe.css.box.box-model"
+      ],
+      "followUps": [
+        "标准模式和怪异模式在盒模型上具体差在哪？",
+        "meta viewport 标签解决什么问题？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "DOCTYPE 与渲染模式基础判断题"
+    },
+    "tags": [
+      "HTML基础",
+      "DOCTYPE",
+      "概念题"
+    ]
+  },
+  {
+    "id": "Q-fe-html-semantic-0003",
+    "nodeId": "fe.html.foundation.semantic-tags",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "关于 HTML 语义化，下列说法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "用 <nav> 包裹主导航、用 <main> 表示页面主体、用 <article> 表示可独立成篇的内容"
+      },
+      {
+        "key": "B",
+        "text": "语义化标签能帮助搜索引擎理解页面结构，有利于 SEO"
+      },
+      {
+        "key": "C",
+        "text": "只要视觉效果一样，全用 <div> 配合 class 和用语义标签没有任何区别"
+      },
+      {
+        "key": "D",
+        "text": "语义化让屏幕阅读器等辅助技术更好地理解页面，提升可访问性(a11y)"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A、B、D 正确：A 是常见语义标签的正确用法；B 点出对 SEO 的价值（搜索引擎依据标签判断内容权重与结构）；D 点出对无障碍的价值。C 错：视觉相同不代表结构等价。<div> 是无语义的通用容器，class 名不会传达给浏览器、搜索引擎和辅助技术；语义标签让机器能读懂「这是导航、这是正文、这是文章」，在无 CSS 或被阅读器朗读时体验差异明显。",
+    "gapCheck": [
+      "易漏点：语义化的收益对象是「机器」——搜索引擎爬虫和屏幕阅读器，不只是给开发者看代码",
+      "常见误区：把语义化理解成「换个标签名」，忽略了 a11y 与 SEO 的实际影响",
+      "加分项：能说出 section/article/aside/figure/figcaption/time 等更多语义标签的适用场景"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.html.foundation.semantic-tags"
+      ],
+      "related": [
+        "fe.html.form.form-basics"
+      ],
+      "followUps": [
+        "article 和 section 该怎么区分使用？",
+        "一个页面可以有多个 <header> 或 <footer> 吗？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "语义化价值多选题"
+    },
+    "tags": [
+      "HTML基础",
+      "语义化",
+      "SEO",
+      "无障碍"
+    ]
+  },
+  {
+    "id": "Q-fe-html-blockinline-0001",
+    "nodeId": "fe.html.foundation.block-inline",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于块级元素与行内元素，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "块级元素独占一行，可以设置 width/height；行内元素不换行，设置 width/height 通常不生效"
+      },
+      {
+        "key": "B",
+        "text": "行内元素可以正常设置上下 margin/padding 并把相邻行推开"
+      },
+      {
+        "key": "C",
+        "text": "<span> 是块级元素，<div> 是行内元素"
+      },
+      {
+        "key": "D",
+        "text": "display:inline-block 的元素既不能设宽高也不能并排显示"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 准确描述了核心区别：块级（如 div、p、h1）独占一行、可设宽高、默认宽度撑满父容器；行内（如 span、a、strong）与其他行内元素并排、宽高由内容决定，设 width/height 无效。B 错：行内元素的上下 margin 不生效、上下 padding 视觉上有背景但不占据布局高度、不会把别的行推开（这是常见踩坑点）。C 说反了，div 是块级、span 是行内。D 错：inline-block 结合两者特点——既能设宽高，又能像行内元素一样并排。",
+    "gapCheck": [
+      "易漏点：行内元素上下 margin 无效、padding-top/bottom 不占布局空间，只画背景",
+      "常见误区：以为给 span 设 height 就能撑高——需改 display 为 block/inline-block",
+      "加分项：能区分替换元素（img/input，行内但可设宽高）与非替换行内元素"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.html.foundation.block-inline"
+      ],
+      "related": [
+        "fe.css.box.box-model"
+      ],
+      "followUps": [
+        "img 是行内元素却能设宽高，为什么？",
+        "inline-block 元素之间为什么会有神秘间隙？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "块级/行内元素区别单选题"
+    },
+    "tags": [
+      "HTML基础",
+      "块级行内",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-html-blockinline-0002",
+    "nodeId": "fe.html.foundation.block-inline",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：<p> 段落里直接嵌套 <div>、<h2> 这类块级元素属于不合法的 HTML 嵌套，浏览器会在解析时自动调整 DOM 结构（可能把段落提前闭合），导致实际 DOM 与源码不一致。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。HTML 规范规定 <p> 的内容模型是「流式内容但不允许出现块级/结构性后代」，所以 <p><div></div></p> 是非法嵌套。浏览器解析时不会报错，而是隐式闭合 <p>：实际 DOM 会变成 <p></p><div></div> 加上一个空 <p>，和你写的源码结构完全不同，CSS/JS 选择器因此可能选不中预期元素。同类规则还有 <a> 里不能再套 <a>/<button> 等交互元素、<li> 必须放在 ul/ol 里、表格元素有固定层级。",
+    "gapCheck": [
+      "易漏点：浏览器对非法 HTML 是「容错自动修正」而非报错，问题往往在 DOM 与源码不符时才暴露",
+      "常见误区：只看页面渲染正常就以为嵌套没问题",
+      "加分项：能用开发者工具 Elements 面板对比「源码 vs 实际 DOM」，定位隐式闭合问题"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.html.foundation.block-inline"
+      ],
+      "related": [
+        "fe.html.foundation.semantic-tags"
+      ],
+      "followUps": [
+        "a 标签里能嵌套 button 吗？为什么？",
+        "浏览器解析 HTML 用的是什么算法（容错机制）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "HTML 嵌套规则与容错解析判断题"
+    },
+    "tags": [
+      "HTML基础",
+      "嵌套规则",
+      "DOM解析"
+    ]
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.html.foundation.block-inline",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "下列关于 HTML 块级元素、行内元素与嵌套/盒模型行为的说法，正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "一个元素默认块级还是行内，本质由浏览器 UA 样式表里的 display 决定；用 CSS 把 <span> 设为 display:block 后它就会独占一行，盒模型行为也随之变成块级。"
+      },
+      {
+        "key": "B",
+        "text": "HTML5 用更细的内容模型（flow、phrasing、interactive 等）取代了简单的 block/inline 二分；<a> 在透明内容模型下可以合法包裹 <div>，只要其内部不含其他交互元素。"
+      },
+      {
+        "key": "C",
+        "text": "<span> 这类默认行内的非替换元素，可以靠设置 width/height 和 margin-top/margin-bottom 可靠地把行盒高度撑开。"
+      },
+      {
+        "key": "D",
+        "text": "<button> 内部再嵌套一个 <a> 或另一个 <button> 是合法的交互内容嵌套，解析器会原样保留 DOM。"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B"
+      ]
+    },
+    "analysis": "A 正确：block/inline 不是元素的固有身份，而是 UA 默认 display 的表现，CSS display 可以改变其布局类别（HTML 语法层面的内容模型合法性与 CSS 布局类别是两回事）。B 正确：HTML5 规范以内容模型描述允许的子节点，<a> 的透明内容模型允许包裹流内容（含 div），但交互内容不可互嵌。C 错误：行内非替换元素的 width/height 不生效，垂直方向的 margin-top/bottom、padding-top/bottom 不会增加行盒高度（padding 视觉上可能溢出但不占行高），要控制尺寸应改为 inline-block/block。D 错误：button、a 属于交互内容，交互内容互嵌（button 里放 button/a）违反内容模型，HTML 解析器不保证保留预期结构，可点击行为也会混乱。",
+    "gapCheck": [
+      "易漏点：区分「HTML 内容模型是否合法」与「CSS display 决定的布局类别」两件事，前者管解析与嵌套，后者管盒模型。",
+      "常见误区：以为行内元素设置 width/height 和上下 margin 能撑开布局，实际上非替换行内元素这些属性不参与行盒高度计算。",
+      "排查线索：实际 DOM 与源码不一致时，用 Elements 面板看浏览器解析后的结构，重点排查 p、a、button 的非法嵌套被解析器自动调整的情况。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.html.foundation.block-inline"
+      ],
+      "related": [
+        "fe.html.foundation.semantic-tags",
+        "fe.html.form.form-basics"
+      ],
+      "followUps": [
+        "inline-block 同时具备哪些块级与行内特征？典型用途是什么？",
+        "为什么 <p> 里放 <div> 会出现段落被提前闭合？解析器是怎么处理的？",
+        "替换元素（如 img）与非替换行内元素在盒模型上有什么差异？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 HTML 内容模型规范与 CSS display/盒模型原理编写"
+    },
+    "tags": [
+      "内容模型",
+      "盒模型",
+      "易错"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0025"
+  }
+]

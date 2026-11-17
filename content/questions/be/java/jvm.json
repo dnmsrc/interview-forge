@@ -1,0 +1,163 @@
+[
+  {
+    "id": "Q-be-java-memgc-0001",
+    "nodeId": "be.java.jvm.memory-gc",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 JVM 运行时数据区（以 HotSpot、Java 8+ 为主流口径），下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "堆（Heap）是所有线程共享的内存区域，存放对象实例，也是垃圾回收的主要区域，会抛出 OutOfMemoryError" },
+      { "key": "B", "text": "虚拟机栈是线程共享的，所有线程共用一个栈来存放局部变量" },
+      { "key": "C", "text": "程序计数器在执行本地（native）方法时也保存着正在执行的 Java 字节码行号，不会为空" },
+      { "key": "D", "text": "Java 8 仍用永久代（PermGen）存放类元数据，方法区就是永久代的官方名称" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：堆被所有线程共享，几乎所有对象实例和数组都在堆上分配，是 GC 重点关照的区域，内存不足且无法扩展时抛 java.lang.OutOfMemoryError: Java heap space。B 错：虚拟机栈是线程私有的，每个线程一条，栈帧（局部变量表、操作数栈、动态链接、返回地址）随方法调用入栈、返回出栈；栈太深或栈容量不足抛 StackOverflowError。C 错：程序计数器（PC 寄存器）也是线程私有的，执行 Java 方法时记录字节码地址，执行 native 方法时它的值是 undefined（空），它是唯一不会 OOM 的区域。D 错：方法区是 JVM 规范定义的逻辑区域，永久代只是 JDK 7 及以前 HotSpot 的实现方式；JDK 8 已彻底移除永久代，类元数据改放本地内存的元空间（Metaspace），字符串常量池则在 JDK 7 就移到了堆中。",
+    "gapCheck": [
+      "易漏点：线程私有 = 程序计数器、虚拟机栈、本地方法栈；线程共享 = 堆、方法区（元空间）",
+      "常见误区：把方法区与永久代画等号——前者是规范概念，后者是已淘汰的实现；JDK 8 用 Metaspace 替代",
+      "加分项：能说出各区域对应的异常类型（堆 OOM、栈 SOE/OOM、元空间 OOM: Metaspace）以及直接内存与 NIO 的关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.jvm.memory-gc"],
+      "related": ["be.java.jvm.classloader"],
+      "followUps": ["为什么 JDK 8 要用元空间替换永久代？", "一个对象从 new 出来到被回收，在堆和栈上分别经历了什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "运行时数据区线程共享/私有与元空间单选题" },
+    "tags": ["JVM", "运行时数据区", "堆与栈", "元空间", "高频"]
+  },
+  {
+    "id": "Q-be-java-memgc-0002",
+    "nodeId": "be.java.jvm.memory-gc",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：判断对象是否存活使用的是可达性分析算法——从 GC Roots 出发沿引用链不可达的对象才是可回收对象；GC Roots 通常包括虚拟机栈中引用的对象、方法区中静态字段和常量引用的对象、本地方法栈 JNI 引用的对象等。注意，单纯的引用计数法解决不了循环引用问题，所以主流 JVM 并不采用它。",
+    "answer": { "judge": true },
+    "analysis": "正确。可达性分析（Reachability Analysis）是 HotSpot 等主流 JVM 采用的存活判定算法：以一组 GC Roots 为起点向下搜索引用链，对象不在任何一条链路上（不可达）即判定为可回收。常见 GC Roots 有四类：① 虚拟机栈（栈帧局部变量表）中引用的对象；② 方法区里类静态字段引用的对象；③ 方法区里常量引用的对象；④ 本地方法栈 JNI（native 方法）引用的对象；此外同步锁 synchronized 持有的对象、JMXBean/JVMTI 等临时根也可成为根。引用计数法给每个对象维护被引用计数，看似简单，但两个对象互相引用、外界已无法访问时计数都不为 0，循环引用导致永远回收不掉，这正是主流 JVM 弃用它的原因。补充：不可达对象并非立即死亡，还会经历至少两次标记，finalize() 中对象若重新挂上引用链可「自救」一次（finalize 已在 Java 9 标记废弃，不推荐依赖）。",
+    "gapCheck": [
+      "易漏点：GC Roots 不是「某个对象」而是一组固定的根集合；静态变量引用、栈上局部引用是最常考的两类",
+      "常见误区：以为引用计数法是 JVM 的实现——它只存在于教科书对比和部分语言运行时中",
+      "加分项：能区分强/软/弱/虚四种引用对回收时机的影响，并讲清 Minor GC 与 Full GC 的触发区域差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.jvm.memory-gc"],
+      "related": ["be.java.jvm.classloader"],
+      "followUps": ["软引用、弱引用、虚引用分别在什么时机被回收？", "标记-清除、复制、标记-整理三种 GC 算法各自的优缺点是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "可达性分析与 GC Roots 判断题" },
+    "tags": ["JVM", "GC Roots", "可达性分析", "垃圾回收", "高频必考"]
+  },
+  {
+    "id": "Q-be-java-classldr-0001",
+    "nodeId": "be.java.jvm.classloader",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "类从被加载到虚拟机内存开始，到卸载出内存为止，其完整生命周期包含五个阶段。下列阶段顺序**正确**的是：",
+    "options": [
+      { "key": "A", "text": "加载 → 验证 → 准备 → 解析 → 初始化（解析在某些情况下可在初始化之后开始，即支持延迟解析）" },
+      { "key": "B", "text": "加载 → 准备 → 验证 → 初始化 → 解析" },
+      { "key": "C", "text": "验证 → 加载 → 准备 → 初始化 → 解析" },
+      { "key": "D", "text": "加载 → 验证 → 初始化 → 准备 → 解析" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确。类加载过程的五个阶段：① 加载：通过类全限定名获取字节流，在方法区生成类的运行时数据结构，并在堆上生成对应的 Class 对象；② 验证：校验字节码格式、元数据、字节码、符号引用等，确保不会危害虚拟机；③ 准备：为类的静态变量在方法区分配内存并赋「零值」（如 int 给 0、引用给 null），static final 常量在此阶段可能直接赋常量池中的初始值；④ 解析：把常量池里的符号引用替换为直接引用（内存地址/句柄）；⑤ 初始化：执行类构造器 <clinit>()，即静态变量显式赋值和 static 块，这才是代码里写的初始值生效的阶段。验证、准备、解析统称连接（Linking）。B、C、D 都打乱了连接与初始化的次序。需要注意解析阶段规范允许在初始化之后再触发（为了支持 Java 运行时绑定/晚期绑定），所以它的启动顺序不严格固定，但加载→验证→准备的次序以及初始化在准备之后是确定的。",
+    "gapCheck": [
+      "易漏点：准备阶段赋的是系统零值，真正的业务初始值在初始化阶段的 <clinit> 里才赋上",
+      "常见误区：把加载和验证顺序搞反，或以为解析一定在初始化之前（解析可延迟）",
+      "加分项：能说出触发初始化的六种主动引用场景（new、反射、静态成员访问、main 类、MethodHandle、接口默认方法）与被动引用的区别"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.jvm.classloader"],
+      "related": ["be.java.jvm.memory-gc"],
+      "followUps": ["静态变量在准备阶段和初始化阶段分别被赋什么值？", "哪些情况属于「被动引用」，不会触发类的初始化？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "类加载五阶段顺序单选题" },
+    "tags": ["JVM", "类加载", "生命周期", "高频"]
+  },
+  {
+    "id": "Q-be-java-classldr-0002",
+    "nodeId": "be.java.jvm.classloader",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "类加载器与双亲委派填空：JDK 8 中内置的三类类加载器，从上到下分别是 ______ 类加载器（BootstrapClassLoader，C++ 实现、加载 rt.jar 核心类）、______ 类加载器（加载 classpath 的应用类，又名 AppClassLoader）和位于中间的扩展类加载器；类加载请求先委派给父加载器、父加载器找不到才自己加载的机制叫 ______ 模型。",
+    "answer": {
+      "blanks": ["启动", "应用", "双亲委派"],
+      "synonyms": {
+        "启动": ["引导", "启动类", "引导类", "Bootstrap", "BootstrapClassLoader"],
+        "应用": ["应用类", "系统", "系统类", "AppClassLoader", "ApplicationClassLoader"],
+        "双亲委派": ["双亲委派模型", "双亲委派机制", "父委派模型"]
+      }
+    },
+    "analysis": "① 启动类加载器（Bootstrap ClassLoader）：HotSpot 中由 C++ 实现、本身没有 Java 对象，负责加载 JAVA_HOME/lib 下核心类库（如 rt.jar 中的 java.lang.*），Java 代码里取它的实例通常显示为 null。② 应用类加载器（ApplicationClassLoader，也称系统类加载器 SystemClassLoader）：加载用户 classpath 上的类，是绝大多数应用代码默认的类加载器；二者之间是扩展类加载器（ExtensionClassLoader，Java 9 模块系统后改为平台类加载器 PlatformClassLoader）。③ 双亲委派模型：收到加载请求时，类加载器先把请求委派给父加载器去完成，每一层都如此上溯，只有父加载器在自己搜索范围找不到该类（ClassNotFoundException）时，子加载器才尝试自己加载。意义有二：避免重复加载（同一个类被各加载器各加载一份）；防止核心类被篡改——你自己写一个 java.lang.String 永远不会被加载，因为请求最终会被启动类加载器用 JDK 自带版本满足。需要打破它的典型场景：JDBC 等 SPI（核心类要反向加载厂商实现，靠线程上下文类加载器）、Tomcat 各 Web 应用间类隔离、OSGi 网状加载。",
+    "gapCheck": [
+      "易漏点：Bootstrap ClassLoader 不是 Java 类，getClassLoader() 拿到的是 null；Java 9 后扩展类加载器改为平台类加载器",
+      "常见误区：以为双亲委派是强制语法——它只是 ClassLoader.loadClass 里的实现约定，可以通过重写 loadClass 打破",
+      "加分项：能举 SPI（ServiceLoader + 线程上下文类加载器）和 Tomcat webapp 类隔离两个打破双亲委派的真实例子"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.jvm.classloader"],
+      "related": ["be.java.jvm.memory-gc"],
+      "followUps": ["同一个类被两个不同类加载器加载，在 JVM 看来是同一个类吗？", "JDBC 的 SPI 机制为什么必须打破双亲委派？具体怎么实现的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "三种类加载器与双亲委派模型填空题" },
+    "tags": ["JVM", "类加载器", "双亲委派", "SPI", "高频必考"]
+  },
+  {
+    "id": "Q-be-java-classldr-0003",
+    "nodeId": "be.java.jvm.classloader",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：双亲委派模型只是 ClassLoader.loadClass 中实现的加载约定（先委托父加载器、父加载器找不到才自己加载），并非 JVM 强制的语法规则；重写 loadClass 而不重写 findClass 即可打破它，SPI 与 Tomcat 类隔离就是典型的打破场景。",
+    "answer": { "judge": true },
+    "analysis": "正确。双亲委派（parents delegation）体现在 ClassLoader.loadClass 的默认流程：收到类加载请求先委派 parent.loadClass 向上委托，一路到 Bootstrap ClassLoader，父加载器在自己管辖范围找不到时子加载器才调用自身 findClass 加载。它不是 JVM 规范强制的语法，只是一段可被覆盖的实现约定，因此自定义加载器重写 loadClass 改变委托顺序就能打破（推荐做法其实是重写 findClass 以保留双亲委派，只有确需打破才动 loadClass）。打破的真实场景有两类：① SPI——JDBC、SLF4J 等核心类由 Bootstrap 加载，却要加载 classpath 上由应用类加载器管理的厂商实现， Bootstrap 看不到这些实现，于是用线程上下文类加载器（Thread Context ClassLoader，默认是应用加载器）反向加载，典型如 ServiceLoader；② 容器隔离——Tomcat 每个 webapp 用独立 WebappClassLoader，先在自己的 WEB-INF/lib 找类、再向上委托，以实现不同应用同名类不同版本的隔离，与默认委派顺序相反。另外，判断两个类是否『同一个类』，类的全限定名相同还不够，还必须由同一个类加载器加载（运行时类型 = 类名 + 加载器）。",
+    "gapCheck": [
+      "易漏点：双亲委派是 loadClass 的实现约定而非强制语法，重写 loadClass 即可打破",
+      "常见误区：以为它不可打破，或不知道类身份=全限定名+类加载器",
+      "加分项：能讲 SPI 用线程上下文类加载器反向加载、Tomcat webapp 类隔离两个真实打破案例"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.jvm.classloader"],
+      "related": ["be.java.jvm.memory-gc"],
+      "followUps": ["为什么推荐重写 findClass 而不是 loadClass 来扩展类加载？", "两个类加载器加载同名类，instanceof 判断会发生什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "双亲委派可打破性与 SPI/Tomcat 场景判断题" },
+    "tags": ["JVM", "类加载器", "双亲委派", "SPI", "Tomcat", "判断"]
+  },
+  {
+    "id": "Q-be-java-memgc-0003",
+    "nodeId": "be.java.jvm.memory-gc",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：JVM 运行时数据区中，所有线程共享的是 ______ 和 ______；每个线程私有的是虚拟机栈、本地方法栈和 ______。对象优先在新生代的 ______ 区分配；Minor GC 后存活对象在两个 Survivor 区之间来回复制，熬过多次 GC、达到晋升年龄阈值的对象会进入 ______。判断对象能否回收，主流 HotSpot 虚拟机采用的不是引用计数而是 ______ 算法。",
+    "answer": {
+      "blanks": ["堆", "方法区", "程序计数器", "Eden", "老年代", "可达性分析"],
+      "synonyms": {
+        "堆": ["heap", "Java堆", "Heap"],
+        "方法区": ["method area", "元空间", "Metaspace", "方法区(元空间)"],
+        "程序计数器": ["PC寄存器", "pc寄存器", "Program Counter", "程序计数器(PC寄存器)"],
+        "Eden": ["eden", "伊甸", "伊甸园区", "Eden区"],
+        "老年代": ["old", "Old Gen", "老年代(Old)", "tenured", "年代老年代"],
+        "可达性分析": ["可达性分析算法", "根可达", "GC Roots可达性分析", "可达性分析法", "tracing"]
+      }
+    },
+    "analysis": "运行时数据区按归属分两类：① 线程共享——堆（Heap，对象实例与数组的主要存储地，GC 主战场）和方法区（JDK8 前叫永久代 PermGen、JDK8 起改为本地内存的元空间 Metaspace，存类元信息、常量池、静态变量等）；② 线程私有——虚拟机栈（每个方法调用压入栈帧，存局部变量表、操作数栈、动态链接、返回地址）、本地方法栈（服务 native 方法）、程序计数器（记录当前线程执行的字节码行号，唯一不会 OOM 的区域，线程切换后靠它恢复）。堆内分代：新生代又分一个 Eden 和两个 Survivor（From/To，默认比例 8:1:1），新对象优先在 Eden 分配，Eden 满触发 Minor GC，存活对象复制到空闲 Survivor 并年龄+1，两个 Survivor 总有一个为空；年龄达到阈值（默认 15，受对象头位数限制）或大对象/动态年龄规则触发晋升，进入老年代，老年代 GC 称 Major/Full GC。回收判定上，引用计数无法解决循环引用问题，HotSpot 采用可达性分析：从 GC Roots（栈中引用、静态字段、常量、JNI 引用等）出发遍历引用链，不可达的对象才是可回收候选，且还要经过两次标记与 finalize 兜底（finalize 已不推荐）。",
+    "gapCheck": [
+      "易漏点：共享区=堆+方法区，私有区=虚拟机栈/本地方法栈/程序计数器；JDK8 方法区变为元空间",
+      "常见误区：混淆 Eden/Survivor/老年代的流转，或以为 JVM 用引用计数判活",
+      "加分项：能讲 GC Roots 种类、对象晋升年龄与大对象直接进老年代、为什么不用引用计数"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.jvm.memory-gc"],
+      "related": ["be.java.jvm.classloader", "be.java.concurrent.thread-basics"],
+      "followUps": ["为什么程序计数器是唯一不会 OutOfMemoryError 的区域？", "对象在什么情况下会提前晋升老年代（大对象、动态年龄、空间分配担保）？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "运行时数据区、分代与可达性分析填空题" },
+    "tags": ["JVM", "运行时数据区", "分代回收", "可达性分析", "填空题"]
+  }
+]

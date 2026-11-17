@@ -1,0 +1,109 @@
+[
+  {
+    "id": "be.java.dsa",
+    "title": "数据结构与算法（Java 实现）",
+    "level": 3,
+    "domain": "be",
+    "stack": "java",
+    "topic": "dsa",
+    "mustMaster": false,
+    "estMinutes": 130,
+    "summary": "要能讲线性表、哈希表、树与堆、排序算法、复杂度分析与高频套路，全部结合 ArrayList/HashMap/TreeMap/PriorityQueue 等 JDK 真实实现，落地到 Top-K 统计、任务调度与 LRU 缓存等后端场景"
+  },
+
+  {
+    "id": "be.java.dsa.linear",
+    "title": "线性表：数组与链表、栈、队列、双端队列",
+    "level": 4,
+    "domain": "be",
+    "stack": "java",
+    "topic": "dsa",
+    "prerequisites": ["be.java.core.syntax-basics", "be.java.core.collection"],
+    "related": ["be.java.dsa.hash", "be.java.dsa.complexity"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 20,
+    "summary": "要能讲数组连续存储与链表指针跳转的取舍、ArrayList/LinkedList 底层差异、栈 LIFO 与队列 FIFO、ArrayDeque/LinkedList 双端实现，并结合方法调用栈、任务队列与 LRU 双向链表讲选型"
+  },
+
+  {
+    "id": "be.java.dsa.hash",
+    "title": "哈希表与哈希冲突：HashMap 扰动、扩容重哈希与 equals/hashCode 契约",
+    "level": 4,
+    "domain": "be",
+    "stack": "java",
+    "topic": "dsa",
+    "prerequisites": ["be.java.core.collection", "be.java.core.string-common"],
+    "related": ["be.java.dsa.linear", "be.java.dsa.complexity"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 25,
+    "summary": "要能讲哈希函数与扰动计算、链地址与开放寻址、装填因子与扩容重哈希、equals/hashCode 契约，并结合 HashMap 树化与 LRU 缓存说明冲突治理与有序性方案"
+  },
+
+  {
+    "id": "be.java.dsa.tree",
+    "title": "二叉树与平衡树：遍历、BST、AVL 与红黑树思想",
+    "level": 4,
+    "domain": "be",
+    "stack": "java",
+    "topic": "dsa",
+    "prerequisites": ["be.java.core.collection", "be.java.core.syntax-basics"],
+    "related": ["be.java.dsa.heap", "be.java.dsa.linear"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 25,
+    "summary": "要能讲前中后序与层序遍历的递归/迭代写法、BST 查找插入与退化、AVL 旋转与红黑树平衡思想，并能对应 TreeMap/TreeSet 的有序 Map 底层与范围查询场景"
+  },
+
+  {
+    "id": "be.java.dsa.heap",
+    "title": "堆与 PriorityQueue：数组堆化、上浮下沉与 Top-K、延迟队列",
+    "level": 4,
+    "domain": "be",
+    "stack": "java",
+    "topic": "dsa",
+    "prerequisites": ["be.java.dsa.tree", "be.java.core.collection"],
+    "related": ["be.java.dsa.sort", "be.java.dsa.complexity"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 20,
+    "summary": "要能讲数组下标与完全二叉树映射、堆化上浮下沉、小顶堆与大顶堆区别、PriorityQueue 底层与扩容，并结合 Top-K 统计、任务调度与延迟队列说明用堆而非全量排序"
+  },
+
+  {
+    "id": "be.java.dsa.sort",
+    "title": "排序算法与 Collections.sort：TimSort、快排归并与 Comparable/Comparator",
+    "level": 4,
+    "domain": "be",
+    "stack": "java",
+    "topic": "dsa",
+    "prerequisites": ["be.java.core.collection", "be.java.dsa.linear"],
+    "related": ["be.java.dsa.complexity", "be.java.dsa.heap"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 20,
+    "summary": "要能讲快排/归并/冒泡/插入的过程与复杂度、稳定性含义、JDK TimSort 混合策略，以及 Comparable 与 Comparator 排序规则，结合多字段排序与对象列表排序落地"
+  },
+
+  {
+    "id": "be.java.dsa.complexity",
+    "title": "复杂度与高频算法套路：大 O、双指针、滑动窗口、回溯与动态规划入门",
+    "level": 4,
+    "domain": "be",
+    "stack": "java",
+    "topic": "dsa",
+    "prerequisites": ["be.java.core.syntax-basics", "be.java.dsa.linear"],
+    "related": ["be.java.dsa.hash", "be.java.dsa.sort"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 20,
+    "summary": "要能讲大 O 渐近分析与最好/最坏/均摊口径，判断常见 JDK API 复杂度，并掌握双指针、滑动窗口、回溯、动态规划入门套路，独立推出两数之和等高频题复杂度"
+  }
+]

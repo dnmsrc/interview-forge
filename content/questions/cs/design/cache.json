@@ -1,0 +1,398 @@
+[
+  {
+    "id": "Q-cs-design-cache-0001",
+    "nodeId": "cs.design.cache.pattern",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "某商品详情接口采用最常见的缓存策略：读请求先查 Redis，未命中再查数据库并把结果回填 Redis；更新商品时先更新数据库、再删除 Redis 对应缓存。这种模式是：",
+    "options": [
+      { "key": "A", "text": "Cache-Aside（旁路缓存），缓存与数据库的维护逻辑由业务代码显式编排" },
+      { "key": "B", "text": "Read-Through，应用只对接缓存层，由缓存组件自己负责加载数据库数据" },
+      { "key": "C", "text": "Write-Through，写请求经由缓存同步穿透写入数据库" },
+      { "key": "D", "text": "Write-Behind，先写缓存就返回，由后台异步批量刷入数据库" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：Cache-Aside 的标志就是业务代码显式管理缓存——读时 miss 回填、写时更新 DB 后删缓存，缓存与 DB 是旁路关系，也是工程中最主流的模式。B 的 Read-Through 把『miss 后从 DB 加载』的职责收进缓存组件内部，应用只调缓存接口，题中是业务自己查库回填，不属于。C 的 Write-Through 是写请求打到缓存、由缓存同步写 DB 才返回。D 的 Write-Behind 写缓存后立即返回、异步刷库，题中写操作是先落库的。",
+    "gapCheck": [
+      "易漏点：Cache-Aside 的写路径标准动作是『删除』缓存而不是『更新』缓存，避免并发写导致缓存脏数据",
+      "常见误区：把读路径的 miss 回填当成 Read-Through——区别在谁负责加载（业务代码还是缓存组件）",
+      "加分项：能说明 Cache-Aside 最通用但缓存与 DB 只保证最终一致，强一致诉求要另选方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.pattern"],
+      "related": ["cs.design.cache.consistency"],
+      "followUps": [
+        "写操作为什么推荐删缓存而不是更新缓存？",
+        "Cache-Aside 在缓存节点宕机时整条链路会怎样？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "缓存模式识别单选题" },
+    "tags": ["Cache-Aside", "缓存模式", "读写路径", "高频"]
+  },
+  {
+    "id": "Q-cs-design-cache-0002",
+    "nodeId": "cs.design.cache.pattern",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：四种经典缓存读写模式中，业务代码显式维护缓存（读未命中回源并回填、写时先更新数据库再删缓存）的是 ______；应用只对接缓存组件、未命中时由缓存层自己负责回源加载的是 ______；写请求经由缓存同步穿透写入数据库才返回的是 ______；先写缓存立即返回、由后台异步批量刷库的是 ______。",
+    "answer": {
+      "blanks": ["Cache-Aside", "Read-Through", "Write-Through", "Write-Behind"],
+      "synonyms": {
+        "Cache-Aside": ["旁路缓存", "旁路缓存模式", "cache-aside", "CacheAside"],
+        "Read-Through": ["读穿透", "读穿透模式", "read-through", "ReadThrough"],
+        "Write-Through": ["写穿透", "写穿透模式", "write-through", "WriteThrough"],
+        "Write-Behind": ["写回", "写后", "Write-Back", "write-behind", "write-back"]
+      }
+    },
+    "analysis": "四个空对应四种模式的职责划分：Cache-Aside（旁路缓存）由业务代码编排缓存与 DB，最通用；Read-Through（读穿透）把回源加载职责收进缓存组件，应用只调缓存；Write-Through（写穿透）写缓存与写库在同一同步链路，一致性好但写延迟受 DB 拖累；Write-Behind（写回/Write-Back）先落缓存即返回、异步刷库，写吞吐高但存在丢失窗口，不能直接用于余额类强一致场景，更适合统计计数、日志聚合等可补偿场景。",
+    "gapCheck": [
+      "易漏点：Write-Behind 的高吞吐是以一致性降级为代价的，落库前故障会丢已应答的数据",
+      "常见误区：把 Read-Through 与 Cache-Aside 混同，关键区别是回源加载的责任方",
+      "加分项：能讲操作系统页缓存（page cache 的 write-back 与 fsync）正是同一思想的经典实现"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.pattern"],
+      "related": ["cs.design.cache.consistency"],
+      "followUps": [
+        "Write-Behind 要做到不丢数据，需要哪些持久化与重放机制兜底？",
+        "操作系统的 write-back 页缓存和数据库的 WAL 是怎么配合保证持久性的？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "四种缓存模式概念填空题" },
+    "tags": ["缓存模式", "Cache-Aside", "Write-Through", "填空"]
+  },
+  {
+    "id": "Q-cs-design-cache-0004",
+    "nodeId": "cs.design.cache.problems",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "线上突发告警：数据库被大量查询打满，排查发现请求查询的都是数据库里根本不存在的商品 ID（疑似恶意构造），Redis 里自然也查不到，请求全部穿透到数据库。这一现象及其**首选组合对策**是：",
+    "options": [
+      { "key": "A", "text": "缓存穿透；入口参数校验 + 缓存空值（短 TTL）+ 布隆过滤器拦截不存在的 key" },
+      { "key": "B", "text": "缓存击穿；给热点 key 加互斥锁重建缓存即可" },
+      { "key": "C", "text": "缓存雪崩；把所有 key 的过期时间统一设置成同一时刻批量预热" },
+      { "key": "D", "text": "缓存预热不足；把 Redis 内存扩容一倍就能根治" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：查询不存在的数据、缓存和 DB 都没有、请求直达 DB，是缓存穿透的定义。对策组合：参数校验拦非法 ID；空值缓存让同一不存在 key 的后续请求被缓存挡住（设短 TTL 防内存浪费）；布隆过滤器在缓存前再挡一层，判不存在则直接拒绝。B 的击穿针对的是『存在的热点 key 过期瞬间』，与题意不符。C 的雪崩是大面积 key 同时失效或缓存宕机，且统一 TTL 反而是制造雪崩的错误做法。D 扩容内存解决不了不存在 key 不进缓存的问题。",
+    "gapCheck": [
+      "易漏点：空值缓存必须设短 TTL，否则攻击者批量构造不存在 key 会把缓存内存撑爆",
+      "常见误区：分不清穿透（数据不存在）、击穿（单热点过期）、雪崩（大面积失效）三者的边界",
+      "加分项：能讲布隆过滤器『判不存在一定不存在、判存在可能误判』的单向特性及误判率与位数组/哈希数的关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.problems"],
+      "related": ["cs.design.cases.shortlink", "cs.design.limit.algorithm"],
+      "followUps": [
+        "布隆过滤器为什么不支持标准删除？计数布隆过滤器怎么解决？",
+        "空值缓存被攻击者利用时，怎么限制其内存占用？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "缓存穿透识别与对策单选题" },
+    "tags": ["缓存穿透", "布隆过滤器", "空值缓存", "高频"]
+  },
+  {
+    "id": "Q-cs-design-cache-0005",
+    "nodeId": "cs.design.cache.problems",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "针对缓存击穿、雪崩与穿透，下列对策与问题的配对**正确**的有：",
+    "options": [
+      { "key": "A", "text": "防雪崩：给 key 的 TTL 加随机抖动，避免大量 key 在同一时刻集中过期" },
+      { "key": "B", "text": "防击穿：热点 key 重建缓存时加互斥锁（或单飞 singleflight），只放一个请求回源，其余等待结果" },
+      { "key": "C", "text": "防穿透：对查询为空的结果缓存空值，并在入口用布隆过滤器预判 key 是否存在" },
+      { "key": "D", "text": "防雪崩：把所有 key 的过期时间精确对齐到整点，便于统一预热管理" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 的随机 TTL 把集中失效打散到时间窗内，是防雪崩的标配。B 的互斥锁/singleflight 保证同一热点 key 只有一次回源，消除击穿瞬间的并发 DB 冲击。C 是空值缓存+布隆过滤器的穿透组合拳。D 是反向操作：TTL 对齐整点会制造大面积同时失效，正是雪崩的成因；此外防雪崩还要配合 Redis 集群高可用、多级缓存与限流降级兜底。",
+    "gapCheck": [
+      "易漏点：雪崩还有『缓存节点宕机』这一成因，对应对策是集群高可用与多级缓存，不只是 TTL 抖动",
+      "常见误区：互斥锁能防击穿但会降低重建期间的并发度，需配合锁超时与双重检查避免死锁",
+      "加分项：能讲『逻辑过期』方案——不设物理 TTL、值内嵌逻辑过期时间，异步线程更新，期间返回旧值，可用性更高"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.problems"],
+      "related": ["cs.design.cache.consistency", "cs.design.limit.circuit-breaker"],
+      "followUps": [
+        "互斥锁重建缓存时持锁线程宕机了怎么办？锁超时怎么设？",
+        "逻辑过期方案返回旧数据，哪些业务能接受、哪些不能？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "缓存三大问题对策配对多选题" },
+    "tags": ["缓存雪崩", "缓存击穿", "缓存穿透", "互斥锁"]
+  },
+  {
+    "id": "Q-cs-design-cache-0006",
+    "nodeId": "cs.design.cache.problems",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：标准布隆过滤器是一种概率型数据结构，当它判断某个元素『不存在』时结论一定正确，而判断『存在』时可能是误判（假阳性）；因此它适合放在缓存前面拦截对不存在 key 的查询，但不能据此直接断言元素一定存在。",
+    "answer": { "judge": true },
+    "analysis": "正确。布隆过滤器用多位哈希把元素映射到位数组：任一对应位为 0 则元素必定不存在（没有任何插入能只置位别的位而跳过该位）；所有对应位都为 1 才报存在，但这些位可能由其他元素组合置位，故存在假阳性、不存在假阴性。随元素增多误判率上升，可通过增大位数组、增加哈希函数控制。标准布隆过滤器不支持删除（删除会清掉共享位影响其他元素），需要删除可用计数布隆过滤器。",
+    "gapCheck": [
+      "易漏点：误判率随装载率上升，容量规划要按预期元素数预留位数组",
+      "常见误区：以为布隆过滤器报存在就能跳过回源——报存在仍需正常查缓存/DB",
+      "加分项：能讲计数布隆过滤器、布谷鸟过滤器支持删除的原理与代价"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.problems"],
+      "related": ["cs.algo.linear.hash-table"],
+      "followUps": [
+        "给定预期元素数和目标误判率，位数组大小和哈希函数个数怎么估算？",
+        "布隆过滤器怎么做分布式（Redis 位图 vs 本地内存）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "布隆过滤器特性判断题" },
+    "tags": ["布隆过滤器", "假阳性", "缓存穿透", "判断"]
+  },
+  {
+    "id": "Q-cs-design-cache-0007",
+    "nodeId": "cs.design.cache.problems",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：查询数据库中根本不存在的数据、请求绕过缓存直达 DB 的现象叫缓存 ______；单个热点 key 过期瞬间大量并发同时回源的现象叫缓存 ______；大量 key 同时失效或缓存节点宕机导致 DB 压力骤增的现象叫缓存 ______；其中给 TTL 增加 ______ 是防止集中失效的常用手段。",
+    "answer": {
+      "blanks": ["穿透", "击穿", "雪崩", "随机值"],
+      "synonyms": {
+        "穿透": ["缓存穿透"],
+        "击穿": ["缓存击穿"],
+        "雪崩": ["缓存雪崩"],
+        "随机值": ["随机抖动", "随机数", "随机偏移", "抖动"]
+      }
+    },
+    "analysis": "三题的区分维度是『数据是否存在』与『失效范围』：穿透=数据本来不存在（空值缓存/布隆过滤器）；击穿=单个存在的热点 key 过期（互斥锁/逻辑过期/热点不过期）；雪崩=大面积 key 同时失效或缓存整体不可用（TTL 加随机值打散、集群高可用、多级缓存、限流降级）。TTL 加随机值（随机抖动）让过期时间均匀分布在一个时间窗内，消除整点集中失效。",
+    "gapCheck": [
+      "易漏点：雪崩的成因有两个——集中过期与缓存宕机，对策也要分两条线",
+      "常见误区：把击穿和雪崩混为一谈，区别在失效的是单热点还是大面积 key",
+      "加分项：能补充热点 key 逻辑过期、后台异步刷新的高可用方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.problems"],
+      "related": ["cs.design.cache.pattern"],
+      "followUps": [
+        "三种问题里哪一种靠加机器扩容最没用？为什么？",
+        "缓存整体宕机时，限流降级怎么和空值缓存配合？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "缓存三大问题概念填空题" },
+    "tags": ["缓存穿透", "缓存击穿", "缓存雪崩", "填空"]
+  },
+  {
+    "id": "Q-cs-design-cache-0008",
+    "nodeId": "cs.design.cache.problems",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "场景题：一个秒杀商品详情 key 是全站热点，缓存 TTL 30 分钟，每次过期瞬间有上万并发回源，数据库连接被打满。请给出至少两种重建方案，对比各自的一致性、可用性与实现复杂度，并说明你最终会怎么选。",
+    "answer": {
+      "ref": "参考骨架：\n方案一：互斥锁（mutex/singleflight）。缓存 miss 后先尝试抢分布式锁（如 SET NX EX），抢到锁的线程查 DB 并回填缓存，其余线程短暂休眠后重试读缓存。一致性较好（重建期间只有一次回源、回填值最新），实现中等；代价是重建期间大量线程阻塞等待，锁持有者宕机需靠锁超时兜底，存在短暂可用性下降与锁竞争复杂度。\n方案二：逻辑过期（不设物理 TTL）。value 中内嵌逻辑过期时间字段；读到未逻辑过期直接返回；发现逻辑过期后，返回旧值的同时启异步线程抢锁更新缓存，其他请求不阻塞、继续拿旧值。可用性最高、无等待，但更新窗口内会返回陈旧数据，属于最终一致，且永不过期的 key 需要主动更新与内存治理，实现稍复杂。\n方案三：热点 key 物理永不过期 + 后台任务定时预热刷新。最简单稳定，适合秒杀商品这类可预知热点；风险是后台刷新失败会长期脏数据，需监控告警与兜底 TTL。\n选择建议：秒杀商品是可预知的有限热点、对详情短暂旧值可容忍但对 DB 被打穿零容忍，首选『后台定时预热 + 物理不过期（或长 TTL）』，叠加逻辑过期做兜底；普通业务热点用互斥锁保证一致性；对可用性要求极高、能容忍旧值的场景选逻辑过期。无论哪种都要配合限流降级作为最后防线。"
+    },
+    "scoringPoints": [
+      { "point": "互斥锁方案讲清 singleflight 原理、锁超时兜底与阻塞代价", "weight": 3 },
+      { "point": "逻辑过期方案讲清『返回旧值+异步刷新』、最终一致与高可用特性", "weight": 3 },
+      { "point": "能从一致性、可用性、复杂度三维度做对比而非罗列", "weight": 2 },
+      { "point": "结合秒杀场景给出明确选型并提限流降级兜底", "weight": 2 }
+    ],
+    "analysis": "这题考查击穿治理的深度权衡。常见失分：只答『加锁』一种、讲不清锁失效后的死锁风险；不知道逻辑过期方案；选型不给理由。高分回答会指出本质矛盾——互斥锁偏一致性、逻辑过期偏可用性，并结合业务对陈旧数据的容忍度决策，最后不忘限流降级这一层系统级兜底。",
+    "gapCheck": [
+      "易漏点：分布式锁必须设过期时间，防止持锁线程宕机造成永久死锁",
+      "常见误区：认为所有热点都该物理永不过期，忽视内存占用与脏数据治理",
+      "加分项：能提 singleflight 是进程内合并、跨实例仍需分布式锁，以及本地缓存（Caffeine）再挡一层"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.problems"],
+      "related": ["cs.design.cases.seckill", "cs.design.cache.consistency"],
+      "followUps": [
+        "逻辑过期的异步刷新线程全部失败时，系统会持续返回旧值，怎么监控？",
+        "本地缓存与 Redis 两级缓存下，热点更新通知怎么广播失效？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "热点 key 击穿重建方案简答题" },
+    "tags": ["缓存击穿", "互斥锁", "逻辑过期", "热点key"]
+  },
+  {
+    "id": "Q-cs-design-cache-0009",
+    "nodeId": "cs.design.cache.consistency",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：Cache-Aside 写路径推荐『先更新数据库，再删除缓存』而不是『先删除缓存，再更新数据库』，因为后者在删缓存成功、数据库尚未更新完成的窗口内，并发读请求会回源读到旧数据并回填缓存，导致缓存长期停留在旧值；前者的不一致窗口更小且发生条件更苛刻。",
+    "answer": { "judge": true },
+    "analysis": "正确。先删缓存再更 DB：删完缓存后、DB 提交前，任何读 miss 都会把旧值重新回填，且这个旧值会一直存活到下次 TTL 到期或更新，脏数据窗口长。先更 DB 再删缓存：读路径只有在『读 miss→查库（恰好读到旧值）→此时写事务提交并删缓存→读线程再把旧值回填』这种读比写还慢的特殊交错下才会残留旧值，概率低，且下次更新/TTL 会修复。工程上还会用延迟双删（更新后删一次、延迟一段时间再删一次）或订阅 binlog（如 canal）异步删缓存做兜底。",
+    "gapCheck": [
+      "易漏点：即使推荐方案也不是强一致，仍存在小概率并发时序窗口，需要延迟双删/binlog 兜底",
+      "常见误区：以为删缓存操作失败不用管——删除失败要靠重试队列或 binlog 订阅补偿",
+      "加分项：能讲清为什么写路径删缓存而不是更缓存（并发写更缓存会留下更旧的值，删除是惰性重建）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.consistency"],
+      "related": ["cs.design.cache.pattern", "cs.design.sharding.readwrite"],
+      "followUps": [
+        "延迟双删的第二次删除延迟时间怎么确定？",
+        "canal 订阅 binlog 删缓存的链路里，消息丢了怎么保证最终一致？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "缓存数据库写路径顺序判断题" },
+    "tags": ["缓存一致性", "延迟双删", "binlog", "判断"]
+  },
+  {
+    "id": "Q-cs-design-cache-0010",
+    "nodeId": "cs.design.cache.consistency",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "采用『先更新数据库再删除缓存』的系统，数据库已经提交成功，但删除 Redis 缓存的命令因为网络抖动失败了。下列补救措施中**最稳妥、对业务侵入最小**的是：",
+    "options": [
+      { "key": "A", "text": "订阅数据库 binlog（如 canal 类组件）感知到该行变更后，异步投递删除缓存的消息，消费失败可重试，形成最终一致的兜底链路" },
+      { "key": "B", "text": "把缓存删除改成同步循环重试，不删成功就一直占着数据库连接不返回" },
+      { "key": "C", "text": "什么都不做，等缓存 TTL 自然过期即可，所有业务都能接受这段脏数据" },
+      { "key": "D", "text": "放弃使用缓存，所有请求直接打数据库" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：binlog 订阅把缓存失效从事务内的同步动作解耦为可靠的异步消息流，变更可追溯、消费支持重试与告警，是业界主流的最终一致兜底（配合消息幂等）。B 的无限同步重试会长时间占用连接、拖垮线程池，正确姿势是有限重试+失败入队。C 对 TTL 内的脏数据放任自流，余额、库存等业务无法接受。D 因噎废食，丧失缓存的全部性能收益。",
+    "gapCheck": [
+      "易漏点：异步兜底链路本身也要保证可靠投递与消费幂等，否则补偿消息丢失同样不一致",
+      "常见误区：在业务线程里无限重试删缓存，把一次网络抖动放大成线程池耗尽事故",
+      "加分项：能提本地消息表/事务消息方案与 binlog 方案的取舍（前者业务侵入大但不依赖 binlog 权限）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.consistency"],
+      "related": ["cs.design.mq-dedup.idempotent"],
+      "followUps": [
+        "binlog 消费积压时，缓存不一致窗口变长，业务侧怎么感知和降级？",
+        "本地消息表方案和 canal 方案在运维成本上有什么差别？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "删缓存失败补救措施单选题" },
+    "tags": ["缓存一致性", "binlog", "最终一致", "canal"]
+  },
+  {
+    "id": "Q-cs-design-cache-0011",
+    "nodeId": "cs.design.cache.consistency",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于热点 key 与大 key 的治理，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "大 key（如一个含数十万成员的 hash）会阻塞 Redis 单线程、造成网络拥塞与迁移超时，应拆分为多个小结构或压缩，删除用异步删除（如 UNLINK 思路）避免阻塞" },
+      { "key": "B", "text": "热点 key 可在应用侧加本地缓存（如 Caffeine）再挡一层，并通过多副本 key（key 加随机后缀分散到不同分片）打散单分片压力" },
+      { "key": "C", "text": "发现热点/大 key 依赖监控：代理层统计、慢日志与内部扫描命令（如 --hotkeys/bigkeys 思路），不能靠拍脑袋" },
+      { "key": "D", "text": "大 key 直接用 DEL 同步删除最干净，反正 Redis 很快，不会有任何影响" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 点明大 key 的三类危害：单线程下大对象操作阻塞其他命令、单次返回撑大网络带宽、集群迁移/删除超时；对策是结构拆分（hash 分桶）、压缩、异步删除。B 是热点治理两条主线：本地缓存吸收绝大部分读、多副本 key 把单点流量打散到多个分片（读时随机选副本、写时多写）。C 强调先发现后治理，监控统计是前提。D 错：DEL 大 key 在单线程模型下是同步阻塞操作，可能造成数十到数百毫秒的命令卡顿，应使用异步删除（后台线程释放内存）。",
+    "gapCheck": [
+      "易漏点：多副本 key 打散后写路径要同步更新所有副本，一致性与失败补偿要设计",
+      "常见误区：以为大 key 只占内存，忽视其对延迟（阻塞单线程）和网络的影响",
+      "加分项：能讲本地缓存的失效广播（发布订阅/配置中心推送）与容量上限保护"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.consistency"],
+      "related": ["cs.design.cache.problems", "cs.design.sharding.strategy"],
+      "followUps": [
+        "本地缓存和 Redis 之间的一致性用什么机制保证？",
+        "集群里一个热点分片网卡跑满，除了多副本还有哪些手段？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "热点 key 与大 key 治理多选题" },
+    "tags": ["热点key", "大key", "本地缓存", "Redis"]
+  },
+  {
+    "id": "Q-cs-design-cache-0012",
+    "nodeId": "cs.design.cache.consistency",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 JavaScript 实现一个 LRU 缓存类 `LRUCache`，要求 `get(key)` 与 `put(key, value)` 平均时间复杂度都是 O(1)，容量超限时淘汰最久未使用的元素，并解释：①为什么哈希表+双向链表能做到 O(1)；②用 ES6 Map 实现时利用了它的什么特性。给出可运行代码并附带测试输出。",
+    "answer": {
+      "ref": "机理：LRU 需要两个能力——按 key 快速定位（哈希表 O(1)）和维护访问时序、快速淘汰最久未用且能把任意节点 O(1) 摘除（双向链表 O(1)，单链表删节点要先找前驱是 O(n)）。每次 get/put 命中都把节点移到链表头表示『最近使用』，容量满时淘汰链表尾。ES6 Map 规范保证按插入顺序迭代，于是可以用 Map 直接模拟：访问时 delete 后重新 set 把 key 刷新到队尾，淘汰时取 keys() 迭代器的第一个元素（最旧）。两种实现平均都是 O(1)。",
+      "code": "class LRUCache {\n  constructor(capacity) {\n    this.capacity = capacity;\n    this.map = new Map(); // Map 保持插入顺序：队首最旧，队尾最新\n  }\n\n  get(key) {\n    if (!this.map.has(key)) return -1;\n    const value = this.map.get(key);\n    this.map.delete(key);\n    this.map.set(key, value); // 重新插入，刷新为最近使用\n    return value;\n  }\n\n  put(key, value) {\n    if (this.map.has(key)) {\n      this.map.delete(key);           // 已存在：先删，稍后刷新顺序\n    } else if (this.map.size >= this.capacity) {\n      const oldestKey = this.map.keys().next().value; // 最久未使用\n      this.map.delete(oldestKey);\n    }\n    this.map.set(key, value);\n  }\n}\n\n// 测试\nconst lru = new LRUCache(2);\nlru.put('a', 1);\nlru.put('b', 2);\nconsole.log(lru.get('a'));   // 1，a 被刷新为最近使用，b 变成最旧\nlru.put('c', 3);             // 容量 2 已满，淘汰 b\nconsole.log(lru.get('b'));   // -1，b 已被淘汰\nconsole.log(lru.get('a'));   // 1\nconsole.log(lru.get('c'));   // 3\nlru.put('d', 4);             // 淘汰当前最旧的 a\nconsole.log(lru.get('a'));   // -1\nconsole.log([...lru.map.keys()]); // [ 'c', 'd' ]"
+    },
+    "scoringPoints": [
+      { "point": "get/put 平均 O(1)，命中时正确刷新访问时序", "weight": 3 },
+      { "point": "容量满时准确淘汰最久未使用元素，边界（容量 1、更新已存在 key）处理正确", "weight": 3 },
+      { "point": "讲清哈希表+双向链表各自负责的能力与双向链表 O(1) 自删除的原因", "weight": 2 },
+      { "point": "说明 Map 插入序特性及 delete+set 刷新手法，代码可运行", "weight": 2 }
+    ],
+    "analysis": "LRU 是缓存章节最经典的手写题。常见失分：用数组实现导致 get/put 退化为 O(n)；只写哈希表不维护时序，淘汰策略无法实现；Map 实现忘记访问后 delete 再 set，顺序不刷新；容量判断放在更新已存在 key 的分支里导致误淘汰。能进一步对比 LFU、讲 Redis 的 LRU 近似采样实现（maxmemory-policy）是加分项。",
+    "gapCheck": [
+      "易漏点：put 已存在的 key 也算一次访问，必须刷新时序且不应触发淘汰",
+      "常见误区：以为 Map 会自动按访问排序——它只保证插入序，刷新要手动 delete+set",
+      "加分项：能讲 Redis 并未实现严格 LRU，而是采样少量 key 做近似 LRU 以省内存"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.consistency"],
+      "related": ["cs.algo.linear.hash-table"],
+      "followUps": [
+        "如果要求线程安全，这个实现要在哪里加锁？高并发下有什么更好的结构？",
+        "LFU 需要额外维护什么统计信息？为什么纯 LRU 会被扫描流量污染？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "LRU 缓存手写代码题" },
+    "tags": ["手写题", "LRU", "Map", "缓存淘汰"]
+  },
+  {
+    "id": "Q-cs-design-cache-0013",
+    "nodeId": "cs.design.cache.consistency",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "设计题：要为商品详情构建『应用本地缓存（Caffeine）→ Redis 集群 → MySQL』的多级缓存。请回答：①多级缓存相比单级 Redis 的收益与新增问题；②三级数据的一致性方案（含本地缓存失效广播）；③一次读请求的完整命中/回源流程。",
+    "answer": {
+      "ref": "参考骨架：\n①收益：本地缓存是进程内访问、无网络开销，纳秒/微秒级，能挡住绝大部分热点读，显著降低 Redis 压力与网络带宽；Redis 承担跨实例共享的大容量缓存；MySQL 兜底持久数据。新增问题：三级数据一致性更复杂（本地缓存各实例独立、失效通知有延迟）；本地缓存受 JVM 堆内存限制、有 GC 压力；排障链路变长。\n②一致性方案：写操作仍走标准路径——先更新 MySQL 再删 Redis；删除后通过失效广播让所有应用实例清理本地缓存，广播手段可用 Redis Pub/Sub、MQ 广播主题或配置中心推送；对可靠性要求高的链路再叠加 binlog 订阅（canal）异步删 Redis 兜底；本地缓存设短 TTL 作为广播丢失时的最终收敛防线；接受秒级最终一致，强一致读可提供『旁路直查 DB』的兜底接口。\n③读流程：先查本地缓存，命中直接返回；未命中查 Redis，命中则回填本地缓存（注意容量上限与淘汰策略）后返回；Redis 也未命中则查 MySQL，值为空可按穿透方案处理（空值/布隆过滤器），非空则依次回填 Redis 与本地缓存；回源用 singleflight/互斥锁合并，防止同一 key 并发击穿；全程埋点命中率指标，分级监控。"
+    },
+    "scoringPoints": [
+      { "point": "收益讲清本地缓存的零网络开销与分层削峰，问题覆盖一致性、内存/GC、排障", "weight": 3 },
+      { "point": "一致性方案包含更新 DB→删 Redis→失效广播清本地缓存→TTL/binlog 兜底的完整链路", "weight": 3 },
+      { "point": "读流程三级回源顺序与回填正确，并提到 singleflight 防击穿", "weight": 2 },
+      { "point": "明确该架构是最终一致并指出强一致诉求的旁路方案", "weight": 2 }
+    ],
+    "analysis": "这题把缓存模式、三大问题、一致性串成体系。常见失分：只答『一层层查』没有失效广播设计，本地缓存脏数据问题无解；忽视本地缓存容量与 GC；把多级缓存说成强一致。高分回答会显式声明最终一致的边界、给出广播丢失的 TTL 兜底，并谈命中率监控与容量规划。",
+    "gapCheck": [
+      "易漏点：本地缓存实例间互相不可见，没有失效广播就会出现同商品在不同实例读到不同值",
+      "常见误区：给本地缓存设很长 TTL 又不做广播，把性能优化做成脏数据来源",
+      "加分项：能对比 Pub/Sub（不可靠但快）与 MQ（可靠但延迟略高）的选型，并提预热与热点主动下沉"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.consistency"],
+      "related": ["cs.design.cache.problems", "cs.design.cache.pattern"],
+      "followUps": [
+        "实例重启后本地缓存为空，冷启动风暴怎么防？",
+        "Pub/Sub 消息不可靠，工程上怎么保证失效通知最终送达？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "多级缓存设计简答题" },
+    "tags": ["多级缓存", "本地缓存", "一致性", "Caffeine"]
+  },
+  {
+    "id": "Q-cs-design-cache-0014",
+    "nodeId": "cs.design.cache.pattern",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：Cache-Aside 写路径的标准动作是先更新数据库再删除缓存（删除而非更新，可避免并发写回填出错位的旧值）；Read-Through 把未命中回源的职责收进缓存组件；Write-Behind 先写缓存即返回、后台异步刷库，存在数据丢失窗口；操作系统页缓存的 write-back 与 fsync 体现的正是同一种异步写回思想。",
+    "answer": { "judge": true },
+    "analysis": "正确，四个论断分别对应四种模式的核心特征。Cache-Aside 由业务编排、写时删缓存，删除是惰性重建，能避免两个并发写各自更新缓存导致更旧的值残留；Read-Through 下应用只调缓存接口，回源加载对应用透明；Write-Behind/Write-Back 异步刷库，刷库前宕机会丢已确认的写；操作系统 page cache 默认 write-back、靠 fsync 强制落盘，与缓存写回模式同构，也说明强一致写必须显式保证刷盘。",
+    "gapCheck": [
+      "易漏点：删缓存而非更新缓存，是为了避免并发写的回填顺序错乱",
+      "常见误区：把 Read-Through 与业务代码自己回源的 Cache-Aside 混为一谈",
+      "加分项：能联系 fsync/WAL 解释异步写回的持久性边界"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.cache.pattern"],
+      "related": ["cs.design.cache.consistency"],
+      "followUps": [
+        "删缓存失败时，binlog 订阅兜底链路怎么工作？",
+        "Write-Behind 要做到不丢数据需要哪些持久化保证？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "缓存写路径与模式判断题" },
+    "tags": ["Cache-Aside", "Read-Through", "Write-Behind", "判断"]
+  }
+]

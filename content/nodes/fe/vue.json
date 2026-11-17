@@ -2,7 +2,7 @@
   { "id": "fe.vue.reactivity", "title": "响应式原理", "level": 3, "domain": "fe", "stack": "vue", "topic": "reactivity", "mustMaster": true, "estMinutes": 60, "summary": "Proxy 懒代理、effect/dep 链路演进（3.4 数组 / 3.5 双链表）、computed 惰性缓存、ref 家族边界" },
 
   { "id": "fe.vue.reactivity.proxify", "title": "Proxy 拦截与懒代理（对比 defineProperty）", "level": 4, "domain": "fe", "stack": "vue", "topic": "reactivity",
-    "prerequisites": ["fe.vue.reactivity"],
+    "prerequisites": ["fe.vue.reactivity", "fe.js.oop.prototype", "fe.js.es6.modern"],
     "related": ["fe.vue.reactivity.effect-dep", "fe.vue.ecosystem.vue-vs-react"],
     "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
     "summary": "要能讲清 reactive 对 5 种 target 类型的处理、get/set/deleteProperty/has/ownKeys 各自收集或触发什么依赖、为什么是嵌套访问时才转代理的懒代理，以及 defineProperty 方案在 Vue2 中的具体痛点与 Proxy 自身的局限（toRaw 快照、markRaw、原始对象陷阱）" },
@@ -158,7 +158,7 @@
     "summary": "要能排出 setup→created→beforeMount→mounted 时序与 DOM 可见性、beforeUnmount/unmounted 拆分动机、updated 里改状态的递归守卫上限 100、3.5 onServerPrefetch/renderTracked 与 SSR 钩子、beforeDestroy 改名原因" },
 
   { "id": "fe.vue.lifecycle.keepalive", "title": "keep-alive：失活缓存、activated 与 include/max", "level": 4, "domain": "fe", "stack": "vue", "topic": "lifecycle",
-    "prerequisites": ["fe.vue.lifecycle", "fe.vue.runtime.builtin-components"],
+    "prerequisites": ["fe.vue.lifecycle", "fe.vue.runtime.builtin-components", "fe.js.es6.modern"],
     "related": ["fe.vue.perf.dom-reuse", "fe.vue.scheduler.watcher-flush"],
     "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
     "summary": "要能讲失活只移 DOM 不 unmount、组件实例与 effect 保留导致 watch 仍在跑、move vnode 保留位置、include/exclude 匹配 name 或组件对象、LRU max 驱逐、嵌套 keep-alive 与 deactivated 里状态续命、和自己缓存 DOM 的方案对比" },
@@ -186,7 +186,7 @@
   { "id": "fe.vue.router", "title": "Vue Router 路由体系", "level": 3, "domain": "fe", "stack": "vue", "topic": "router", "mustMaster": true, "estMinutes": 35, "summary": "history 抽象与 hash/history 模式、导航守卫全序、动态路由与权限、懒加载与滚动/过渡" },
 
   { "id": "fe.vue.router.history-mode", "title": "history 抽象层与 hash/history 模式", "level": 4, "domain": "fe", "stack": "vue", "topic": "router",
-    "prerequisites": ["fe.vue.router"],
+    "prerequisites": ["fe.vue.router", "fe.js.es6.modern"],
     "related": ["fe.vue.router.navigation-guard"],
     "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
     "summary": "要能讲 createWebHistory 基于 pushState/popstate + history.state 恢复滚动与 forward/back 检测、createHashHistory 兼容与 # 内 query 编码、memory history 测试用途、base 与前缀剥离、Electron file:// 下为何常用 hash" },

@@ -1,0 +1,250 @@
+[
+  {
+    "id": "Q-eng-fe-useeffect-0001",
+    "nodeId": "eng.warstory.fe.useeffect-loop",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "一个 React 组件在 useEffect 里请求列表并 setList，依赖数组写成 [list]；每次请求回来的 list 都是一个新建数组。最可能发生的现象是：",
+    "options": [
+      { "key": "A", "text": "组件渲染一次后正常停止，无任何异常" },
+      { "key": "B", "text": "陷入「渲染 → effect 执行 → setList → 再渲染」的无限循环，接口被反复调用" },
+      { "key": "C", "text": "只会报内存泄漏警告，但不会重复请求" },
+      { "key": "D", "text": "React 自动做深比较，检测到内容相同就跳过更新" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确。useEffect 的依赖用 Object.is 做浅比较，请求回来的 list 每次都是新数组引用，即使内容一样引用也不同 → effect 依赖变化重新执行 → 再次 setList 产生新引用 → 再渲染，形成死循环，网络面板里能看到同一接口被无限调用，这是 Stack Overflow 上 React Hooks 类问题常年榜首。A 错，依赖每次都变不会停。C 错，泄漏警告是卸载后 setState 的另一类问题，与本题的循环根因不同。D 错，React 默认只做浅比较、不做深比较，对象/数组不会按内容判等。根治手段：① 不要把自己 effect 里 setState 的对象放进依赖，依赖应是触发请求的入参（如 id、筛选条件）；② 入参对象用 useMemo、回调 useCallback 稳定引用；③ 用函数式更新 setList(prev => ...) 避免依赖外部 list；④ 数据在 effect 外归一化或用 useReducer 收敛。",
+    "gapCheck": [
+      "易漏点：依赖比较是 Object.is 浅比较，[] !== []、{} !== {}，引用每次新建必然触发",
+      "常见误区：以为 React 会深比较内容，或把 effect 自己 setState 的 state 塞进依赖却不理解循环机理",
+      "加分项：能区分无限循环与卸载后 setState 泄漏两类报错，并给出 useMemo/useCallback/函数式更新/AbortController 的组合解法"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.fe.useeffect-loop"],
+      "related": ["eng.warstory.fe.memory-leak"],
+      "followUps": ["如果依赖项必须是一个对象，如何在不改变业务的前提下稳定它的引用？", "effect 里的异步请求在组件卸载时返回，会发生什么？怎么用 AbortController 处理？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://stackoverflow.com/questions/53070970/infinite-loop-in-useeffect", "retrievedAt": "2026-11-12", "note": "Stack Overflow 高票问题：useEffect 处理对象 state 时陷入无限循环" },
+    "tags": ["工程战例", "React Hooks", "useEffect", "无限循环", "高频踩坑"]
+  },
+  {
+    "id": "Q-eng-fe-useeffect-0002",
+    "nodeId": "eng.warstory.fe.useeffect-loop",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "线上反馈某列表页打开后后端 QPS 异常飙升、浏览器标签页内存持续上涨。排查发现该页有个 useEffect(() => { fetchData().then(setData) }, [filters])，filters 是每次渲染内联生成的对象。请说明定位思路，并给出至少三种让 effect 按需触发、不再死循环的修复方案。",
+    "answer": {
+      "ref": "定位：① Network 面板看同一接口是否被周期性/无限重复请求；② 在 effect 内打日志确认渲染-执行频率；③ 检查依赖数组里是否有每次渲染新建的对象/数组/函数引用。根因是内联 filters 引用每次渲染都变，Object.is 比较不等导致 effect 反复执行。修复（任三）：1) 把 filters 拆成原始类型字段（id、keyword 等）放进依赖，避免直接依赖对象；2) 用 useMemo 缓存 filters、useCallback 稳定请求函数；3) 改用 useReducer 或把请求入参提升到 state，effect 只依赖稳定的 dispatch/基础类型；4) 用 React Query/SWR 等数据请求库托管，由 queryKey 做结构化缓存去重；5) 加请求竞态保护（AbortController/请求序号），避免慢响应覆盖新数据。同时卸载时 abort 防止泄漏。"
+    },
+    "scoringPoints": [
+      { "point": "定位思路正确：Network 看重复请求 + effect 日志 + 识别依赖引用每次新建", "weight": 3 },
+      { "point": "讲清根因：Object.is 浅比较下内联对象引用必变，触发 render-effect 循环", "weight": 2 },
+      { "point": "给出至少三种可行修复（拆原始类型依赖/useMemo+useCallback/useReducer/请求库/竞态保护）", "weight": 3 },
+      { "point": "补充卸载 abort 或请求竞态等工程化细节", "weight": 1 }
+    ],
+    "analysis": "这是把『无限循环』放到真实线上语境的考法：表象是后端 QPS 飙升和内存上涨，根因仍是依赖引用不稳定。高分回答要先讲可复现的定位路径（Network/日志/依赖审查），再分层给方案——最低成本是拆原始类型依赖，系统性方案是引入请求库做缓存与去重。能主动提到竞态（旧请求后返回覆盖新结果）和卸载泄漏，说明有真实项目经验。",
+    "gapCheck": [
+      "易漏点：只说『依赖写错了』却讲不出 Object.is 浅比较和引用变化这个机理",
+      "常见误区：修复只会背『加空依赖数组』，但空数组会导致 filters 变化时不刷新，属于按下葫芦浮起瓢",
+      "加分项：引入 React Query/SWR 的 queryKey 去重、请求竞态与 abort，体现工程体系化"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.fe.useeffect-loop"],
+      "related": ["eng.warstory.fe.memory-leak"],
+      "followUps": ["空依赖 [] 在什么场景下是正确的，什么场景下会制造陈旧数据 bug？", "如何用 AbortController 取消上一次请求？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://dmitripavlutin.com/react-useeffect-infinite-loop/", "retrievedAt": "2026-11-12", "note": "专门总结 useEffect 无限循环成因与依赖管理修复" },
+    "tags": ["工程战例", "React Hooks", "线上排障", "依赖治理"]
+  },
+  {
+    "id": "Q-eng-fe-leak-0001",
+    "nodeId": "eng.warstory.fe.memory-leak",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "下列哪些是单页应用中真实存在、会导致内存只涨不跌的泄漏场景？（多选）",
+    "options": [
+      { "key": "A", "text": "组件 mounted 时 setInterval 轮询，但 unmount 时没有 clearInterval，定时器回调闭包一直持有组件作用域" },
+      { "key": "B", "text": "在 window/document 上 addEventListener 注册全局监听，组件销毁时未 removeEventListener" },
+      { "key": "C", "text": "把 DOM 节点存进一个全局 Map/数组做缓存，路由切走后节点变成 Detached DOM 仍被引用无法回收" },
+      { "key": "D", "text": "组件内用 const 声明一个普通局部变量，组件卸载后变量自然超出作用域" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 都是典型泄漏：定时器不清理，其回调闭包持续引用组件 state/ props，整条作用域链无法回收；全局事件监听不解绑，监听函数闭包与它引用的 DOM/组件常驻；被全局容器引用的 DOM 即使脱离文档树也成了 Detached DOM，GC 无法回收，反复进出页面越积越多，表现为页面越来越卡、快照里 Detached 节点数持续增长。D 不是泄漏：普通局部变量没有被更长生命周期的对象引用，组件卸载、作用域结束后即可被垃圾回收。通用解法是在 useEffect 的清理函数（return 里）配对 clearInterval/removeEventListener/abort，全局缓存要设计过期与手动删除。",
+    "gapCheck": [
+      "易漏点：泄漏的本质是『短生命周期对象被长生命周期对象引用』，定时器/全局监听/全局缓存正是长生命周期持有者",
+      "常见误区：以为组件卸载就万事大吉，忘了手动注册的副作用不会自动回收",
+      "加分项：能讲用 Chrome Memory 面板拍 Heap snapshot、对比 Detached DOM 和 Retainers 引用链定位真凶"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.fe.memory-leak"],
+      "related": ["eng.warstory.fe.useeffect-loop", "fe.js.scope.closure"],
+      "followUps": ["如何用 Chrome DevTools 的 Memory 快照确认 Detached DOM 的引用链？", "useEffect 的 return 清理函数和组件生命周期怎么对应？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "web", "url": "https://www.cnblogs.com/keepsmart/p/19229280", "retrievedAt": "2026-11-12", "note": "前端内存泄漏场景与排查（定时器/闭包/监听）" },
+    "tags": ["工程战例", "内存泄漏", "定时器", "Detached DOM", "性能排查"]
+  },
+  {
+    "id": "Q-eng-fe-leak-0002",
+    "nodeId": "eng.warstory.fe.memory-leak",
+    "type": "code",
+    "difficulty": 3,
+    "stem": "手写题：下面组件在挂载时启动 1 秒轮询拉取状态，并注册了一个 window 的 resize 监听。请写出正确的 React useEffect，要求组件卸载时彻底清理定时器与监听、取消未完成的请求，避免内存泄漏（可以用 AbortController）。",
+    "answer": {
+      "ref": "设计要点：useEffect 内创建 AbortController；定义可复用的拉取函数并把 signal 传入 fetch；用 setInterval 周期调用并立即调用一次；window.addEventListener 与 removeEventListener 必须是同一个函数引用；清理函数 return 中依次 abort()、clearInterval()、removeEventListener()。依赖数组为空表示仅挂载/卸载各一次，拉取函数定义在 effect 内部所以不进依赖。",
+      "code": "useEffect(() => {\n  const controller = new AbortController()\n  const signal = controller.signal\n\n  const fetchStatus = async () => {\n    try {\n      const res = await fetch('/api/status', { signal })\n      const data = await res.json()\n      setStatus(data) // 卸载后 abort 会让 fetch reject，不会走到这里 setState\n    } catch (e) {\n      if (e.name !== 'AbortError') console.error(e)\n    }\n  }\n\n  const onResize = () => setWidth(window.innerWidth)\n\n  fetchStatus()\n  const timer = setInterval(fetchStatus, 1000)\n  window.addEventListener('resize', onResize)\n\n  return () => {              // 卸载清理：三件套配对\n    controller.abort()        // 取消在途请求，阻止卸载后 setState\n    clearInterval(timer)      // 停掉轮询，释放回调闭包\n    window.removeEventListener('resize', onResize) // 同一引用解绑\n  }\n}, [])"
+    },
+    "scoringPoints": [
+      { "point": "return 清理函数里 clearInterval 且 interval id 被正确保存", "weight": 2 },
+      { "point": "add/removeEventListener 使用同一个函数引用 onResize", "weight": 2 },
+      { "point": "AbortController 取消在途请求并在 catch 里识别 AbortError", "weight": 3 },
+      { "point": "空依赖、拉取函数内聚在 effect 内，避免依赖遗漏与陈旧闭包", "weight": 1 },
+      { "point": "口述为何这样能断掉 Retainers 引用链、让组件可被 GC", "weight": 1 }
+    ],
+    "analysis": "评分关键是『成对清理』和『同一引用』：removeEventListener 只有传进和注册时完全相同的函数引用才有效，匿名函数永远解不掉；AbortController 是现代前端取消 fetch 的标准做法，abort 后 fetch 以 AbortError reject，卸载后的 setState 不会执行，顺带消除竞态。能讲清清理函数本质是把短生命周期组件从定时器、window、在途请求这些长生命周期持有者上摘下来，就理解了泄漏治理的核心。",
+    "gapCheck": [
+      "易漏点：removeEventListener 必须复用同一函数引用，写成匿名箭头函数等于没解绑",
+      "常见误区：只 clearInterval 却忽略在途 Promise，卸载后 resolve 仍 setState",
+      "加分项：主动用 AbortController 并区分 AbortError 与真实异常，兼顾竞态安全"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.fe.memory-leak"],
+      "related": ["eng.warstory.fe.useeffect-loop", "fe.js.dom.event"],
+      "followUps": ["如果轮询改成 setTimeout 递归，清理逻辑要怎么变？", "AbortController 除了 fetch 还能配合哪些可取消 API？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "定时器+全局监听+在途请求三件套清理的手写综合题" },
+    "tags": ["工程战例", "内存泄漏", "useEffect清理", "AbortController", "手写题"]
+  },
+  {
+    "id": "Q-eng-fe-cors-0001",
+    "nodeId": "eng.warstory.fe.cors-preflight",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "前端用 fetch 发一个 POST，Content-Type 为 application/json 且带自定义头 X-Token，浏览器控制台报 CORS 错误。依据 MDN 规范，下列描述正确的是：",
+    "options": [
+      { "key": "A", "text": "浏览器只发一次 POST，是服务器把请求拦截了" },
+      { "key": "B", "text": "浏览器会先发一个 OPTIONS 预检请求，服务器未正确返回 Access-Control-Allow-* 头，真正的 POST 根本不会发出" },
+      { "key": "C", "text": "只要后端设置 Access-Control-Allow-Origin: * 就能同时满足带 Cookie 凭证的请求" },
+      { "key": "D", "text": "CORS 是后端限制浏览器的机制，和同源策略无关" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确。application/json 不属于简单请求允许的三种 Content-Type（text/plain、multipart/form-data、application/x-www-form-urlencoded），又带自定义头 X-Token，属于『需预检的请求』，浏览器先发 OPTIONS 询问服务器是否允许，预检不过则真实请求不会发出，JS 层只能看到一个模糊的 CORS 错误。A 错，多了一次 OPTIONS。C 错，带凭证（credentials:include）时服务器不能用通配符 *，必须回具体 Origin，且要带 Access-Control-Allow-Credentials:true。D 错，CORS 恰恰是对浏览器同源策略的『有控制地放宽』，本质是浏览器侧的安全机制，服务器只是用响应头表态。",
+    "gapCheck": [
+      "易漏点：简单请求的三个条件（方法、安全头、Content-Type 白名单），JSON+自定义头必然触发预检",
+      "常见误区：以为带 Cookie 时 Allow-Origin 可以写 *，实际上通配符在凭证场景直接失败",
+      "加分项：能讲 Access-Control-Max-Age 缓存预检、OPTIONS 被鉴权中间件拦截/重定向导致预检失败的坑"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.fe.cors-preflight"],
+      "related": ["cs.net.http"],
+      "followUps": ["如何让需要鉴权的 OPTIONS 预检请求不被登录拦截器挡掉？", "开发环境用 Vite/Nginx 反向代理规避 CORS 的原理是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS", "retrievedAt": "2026-11-12", "note": "MDN 跨源资源共享：简单请求/预检请求/凭证与通配符约束" },
+    "tags": ["工程战例", "CORS", "预检请求", "HTTP", "高频踩坑"]
+  },
+  {
+    "id": "Q-eng-fe-cors-0002",
+    "nodeId": "eng.warstory.fe.cors-preflight",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：本地开发时在 Vite/打包工具里配置 dev server 代理（把 /api 转发到后端真实地址）可以绕过浏览器 CORS 限制，因为浏览器看到的请求始终是发给同源的 dev server，跨域发生在服务器到服务器之间，而服务器之间不受同源策略约束。",
+    "answer": { "judge": true },
+    "analysis": "正确。同源策略只约束浏览器内脚本发起的请求，服务器端转发没有这个限制。dev proxy 的本质是让浏览器只与同源的前端 dev server 通信（如 localhost:5173/api/...），再由 dev server 在服务端把请求代理转发到真实后端，浏览器视角全程同源，自然不触发 CORS 预检与拦截。生产环境则通常由 Nginx/网关做同样的反向代理，或后端直接正确配置 Access-Control-Allow-Origin。要注意这只是开发期的便利方案，并未改变后端本身的跨域配置；若前端直连跨域后端且带凭证，仍需后端按 MDN 规范回具体 Origin 与 Allow-Credentials。",
+    "gapCheck": [
+      "易漏点：同源策略的作用域是浏览器，server-to-server 转发根本不走浏览器安全模型",
+      "常见误区：以为代理是『关闭了 CORS』，其实是改变了请求拓扑让浏览器看不到跨域",
+      "加分项：能区分开发代理与生产 Nginx/网关方案，并指出凭证场景的具体 Origin 要求"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.fe.cors-preflight"],
+      "related": ["cs.net.http"],
+      "followUps": ["生产环境不用 dev server，跨域该在哪一层统一治理？", "WebSocket 为什么不受 HTTP CORS 预检机制约束，它靠什么校验来源？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS", "retrievedAt": "2026-11-12", "note": "MDN CORS 同源策略边界，结合前端工程 dev proxy 实践命题" },
+    "tags": ["工程战例", "CORS", "反向代理", "开发环境", "判断题"]
+  },
+  {
+    "id": "Q-eng-fe-useeffect-0003",
+    "nodeId": "eng.warstory.fe.useeffect-loop",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：在 useEffect 里请求数据后直接 setData(await res.json())，只要把 effect 的依赖数组写成空数组 []，就一定能彻底避免无限请求循环，无需关心 setData 收到的引用是否稳定。",
+    "answer": { "judge": false },
+    "analysis": "错误。空依赖只解决了『因依赖变化反复触发 effect』这一条路径，并不能覆盖所有死循环来源，更不意味着可以忽略引用稳定性。常见反例：① effect 内部调用的函数/对象其实依赖 props 或 state，空依赖会拿到陈旧闭包（stale closure），数据看似不循环但结果是错的，这是用 ESLint exhaustive-deps 会直接告警的写法；② 循环并非都发生在 effect 依赖上——若在渲染体（render body）里直接 setState、或在 useMemo/useCallback 依赖中放入每次渲染都新建的对象/数组/内联函数，引用每次都变，仍会触发 render→memo 重算→setState 的连锁更新；③ 即使 effect 只跑一次，若它内部订阅了某个会持续回调并 setState 的源而没有清理，一样会反复更新。正解是：依赖要真实完整、把对象/数组用 useMemo、函数用 useCallback 稳定引用，更新用函数式 setData(prev=>...) 避免把外层对象塞进依赖，列表数据做归一化，并对在途请求用 AbortController 清理。空依赖是结果不是手段，靠『藏依赖』躲循环属于掩盖问题。",
+    "gapCheck": [
+      "易漏点：空依赖会带来陈旧闭包，ESLint exhaustive-deps 会告警，不能当作万能解法",
+      "常见误区：以为循环只来自 effect 依赖，忽视渲染体 setState 与不稳定的 useMemo/useCallback 依赖",
+      "加分项：能给出函数式更新、引用稳定化、数据归一化、AbortController 清理的组合解法"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.fe.useeffect-loop"],
+      "related": ["eng.warstory.fe.memory-leak"],
+      "followUps": ["useEffect 空依赖与陈旧闭包的关系是什么？如何用 ref 保存最新值又不触发重渲染？", "函数式更新 setX(prev=>...) 为什么能减少对外部变量的依赖？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "针对『空依赖万能论』误区的 React Hooks 死循环辨析题" },
+    "tags": ["工程战例", "useEffect", "无限循环", "陈旧闭包", "判断"]
+  },
+  {
+    "id": "Q-eng-fe-leak-0003",
+    "nodeId": "eng.warstory.fe.memory-leak",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：排查单页应用内存泄漏时，Chrome DevTools 的 Memory 面板通过拍摄 ______（堆快照），对比多次快照中持续增长、本应被回收的 ______（脱离文档的 DOM 节点）来定位泄漏链；组件卸载时应在 useEffect 返回的 ______ 中清理定时器与事件监听，对在途 fetch 则用 ______ 主动取消。",
+    "answer": {
+      "blanks": ["Heap snapshot", "Detached DOM", "清理函数", "AbortController"],
+      "synonyms": {
+        "Heap snapshot": ["heap snapshot", "堆快照", "Heap Snapshot", "堆内存快照"],
+        "Detached DOM": ["detached dom", "Detached DOM tree", "分离DOM", "脱离文档的DOM", "游离DOM"],
+        "清理函数": ["cleanup", "cleanup函数", "清除函数", "清理回调", "return清理函数"],
+        "AbortController": ["abortcontroller", "AbortController.abort()", "abort", "AbortSignal"]
+      }
+    },
+    "analysis": "① Memory 面板的 Heap snapshot（堆快照）记录某一时刻所有可达对象，标准手法是操作前拍一张、复现操作后拍一张、再手动 GC 后拍第三张，用 Comparison 视图对比哪些对象只增不减。② Detached DOM（分离/游离 DOM）是前端泄漏最典型的信号：节点已从文档移除，却仍被 JS 引用（定时器回调、全局监听、闭包、全局缓存）持有而无法回收，快照里按 Detached 分类即可顺 Retainers 引用链找到持有者。③ useEffect 的返回值即清理函数（cleanup），组件卸载或依赖变更前执行，clearInterval/clearTimeout、removeEventListener 都应放这里，且 removeEventListener 必须复用注册时的同一函数引用。④ 在途 fetch/xhr 无法靠 removeEventListener 取消，现代标准是 AbortController：effect 里 new 一个控制器并把 signal 传给 fetch，清理函数中调用 controller.abort()，请求以 AbortError reject，从而避免卸载后 setState 与闭包残留。把这四步串起来，就是『快照对比定位 → 清理函数摘除短生命周期组件 → AbortController 断在途请求』的完整治理闭环。",
+    "gapCheck": [
+      "易漏点：要拍多张快照并配合手动 GC、用 Comparison 对比，单张快照看不出增长趋势",
+      "常见误区：只知道 Detached DOM 现象，讲不出沿 Retainers 引用链定位持有者；removeEventListener 用了不同引用",
+      "加分项：主动提 AbortController/AbortSignal 取消在途请求并识别 AbortError，兼顾竞态"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.fe.memory-leak"],
+      "related": ["eng.warstory.fe.useeffect-loop", "fe.js.dom.event"],
+      "followUps": ["WeakMap/WeakSet 为什么能在某些缓存场景下辅助避免内存泄漏？", "如何用 Performance 面板的内存曲线与 Allocation instrumentation 时间线配合堆快照定位？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://developer.chrome.com/docs/devtools/memory-guide/", "retrievedAt": "2026-11-12", "note": "Chrome DevTools 内存排查：堆快照、Detached DOM 与泄漏定位" },
+    "tags": ["工程战例", "内存泄漏", "DevTools", "Detached DOM", "填空"]
+  },
+  {
+    "id": "Q-eng-fe-cors-0003",
+    "nodeId": "eng.warstory.fe.cors-preflight",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "团队治理跨域与预检请求，下列关于 CORS 机制与工程实践的说法，正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "满足『简单请求』条件（方法为 GET/HEAD/POST、仅含安全头、Content-Type 属白名单）时浏览器不发 OPTIONS 预检，直接发真实请求" },
+      { "key": "B", "text": "带 Cookie 的凭证请求（credentials:include）中，Access-Control-Allow-Origin 不能用 *，必须回显具体 Origin，且需 Allow-Credentials:true" },
+      { "key": "C", "text": "Access-Control-Max-Age 可让浏览器缓存预检结果，在有效期内对同类请求不再重复发 OPTIONS，降低延迟" },
+      { "key": "D", "text": "OPTIONS 预检请求若被后端鉴权/登录拦截器拦下返回 401 或 302 重定向，会导致预检失败、真实请求发不出去，应让预检路径放行" }
+    ],
+    "answer": { "keys": ["A", "B", "C", "D"] },
+    "analysis": "四项全部正确，系统覆盖 CORS 的判定边界与高频坑。A 是简单请求与预检请求的分界：方法限 GET/HEAD/POST，自定义头受限，Content-Type 只能是 text/plain、multipart/form-data、application/x-www-form-urlencoded，命中即不预检；application/json 或带自定义头就升级为『需预检』，先发 OPTIONS。B 是凭证场景的硬约束：通配符 * 在 credentials 模式下被规范直接拒绝，服务器必须读取并回显请求的具体 Origin，同时显式返回 Access-Control-Allow-Credentials:true。C 是性能优化：预检结果可被 Access-Control-Max-Age 缓存（秒），缓存期内同源同条件请求复用授权结论、省去 OPTIONS 往返，但要留意各浏览器对最大缓存时长有上限。D 是线上最隐蔽的坑：OPTIONS 请求同样会经过鉴权中间件，若被登录拦截器判为未登录而 401 或 302 跳登录页，浏览器拿不到合法的 Allow-* 头即判定预检失败，真实请求被掐断；治理上应在网关/框架层对 OPTIONS 直接放行并统一回 CORS 头，或用反向代理让浏览器视角同源。",
+    "gapCheck": [
+      "易漏点：简单请求的三个白名单条件，以及 application/json 必然触发预检",
+      "常见误区：凭证场景误用 Allow-Origin:*；忽略 OPTIONS 也会被鉴权拦截器挡住",
+      "加分项：能用 Max-Age 缓存预检、网关层统一放行 OPTIONS、反向代理同源化做体系化治理"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["eng.warstory.fe.cors-preflight"],
+      "related": ["cs.net.http"],
+      "followUps": ["如何在 Spring/Nginx 网关层统一处理 OPTIONS 放行与 CORS 头注入？", "WebSocket 连接为何不走 HTTP 预检，它用哪个头做来源校验？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "official", "url": "https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS", "retrievedAt": "2026-11-12", "note": "MDN CORS：简单请求、凭证通配符限制、预检缓存与拦截器坑综合题" },
+    "tags": ["工程战例", "CORS", "预检请求", "凭证", "多选"]
+  }
+]

@@ -1,0 +1,53 @@
+[
+  { "id": "fe.css.foundation", "title": "选择器、层叠与继承", "level": 3, "domain": "fe", "stack": "css", "topic": "foundation", "mustMaster": true, "estMinutes": 35,
+    "summary": "常用选择器、优先级计算、层叠规则、继承属性与非继承属性、!important 与样式来源" },
+
+  { "id": "fe.css.foundation.selector-cascade", "title": "选择器、优先级与层叠继承", "level": 4, "domain": "fe", "stack": "css", "topic": "foundation",
+    "prerequisites": ["fe.html.foundation.semantic-tags"],
+    "related": ["fe.html.foundation.semantic-tags"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲标签/类/id/后代/伪类等选择器、优先级（行内>id>类/伪类/属性>标签）的计算与比较、同优先级后写覆盖、哪些属性默认继承（color/font）哪些不继承（盒模型）、!important 的作用与慎用。CSS 选择器作用在 HTML 元素上，因此前置 HTML 语义标签" },
+
+  { "id": "fe.css.box", "title": "盒模型与可视化格式", "level": 3, "domain": "fe", "stack": "css", "topic": "box", "mustMaster": true, "estMinutes": 40,
+    "summary": "content/padding/border/margin、标准盒模型与 IE 盒模型、box-sizing、BFC、外边距折叠" },
+
+  { "id": "fe.css.box.box-model", "title": "盒模型与 box-sizing", "level": 4, "domain": "fe", "stack": "css", "topic": "box",
+    "prerequisites": ["fe.css.foundation.selector-cascade"],
+    "related": ["fe.html.foundation.block-inline"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能画出 content-padding-border-margin 四层、区分标准盒模型（width 只含 content）与 IE/怪异盒模型（width 含 padding+border）、讲清 box-sizing:content-box/border-box 的区别与工程上为何常用 border-box" },
+
+  { "id": "fe.css.box.bfc", "title": "BFC、外边距折叠与清除浮动", "level": 4, "domain": "fe", "stack": "css", "topic": "box",
+    "prerequisites": ["fe.css.box.box-model"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 BFC（块级格式化上下文）是什么、哪些条件触发 BFC（overflow 非 visible、float、绝对定位、display:flow-root 等）、BFC 如何解决父子 margin 穿透/浮动高度塌陷/文字环绕，以及 margin 上下折叠的规则（三场景与取 max）；并掌握现代间距方案选型——兄弟间距优先 flex/grid 的 gap（不进折叠逻辑）、父子隔离用 display:flow-root、了解 margin-trim 因 Firefox 不支持尚非通用方案" },
+
+  { "id": "fe.css.layout", "title": "布局与定位", "level": 3, "domain": "fe", "stack": "css", "topic": "layout", "mustMaster": true, "estMinutes": 50,
+    "summary": "Flex 弹性布局、Grid 网格、position 定位、水平垂直居中、层叠上下文" },
+
+  { "id": "fe.css.layout.flex", "title": "Flex 弹性布局与常用居中方案", "level": 4, "domain": "fe", "stack": "css", "topic": "layout",
+    "prerequisites": ["fe.css.box.box-model"],
+    "related": ["fe.css.layout.position"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲容器（flex-direction/justify-content/align-items/flex-wrap）与项目（flex-grow/shrink/basis/align-self）属性、主轴交叉轴、flex:1 的含义、用 flex 做水平垂直居中，以及 flex:1 与固定宽度混排的坑" },
+
+  { "id": "fe.css.layout.position", "title": "position 定位与层叠上下文", "level": 4, "domain": "fe", "stack": "css", "topic": "layout",
+    "prerequisites": ["fe.css.box.box-model"],
+    "related": ["fe.css.layout.flex"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能区分 static/relative/absolute/fixed/sticky 的参照物与是否脱标、absolute 相对最近的非 static 祖先、z-index 为何有时不生效（层叠上下文 stacking context 的触发条件）、sticky 吸顶原理" },
+
+  { "id": "fe.css.layout.grid", "title": "Grid 网格布局", "level": 4, "domain": "fe", "stack": "css", "topic": "layout",
+    "prerequisites": ["fe.css.layout.flex"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲 grid-template-columns/rows、fr 单位与 repeat、gap、grid-area 区域命名、justify/align 对齐，以及 Grid 适合二维整体布局而 Flex 适合一维线性布局的选型差异" },
+
+  { "id": "fe.css.responsive", "title": "响应式与移动端适配", "level": 3, "domain": "fe", "stack": "css", "topic": "responsive", "mustMaster": false, "estMinutes": 30,
+    "summary": "媒体查询、rem/em/vw/vh、视口 meta、移动端 1px 与适配方案" },
+
+  { "id": "fe.css.responsive.media-query", "title": "媒体查询、rem/vw 与移动端适配", "level": 4, "domain": "fe", "stack": "css", "topic": "responsive",
+    "prerequisites": ["fe.css.layout.flex"],
+    "related": ["fe.html.foundation.semantic-tags"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 @media 断点写法、em/rem（相对字号/根字号）与 vw/vh（视口百分比）的区别、viewport meta 的 width/initial-scale、移动端 rem 适配（动态 html font-size）与 vw 方案、物理像素/CSS 像素与 devicePixelRatio" }
+]

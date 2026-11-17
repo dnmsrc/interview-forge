@@ -6,25 +6,71 @@
     "difficulty": 1,
     "stem": "面试官问『Pinia 凭什么取代 Vuex 成为官方状态库』，下列哪一条**不是**真实原因：",
     "options": [
-      { "key": "A", "text": "去掉 mutation 双轨制：action 可直接 await 且能改 state，异步编排不再 action 里 commit 的仪式性代码" },
-      { "key": "B", "text": "模块化天然化：每个 store 就是独立模块，没有 Vuex 的 namespaced 样板与全局字符串 id 派发" },
-      { "key": "C", "text": "Pinia 自研了一套独立于 Vue 响应式系统的 signal 内核，所以大列表比 Vuex 快一个数量级" },
-      { "key": "D", "text": "TS 是一等公民：类型由 store 定义直接推断，不需要 Vuex 的 InjectionKey/手写增强声明" }]
-    ,
-    "answer": { "keys": ["C"] },
-    "analysis": "C 是编造的：Pinia 的 store 本质就是 **reactive(mergeReactiveObjects(...))** + ref 自动解包，完全骑在 Vue 自带响应式上（这也是它 devtools 集成的便利来源），并无独立 signal 内核，性能差距主要来自 Vuex 深层遍历与订阅开销而非范式代差。A/B/D 全部出自 Pinia 官方『为什么选 Pinia』清单（另有体积 <1kb、Composition API 风格 store、插件体系）。",
-    "gapCheck": ["易漏点：还有一条常被忘——组合式 API 落地后 Vuex 的『逻辑复用靠 mapActions 助手』价值消失，store 本身就是 composable", "常见误区：把 Pinia 说成『更快所以赢』，核心其实是 DX/TS/心智模型；性能只是附带", "追问延伸：Vuex4 官方状态是 maintenance mode，迁移策略怎么给老项目排期？"],
-    "knowledgeLinks": {
-      "prereq": ["fe.vue.state.pinia-vs-vuex"],
-      "related": ["fe.vue.state.pinia-internals", "fe.vue.composition.composable-design"],
-      "followUps": ["mutation 被砍的官方推理是什么？（devtools 记录 action 级已够用+异步场景 mutation 反而碍事）", "Pinia 的 time-travel 没有 mutation 怎么做？（$patch 显式批量+action 元数据）", "namespaced module 的嵌套在 Pinia 里怎么表达？（store 套 store/组合）"]
+      {
+        "key": "A",
+        "text": "去掉 mutation 双轨制：action 可直接 await 且能改 state，异步编排不再 action 里 commit 的仪式性代码"
+      },
+      {
+        "key": "B",
+        "text": "模块化天然化：每个 store 就是独立模块，没有 Vuex 的 namespaced 样板与全局字符串 id 派发"
+      },
+      {
+        "key": "C",
+        "text": "Pinia 自研了一套独立于 Vue 响应式系统的 signal 内核，所以大列表比 Vuex 快一个数量级"
+      },
+      {
+        "key": "D",
+        "text": "TS 是一等公民：类型由 store 定义直接推断，不需要 Vuex 的 InjectionKey/手写增强声明"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "C"
+      ]
     },
-    "resources": [{ "title": "Pinia 官方·为什么选择 Pinia", "digest": "官方列举：更直观 API（去 mutation）、更好的 TS 支持、模块化无嵌套、订阅/插件、Devtools 兼容、轻量 1kb；并说明 Composition Store 风格。" }],
+    "analysis": "C 是编造的：Pinia 的 store 本质就是 **reactive(mergeReactiveObjects(...))** + ref 自动解包，完全骑在 Vue 自带响应式上（这也是它 devtools 集成的便利来源），并无独立 signal 内核，性能差距主要来自 Vuex 深层遍历与订阅开销而非范式代差。A/B/D 全部出自 Pinia 官方『为什么选 Pinia』清单（另有体积 <1kb、Composition API 风格 store、插件体系）。",
+    "gapCheck": [
+      "易漏点：还有一条常被忘——组合式 API 落地后 Vuex 的『逻辑复用靠 mapActions 助手』价值消失，store 本身就是 composable",
+      "常见误区：把 Pinia 说成『更快所以赢』，核心其实是 DX/TS/心智模型；性能只是附带",
+      "追问延伸：Vuex4 官方状态是 maintenance mode，迁移策略怎么给老项目排期？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.state.pinia-vs-vuex"
+      ],
+      "related": [
+        "fe.vue.state.pinia-internals",
+        "fe.vue.composition.composable-design"
+      ],
+      "followUps": [
+        "mutation 被砍的官方推理是什么？（devtools 记录 action 级已够用+异步场景 mutation 反而碍事）",
+        "Pinia 的 time-travel 没有 mutation 怎么做？（$patch 显式批量+action 元数据）",
+        "namespaced module 的嵌套在 Pinia 里怎么表达？（store 套 store/组合）"
+      ]
+    },
+    "resources": [
+      {
+        "title": "Pinia 官方·为什么选择 Pinia",
+        "digest": "官方列举：更直观 API（去 mutation）、更好的 TS 支持、模块化无嵌套、订阅/插件、Devtools 兼容、轻量 1kb；并说明 Composition Store 风格。"
+      }
+    ],
     "openBookAllowed": false,
-    "source": { "kind": "official", "url": "https://pinia.vuejs.org/core-concepts/", "retrievedAt": "2026-11-09", "note": "pinia.vuejs.org『Why Pinia』章节（Vue 官方 docs 站点）" },
-    "tags": ["必考", "选型动机"],
+    "source": {
+      "kind": "official",
+      "url": "https://pinia.vuejs.org/core-concepts/",
+      "retrievedAt": "2026-11-09",
+      "note": "pinia.vuejs.org『Why Pinia』章节（Vue 官方 docs 站点）"
+    },
+    "tags": [
+      "必考",
+      "选型动机"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "反向辩护题：团队里有人坚持『mutation 才是资产——变更可追溯、新人能看懂、中间件挂点统一』。请给出 Pinia 阵营对这三点逐条的等价物回应，并承认一条 mutation 文化确实更占优的场景。", "analysis": "逐条回应：①可追溯——Pinia 每次 action 自动进 devtools timeline 且可 $subscribe/$onAction 审计，粒度从『每条 mutation』升到『业务动作』更符合排障直觉；②新人可读——action 里直接 state.x=1 需配 lint（如禁在组件内直改 store 属性）替代语法约束；③中间件——插件的 afterQueue/onAction 覆盖 same 挂点。诚实占优场景：金融级需要『每个字段变更都留痕回放』的合规审计流，mutation 的强制漏斗确实比约定更强。加分：提到 Pinia 也有 strict 模式思路与 $subscribe 的 patch 级 payload。" }
+      {
+        "angle": "反向问",
+        "stem": "反向辩护题：团队里有人坚持『mutation 才是资产——变更可追溯、新人能看懂、中间件挂点统一』。请给出 Pinia 阵营对这三点逐条的等价物回应，并承认一条 mutation 文化确实更占优的场景。",
+        "analysis": "逐条回应：①可追溯——Pinia 每次 action 自动进 devtools timeline 且可 $subscribe/$onAction 审计，粒度从『每条 mutation』升到『业务动作』更符合排障直觉；②新人可读——action 里直接 state.x=1 需配 lint（如禁在组件内直改 store 属性）替代语法约束；③中间件——插件的 afterQueue/onAction 覆盖 same 挂点。诚实占优场景：金融级需要『每个字段变更都留痕回放』的合规审计流，mutation 的强制漏斗确实比约定更强。加分：提到 Pinia 也有 strict 模式思路与 $subscribe 的 patch 级 payload。"
+      }
     ]
   },
   {
@@ -34,24 +80,68 @@
     "difficulty": 3,
     "stem": "关于 Pinia 的实现机制，下列说法**正确**的有：",
     "options": [
-      { "key": "A", "text": "Options Store 的 actions 会被包装：同步改动可走 $patch 事务化，且自动获得 devtools action 追踪与错误捕获" },
-      { "key": "B", "text": "storeToRefs(store) 会把 state 与 getters 转成 refs，但不会包含 actions，解构也不会丢响应性" },
-      { "key": "C", "text": "store 对象是 markRaw 的普通对象，因此必须整体替换 store 引用才能触发订阅更新" },
-      { "key": "D", "text": "hotUpdate 做 HMR 时保留现有 state 与订阅者，只替换 actions/getters 定义，这是 Vuex 难以做到的开发体验" }]
-    ,
-    "answer": { "keys": ["A", "B", "D"] },
+      {
+        "key": "A",
+        "text": "Options Store 的 actions 会被包装：同步改动可走 $patch 事务化，且自动获得 devtools action 追踪与错误捕获"
+      },
+      {
+        "key": "B",
+        "text": "storeToRefs(store) 会把 state 与 getters 转成 refs，但不会包含 actions，解构也不会丢响应性"
+      },
+      {
+        "key": "C",
+        "text": "store 对象是 markRaw 的普通对象，因此必须整体替换 store 引用才能触发订阅更新"
+      },
+      {
+        "key": "D",
+        "text": "hotUpdate 做 HMR 时保留现有 state 与订阅者，只替换 actions/getters 定义，这是 Vuex 难以做到的开发体验"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
     "analysis": "A 对：wrapActionWithLogger/wrap 逻辑含 $patch 批处理（action 内多次赋值合成一个 patch 供 devtools 回放）+ try/catch 上报。B 对：storeToRefs 只枚举 state+getters（函数值跳过），返回 computed/ref，解构安全——面试常考『为什么解构 store 会丢响应』正是绕过了这层。D 对：hotUpdate 通过 mergeReactiveObjects 原位改结构、不销毁实例保活订阅。C 错反了：store 是 **reactive** 对象（toRefs 语义的来源），属性读写天然响应，根本不存在『整体替换引用』的要求。",
-    "gapCheck": ["易漏点：store 里 ref 会被 reactive 解包（unwrapRef），所以 store.count 直接可用——这与 setup store 返回 ref 的直觉相反", "常见误区：把 storeToRefs 用在整个 store 上还期待拿到方法（actions 要单独解构直接用）", "追问延伸：$subscribe 与 watch(store) 的差异（前者带 mutation 元数据/后者裸响应）"],
+    "gapCheck": [
+      "易漏点：store 里 ref 会被 reactive 解包（unwrapRef），所以 store.count 直接可用——这与 setup store 返回 ref 的直觉相反",
+      "常见误区：把 storeToRefs 用在整个 store 上还期待拿到方法（actions 要单独解构直接用）",
+      "追问延伸：$subscribe 与 watch(store) 的差异（前者带 mutation 元数据/后者裸响应）"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.state.pinia-internals", "fe.vue.reactivity.ref-family"],
-      "related": ["fe.vue.communication.provide-inject", "fe.vue.state.setup-store"],
-      "followUps": ["Pinia 内部怎么隔离多 app 实例？（pinia 实例挂 app，activePinia 模块级变量竞态你怎么防）", "$reset 为什么 Options Store 有而 Setup Store 默认没有？（initial state 快照机制差异）", "action 里 this 与 useXxxStore() 混用为什么会死循环？"]
+      "prereq": [
+        "fe.vue.state.pinia-internals",
+        "fe.vue.reactivity.ref-family"
+      ],
+      "related": [
+        "fe.vue.communication.provide-inject",
+        "fe.vue.state.setup-store"
+      ],
+      "followUps": [
+        "Pinia 内部怎么隔离多 app 实例？（pinia 实例挂 app，activePinia 模块级变量竞态你怎么防）",
+        "$reset 为什么 Options Store 有而 Setup Store 默认没有？（initial state 快照机制差异）",
+        "action 里 this 与 useXxxStore() 混用为什么会死循环？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://jishuzhan.net/article/2083761400513445890", "retrievedAt": "2026-11-09", "note": "2026-08 发布的 Vuex/Pinia 机制对比文；结论以 pinia 源码 createStore/wrapAction 复核" },
-    "tags": ["源码向", "多选易错"],
+    "source": {
+      "kind": "web",
+      "url": "https://jishuzhan.net/article/2083761400513445890",
+      "retrievedAt": "2026-11-09",
+      "note": "2026-08 发布的 Vuex/Pinia 机制对比文；结论以 pinia 源码 createStore/wrapAction 复核"
+    },
+    "tags": [
+      "源码向",
+      "多选易错"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "场景排查：同事写了 `const { token, setToken } = useAuthStore()`，token 变化视图正常但 setToken 调用报 `this.xxx is not a function`。结合 store 的创建方式（setup store 用了闭包 / options store 用了 this）解释两种 store 下解构 action 的行为差异，并给出规范写法。", "analysis": "Options Store：action 编译后绑定到 store 上下文（this.$state/其他 action），解构出来脱离 receiver → this 丢失（Pinia 对 action 做了 bind 处理故多数场景仍可用，但嵌套调用 this.otherAction 在解构语境会拿错上下文或被 warn）；Setup Store：action 是闭包函数，解构天然安全——这正是官方推荐 setup store 的隐性理由之一。规范：state/getters 走 storeToRefs，actions 直接从 store 解构或整体 store 调用。加分：引用 pinia 源码对 action 的 wrapAction（this 代理 + devtools 上下文注入）细节。" }
+      {
+        "angle": "换场景",
+        "stem": "场景排查：同事写了 `const { token, setToken } = useAuthStore()`，token 变化视图正常但 setToken 调用报 `this.xxx is not a function`。结合 store 的创建方式（setup store 用了闭包 / options store 用了 this）解释两种 store 下解构 action 的行为差异，并给出规范写法。",
+        "analysis": "Options Store：action 编译后绑定到 store 上下文（this.$state/其他 action），解构出来脱离 receiver → this 丢失（Pinia 对 action 做了 bind 处理故多数场景仍可用，但嵌套调用 this.otherAction 在解构语境会拿错上下文或被 warn）；Setup Store：action 是闭包函数，解构天然安全——这正是官方推荐 setup store 的隐性理由之一。规范：state/getters 走 storeToRefs，actions 直接从 store 解构或整体 store 调用。加分：引用 pinia 源码对 action 的 wrapAction（this 代理 + devtools 上下文注入）细节。"
+      }
     ]
   },
   {
@@ -60,26 +150,69 @@
     "type": "short",
     "difficulty": 3,
     "stem": "短答（持久化三问）：①pinia-plugin-persistedstate 类插件如何决定哪些 state 落盘、读取时机放在哪个生命周期？②SSR 场景持久化为什么必须『每请求新建 pinia』而不是共享单例？③跨 tab 用 BroadcastChannel 同步 store 时，最典型的死循环成因与解法是什么？",
-    "answer": { "ref": "①插件在 pinia.use 里对每个新 store 实例 $subscribe（或 patch 订阅）按 pick/paths/serializer 配置写 localStorage/sessionStorage/IndexedDB；恢复发生在 **store 首次 useStore() 时**（createStore 内 hydrate，早于组件挂载）——不是 onMounted，否则首帧闪烁。选择性落盘三件套：pick/omit 白名单、partialize、when 条件写入（防敏感信息/防大对象）。②Node 端模块级单例会跨请求串用户状态（经典内存泄漏+越权）；官方要求 createApp 时每请求 createPinia()，服务端把 state 序列化进 window.__INITIAL_STATE__ 客户端 setActivePinia+水合，持久化插件在服务端应禁用或改写为注入 context。③成因：A tab 收到 B 广播后 apply 到本地 store → 本地 $subscribe 又触发广播 → B 再 apply…（回声风暴）。解法：打来源标记（广播消息带 tabId/epoch，apply 前比对跳过自己触发的 patch；或应用远端更新时用 $patch({silent}) 包裹并在订阅里判断 mutation 事件名/skipSync 标志位）。" },
+    "answer": {
+      "ref": "①插件在 pinia.use 里对每个新 store 实例 $subscribe（或 patch 订阅）按 pick/paths/serializer 配置写 localStorage/sessionStorage/IndexedDB；恢复发生在 **store 首次 useStore() 时**（createStore 内 hydrate，早于组件挂载）——不是 onMounted，否则首帧闪烁。选择性落盘三件套：pick/omit 白名单、partialize、when 条件写入（防敏感信息/防大对象）。②Node 端模块级单例会跨请求串用户状态（经典内存泄漏+越权）；官方要求 createApp 时每请求 createPinia()，服务端把 state 序列化进 window.__INITIAL_STATE__ 客户端 setActivePinia+水合，持久化插件在服务端应禁用或改写为注入 context。③成因：A tab 收到 B 广播后 apply 到本地 store → 本地 $subscribe 又触发广播 → B 再 apply…（回声风暴）。解法：打来源标记（广播消息带 tabId/epoch，apply 前比对跳过自己触发的 patch；或应用远端更新时用 $patch({silent}) 包裹并在订阅里判断 mutation 事件名/skipSync 标志位）。"
+    },
     "scoringPoints": [
-      { "point": "①恢复时机=store 创建期而非 mounted + 选择性落盘配置", "weight": 2 },
-      { "point": "①写出 pick/serializer 至少两项配置能力", "weight": 1 },
-      { "point": "②讲清 SSR 单例串态与每请求实例+水合链路", "weight": 2 },
-      { "point": "③回声成因描述准确（apply→subscribe→broadcast 闭环）", "weight": 2 },
-      { "point": "③解法给出来源标记或静默 patch 任一具体方案", "weight": 1 }
+      {
+        "point": "①恢复时机=store 创建期而非 mounted + 选择性落盘配置",
+        "weight": 2
+      },
+      {
+        "point": "①写出 pick/serializer 至少两项配置能力",
+        "weight": 1
+      },
+      {
+        "point": "②讲清 SSR 单例串态与每请求实例+水合链路",
+        "weight": 2
+      },
+      {
+        "point": "③回声成因描述准确（apply→subscribe→broadcast 闭环）",
+        "weight": 2
+      },
+      {
+        "point": "③解法给出来源标记或静默 patch 任一具体方案",
+        "weight": 1
+      }
     ],
     "analysis": "持久化是『会用』与『用过生产』的分水岭：①的恢复时机决定会不会首屏闪一下再变（SEO/CLS 连锁问题）；②是 SSR 事故榜常客；③考分布式直觉——任何『双向同步』必有回声问题。三问都能落到具体机制词（$subscribe/createStore 时机/水合/epoch）即 3 分档。",
-    "gapCheck": ["易漏点：persist 的 storage 是异步接口（IndexedDB）时 hydration 竞态——组件可能先于恢复完成渲染，官方建议 async 场景包一层 await hydration", "常见误区：把 token 放 persist 忘了 XSS 面（localStorage 可被脚本读走）", "加分：知道 pinia 官方 own 了 pinia-plugin-persist 并在文档标注新旧插件的取舍"],
+    "gapCheck": [
+      "易漏点：persist 的 storage 是异步接口（IndexedDB）时 hydration 竞态——组件可能先于恢复完成渲染，官方建议 async 场景包一层 await hydration",
+      "常见误区：把 token 放 persist 忘了 XSS 面（localStorage 可被脚本读走）",
+      "加分：知道 pinia 官方 own 了 pinia-plugin-persist 并在文档标注新旧插件的取舍"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.state.setup-store", "fe.vue.state.pinia-internals"],
-      "related": ["fe.vue.ecosystem.vue-versions", "fe.vue.router.history-mode"],
-      "followUps": ["persist 与路由 query 同步权限菜单怎么分工？", "Electron 多窗口共享 store 你会选 localStorage 还是主进程单一事实源？", "$subscribe 的 patch 监听能捕获数组 push 吗？（mutation 类型 detail 里怎么判）"]
+      "prereq": [
+        "fe.vue.state.setup-store",
+        "fe.vue.state.pinia-internals"
+      ],
+      "related": [
+        "fe.vue.ecosystem.vue-versions",
+        "fe.vue.router.history-mode"
+      ],
+      "followUps": [
+        "persist 与路由 query 同步权限菜单怎么分工？",
+        "Electron 多窗口共享 store 你会选 localStorage 还是主进程单一事实源？",
+        "$subscribe 的 patch 监听能捕获数组 push 吗？（mutation 类型 detail 里怎么判）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "official", "url": "https://pinia.vuejs.org/cookbook/plugins.html", "retrievedAt": "2026-11-09", "note": "官方 Plugins  cookbook（$subscribe/状态恢复水合示例）；SSR 单例要求见 guide/ssr 章节" },
-    "tags": ["生产实战", "SSR联动"],
+    "source": {
+      "kind": "official",
+      "url": "https://pinia.vuejs.org/cookbook/plugins.html",
+      "retrievedAt": "2026-11-09",
+      "note": "官方 Plugins  cookbook（$subscribe/状态恢复水合示例）；SSR 单例要求见 guide/ssr 章节"
+    },
+    "tags": [
+      "生产实战",
+      "SSR联动"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "加约束设计题：桌面 Electron 应用（我们这个项目！）有主窗口+设置子窗口两个 BrowserWindow，各跑一个 Vue 实例共享用户偏好 store。请在『BroadcastChannel / IPC 经主进程中转 / shared worker』三者中选一方案并陈述理由，同时给出冲突仲裁规则（谁赢）与离线写缓冲策略。", "analysis": "推荐 IPC 中转：主进程做单一事实源（single writer），渲染端只发 intent+收 snapshot——Electron 官方推荐的 state 同步形态，天然跨 webContents 且可落盘 main 侧；BroadcastChannel 胜在轻但两窗并发写需要额外 CRDT/版本向量，window 生命周期不对齐时有丢消息窗口期；shared worker 在 Electron 支持面尴尬不作首选。仲裁：last-write-wins + 单调 version（或按字段粒度），主进程拒绝 version 倒退的 intent。离线缓冲：intent 队列重放幂等（带 id 去重）。加分：提到 electron 生态已有成品（如 electron-store+contextBridge）与其 fsync 节流。" }
+      {
+        "angle": "加约束",
+        "stem": "加约束设计题：桌面 Electron 应用（我们这个项目！）有主窗口+设置子窗口两个 BrowserWindow，各跑一个 Vue 实例共享用户偏好 store。请在『BroadcastChannel / IPC 经主进程中转 / shared worker』三者中选一方案并陈述理由，同时给出冲突仲裁规则（谁赢）与离线写缓冲策略。",
+        "analysis": "推荐 IPC 中转：主进程做单一事实源（single writer），渲染端只发 intent+收 snapshot——Electron 官方推荐的 state 同步形态，天然跨 webContents 且可落盘 main 侧；BroadcastChannel 胜在轻但两窗并发写需要额外 CRDT/版本向量，window 生命周期不对齐时有丢消息窗口期；shared worker 在 Electron 支持面尴尬不作首选。仲裁：last-write-wins + 单调 version（或按字段粒度），主进程拒绝 version 倒退的 intent。离线缓冲：intent 队列重放幂等（带 id 去重）。加分：提到 electron 生态已有成品（如 electron-store+contextBridge）与其 fsync 节流。"
+      }
     ]
   },
   {
@@ -88,27 +221,372 @@
     "type": "essay",
     "difficulty": 4,
     "stem": "论述题：『状态管理到底在管什么？』请依次回答：①为什么框架自带响应式之后还需要专门的状态库——列出全局态必须解决的 4 个具体问题；②Pinia/composable 局部态/URL/localStorage/服务端缓存(TanStack Query)五者的边界划分；③一个中后台系统你给出状态分层蓝图；④预判『React Query 思想会不会吃掉 Pinia 一半场景』。",
-    "answer": { "ref": "①四问题：跨组件树共享（props drilling 半径爆炸）、生命周期外置（组件卸载态不灭）、可预测变更（审计/时间旅行/回滚）、跨端一致性（SSR 水合、多 tab、乐观更新回滚）。②边界：composable=组件树局部且随 scope 消亡（表单草稿、弹窗态）；Pinia=真正跨页存活的全局业务态（用户、权限、购物车）；URL=**可分享态**（tab/筛选/分页，SEO+刷新恢复，常被低估的第一公民）；localStorage=跨会话低价值键值（主题、音量），警惕当数据库用；服务端缓存=**派生副本**（列表详情），所有权归 query（staleness/invalidate 语义），别复制进 Pinia 再手动同步（双源漂移）。③蓝图：server cache(Query) 为主干 → 薄 Pinia 只放 session/cart/ui flags → URL 承载可分享 → localStorage 仅 prefs；数据流单向：query 成功 → 少量投影进 store（如 unread 计数），禁止组件直接双写。④判断：确实会吃——『服务端状态』本不该进全局 store，Query 的失效驱动模型比手动 fetch+set loading 优；但 Pinia 剩的是客户端态与跨资源编排（websocket 合并、跨 query 聚合、设备态），不会被吃干净；React 侧 zustand/jotai 的繁荣也印证『全局态缩小、派生态外置』趋势。加分：引『two sources of truth』反模式命名与官方 Pinia SSR 数据预取与 Query 的水合协作方案。" },
+    "answer": {
+      "ref": "①四问题：跨组件树共享（props drilling 半径爆炸）、生命周期外置（组件卸载态不灭）、可预测变更（审计/时间旅行/回滚）、跨端一致性（SSR 水合、多 tab、乐观更新回滚）。②边界：composable=组件树局部且随 scope 消亡（表单草稿、弹窗态）；Pinia=真正跨页存活的全局业务态（用户、权限、购物车）；URL=**可分享态**（tab/筛选/分页，SEO+刷新恢复，常被低估的第一公民）；localStorage=跨会话低价值键值（主题、音量），警惕当数据库用；服务端缓存=**派生副本**（列表详情），所有权归 query（staleness/invalidate 语义），别复制进 Pinia 再手动同步（双源漂移）。③蓝图：server cache(Query) 为主干 → 薄 Pinia 只放 session/cart/ui flags → URL 承载可分享 → localStorage 仅 prefs；数据流单向：query 成功 → 少量投影进 store（如 unread 计数），禁止组件直接双写。④判断：确实会吃——『服务端状态』本不该进全局 store，Query 的失效驱动模型比手动 fetch+set loading 优；但 Pinia 剩的是客户端态与跨资源编排（websocket 合并、跨 query 聚合、设备态），不会被吃干净；React 侧 zustand/jotai 的繁荣也印证『全局态缩小、派生态外置』趋势。加分：引『two sources of truth』反模式命名与官方 Pinia SSR 数据预取与 Query 的水合协作方案。"
+    },
     "scoringPoints": [
-      { "point": "①四点完整且不把『方便』当机制论据", "weight": 2 },
-      { "point": "②URL 作为状态载体被明确提名（多数人会漏）", "weight": 2 },
-      { "point": "②服务端缓存与 Pinia 的所有权边界清晰（不复制原则）", "weight": 2 },
-      { "point": "③蓝图有单向数据流与投影关系的具体表述", "weight": 2 },
-      { "point": "④预判给出趋势证据而非站队口号", "weight": 1 },
-      { "point": "全篇术语精确（staleness/invalidate/hydration 用得其所）", "weight": 1 }
+      {
+        "point": "①四点完整且不把『方便』当机制论据",
+        "weight": 2
+      },
+      {
+        "point": "②URL 作为状态载体被明确提名（多数人会漏）",
+        "weight": 2
+      },
+      {
+        "point": "②服务端缓存与 Pinia 的所有权边界清晰（不复制原则）",
+        "weight": 2
+      },
+      {
+        "point": "③蓝图有单向数据流与投影关系的具体表述",
+        "weight": 2
+      },
+      {
+        "point": "④预判给出趋势证据而非站队口号",
+        "weight": 1
+      },
+      {
+        "point": "全篇术语精确（staleness/invalidate/hydration 用得其所）",
+        "weight": 1
+      }
     ],
     "analysis": "这道题过滤『只会初始化 store』的候选人。①答成『因为全局共享』一句话的直接封顶 1 分。③看架构感：有没有『谁是事实源』的裁决句。④最防背题——需要知道 TanStack Query 的核心主张（server state ≠ client state）才编得出。URL 提名是廉价但有效的区分器，漏掉 URL 的人基本没做过刷新丢 tab 状态的投诉修复。",
-    "gapCheck": ["易漏点：乐观更新回滚依赖的正是状态库的事务/快照能力，这点常被漏出①", "常见误区：把 Pinia 当 API 缓存（fetchOnce+loading 手写全家桶）= 重新发明半个 Query", "实操钩子：答③时报得出自己项目里一次双源漂移事故的细节，可信度碾压", "版本意识：Pinia 官方对 SSR 数据预取的口径（action 里 await + dehydrate）要点到"],
+    "gapCheck": [
+      "易漏点：乐观更新回滚依赖的正是状态库的事务/快照能力，这点常被漏出①",
+      "常见误区：把 Pinia 当 API 缓存（fetchOnce+loading 手写全家桶）= 重新发明半个 Query",
+      "实操钩子：答③时报得出自己项目里一次双源漂移事故的细节，可信度碾压",
+      "版本意识：Pinia 官方对 SSR 数据预取的口径（action 里 await + dehydrate）要点到"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.state.pinia-vs-vuex", "fe.vue.state.pinia-internals"],
-      "related": ["fe.vue.router.dynamic-routes", "fe.vue.communication.provide-inject"],
-      "followUps": ["TanStack Query 与 Pinia 水合怎么在同一 SSR 框架里共存？", "无 store 架构（jotai/zustand 原子化）在 Vue 侧的对应物是什么？（vueuse createGlobalState/composables）", "如果团队禁用所有状态库你怎么办？"]
+      "prereq": [
+        "fe.vue.state.pinia-vs-vuex",
+        "fe.vue.state.pinia-internals"
+      ],
+      "related": [
+        "fe.vue.router.dynamic-routes",
+        "fe.vue.communication.provide-inject"
+      ],
+      "followUps": [
+        "TanStack Query 与 Pinia 水合怎么在同一 SSR 框架里共存？",
+        "无 store 架构（jotai/zustand 原子化）在 Vue 侧的对应物是什么？（vueuse createGlobalState/composables）",
+        "如果团队禁用所有状态库你怎么办？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://opendeep.wiki/vuejs/pinia/introduction", "retrievedAt": "2026-11-09", "note": "Pinia 介绍镜像文档（官方叙事）+ TanStack Query 官方『server state vs client state』主张交叉综合" },
-    "tags": ["架构观", "选型压轴", "大厂二面"],
+    "source": {
+      "kind": "web",
+      "url": "https://opendeep.wiki/vuejs/pinia/introduction",
+      "retrievedAt": "2026-11-09",
+      "note": "Pinia 介绍镜像文档（官方叙事）+ TanStack Query 官方『server state vs client state』主张交叉综合"
+    },
+    "tags": [
+      "架构观",
+      "选型压轴",
+      "大厂二面"
+    ],
     "variants": [
-      { "angle": "换问法", "stem": "白板版（限时 4 分钟）：只画一张『数据从后端到屏幕』的分层图（不许出现 store 名词堆砌），标出每一层的**所有权**（谁创建、谁能写、谁失效），然后回答面试官一句质疑：『你们这图里 Pinia 只有一小块，是不是说明不需要状态库？』", "analysis": "合格图骨架：HTTP→Query Cache(所有权:query lib，失效:stalence/invalidate)→组件投影(所有权:组件)；URL(所有权:地址栏，浏览器前进后退可写)；Pinia 小块(所有权:业务动作，仅 session/cart/flags)；localStorage(所有权:设备偏好)。质疑回应：不是不需要而是**克制使用**——状态库的价值在『少数真·全局客户端态』的可审计与生命周期外置；把该图的 Pinia 面积画小恰恰是架构成熟度，画大才是灾难（双源+巨型 store 耦合）。此变体测的是用图说话+接受挑战的姿态，所有权一词贯穿即高分。" }
+      {
+        "angle": "换问法",
+        "stem": "白板版（限时 4 分钟）：只画一张『数据从后端到屏幕』的分层图（不许出现 store 名词堆砌），标出每一层的**所有权**（谁创建、谁能写、谁失效），然后回答面试官一句质疑：『你们这图里 Pinia 只有一小块，是不是说明不需要状态库？』",
+        "analysis": "合格图骨架：HTTP→Query Cache(所有权:query lib，失效:stalence/invalidate)→组件投影(所有权:组件)；URL(所有权:地址栏，浏览器前进后退可写)；Pinia 小块(所有权:业务动作，仅 session/cart/flags)；localStorage(所有权:设备偏好)。质疑回应：不是不需要而是**克制使用**——状态库的价值在『少数真·全局客户端态』的可审计与生命周期外置；把该图的 Pinia 面积画小恰恰是架构成熟度，画大才是灾难（双源+巨型 store 耦合）。此变体测的是用图说话+接受挑战的姿态，所有权一词贯穿即高分。"
+      }
     ]
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.vue.state.pinia-internals",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "关于 Pinia（Vue 3 生态，2026 年主流为 3.x/4.x 世代）的 store 内核与 storeToRefs，下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "store 实例本质上是被 reactive 语义包装的对象：state 里的 ref 会被自动解包，因此 store.count 直接就是数值；直接解构 store 会丢掉响应性，必须用 storeToRefs 才能拿到 refs，而 storeToRefs 只搬运响应式状态，不包含 actions"
+      },
+      {
+        "key": "B",
+        "text": "storeToRefs 会把 state 与 actions 一起转成可调用、可解包的引用，因此 const { count, inc } = storeToRefs(store) 之后 inc() 仍然可用"
+      },
+      {
+        "key": "C",
+        "text": "整个 store 解构出来（const { count } = useCounterStore()）依然保持响应，因为 store 内部所有字段都是 computed"
+      },
+      {
+        "key": "D",
+        "text": "热更新（hotUpdate）会销毁 store 实例并重建，所有订阅者都必须手动重新注册"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 对：Pinia 把选项式 state 或 setup store 返回值合并后放进一个 reactive 容器，reactive 对象访问 ref 属性会自动解包，因此 store.count 是数值、store.nested.x 也可读写；但解构 store 拿到的是当下的值而不是引用，等于切断依赖收集，所以官方提供 storeToRefs——它为每个响应式字段生成对应 ref，可安全解构而不丢响应性。关键在于 actions 本来就不是响应式值，不参与转换，所以可以直接从 store 上取（它们是绑定好上下文的闭包，能直接调用）。B 错：inc 不会出现在 storeToRefs 的结果里，写 const { inc } = storeToRefs(store) 只会得到 undefined。C 错：解构丢响应性是 reactive 容器的固有特性，与「字段是不是 computed」无关。D 错：Pinia 专为 HMR 提供了原地更新通道（$hotUpdate），替换 state/actions 同时保留订阅者与组件绑定，不需要重新注册，这也是它相对 Vuex 模块化热更新体验的显著改进。补充加分：action 被包一层（返回 Promise、支持 onAction 钩子、便于集中错误处理）；$patch 用于批量变更以优化 devtools 记录；$subscribe/$onAction 是插件与持久化的实现底座；把某个字段单独取出用 toRef 也能避免整份解构。",
+    "gapCheck": [
+      "易漏点：解构 actions 是安全的（它们是闭包函数），但解构 state 必丢响应性——两类字段要用不同处理方式",
+      "常见误区：storeToRefs 的结果里不含 action，误以为它能「全部转换」就会写出 inc is not a function",
+      "排查线索：排查「store 改了值但组件不更新」时先确认是否在某处把 ref 拆成了普通值（解构、提前取值、传给非响应式参数），再确认是否存在两个 pinia 实例（HMR 后的旧引用）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.state.pinia-internals",
+        "fe.vue.reactivity.ref-family"
+      ],
+      "related": [
+        "fe.vue.state.setup-store",
+        "fe.vue.communication.provide-inject"
+      ],
+      "followUps": [
+        "Pinia 为什么给每个 store 一个实例，而不是一个全局 reactive 大对象？",
+        "$patch 与直接赋值在 devtools 记录与性能上有什么区别？",
+        "store.$subscribe 与 watch(store, ...) 的触发粒度差别在哪里？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Pinia 官方文档中 store 的 reactive 语义、storeToRefs 的职责边界与 hotUpdate 行为编写"
+    },
+    "tags": [
+      "Pinia",
+      "原理题",
+      "高频"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0140"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.vue.state.pinia-internals",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "补全下面 4 个空缺（填 Pinia 提供的 API 名，可写成完整调用形式）：\n```js\nconst cart = useCartStore();\n\n// (1) 安全解构 items 与 getter total 而不丢响应性：\nconst { items, total } = ______(cart);\n\n// (2) 批量提交多处变更，便于 devtools 记录并减少订阅回调次数：\ncart.______((s) => { s.items.push({ id: 1 }); s.coupon = 'X'; });\n\n// (3) 监听该 store 的变更（可拿到 mutation 信息，持久化插件的基础）：\n______(cart, (mutation) => { /* 落盘 */ }, { detached: true });\n\n// (4) 把 state 恢复到初始值（注意：setup store 默认不具备此能力，需要自己实现）：\ncart.______();\n```",
+    "answer": {
+      "blanks": [
+        "storeToRefs",
+        "$patch",
+        "$subscribe",
+        "$reset"
+      ],
+      "synonyms": {
+        "storeToRefs": [
+          "storeToRefs(cart)",
+          "从 pinia 导入的 storeToRefs"
+        ],
+        "$patch": [
+          "cart.$patch",
+          "$patch(函数补丁)",
+          "$patch(对象补丁)"
+        ],
+        "$subscribe": [
+          "cart.$subscribe",
+          "store.$subscribe"
+        ],
+        "$reset": [
+          "cart.$reset",
+          "store.$reset()",
+          "$reset"
+        ]
+      }
+    },
+    "analysis": "(1) storeToRefs：把 store 上的响应式字段逐个转成 ref，从而解构后仍保持响应；它不含 actions，actions 可直接解构。(2) $patch：支持函数式与对象式补丁，一次提交多处变更，devtools 里合成一条可回放记录，也减少订阅回调次数；对数组等复杂结构官方推荐 $patch 而非手改。(3) $subscribe：回调能拿到 mutation 的类型（direct / patch object / function）与 store 本身，{ detached: true } 让订阅脱离组件作用域、组件卸载后仍然持续生效（持久化插件正是靠它把变更写回存储），另有 flush/sync 时机选项可用于要求同步落盘的场景。(4) $reset：把 state 恢复初始值，但它只对选项式 store 开箱可用——setup store 没有可比较的初始 state，调用会抛错，需要在 setup 里保存初始值并自定义 $reset 函数，这是实际项目里最常踩的一条。补充加分：$onAction 是 action 级中间件钩子（before/error/completed），插件用它做埋点与错误上报；pinia.use(plugin) 可以给所有 store 注入新属性，插件内部通常就是组合 $subscribe 与 $onAction。",
+    "gapCheck": [
+      "易漏点：setup store 的 $reset 默认不可用，调用会抛错，必须自己实现重置逻辑——这是最高频的踩点",
+      "常见误区：$subscribe 不加 detached:true 时订阅会随组件卸载被回收，表现为「某些时候状态改了但没落盘」",
+      "排查线索：排查「状态改了插件却没写回」时依次检查：写入是否走了被订阅覆盖的路径、订阅是否被组件卸载回收、持久化插件的 pick/when 条件是否把这次变更过滤掉了"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.state.pinia-internals",
+        "fe.vue.state.setup-store"
+      ],
+      "related": [
+        "fe.vue.state.pinia-vs-vuex",
+        "fe.js.scope.closure"
+      ],
+      "followUps": [
+        "$patch 的对象补丁与函数补丁分别适合什么场景？",
+        "持久化插件通常如何利用 $subscribe / $patch 完成读写与 hydrate？",
+        "$onAction 的错误钩子怎样与全局错误边界统一处理？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Pinia 官方 store 实例 API（storeToRefs/$patch/$subscribe/$reset/$onAction）语义编写"
+    },
+    "tags": [
+      "填空",
+      "Pinia",
+      "API"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0141"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.vue.state.pinia-vs-vuex",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 Pinia 取代 Vuex 的技术原因（面向 2026 年 Vue 3.5 + Pinia 主版本的生态现状），下列哪些论点是站得住脚的？（多选）",
+    "options": [
+      {
+        "key": "A",
+        "text": "Pinia 去掉了 mutation 双轨制：action 既可同步也可异步，直接 await 即可，省掉「只有同步 mutation 允许改状态、异步必须在 action 里 commit」的心智负担与样板代码"
+      },
+      {
+        "key": "B",
+        "text": "Pinia 不需要 namespaced 模块与字符串 type 常量：每个 store 是独立的组合式实例，靠 import 使用，天然模块化，也免去 registerModule 式的动态注册复杂度"
+      },
+      {
+        "key": "C",
+        "text": "Pinia 的 TypeScript 支持是一等公民：state/getters/actions 的类型直接推断，无需 InjectionKey 或 declare module 增强"
+      },
+      {
+        "key": "D",
+        "text": "Pinia 放弃了 devtools 的时间旅行与动作记录来换取更轻的运行时，因此在需要审计每次状态变更的场景下只能退回 Vuex"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A/B/C 都是 Pinia 取代 Vuex 的核心工程理由。Vuex 的 mutation/action 双轨是为「中心化、可追踪的变更」设计的历史方案，但在 Vue 3 组合式 API 出现后，模块化与上下文天然可由 composable 承担，mutation 只剩样板价值，于是 Pinia 只保留 state/getters/actions，action 内直接改状态并可自由异步。B 对：没有全局字符串 id、没有 namespaced 拼接、没有模块注册生命周期，store 之间互相 import 即可组合，SSR 下每请求新建 pinia 实例也更直观。C 对：类型完全从 setup/选项返回值推断，不需要 InjectionKey、不需要组件类型增强，编辑器体验与重构友好度明显更好。D 说法反了：Pinia 同样接入 Vue Devtools（动作时间线、状态 diff、时间旅行类能力），而且它并不放弃可审计性——$subscribe、$onAction 与插件体系（pinia.use）可以做集中日志、埋点与持久化，$patch 还能产出结构化变更记录；真要更强的不可变或事件溯源保证，应当引入外部方案而不是退回 mutation 双轨。补充加分：Pinia 体积更小、无中间件层；Vuex4 只是 Vue 3 的适配层，官方早已把 Pinia 列为默认推荐；测试友好度高——store 是普通函数返回的对象，单元测试里可直接实例化调用而不必 mock store 容器。",
+    "gapCheck": [
+      "易漏点：把「去掉 mutation」理解成「失去可追踪性」是最常见误区：$subscribe/$onAction/$patch 提供了更贴合组合式范式的追踪方式",
+      "常见误区：Vuex4 只是 Vue 3 的版本适配层，不要把「还在维护」误读成「官方默认选择」",
+      "排查线索：面试追问「团队已有大量 Vuex 模块怎么迁」时应给路径：按 namespaced 模块逐个平铺成独立 store、namespaced getter 转 computed、commit 转 action，并临时保留一层兼容 facade"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.state.pinia-vs-vuex",
+        "fe.vue.composition.composable-design"
+      ],
+      "related": [
+        "fe.vue.state.pinia-internals",
+        "fe.vue.state.setup-store"
+      ],
+      "followUps": [
+        "Pinia 没有 mutation 之后，如何保证状态变更的可审计与可回放？",
+        "Pinia 与「只用 composable + provide/inject」相比，什么时候才值得引入 store？",
+        "从 Vuex 迁移到 Pinia 的实际步骤与风险点有哪些？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Pinia 与 Vuex 的官方定位说明及组合式 API 演进的工程分析编写"
+    },
+    "tags": [
+      "选型题",
+      "深度题",
+      "状态管理"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0142"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.vue.state.setup-store",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "关于 Pinia 的 Setup Store 写法（defineStore('id', () => { ... })），下列描述正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "setup store 的 return 必须再包一层 reactive，否则 ref 不会被解包，外部读到的 store.count 是个 Ref 对象"
+      },
+      {
+        "key": "B",
+        "text": "setup 里用 ref()/computed() 声明的成员分别映射为 state 与 getters，普通函数映射为 actions；写在 setup 体内的 watch/effectScope 归 store 实例作用域管理，实例销毁时一并停止"
+      },
+      {
+        "key": "C",
+        "text": "setup store 因为没有选项式结构，无法被 Vue Devtools 识别，也不能使用 persist 之类的插件"
+      },
+      {
+        "key": "D",
+        "text": "setup store 无法定义任何自定义成员，只能返回 ref 与 computed"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 对：Setup Store 就是把 defineStore 第二个参数（一个 setup 函数）的返回值交给框架——ref/reactive/computed 分别成为 state/getters，函数成为 actions，语义与组合式函数一致；更关键的是 setup 体内创建的 effect（watch、watchEffect、effectScope）由 Pinia 挂到 store 所属应用/实例的作用域上，store 被 dispose（如 SSR 请求结束、pinia 实例销毁）时会一并停止，不会像在模块顶层裸写那样泄漏。A 错：不需要也不应该自己包 reactive，ref 解包由框架按与选项式 store 相同的机制处理，return 含 ref 的对象才是标准写法。C 错：setup store 与选项式 store 共用同一套 devtools 与插件机制（pinia.use、$subscribe、$onAction 都可用），持久化插件照常工作。D 错：普通函数会成为 action，闭包私有变量可以自由使用，只是 $reset 需要自己实现（没有选项式初始 state 可比对），这是 setup store 的主要小代价。补充加分：setup store 的长处是能自然组织局部派生状态、在 store 内直接订阅路由/WebSocket；代价还包括初学者漏 return 会造成字段缺失、以及自定义成员应避免以 $ 开头以免与内置 API 冲突。",
+    "gapCheck": [
+      "易漏点：setup store 的 $reset 需要自己实现（保存初始值后写回），否则调用会抛错",
+      "常见误区：写在 setup store 里的 watch 不会永久泄漏，其生命周期跟随 store 作用域；但要确保没有在模块顶层或 setup 之外创建 effect",
+      "排查线索：排查「store 字段莫名变成 Ref 对象」通常是 return 时多包了一层 reactive，或在别处提前 .value 取值导致解包链断裂"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.state.setup-store",
+        "fe.vue.composition.composable-design"
+      ],
+      "related": [
+        "fe.vue.state.pinia-internals",
+        "fe.vue.state.pinia-vs-vuex"
+      ],
+      "followUps": [
+        "Setup Store 与自写 composable 单例的适用边界在哪里？",
+        "SSR 为什么必须每个请求创建新的 pinia 实例？setup store 在其中要注意什么？",
+        "store 内部的 watch 与组件内 watch 在触发时机与 flush 上有何差别？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Pinia 官方 Setup Store 语义（ref/computed/function 的映射、effect 作用域、$reset 限制）编写"
+    },
+    "tags": [
+      "Pinia",
+      "原理题",
+      "易错"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0143"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.vue.state.setup-store",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断对错：「为了让登录态在刷新后不丢，最简做法是在 Pinia action 里每次变更后 localStorage.setItem(JSON.stringify(state))、并在 store 初始化时 JSON.parse 回来；这样就能安全替代持久化插件，而且对 SSR 也没有额外问题。」",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "该说法错误，问题有三层。① 序列化正确性：JSON.stringify 会丢失或变形 Date/Map/Set/BigInt/undefined 与函数，遇到 File、Error、类实例或循环引用还会直接抛 TypeError；正解是由持久化插件提供 serializer（配合 pick/paths 白名单只持久必要字段），并在 hydrate 时做结构校验与合并策略，避免旧版本缓存与新代码结构不一致导致崩溃。② 时机与一致性：在 action 里手工落盘会漏掉不经 action 的写入（直接赋值、插件写入、$patch 之外的路径），造成持久化内容与真实状态漂移；同步写 localStorage 在高频变更下有性能与配额（QuotaExceededError）风险，需要防抖与容量兜底；把 token、用户资料整体明文落盘也有安全隐患（Web 侧应优先考虑 httpOnly cookie，桌面端用 safeStorage）。③ SSR 语义：服务端没有 localStorage/window，在 store 初始化阶段访问它们会让整个请求 ReferenceError；SSR 的正解是每个请求创建独立 pinia 实例、服务端把初始状态序列化进 HTML（devalue/Nuxt payload 之类），客户端再水合，而不是依赖浏览器存储。此外跨标签页用 storage 事件广播同步还要处理版本冲突与回声（自己写入触发的事件再写回形成回环）。持久化插件的价值恰恰在于把这些环节标准化：pick/serializer/when 钩子、hydrate 时机、跨 tab 同步与失败恢复。",
+    "gapCheck": [
+      "易漏点：SSR 环境没有 localStorage/window，在 store setup 期直接访问会让整个请求 500，必须区分服务端水合与客户端持久化两条路",
+      "常见误区：手工在 action 里落盘会漏掉非 action 路径的写入（直接赋值、$patch、插件写入），造成持久化内容与实际状态长期漂移",
+      "排查线索：排查「刷新后状态错乱」时检查缓存的结构版本（字段改名后是否做了兼容合并）、JSON 丢失的类型（Date/Map/BigInt），以及跨 tab storage 事件是否形成回环写入"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.state.setup-store",
+        "fe.vue.state.pinia-internals"
+      ],
+      "related": [
+        "fe.browser.storage.local",
+        "fe.electron.security.csp"
+      ],
+      "followUps": [
+        "persist 插件的 pick/serializer/when 各自解决什么问题？为什么不建议整树持久化？",
+        "SSR 下 Pinia 的状态为什么要每请求新建实例？水合数据如何做类型还原？",
+        "跨标签页用 storage 事件同步 store 会遇到哪些竞态？如何用版本号或 BroadcastChannel 缓解？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Pinia 持久化插件的 hydrate/pick/serializer 语义与 SSR 状态水合的通用约束编写"
+    },
+    "tags": [
+      "易错",
+      "状态管理",
+      "SSR"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0144"
   }
 ]

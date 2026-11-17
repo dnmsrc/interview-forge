@@ -1,0 +1,400 @@
+[
+  {
+    "id": "Q-cs-algo-linear-0001",
+    "nodeId": "cs.algo.linear.array-linkedlist",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于数组与链表的内存布局和操作复杂度，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "数组和链表都支持 O(1) 随机访问，按下标取值与存储位置无关" },
+      { "key": "B", "text": "数组占用连续内存，按下标随机访问为 O(1)，但中间插入/删除需搬移元素为 O(n)；链表节点离散、靠指针串联，已知节点处插删为 O(1)，但按下标访问要顺链走 O(n)" },
+      { "key": "C", "text": "单链表删除任意节点都能在 O(1) 内完成，不需要知道前驱" },
+      { "key": "D", "text": "链表因为节点分散，实际遍历一定比数组遍历慢只是理论结论，与 CPU 缓存无关" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 完整给出了两者的对偶关系：连续存储换来 O(1) 随机访问但插删要搬移，离散存储换来已知节点 O(1) 插删但访问要沿指针走。A 错：链表没有随机访问能力。C 错：单链表删除给定节点需要先找到前驱（O(n)），只有双向链表或『复制后继值再删后继』的特殊技巧才能绕过；题面说的『任意节点 O(1)』不成立。D 错：链表遍历慢恰恰与缓存强相关——数组的空间局部性让整批元素被 cache line 预取，链表每次跳指针都可能 cache miss，这是实际工程性能差距的主因之一。",
+    "gapCheck": [
+      "易漏点：链表 O(1) 插删的前提是『已经持有该节点（及其前驱）指针』，查找本身仍是 O(n)",
+      "常见误区：把理论复杂度当实际性能——链表插删省了搬移却输在缓存命中率和指针存储开销上",
+      "加分项：能讲 CPU 缓存行（cache line）预取与空间局部性，解释为什么工程中数组/动态数组往往更快"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.array-linkedlist"],
+      "related": ["cs.algo.linear.hash-table"],
+      "followUps": [
+        "为什么 Java HashMap 桶内节点少时用链表、多了转红黑树？",
+        "单链表只给待删节点指针，有什么 O(1) 的取巧删除法？有什么局限？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "数组链表对比单选题" },
+    "tags": ["数组", "链表", "复杂度", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0002",
+    "nodeId": "cs.algo.linear.array-linkedlist",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于单链表、双向链表与循环链表，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "双向链表每个节点同时存前驱和后继指针，给定节点删除自身为 O(1)，代价是每个节点多一个指针的空间且插入/删除要维护更多链接" },
+      { "key": "B", "text": "循环链表的尾节点指向头节点，从任意节点出发都能遍历全表，适合实现轮转调度（如时间片轮转的任务队列）" },
+      { "key": "C", "text": "单链表要找倒数第 K 个节点，可以用快慢指针：快指针先走 K 步，再两指针同速前进，快指针到尾时慢指针即目标，只需一次遍历 O(n)" },
+      { "key": "D", "text": "单链表反转必须借助栈结构，额外空间至少 O(n)" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 说清双向链表的收益（自删除 O(1)、双向遍历）与成本。B 是循环链表的典型用途。C 是经典双指针技巧，避免先求长度再走第二遍。D 错：单链表反转可以用三指针迭代原地完成，额外空间 O(1)；递归反转虽然隐式用了 O(n) 栈，但迭代法根本不需要栈。",
+    "gapCheck": [
+      "易漏点：快慢指针技巧的统一套路——制造并维持固定间距或速度差，一次遍历求解",
+      "常见误区：以为链表题天然要额外栈空间，多数链表改造都能 O(1) 空间原地做",
+      "加分项：能写出哨兵节点（dummy head）简化头节点边界处理的套路"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.array-linkedlist"],
+      "related": ["cs.algo.paradigm.two-pointer-window"],
+      "followUps": [
+        "快慢指针如何检测链表是否有环并定位环的入口？",
+        "双向链表相比单链表多花的内存在哪些场景下是值得的？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "链表分类与特性多选题" },
+    "tags": ["链表", "双向链表", "快慢指针", "循环链表"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0003",
+    "nodeId": "cs.algo.linear.array-linkedlist",
+    "type": "code",
+    "difficulty": 3,
+    "stem": "手写题：给定单链表头节点 `head`，原地反转链表并返回新的头节点。要求：①写出迭代版（三指针，O(1) 额外空间）；②再写递归版并解释递归的终止条件与每层在做什么；③说明两版的时间与空间复杂度。",
+    "answer": {
+      "ref": "迭代思路：维护 prev（已反转部分的头，初值 null）、cur（当前节点，初值 head）。每轮先用 next 暂存 cur.next（否则断链后找不到后继），再让 cur.next 指向 prev 完成局部反转，然后 prev、cur 同步前移，cur 为 null 时 prev 即新头。递归思路：递归函数定义为『反转以 head 为头的子链表并返回新头』，终止条件是 head 为空或只剩一个节点；递归反转子链表后，让原后继 head.next 反过来指向 head，并把 head.next 置空（否则成环）。两版时间都是 O(n)，迭代空间 O(1)，递归空间 O(n)（调用栈深度等于链长）。",
+      "code": "// 节点定义\nfunction ListNode(val, next) { this.val = (val===undefined ? 0 : val); this.next = (next===undefined ? null : next); }\n\n// ① 迭代版：三指针，O(1) 空间\nfunction reverseList(head) {\n  let prev = null, cur = head;\n  while (cur !== null) {\n    const next = cur.next;  // 暂存后继\n    cur.next = prev;        // 反转指针\n    prev = cur;             // 前驱前移\n    cur = next;             // 当前前移\n  }\n  return prev;              // prev 成为新头\n}\n\n// ② 递归版\nfunction reverseListRec(head) {\n  if (head === null || head.next === null) return head; // 基准：空或单节点\n  const newHead = reverseListRec(head.next);            // 先反转子链表\n  head.next.next = head;   // 后继反过来指自己\n  head.next = null;        // 断开原方向，防止成环\n  return newHead;\n}"
+    },
+    "scoringPoints": [
+      { "point": "迭代版指针顺序正确：先暂存 next 再断链，循环终止后返回 prev", "weight": 3 },
+      { "point": "递归版基准条件、head.next.next=head 与置空防环写对", "weight": 2 },
+      { "point": "复杂度分析正确：均 O(n) 时间，迭代 O(1)、递归 O(n) 栈空间", "weight": 2 },
+      { "point": "能用哨兵或边界用例（空链/单节点）验证代码", "weight": 1 }
+    ],
+    "analysis": "反转链表是链表题的『Hello World』，面试官借此看指针基本功。常见失分：①不暂存 next 就改 cur.next 导致断链丢节点；②循环结束返回 cur（此时是 null）而不是 prev；③递归版忘记 head.next=null 造成环；④声称递归版空间 O(1)，忽略调用栈。能主动处理空链表与单节点边界、提到用 dummy 节点做 K 个一组反转的延伸，属于加分。",
+    "gapCheck": [
+      "易漏点：修改 next 指针前必须先保存原后继，这是所有链表重连题的通用纪律",
+      "常见误区：把递归空间复杂度答成 O(1)——递归深度 n 的调用栈是真实空间成本",
+      "加分项：能延伸到反转区间 [left,right] 与 K 个一组反转，说明掌握了头插法套路"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.array-linkedlist"],
+      "related": ["cs.algo.paradigm.two-pointer-window"],
+      "followUps": [
+        "只反转链表的第 left 到第 right 个节点，怎么定位并处理头节点变化？",
+        "K 个一组反转中，不足 K 个的尾部为什么要保持原序？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "反转链表手写代码题" },
+    "tags": ["手写题", "链表反转", "双指针", "递归", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0004",
+    "nodeId": "cs.algo.linear.array-linkedlist",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：检测单链表是否有环可以用快慢指针（Floyd 判圈）：慢指针每次走 1 步、快指针每次走 2 步，若有环两者必在环内相遇；且相遇点与头节点同时等速出发，再次相遇的位置就是环的入口节点。",
+    "answer": { "judge": true },
+    "analysis": "正确。有环时快指针先进入环并在环内循环，慢指针进入后相当于快指针以每轮 1 步的相对速度追赶，环长有限所以必然追上，时间 O(n)、空间 O(1)。入口结论可代数推导：设头到入口距离 a、入口到首次相遇点距离 b、相遇点回到入口距离 c，环长 L=b+c。相遇时慢走 a+b、快走 a+b+kL，又因快走两倍路程有 2(a+b)=a+b+kL，得 a=kL-b=(k-1)L+c，即从头走 a 步与从相遇点绕环走整数圈加 c 步恰好同时到达入口。",
+    "gapCheck": [
+      "易漏点：快指针步进时要同时判 fast 和 fast.next 非空，否则末尾取 next 抛空引用",
+      "常见误区：只记得『能判环』却讲不出入口推导，面试追问环长度也无从下手（相遇后再走一圈计数即可）",
+      "加分项：能对比哈希表判环 O(n) 空间方案，说明双指针把空间压到 O(1) 的价值"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.array-linkedlist"],
+      "related": ["cs.algo.paradigm.two-pointer-window"],
+      "followUps": [
+        "如何求环的长度？如何求链表总长度？",
+        "快指针速度改成每次 3 步还保证能相遇吗？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Floyd 判圈与环入口判断题" },
+    "tags": ["链表", "快慢指针", "判环", "经典题"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0005",
+    "nodeId": "cs.algo.linear.array-linkedlist",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请回答：①数组和链表在随机访问、中间插删、内存占用、CPU 缓存友好性四个维度的对比；②什么场景下你会选链表而不是数组；③为什么现代工程实践（如 Java ArrayList、JS 引擎的数组实现）中动态数组往往是默认选择，而链表出场率越来越低？",
+    "answer": {
+      "ref": "参考骨架：【四维对比】随机访问：数组 O(1) 直接按基址+下标×元素大小定位；链表 O(n) 顺指针走。中间插删：数组 O(n) 搬移元素（尾部均摊 O(1)）；链表持节点 O(1) 但找位置 O(n)。内存占用：数组预留容量有闲置但无额外指针；链表每节点多存 1~2 个指针，单链表至少 +50% 元数据（64 位下一个节点 8 字节指针）。缓存友好性：数组连续存储，整 cache line 预取，遍历接近顺序访存的硬件极限；链表节点离散，每次 next 都可能 cache miss，遍历实测常慢数倍。\n【选链表的场景】①需要在已知位置频繁 O(1) 插删且不需要随机访问，如 LRU 的双向链表、操作系统调度队列；②节点生命周期差异大、频繁增删导致数组搬移成本高的结构；③实现图邻接表时顶点度数差异大，链表/动态数组混合；④需要 O(1) 拼接两个序列（某些函数式语言的不可变链表）。\n【动态数组成默认的原因】硬件层面：CPU 与编译器为顺序访存做了大量优化（预取、向量化 SIMD），数组的常数因子远优于链表；算法层面：多数业务是『追加+遍历+下标访问』，动态数组尾部均摊 O(1) 完全够用，链表声称的 O(1) 插删优势要先花 O(n) 找位置，实际用不上；工程层面：链表指针的内存开销、碎片化和 GC 压力（托管语言）都更差。研究（如 Chrome 对其 C++ 容器的 benchmark）也表明大量场景下 list 被 vector 全面击败，所以语言标准库与引擎都以动态数组为主力容器。"
+    },
+    "scoringPoints": [
+      { "point": "四维对比准确，能指出链表 O(1) 插删的『持节点』前提", "weight": 2 },
+      { "point": "选型场景具体（LRU、调度队列、邻接表等）而非泛泛而谈", "weight": 2 },
+      { "point": "从缓存局部性、常数因子、实际访问模式解释动态数组主导地位", "weight": 3 },
+      { "point": "能提到指针元数据开销、内存碎片/GC 压力等工程成本", "weight": 1 }
+    ],
+    "analysis": "这题考的是跳出课本复杂度、结合硬件与工程实际的判断力。常见失分：只会背『链表插删快、数组查询快』的口号，答不出缓存预取；认为链表在任何插删场景都优，忽略查找成本；举不出真实工程例子。能提到 LRU 双向链表、邻接表、SIMD 向量化和基准测试结论，回答就有工程质感。",
+    "gapCheck": [
+      "易漏点：理论复杂度之外的常数因子与缓存行为，往往才是实测性能的决定因素",
+      "常见误区：把链表的插删 O(1) 与完整业务操作的 O(1) 划等号",
+      "加分项：能引用具体语言实现（V8 的 FixedArray、Java ArrayDeque 用循环数组替代栈/链表）佐证"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.array-linkedlist"],
+      "related": ["cs.algo.linear.hash-table", "cs.algo.complexity.big-o-amortized"],
+      "followUps": [
+        "ArrayDeque 为什么推荐用数组实现栈和队列而不是 Stack/LinkedList？",
+        "跳表（skip list）是怎么在链表基础上找回 O(log n) 查找能力的？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "数组链表工程选型主观题" },
+    "tags": ["数组", "链表", "缓存局部性", "工程选型"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0006",
+    "nodeId": "cs.algo.linear.stack-queue-monotonic",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "关于栈和队列的特性与实现，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "栈是先进先出（FIFO），队列是后进先出（LIFO）" },
+      { "key": "B", "text": "栈是后进先出（LIFO），适合函数调用栈、括号匹配、撤销操作；队列是先进先出（FIFO），适合 BFS、任务排队，两者都可用数组或链表实现且入出操作 O(1)" },
+      { "key": "C", "text": "用两个栈实现一个队列时，每个元素都要在两个栈之间来回倒两次，所有操作都是严格 O(1)" },
+      { "key": "D", "text": "浏览器的前进/后退历史只需要一个普通栈就能完整实现" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 给出标准语义与典型场景。A 把 LIFO/FIFO 说反。C 错：双栈队列的入队 O(1)，出队在输出栈为空时才把输入栈整体倒一次，每个元素总共只倒一次，均摊 O(1) 而非每次都倒、也不是『严格 O(1)』——撞上倒栈的那一次出队是 O(n)。D 错：后退用一个栈可以，但前进需要第二个栈保存被后退弹出的页面，浏览器历史本质是双栈结构。",
+    "gapCheck": [
+      "易漏点：双栈队列是均摊 O(1)，倒栈动作是惰性触发而非每次发生",
+      "常见误区：混淆栈与队列的存取顺序，或以为浏览器历史单栈够用",
+      "加分项：能讲函数调用栈帧（参数、返回地址、局部变量）与递归本质就是栈结构"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.stack-queue-monotonic"],
+      "related": ["cs.algo.graph.bfs-dfs"],
+      "followUps": [
+        "双栈队列中，如果在输出栈非空时又有入队，元素顺序怎么保证？",
+        "用两个队列怎么实现栈？和双栈实现队列有什么不同？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "栈队列基础单选题" },
+    "tags": ["栈", "队列", "LIFO", "FIFO", "基础"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0007",
+    "nodeId": "cs.algo.linear.stack-queue-monotonic",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：①给定每日温度数组 `temperatures`，返回数组 `answer`，`answer[i]` 是第 i 天之后第一个更高温度出现在几天后（没有则 0），用单调栈实现并说明为什么是 O(n)；②给定整数数组 `nums` 和窗口大小 `k`，用单调双端队列求滑动窗口从左到右每个窗口的最大值。",
+    "answer": {
+      "ref": "①每日温度用单调递减栈（栈存下标，对应温度单调不增）：遍历每天，当当天温度高于栈顶对应温度时，栈顶那天的『下一个更高温度』就是今天，弹出并计算天数差；每个元素至多入栈一次、出栈一次，总操作 O(n)。②滑动窗口最大值用单调递减双端队列（存下标）：新元素入队前把队尾所有 ≤ 它的下标弹出（它们永远不可能再成为窗口最大值），再入队；队首若已滑出窗口（下标 ≤ i-k）则从队首移除；每个窗口的答案就是队首对应值。每个下标同样至多入队出队一次，O(n)。两题共性：用单调性把『维护候选集』的总成本摊到每个元素常数次。",
+      "code": "// ① 每日温度：单调递减栈，O(n)\nfunction dailyTemperatures(t) {\n  const n = t.length, ans = new Array(n).fill(0), stk = [];\n  for (let i = 0; i < n; i++) {\n    while (stk.length && t[i] > t[stk[stk.length - 1]]) {\n      const j = stk.pop();\n      ans[j] = i - j;          // i 就是 j 之后第一个更暖的天\n    }\n    stk.push(i);\n  }\n  return ans;\n}\n\n// ② 滑动窗口最大值：单调递减双端队列，O(n)\nfunction maxSlidingWindow(nums, k) {\n  const dq = [], ans = [];     // dq 存下标，对应值单调递减\n  for (let i = 0; i < nums.length; i++) {\n    while (dq.length && nums[dq[dq.length - 1]] <= nums[i]) dq.pop(); // 队尾清理\n    dq.push(i);\n    if (dq[0] <= i - k) dq.shift();        // 队首过期出窗\n    if (i >= k - 1) ans.push(nums[dq[0]]); // 队首即窗口最大\n  }\n  return ans;\n}"
+    },
+    "scoringPoints": [
+      { "point": "单调栈存下标、弹出条件（当前值大于栈顶对应值）与答案计算正确", "weight": 2 },
+      { "point": "单调队列队尾清理（≤ 当前值）、队首过期判断（≤i-k）两个维护动作齐全", "weight": 3 },
+      { "point": "能用『每个元素至多入出一次』论证两题均为 O(n)，而非 O(n²)", "weight": 2 },
+      { "point": "边界处理正确：窗口形成前不出答案、无更高温度时保持 0", "weight": 1 }
+    ],
+    "analysis": "这是单调结构的两道招牌题，面试高频。常见失分：①栈里存值而不是下标，导致算不出天数差和窗口过期；②弹出条件的等号处理混乱（窗口最大值中相等元素应弹出旧的，因为新元素更晚过期）；③把复杂度答成 O(n²)，没有掌握『均摊到每元素常数次』的分析；④队首过期用值比较而不是下标。能延伸到柱状图最大矩形、接雨水等单调栈变体属于加分。",
+    "gapCheck": [
+      "易漏点：单调结构里通常存下标而非值，下标既能取值又能判位置/过期",
+      "常见误区：以为嵌套 while 就是 O(n²)——总弹出次数不超过总入栈次数，整体线性",
+      "加分项：能总结单调栈适用信号（『下一个更大/更小』）与单调队列适用信号（『区间最值且窗口滑动』）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.stack-queue-monotonic"],
+      "related": ["cs.algo.paradigm.two-pointer-window"],
+      "followUps": [
+        "柱状图中最大矩形为什么也是单调栈？栈里维护的单调性方向是什么？",
+        "如果要求滑动窗口最小值，代码改哪一处？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "单调栈与单调队列手写代码题" },
+    "tags": ["手写题", "单调栈", "单调队列", "滑动窗口", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0008",
+    "nodeId": "cs.algo.linear.stack-queue-monotonic",
+    "type": "judge",
+    "difficulty": 1,
+    "stem": "判断正误：判断一个只包含 `()`、`{}`、`[]` 的括号字符串是否有效，标准做法是用栈：遇到左括号入栈，遇到右括号检查栈顶是否为匹配的左括号，不匹配或栈已空则无效，遍历结束后栈必须为空。该算法时间 O(n)、空间 O(n)。",
+    "answer": { "judge": true },
+    "analysis": "正确。栈的 LIFO 特性天然对应括号的嵌套结构：最近打开的左括号必须最先被关闭。两个失败条件要查全——右括号到来时栈空（没有可匹配的左括号）或栈顶类型不匹配（交叉嵌套如 `([)]`）；遍历完栈非空说明有左括号未闭合。空间 O(n) 对应全是左括号的最坏输入。这也是函数调用、HTML 标签匹配、表达式求值中栈应用的同一套路。",
+    "gapCheck": [
+      "易漏点：结束时必须补查栈空，否则 `(()` 这类未闭合输入会被误判有效",
+      "常见误区：用计数器处理多种括号——单一括号可以计数，多种括号交叉嵌套只有栈能判定类型匹配",
+      "加分项：能讲编译器/解释器如何用运算符栈与操作数栈实现表达式求值（调度场算法引子）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.stack-queue-monotonic"],
+      "related": ["cs.algo.tree.traversal-bst"],
+      "followUps": [
+        "最长有效括号子串怎么用栈（或 DP）求解？",
+        "表达式求值中运算符栈的优先级是怎么处理的？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "括号匹配栈应用题判断题" },
+    "tags": ["栈", "括号匹配", "经典题"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0009",
+    "nodeId": "cs.algo.linear.hash-table",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于哈希冲突的处理，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "拉链法把冲突元素挂在同一个桶的链表上，负载因子再高查询也始终是 O(1)" },
+      { "key": "B", "text": "开放地址法发生冲突时按探测序列在表内找下一个空槽，线性探测实现简单但会产生 primary clustering（primary 聚集），使探测链越来越长" },
+      { "key": "C", "text": "开放地址法删除元素可以直接把槽位置空，不会影响后续查找" },
+      { "key": "D", "text": "好的哈希函数应该让所有 key 都映射到同一个桶，便于集中管理" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确描述了线性探测的聚集问题：连续被占槽位会像滚雪球一样吸引更多冲突，探测长度恶化；二次探测、双重哈希就是为缓解聚集。A 错：拉链法在高负载或恶意碰撞下链表变长，查询退化到 O(n)，Java 8 后桶内超阈值转红黑树把最坏情况拉回 O(log n)。C 错：直接置空会打断探测链，查找其他元素时遇到空槽会提前判定不存在，开放地址法删除需用墓碑标记（tombstone）再在 rehash 时清理。D 显然违背哈希均匀散布的设计目标。",
+    "gapCheck": [
+      "易漏点：开放地址法的删除要用墓碑标记而非清空，否则探测链断裂",
+      "常见误区：认为哈希表查询恒 O(1)——冲突处理路径决定最坏情况是 O(n) 或 O(log n)",
+      "加分项：能对比拉链法（天然支持高负载、删除简单）与开放地址（缓存友好但怕聚集、删除麻烦）的取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.hash-table"],
+      "related": ["cs.algo.linear.array-linkedlist", "cs.algo.tree.balanced-tree"],
+      "followUps": [
+        "Java HashMap 桶内链表转红黑树的阈值是多少？为什么还要能退回去？",
+        "线性探测、二次探测、双重哈希分别缓解了哪一类聚集？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "哈希冲突处理单选题" },
+    "tags": ["哈希表", "哈希冲突", "开放地址", "拉链法"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0010",
+    "nodeId": "cs.algo.linear.hash-table",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于哈希表的负载因子与扩容（rehash），下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "负载因子 = 元素个数 / 桶个数，值越高冲突概率越大；Java HashMap 默认阈值 0.75，超过即触发扩容" },
+      { "key": "B", "text": "扩容通常把桶数翻倍，并把所有元素按新桶数重新计算位置（rehash），单次扩容是 O(n)，但均摊到每次插入仍是 O(1)" },
+      { "key": "C", "text": "桶数翻倍后，元素的新位置要么不变、要么恰好偏移旧桶数（对 2 的幂桶数与位运算哈希而言），可以利用此性质减少计算" },
+      { "key": "D", "text": "扩容期间哈希表完全不可用，所以 Redis 等系统没有任何 rehash 机制" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 给出负载因子定义与常见阈值，0.75 是空间与冲突概率的工程折中。B 与动态数组扩容同理，几何增长保证均摊 O(1)。C 是 HashMap 扩容的经典优化：容量为 2 的幂时，哈希位多出来的一位决定元素留在原桶还是迁到『旧容量+原下标』桶。D 错：Redis 恰恰采用渐进式 rehash——同时保留新旧两张哈希表，每次增删改查时顺带迁移一部分桶，把一次性 O(n) 摊薄到多次操作中，期间两表都要查，扩容并非完全停服。",
+    "gapCheck": [
+      "易漏点：rehash 的 O(n) 是一次性代价，靠几何扩容实现均摊 O(1)，与动态数组同构",
+      "常见误区：以为扩容就是申请新数组、元素位置不变——哈希位置依赖桶数，必须重算",
+      "加分项：能讲 Redis 渐进式 rehash 的双表迁移机制，或 Go map 的等量扩容与翻倍扩容区别"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.hash-table"],
+      "related": ["cs.algo.complexity.big-o-amortized"],
+      "followUps": [
+        "为什么 HashMap 容量取 2 的幂？取质数（如老式 Hashtable 的 11）有什么不同？",
+        "渐进式 rehash 期间执行删除操作要处理几张表？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "哈希表扩容机制多选题" },
+    "tags": ["哈希表", "rehash", "负载因子", "均摊分析"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0011",
+    "nodeId": "cs.algo.linear.hash-table",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：哈希表平均查询复杂度为 O(______)，但在所有 key 发生哈希碰撞落到同一桶的最坏情况下退化为 O(______)；解决冲突的两大类方法是 ______ 法（桶内挂链表/树）与开放地址法；实现 LRU 缓存通常把哈希表与 ______ 链表结合，使 get/put 都达到 O(1)。",
+    "answer": {
+      "blanks": ["1", "n", "链地址", "双向"],
+      "synonyms": {
+        "1": ["常数", "O(1)"],
+        "n": ["N"],
+        "链地址": ["拉链", "拉链法", "链地址法"],
+        "双向": ["双向循环", "doubly"]
+      }
+    },
+    "analysis": "①均匀哈希+受控负载因子下平均 O(1)。②碰撞集中时拉链退化为遍历 O(n)，这也是拒绝服务攻击（hash flooding）的理论基础。③两大冲突流派：链地址法冲突元素挂桶内结构，开放地址法在表内按探测序列找空槽。④LRU 用哈希表保证 key→节点 O(1) 定位，双向链表维护访问时序（最近用过的移到头、淘汰尾节点），双向指针让已知节点的摘除是 O(1)，单链表做不到。",
+    "gapCheck": [
+      "易漏点：LRU 两个结构缺一不可——哈希表管查找、双向链表管顺序，单链表无法 O(1) 自删除",
+      "常见误区：把最坏 O(n) 忘掉，声称哈希表任何情况下都是 O(1)",
+      "加分项：能提 LRU 淘汰策略家族（LFU、FIFO、ARC）及 Redis maxmemory-policy 的工程选择"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.hash-table"],
+      "related": ["cs.algo.linear.array-linkedlist"],
+      "followUps": [
+        "LRU 缓存容量满时淘汰的是哪个节点？为什么用双向链表而不是单链表？",
+        "LFU 与 LRU 在统计信息和实现结构上有什么差别？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "哈希表与 LRU 填空题" },
+    "tags": ["哈希表", "LRU", "哈希冲突", "填空题"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0012",
+    "nodeId": "cs.algo.linear.hash-table",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：实现一个 `LRUCache` 类，构造函数接收容量 `capacity`，要求 `get(key)` 与 `put(key, value)` 两个方法的平均时间复杂度都为 O(1)。要求：①说明用了哪些数据结构、各自承担什么职责；②处理容量满时的淘汰；③处理已存在 key 的更新与访问提鲜。",
+    "answer": {
+      "ref": "设计要点：哈希表 Map 负责 key→链表节点的 O(1) 定位；双向链表（用虚拟头尾哨兵省去空指针判断）维护访问时序，链表头=最近使用、尾=最久未使用。get：key 不存在返回 -1；存在则把该节点摘除并移到头部（提鲜）。put：key 已存在则更新值并提鲜；不存在则新建节点插头部并写入 Map，若超容量则删除尾节点并同步从 Map 删除其 key。利用 JS Map 保持插入顺序的特性还有简化写法（map.delete 再 set 即提鲜，map.keys().next().value 取最旧 key），但答出哈希表+双向链表的通用结构才是面试考点。所有操作平均 O(1)，空间 O(capacity)。",
+      "code": "// 通用写法：哈希表 + 双向链表（虚拟头尾哨兵）\nclass Node {\n  constructor(k, v) { this.k = k; this.v = v; this.prev = null; this.next = null; }\n}\nclass LRUCache {\n  constructor(capacity) {\n    this.cap = capacity;\n    this.map = new Map();\n    this.head = new Node(0, 0); this.tail = new Node(0, 0);\n    this.head.next = this.tail; this.tail.prev = this.head;\n  }\n  // 摘除已知节点 O(1)\n  remove(node) {\n    node.prev.next = node.next;\n    node.next.prev = node.prev;\n  }\n  // 头插 O(1)\n  addToHead(node) {\n    node.next = this.head.next; node.prev = this.head;\n    this.head.next.prev = node; this.head.next = node;\n  }\n  get(key) {\n    if (!this.map.has(key)) return -1;\n    const node = this.map.get(key);\n    this.remove(node); this.addToHead(node);  // 提鲜\n    return node.v;\n  }\n  put(key, value) {\n    if (this.map.has(key)) {\n      const node = this.map.get(key);\n      node.v = value;\n      this.remove(node); this.addToHead(node);\n      return;\n    }\n    if (this.map.size >= this.cap) {           // 淘汰最久未用（尾节点）\n      const old = this.tail.prev;\n      this.remove(old); this.map.delete(old.k);\n    }\n    const node = new Node(key, value);\n    this.map.set(key, node); this.addToHead(node);\n  }\n}\n\n/* JS 简化版：Map 本身保序\nclass LRUCache {\n  constructor(capacity) { this.cap = capacity; this.map = new Map(); }\n  get(key) {\n    if (!this.map.has(key)) return -1;\n    const v = this.map.get(key);\n    this.map.delete(key); this.map.set(key, v);\n    return v;\n  }\n  put(key, value) {\n    if (this.map.has(key)) this.map.delete(key);\n    else if (this.map.size >= this.cap)\n      this.map.delete(this.map.keys().next().value); // 最久未用\n    this.map.set(key, value);\n  }\n}*/"
+    },
+    "scoringPoints": [
+      { "point": "结构选型讲对：Map 管 O(1) 查找、双向链表管 O(1) 摘除与时序", "weight": 2 },
+      { "point": "get 未命中返回约定值、命中后正确提鲜", "weight": 2 },
+      { "point": "put 处理已存在更新、新建超容量淘汰尾节点且 Map 与链表同步删除", "weight": 3 },
+      { "point": "哨兵节点或等价边界处理正确，复杂度结论 O(1)/O(capacity)", "weight": 1 }
+    ],
+    "analysis": "LRU 是数据结构综合题的最高频手写题之一。常见失分：①只用 Map 不维护顺序，淘汰时找不到最久未用 key；②用单链表导致删除已知节点要 O(n)；③淘汰时只删链表不删 Map 造成状态不一致；④忘记已存在 key 要提鲜。能讲出哨兵节点简化边界、或用 Map 保序特性给简化版并说明其语言依赖，属于加分。",
+    "gapCheck": [
+      "易漏点：淘汰与更新都必须同步维护哈希表和链表两份结构，漏一边就出脏数据",
+      "常见误区：把 LRU 理解成『先进先出』——LRU 淘汰依据是最近访问时间，每次 get 都会改变顺序",
+      "加分项：能分析并发场景（如 Redis 多线程下的 LRU 近似采样）或 LFU 的频率维度扩展"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.hash-table"],
+      "related": ["cs.algo.linear.array-linkedlist"],
+      "followUps": [
+        "如果要求线程安全的 LRU，需要在哪些位置加锁？",
+        "如何在 LRU 基础上扩展实现 LFU（最少使用频率淘汰）？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "LRU 缓存手写代码题" },
+    "tags": ["手写题", "LRU", "哈希表", "双向链表", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-linear-0013",
+    "nodeId": "cs.algo.linear.hash-table",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：哈希表的 key 可以是任意对象，前提是该对象的相等性判断与哈希码遵守契约：两个 equals 相等的对象必须有相同的 hashCode；如果可变对象作为 key 存入后其参与哈希计算的字段被修改，可能导致该对象在表中『找不到』。",
+    "answer": { "judge": true },
+    "analysis": "正确。这是 hashCode/equals 契约的核心：哈希表先用 hashCode 定位桶，再用 equals 在桶内确认，equals 相等而哈希码不同会直接落到不同桶、永远查不到。可变 key 的字段被改后，重新计算的哈希码指向新桶，而对象还挂在旧桶的链上，get/remove 都会失败——表现为内存泄漏式的『孤儿条目』。因此实践中 key 应使用不可变类型（String、Integer 等），或保证参与哈希的字段入表后不变。",
+    "gapCheck": [
+      "易漏点：重写 equals 必须同时重写 hashCode，否则哈希集合行为异常",
+      "常见误区：以为哈希码相同就等于对象相等——哈希相同只是进同一个桶，桶内还要 equals 确认（冲突正常）",
+      "加分项：能讲哈希契约在 HashMap、HashSet、去重逻辑中的连锁影响，以及 Python __hash__/__eq__ 的同一约定"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.linear.hash-table"],
+      "related": ["cs.algo.tree.trie"],
+      "followUps": [
+        "为什么 String 被设计为不可变类，这与作为 HashMap key 有什么关系？",
+        "哈希码相同的两个不同对象在 HashMap 中是怎么共存的？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "哈希码契约与可变 key 判断题" },
+    "tags": ["哈希表", "hashCode", "equals", "易错点"]
+  }
+]

@@ -6,25 +6,73 @@
     "difficulty": 3,
     "stem": "按 Anthropic 多智能体研究系统的官方实践，关于『什么时候值得上多代理』的说法**正确的是**：",
     "options": [
-      { "key": "A", "text": "当任务可拆成多个可并行、各自需要独立上下文带宽的探索型子任务（如多方向同时调研）时收益最大；而动作紧密串行、共享状态多的任务更适合单代理" },
-      { "key": "B", "text": "多代理在所有任务上都碾压单代理，因为并行总是更快——报告实测延迟降低主要来自并行探索" },
-      { "key": "C", "text": "判断标准是子任务数量：超过 3 个子任务就该建多代理架构" },
-      { "key": "D", "text": "只要给每个子代理配便宜的小模型，多代理的总成本必然低于单代理大模型" }]
-    ,
-    "answer": { "keys": ["A"] },
-    "analysis": "官方报告的性能来源分析：研究类任务（广度优先、子方向互相独立、每个方向都要大量检索上下文）正是『宽扇出+上下文隔离』的主场——多代理并行把墙钟时间换质量；反例同样明确：写作/编码这类**高度串行、前步决定后步**的任务，子代理间传话损耗大于隔离收益，报告直接建议这类用单代理 → A。B 错在『所有任务』与『延迟总是降』：串行任务里多代理反而更慢更差；C 用数量当判据太机械——3 个紧耦合子任务不如 1 个强代理；D 忽略官方实测的多代理 token 倍率（对话的 ~15×），小模型摊不平协调开销。",
-    "gapCheck": ["易漏点：答『何时不该用多代理』比答何时用更值钱——官方点名的高频误用就是把多代理塞进协同编辑型任务", "常见误区：把并行收益与质量收益混谈——报告赢的是研究广度，延迟收益只在可并行部分成立", "加分项：引用 token 消耗解释 95% 性能方差的结论——先堆单代理的预算（更多工具/更长运行）再考虑拆"],
-    "knowledgeLinks": {
-      "prereq": ["ai.multi.agent-orchestration.topology-selection"],
-      "related": ["ai.harness.agent-loop.context-budget", "ai.serving.infer-serving.cost-latency"],
-      "followUps": ["你的业务里哪类请求符合『宽扇出』画像？举一个具体例子", "子代理意见冲突时 supervisor 怎么仲裁？", "15× 成本在你的场景折算成人力值多少钱？"]
+      {
+        "key": "A",
+        "text": "当任务可拆成多个可并行、各自需要独立上下文带宽的探索型子任务（如多方向同时调研）时收益最大；而动作紧密串行、共享状态多的任务更适合单代理"
+      },
+      {
+        "key": "B",
+        "text": "多代理在所有任务上都碾压单代理，因为并行总是更快——报告实测延迟降低主要来自并行探索"
+      },
+      {
+        "key": "C",
+        "text": "判断标准是子任务数量：超过 3 个子任务就该建多代理架构"
+      },
+      {
+        "key": "D",
+        "text": "只要给每个子代理配便宜的小模型，多代理的总成本必然低于单代理大模型"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
     },
-    "resources": [{ "title": "Anthropic · Multi-agent research system", "digest": "官方工程文：多代理架构在研究任务上大幅胜出（广度/事实准确率）、token 用量与性能方差的关系、『并行子任务适合多代理、依赖重的串行任务适合单代理』的显式选型建议。" }],
+    "analysis": "官方报告的性能来源分析：研究类任务（广度优先、子方向互相独立、每个方向都要大量检索上下文）正是『宽扇出+上下文隔离』的主场——多代理并行把墙钟时间换质量；反例同样明确：写作/编码这类**高度串行、前步决定后步**的任务，子代理间传话损耗大于隔离收益，报告直接建议这类用单代理 → A。B 错在『所有任务』与『延迟总是降』：串行任务里多代理反而更慢更差；C 用数量当判据太机械——3 个紧耦合子任务不如 1 个强代理；D 忽略官方实测的多代理 token 倍率（对话的 ~15×），小模型摊不平协调开销。",
+    "gapCheck": [
+      "易漏点：答『何时不该用多代理』比答何时用更值钱——官方点名的高频误用就是把多代理塞进协同编辑型任务",
+      "常见误区：把并行收益与质量收益混谈——报告赢的是研究广度，延迟收益只在可并行部分成立",
+      "加分项：引用 token 消耗解释 95% 性能方差的结论——先堆单代理的预算（更多工具/更长运行）再考虑拆"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.multi.agent-orchestration.topology-selection"
+      ],
+      "related": [
+        "ai.harness.agent-loop.context-budget",
+        "ai.serving.infer-serving.cost-latency"
+      ],
+      "followUps": [
+        "你的业务里哪类请求符合『宽扇出』画像？举一个具体例子",
+        "子代理意见冲突时 supervisor 怎么仲裁？",
+        "15× 成本在你的场景折算成人力值多少钱？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "Anthropic · Multi-agent research system",
+        "digest": "官方工程文：多代理架构在研究任务上大幅胜出（广度/事实准确率）、token 用量与性能方差的关系、『并行子任务适合多代理、依赖重的串行任务适合单代理』的显式选型建议。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "web", "url": "https://www.anthropic.com/engineering/built-multi-agent-research-system", "retrievedAt": "2026-11-09", "note": "官方工程博客 2025-06；与 harness 缓存题同文不同考点", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["多代理选型", "大厂实测", "反直觉"],
+    "source": {
+      "kind": "web",
+      "url": "https://www.anthropic.com/engineering/built-multi-agent-research-system",
+      "retrievedAt": "2026-11-09",
+      "note": "官方工程博客 2025-06；与 harness 缓存题同文不同考点",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "多代理选型",
+      "大厂实测",
+      "反直觉"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "场景裁决三连：①『同时调研 5 个竞品的定价策略』②『重构一个 2 万行模块并保持测试全绿』③『每天凌晨总结昨日全部客服会话并归类』。分别判单/多代理并各给一句理由。", "analysis": "①多代理：五个竞品天然独立可并行，每个方向的爬取+阅读吃大量上下文，隔离价值高。②单代理（可配子代理做局部探索）：重构的动作强串行——改 A 破坏 B、全局一致性是命门，多代理各改各的会在接口处打架；允许 spawn 只读子代理查影响面是正确姿势。③单代理+批处理循环：任务是同构 map-reduce（每份会话独立但单份不大），用一个带压缩的循环或代码管道即可，多代理的协调税无处安放。评分眼：每题的理由必须落在『耦合度/并行度/上下文体量』三轴之一，答『感觉复杂』不算。" }
+      {
+        "angle": "换场景",
+        "stem": "场景裁决三连：①『同时调研 5 个竞品的定价策略』②『重构一个 2 万行模块并保持测试全绿』③『每天凌晨总结昨日全部客服会话并归类』。分别判单/多代理并各给一句理由。",
+        "analysis": "①多代理：五个竞品天然独立可并行，每个方向的爬取+阅读吃大量上下文，隔离价值高。②单代理（可配子代理做局部探索）：重构的动作强串行——改 A 破坏 B、全局一致性是命门，多代理各改各的会在接口处打架；允许 spawn 只读子代理查影响面是正确姿势。③单代理+批处理循环：任务是同构 map-reduce（每份会话独立但单份不大），用一个带压缩的循环或代码管道即可，多代理的协调税无处安放。评分眼：每题的理由必须落在『耦合度/并行度/上下文体量』三轴之一，答『感觉复杂』不算。"
+      }
     ]
   },
   {
@@ -34,25 +82,73 @@
     "difficulty": 3,
     "stem": "对比 LangGraph 与 AutoGen 两类多智能体编排框架的设计哲学，下列说法**正确的有**：",
     "options": [
-      { "key": "A", "text": "LangGraph 把 Agent 建模为共享状态上的图：节点执行返回状态增量、由 reducer 决定合并，super-step 边界自动落 checkpoint，可控性与可回放是第一公民" },
-      { "key": "B", "text": "AutoGen 的核心抽象是对话：多 Agent 通过消息收发协作（群聊/轮流发言），流程控制更多藏在对话动态里而非显式图结构" },
-      { "key": "C", "text": "两者在『失败恢复』上的路线相同：都靠重放模型调用实现确定性恢复，不需要状态快照" },
-      { "key": "D", "text": "handoff 模式（OpenAI Agents SDK/Swarm 一脉）与 supervisor 模式的区别在于控制权流向：前者是平级间移交控制权继续干活，后者是中心化的分派-汇总" }]
-    ,
-    "answer": { "keys": ["A", "B", "D"] },
-    "analysis": "A 对：LangGraph 官方概念文档的原话结构就是 graph+shared state+reducer+Pregel 式 super-step+checkpointer；B 对：AutoGen（及其后继 AG2/0.4 的 actor 化演进）以 conversation 为中心组织多体协作，编排逻辑确实更多隐于消息流；D 对：handoff=把当前任务连同控制权整个移交（像工单转派），supervisor=工人干完回报中心再派活，两种拓扑的控制权模型确如所述。C 错得专业：LangGraph 的恢复靠 **checkpoint 状态快照**而非事件重放（正因为 LLM/工具输出不可确定性重放，见持久执行题）；AutoGen 0.4 亦是状态序列化路线。",
-    "gapCheck": ["易漏点：『确定性重放不可能所以要状态快照』这句是 C 项的破题钥匙，也是两框架共同的工程答案", "常见误区：把 LangGraph 的 conditional edge 和 AutoGen 的 speaker 选择说成『一个确定一个随机』——其实两边都有确定与动态混合，差别在默认叙事载体（图 vs 对话）", "加分项：能提 AutoGen 0.4 转向异步 actor 模型、LangGraph 加 durable execution 的双向收敛趋势"],
-    "knowledgeLinks": {
-      "prereq": ["ai.multi.agent-orchestration.framework-mechanics"],
-      "related": ["ai.harness.agent-loop.compaction-recovery", "ai.multi.agent-orchestration.shared-state"],
-      "followUps": ["reducer 选错（比如 last-write-wins 用在列表字段）会出什么事故？", "群聊模式的 token 成本为什么容易失控？谁背锅？", "你会在什么信号下放弃框架改裸 API 循环？"]
+      {
+        "key": "A",
+        "text": "LangGraph 把 Agent 建模为共享状态上的图：节点执行返回状态增量、由 reducer 决定合并，super-step 边界自动落 checkpoint，可控性与可回放是第一公民"
+      },
+      {
+        "key": "B",
+        "text": "AutoGen 的核心抽象是对话：多 Agent 通过消息收发协作（群聊/轮流发言），流程控制更多藏在对话动态里而非显式图结构"
+      },
+      {
+        "key": "C",
+        "text": "两者在『失败恢复』上的路线相同：都靠重放模型调用实现确定性恢复，不需要状态快照"
+      },
+      {
+        "key": "D",
+        "text": "handoff 模式（OpenAI Agents SDK/Swarm 一脉）与 supervisor 模式的区别在于控制权流向：前者是平级间移交控制权继续干活，后者是中心化的分派-汇总"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
     },
-    "resources": [{ "title": "LangGraph Concepts + AutoGen 文档", "digest": "LangGraph：state/reducer/super-step/checkpoint 概念页；AutoGen：architecture 页描述 async event-driven actor 与对话核心（旧版 group chat 文档对照）。两官方文档互读是这题的标准备面。" }],
+    "analysis": "A 对：LangGraph 官方概念文档的原话结构就是 graph+shared state+reducer+Pregel 式 super-step+checkpointer；B 对：AutoGen（及其后继 AG2/0.4 的 actor 化演进）以 conversation 为中心组织多体协作，编排逻辑确实更多隐于消息流；D 对：handoff=把当前任务连同控制权整个移交（像工单转派），supervisor=工人干完回报中心再派活，两种拓扑的控制权模型确如所述。C 错得专业：LangGraph 的恢复靠 **checkpoint 状态快照**而非事件重放（正因为 LLM/工具输出不可确定性重放，见持久执行题）；AutoGen 0.4 亦是状态序列化路线。",
+    "gapCheck": [
+      "易漏点：『确定性重放不可能所以要状态快照』这句是 C 项的破题钥匙，也是两框架共同的工程答案",
+      "常见误区：把 LangGraph 的 conditional edge 和 AutoGen 的 speaker 选择说成『一个确定一个随机』——其实两边都有确定与动态混合，差别在默认叙事载体（图 vs 对话）",
+      "加分项：能提 AutoGen 0.4 转向异步 actor 模型、LangGraph 加 durable execution 的双向收敛趋势"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.multi.agent-orchestration.framework-mechanics"
+      ],
+      "related": [
+        "ai.harness.agent-loop.compaction-recovery",
+        "ai.multi.agent-orchestration.shared-state"
+      ],
+      "followUps": [
+        "reducer 选错（比如 last-write-wins 用在列表字段）会出什么事故？",
+        "群聊模式的 token 成本为什么容易失控？谁背锅？",
+        "你会在什么信号下放弃框架改裸 API 循环？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "LangGraph Concepts + AutoGen 文档",
+        "digest": "LangGraph：state/reducer/super-step/checkpoint 概念页；AutoGen：architecture 页描述 async event-driven actor 与对话核心（旧版 group chat 文档对照）。两官方文档互读是这题的标准备面。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "self-authored", "note": "自创对比题；选项事实以 langchain-ai.github.io/langgraph/concepts 与 microsoft.github.io/autogen 为准（题干措辞自拟）", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["框架机制", "设计哲学", "对比题"],
+    "source": {
+      "kind": "self-authored",
+      "note": "自创对比题；选项事实以 langchain-ai.github.io/langgraph/concepts 与 microsoft.github.io/autogen 为准（题干措辞自拟）",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "框架机制",
+      "设计哲学",
+      "对比题"
+    ],
     "variants": [
-      { "angle": "追问延伸", "stem": "面试官追问：『框架抽象泄漏』——请讲两个你在 LangGraph 或 AutoGen 里真实踩到/见过的泄漏现场，以及你当时的绕行方案。", "analysis": "高分现场案例库：①LangGraph 的 checkpointer 序列化踩到不可序列化对象（工具闭包里的 DB 连接），每步快照都在悄悄变慢/失败——绕行是 state 只存纯数据、连接挂外部资源；②条件边的字符串路由与节点改名不同步导致线上永远走 fallback 分支（类型系统不保护路由 key）；③AutoGen group chat 的 speaker 选择靠 LLM 判定，出现『两个 agent 互相谦让轮流空转』的成本事故——绕行是强行 speaker 模板/终止条件；④中断恢复时 interrupt 前的副作用已执行过一遍（不是从节点起点重来）。评分看『具体故障形态+根因+绕行』三件套齐不齐，泛泛『调试困难』不给分。" }
+      {
+        "angle": "追问延伸",
+        "stem": "面试官追问：『框架抽象泄漏』——请讲两个你在 LangGraph 或 AutoGen 里真实踩到/见过的泄漏现场，以及你当时的绕行方案。",
+        "analysis": "高分现场案例库：①LangGraph 的 checkpointer 序列化踩到不可序列化对象（工具闭包里的 DB 连接），每步快照都在悄悄变慢/失败——绕行是 state 只存纯数据、连接挂外部资源；②条件边的字符串路由与节点改名不同步导致线上永远走 fallback 分支（类型系统不保护路由 key）；③AutoGen group chat 的 speaker 选择靠 LLM 判定，出现『两个 agent 互相谦让轮流空转』的成本事故——绕行是强行 speaker 模板/终止条件；④中断恢复时 interrupt 前的副作用已执行过一遍（不是从节点起点重来）。评分看『具体故障形态+根因+绕行』三件套齐不齐，泛泛『调试困难』不给分。"
+      }
     ]
   },
   {
@@ -61,29 +157,484 @@
     "type": "essay",
     "difficulty": 4,
     "stem": "架构评论题：LangChain 官方博客《Benchmarking Multi-Agent Architectures》用实测支持『协调者架构优于纯 swarm/群聊』的结论。请论述：一、这个结论的适用边界（哪些任务画像下协调者优势会收窄甚至反转）；二、supervisor 架构自身的三个结构性弱点及你能给出的缓解；三、如果让你为一个『跨团队协作的代码现代化项目』设计编排拓扑，你怎么组合，并说明每一处的取舍依据。",
-    "answer": { "ref": "参考骨架：【一·适用边界】协调者优势建立在『子任务可清晰界定+结果可被中心校验』上，收窄场景：①深度串行+强上下文连续性的任务（长链重构、创意写作）——中心每次转述都在丢失隐性语境，单代理连续性完胜（Anthropic 同一篇报告也承认这点，两家结论并不矛盾而是互补：广度任务中心调度赢、连续性任务单线赢）；②超低延迟要求——中心多一跳就是一次完整推理往返；③子任务高度同质且规则可判（每日批处理）——路由根本不需要 LLM，代码分发器比 supervisor 便宜可靠；④ swarm 的真正主场：子任务间需要**横向接力**且交接物是自包含工件（流水线式 handoff），此时中心反而是瓶颈。【二·supervisor 三弱点+缓解】①中心成为信息瓶颈与单点智商——所有跨团队知识必须穿过 supervisor 的窗口，它不懂的细节它就管不了：缓解=给 supervisor 只路由不干细活的极简人设+子代理直达工具授权（跳过中心的旁路通道）；②转述失真累积（telephone game）——每层摘要丢一点，末端执行拿到的目标已变形：缓解=任务下发用结构化契约（目标/验收/约束三段）、回传也用结构化摘要而非自由文本、关键参数原文透传不许改写；③成本与延迟的中心化放大——每跳都过 supervisor，简单问题也要中心过路费：缓解=分级路由（规则/小模型先过滤，复杂才升 supervisor）、子代理间白名单直连。【三·自选拓扑示范】代码现代化：supervisor 主干（任务分解+验收），下设三种异构成员：repo-mapper 只读侦察代理（并行扫模块出依赖地图）、migrator 执行代理（按模块串行推进保全局一致，禁止并发改共享接口）、reviewer 独立评审代理（不与 migrator 共享上下文防说服污染）；共享状态用文件化（迁移进度表+接口契约清单）而非消息口口相传；危险动作（删文件/改公共接口）挂 HITL。取舍要点：写路径串行化牺牲吞吐换一致性、评审隔离牺牲成本换独立性——两处都花了钱，要明说买的是什么。【收尾立场】拓扑没有普适冠军，只有『任务的耦合结构决定拓扑』；benchmark 的价值是告诉你默认起点，不是终点。" },
+    "answer": {
+      "ref": "参考骨架：【一·适用边界】协调者优势建立在『子任务可清晰界定+结果可被中心校验』上，收窄场景：①深度串行+强上下文连续性的任务（长链重构、创意写作）——中心每次转述都在丢失隐性语境，单代理连续性完胜（Anthropic 同一篇报告也承认这点，两家结论并不矛盾而是互补：广度任务中心调度赢、连续性任务单线赢）；②超低延迟要求——中心多一跳就是一次完整推理往返；③子任务高度同质且规则可判（每日批处理）——路由根本不需要 LLM，代码分发器比 supervisor 便宜可靠；④ swarm 的真正主场：子任务间需要**横向接力**且交接物是自包含工件（流水线式 handoff），此时中心反而是瓶颈。【二·supervisor 三弱点+缓解】①中心成为信息瓶颈与单点智商——所有跨团队知识必须穿过 supervisor 的窗口，它不懂的细节它就管不了：缓解=给 supervisor 只路由不干细活的极简人设+子代理直达工具授权（跳过中心的旁路通道）；②转述失真累积（telephone game）——每层摘要丢一点，末端执行拿到的目标已变形：缓解=任务下发用结构化契约（目标/验收/约束三段）、回传也用结构化摘要而非自由文本、关键参数原文透传不许改写；③成本与延迟的中心化放大——每跳都过 supervisor，简单问题也要中心过路费：缓解=分级路由（规则/小模型先过滤，复杂才升 supervisor）、子代理间白名单直连。【三·自选拓扑示范】代码现代化：supervisor 主干（任务分解+验收），下设三种异构成员：repo-mapper 只读侦察代理（并行扫模块出依赖地图）、migrator 执行代理（按模块串行推进保全局一致，禁止并发改共享接口）、reviewer 独立评审代理（不与 migrator 共享上下文防说服污染）；共享状态用文件化（迁移进度表+接口契约清单）而非消息口口相传；危险动作（删文件/改公共接口）挂 HITL。取舍要点：写路径串行化牺牲吞吐换一致性、评审隔离牺牲成本换独立性——两处都花了钱，要明说买的是什么。【收尾立场】拓扑没有普适冠军，只有『任务的耦合结构决定拓扑』；benchmark 的价值是告诉你默认起点，不是终点。"
+    },
     "scoringPoints": [
-      { "point": "边界分析 ≥3 类且能与 Anthropic 报告互相印证（互补而非打架）", "weight": 2 },
-      { "point": "swarm/handoff 的真实主场被公正指出", "weight": 1 },
-      { "point": "supervisor 弱点给出信息瓶颈/转述失真/成本放大三条且有对应缓解", "weight": 2 },
-      { "point": "缓解机制具体可用（结构化契约/旁路通道/分级路由）", "weight": 2 },
-      { "point": "自选拓扑自洽：分工、串并行选择、共享介质、HITL 挂钩四要素齐全", "weight": 2 },
-      { "point": "每处设计标注了『牺牲什么换什么』的代价账", "weight": 2 },
-      { "point": "收束有立场且不与前面论述打架", "weight": 1 }
+      {
+        "point": "边界分析 ≥3 类且能与 Anthropic 报告互相印证（互补而非打架）",
+        "weight": 2
+      },
+      {
+        "point": "swarm/handoff 的真实主场被公正指出",
+        "weight": 1
+      },
+      {
+        "point": "supervisor 弱点给出信息瓶颈/转述失真/成本放大三条且有对应缓解",
+        "weight": 2
+      },
+      {
+        "point": "缓解机制具体可用（结构化契约/旁路通道/分级路由）",
+        "weight": 2
+      },
+      {
+        "point": "自选拓扑自洽：分工、串并行选择、共享介质、HITL 挂钩四要素齐全",
+        "weight": 2
+      },
+      {
+        "point": "每处设计标注了『牺牲什么换什么』的代价账",
+        "weight": 2
+      },
+      {
+        "point": "收束有立场且不与前面论述打架",
+        "weight": 1
+      }
     ],
     "analysis": "这题的陷阱是把 benchmark 结论当真理复述——考官等你说出『它是特定任务画像下的冠军』。第二段的三弱点必须有『转述失真』，这是多代理独有的通信问题（单体不存在），答不出说明没真跑过多体系统。第三段开放但有暗礁：代码现代化的**写冲突**是命门，migrator 并发改共享接口必炸，敢写『migrator 全并行』的会被追问到哑。结尾的『耦合结构决定拓扑』能把全文从拼盘抬成论点。",
-    "gapCheck": ["易漏点：引 benchmark 时补一句它的评测任务构成（多为可分解的研究/工具型）——结论强度受评测集约束", "常见误区：把 supervisor 和 orchestrator-worker 混为一谈——前者有对话式动态分派，后者偏静态 DAG 分派，成本画像不同", "加分弹药：LangChain 博客另有《Context engineering…blogging agent》展示单代理+好提示也能赢的对照案例，主动引用显公允", "结构自救：三段各限 3 分钟，示范段超时宁可减成员数不减代价分析"],
+    "gapCheck": [
+      "易漏点：引 benchmark 时补一句它的评测任务构成（多为可分解的研究/工具型）——结论强度受评测集约束",
+      "常见误区：把 supervisor 和 orchestrator-worker 混为一谈——前者有对话式动态分派，后者偏静态 DAG 分派，成本画像不同",
+      "加分弹药：LangChain 博客另有《Context engineering…blogging agent》展示单代理+好提示也能赢的对照案例，主动引用显公允",
+      "结构自救：三段各限 3 分钟，示范段超时宁可减成员数不减代价分析"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.multi.agent-orchestration.shared-state", "ai.multi.agent-orchestration.topology-selection"],
-      "related": ["ai.multi.agent-orchestration.framework-mechanics", "ai.eval.evaluation-qa.metrics-dataset", "cs.design"],
-      "followUps": ["你的示范里 reviewer 的意见 migrator 不服怎么办？仲裁协议是什么？", "文件化共享状态的并发写锁怎么设计才不死锁？", "这套拓扑跑三个月后最先腐烂的是哪个部件？"]
+      "prereq": [
+        "ai.multi.agent-orchestration.shared-state",
+        "ai.multi.agent-orchestration.topology-selection"
+      ],
+      "related": [
+        "ai.multi.agent-orchestration.framework-mechanics",
+        "ai.eval.evaluation-qa.metrics-dataset",
+        "cs.design"
+      ],
+      "followUps": [
+        "你的示范里 reviewer 的意见 migrator 不服怎么办？仲裁协议是什么？",
+        "文件化共享状态的并发写锁怎么设计才不死锁？",
+        "这套拓扑跑三个月后最先腐烂的是哪个部件？"
+      ]
     },
-    "resources": [{ "title": "LangChain Blog · Benchmarking multi-agent architectures", "digest": "官方博客：system message baseline/supervisor/swarm 三架构在分解型 benchmark 上的对比，supervisor 综合领先；同站多篇工程文给出各自的适用讨论与成本视角。" }],
+    "resources": [
+      {
+        "title": "LangChain Blog · Benchmarking multi-agent architectures",
+        "digest": "官方博客：system message baseline/supervisor/swarm 三架构在分解型 benchmark 上的对比，supervisor 综合领先；同站多篇工程文给出各自的适用讨论与成本视角。"
+      }
+    ],
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://blog.langchain.com/benchmarking-multi-agent-architectures/", "retrievedAt": "2026-11-09", "note": "LangChain 官方博客 benchmark 文（2025），结论与其评测任务构成需一起引用", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["多代理思辨", "大厂博客锚", "设计论证"],
+    "source": {
+      "kind": "web",
+      "url": "https://blog.langchain.com/benchmarking-multi-agent-architectures/",
+      "retrievedAt": "2026-11-09",
+      "note": "LangChain 官方博客 benchmark 文（2025），结论与其评测任务构成需一起引用",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "多代理思辨",
+      "大厂博客锚",
+      "设计论证"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "追加约束重写第三段：你的代码现代化项目有严格预算——多代理总 token 不得超过单代理基线的 3×，且迁移期间主干分支每天都在演进。这两个约束各推翻你原设计的什么？怎么改？", "analysis": "预算约束打击：独立 reviewer 常驻（每次评审双倍 token）与 supervisor 全量过目——改为抽样评审（高风险 diff 才送 reviewer）+supervisor 只看结构化摘要不看原始轨迹；『每天主干演进』打击：repo-mapper 一次性侦察的地图会迅速过期、migrator 的串行队列与上游改动持续冲突——改为增量 rebase 检查点（每完成一模块立即对账主干）+侦察缓存带 TTL 与失效触发（CI 检测到依赖变更即重扫）。答题眼：两个约束都指向『多代理的贵要花在刀刃上、多代理的缓存会随世界漂移』——能识别被推翻项而非缝缝补补才是本变体的目的。" }
+      {
+        "angle": "加约束",
+        "stem": "追加约束重写第三段：你的代码现代化项目有严格预算——多代理总 token 不得超过单代理基线的 3×，且迁移期间主干分支每天都在演进。这两个约束各推翻你原设计的什么？怎么改？",
+        "analysis": "预算约束打击：独立 reviewer 常驻（每次评审双倍 token）与 supervisor 全量过目——改为抽样评审（高风险 diff 才送 reviewer）+supervisor 只看结构化摘要不看原始轨迹；『每天主干演进』打击：repo-mapper 一次性侦察的地图会迅速过期、migrator 的串行队列与上游改动持续冲突——改为增量 rebase 检查点（每完成一模块立即对账主干）+侦察缓存带 TTL 与失效触发（CI 检测到依赖变更即重扫）。答题眼：两个约束都指向『多代理的贵要花在刀刃上、多代理的缓存会随世界漂移』——能识别被推翻项而非缝缝补补才是本变体的目的。"
+      }
+    ]
+  },
+  {
+    "id": "Q-ai-multi-value-0002",
+    "nodeId": "ai.multi.agent-orchestration.topology-selection",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：当一个任务出现「单代理的上下文被多个互相干扰的子目标反复污染、不同子任务需要各自独立的上下文带宽、或需要给不同操作设置隔离权限」等信号时，才值得考虑拆成多代理；在没有这些信号前，正确的默认决策顺序是先把单代理做强（更好的工具、更长运行预算、更清晰的提示），而不是一上来就上多代理架构。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。这是业界（Anthropic、LangChain 工程实践）反复强调的「单代理优先（start simple）」原则。多代理不是免费的午餐：它带来协调开销、token 成本倍增（Anthropic 研究系统实测多代理对话 token 约为单体的 15 倍）、跨代理转述失真、调试与失败恢复复杂度上升。因此只有当单代理确实撞到天花板，且出现明确信号时拆分才划算，典型信号有三类：① 上下文污染/带宽不足——多个独立子目标在一个上下文里互相挤占、检索到的资料彼此干扰，拆分可让每个子代理拥有聚焦的独立上下文；② 可并行的探索型子任务——多方向同时调研，用墙钟时间换广度；③ 权限/失败隔离——例如把「可执行危险命令」的代理与「只读调研」代理分开，限制爆炸半径。反之，动作高度串行、共享状态多、需要强全局一致性的任务（如长链代码重构、协同写作），多代理的传话损耗大于隔离收益，应坚持单代理。决策阶梯应是：优化提示与工具 → 增加单代理预算/运行时长 → 仅在明确信号出现时才引入多代理，并从最简单的 supervisor 拓扑起步。对照后端：这就像不要为了用上微服务而拆分一个本可良好运行的单体，先证明单体的瓶颈再演进，架构复杂度必须由真实需求买单。",
+    "gapCheck": [
+      "易漏点：多代理有 15× 级 token 成本和转述失真，默认应单代理、按信号而非子任务数量决定拆分",
+      "常见误区：把「任务复杂/子任务多」直接等同于「该上多代理」，忽略耦合度与上下文隔离收益",
+      "加分项：能说出上下文污染、可并行探索、权限隔离三类拆分信号，并给出先强单体的决策阶梯"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.multi.agent-orchestration.topology-selection"
+      ],
+      "related": [
+        "ai.harness.agent-loop.context-budget",
+        "ai.serving.infer-serving.cost-latency"
+      ],
+      "followUps": [
+        "哪些指标可以量化「上下文污染」确实在伤害单代理效果？",
+        "从单代理演进到 supervisor 多代理，第一步最小改动是什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "单代理优先原则与拆分信号判断题"
+    },
+    "tags": [
+      "多代理选型",
+      "单代理优先",
+      "上下文隔离",
+      "成本"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-ai-multi-fw-0003",
+    "nodeId": "ai.multi.agent-orchestration.framework-mechanics",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "关于 LangGraph 的 checkpointer（检查点）持久化与 interrupt（中断/人审）机制，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "LangGraph 在每个 super-step 边界把共享 state 快照写入 checkpointer，崩溃或人工中断后可从最近检查点恢复；因为 LLM 与工具输出不可确定性重放，恢复依赖的是状态快照而非事件重放，interrupt 会挂起执行并把当前 state 持久化等待外部输入后继续"
+      },
+      {
+        "key": "B",
+        "text": "LangGraph 的恢复靠确定性重放所有模型调用来重建状态，不需要保存任何快照，和事件溯源完全一样"
+      },
+      {
+        "key": "C",
+        "text": "interrupt 一旦触发整个图就彻底终止、状态全部丢失，无法在人工审核后从断点继续"
+      },
+      {
+        "key": "D",
+        "text": "checkpointer 只能把状态存在内存里，进程重启后检查点必然消失，不支持数据库等持久后端"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 准确。LangGraph 借鉴 Pregel 的 super-step 模型，在每个步骤边界通过 checkpointer 把共享 state（以及线程 id、任务进度、待办消息等）序列化落盘，后端可以是内存、SQLite、Postgres、Redis 等。恢复时不是重放 LLM 调用——因为大模型同样输入也可能给出不同输出、外部工具（付款、发邮件）有副作用且不可安全重复，确定性事件重放在 Agent 场景根本不成立——而是直接加载最近一次 state 快照，从中断点之后继续，这正是「持久执行（durable execution）」的核心。interrupt（人在回路 HITL）利用同一机制：执行到某节点主动暂停，把当前 state 持久化并把控制权交回外部，等人工审批/补充信息后用相同 thread_id 恢复，图从挂起点继续而不重跑已完成的副作用步骤。B 错在假设了不可能的确定性重放。C 错：interrupt 是可恢复的挂起而非终止，这正是它服务于审批流、危险操作人审的价值。D 错：checkpointer 的设计就是可插拔持久化，生产用 Postgres 等持久后端保证跨进程/跨重启恢复。实践坑：state 里只能放可序列化的纯数据，工具闭包里的数据库连接、文件句柄不能进检查点，否则快照失败或膨胀——这也是常见的框架抽象泄漏现场。对照后端：checkpointer 很像工作流引擎（如 Temporal）的事件溯源 + 状态快照，interrupt 则类似 BPMN 里的人工任务（user task）等待外部信号。",
+    "gapCheck": [
+      "易漏点：恢复靠 state 快照而非重放 LLM（输出不确定、工具有副作用）；interrupt 可从断点恢复",
+      "常见误区：以为 Agent 框架能像确定性事件溯源那样重放，或以为 interrupt 会丢失状态",
+      "加分项：知道 checkpointer 可接 Postgres 等持久后端、state 只能放可序列化纯数据的坑"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.multi.agent-orchestration.framework-mechanics"
+      ],
+      "related": [
+        "ai.harness.agent-loop.compaction-recovery"
+      ],
+      "followUps": [
+        "为什么工具的副作用让「重放恢复」在 Agent 系统里不可行？",
+        "state 里误放了数据库连接会导致什么检查点问题？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "LangGraph checkpointer 与 interrupt 机制单选题"
+    },
+    "tags": [
+      "LangGraph",
+      "checkpointer",
+      "持久执行",
+      "HITL",
+      "闭卷题"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-ai-multi-tradeoff-0004",
+    "nodeId": "ai.multi.agent-orchestration.shared-state",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于多智能体系统的共享状态、通信契约与失败恢复，下列做法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "对共享 state 的并发写要用 reducer 明确合并策略：累加型字段（如消息列表）用追加类 reducer，覆盖型字段用 last-write-wins，选错 reducer（如对列表用覆盖）会静默丢失其他代理的写入"
+      },
+      {
+        "key": "B",
+        "text": "子代理向协调者回传结果时应返回结构化摘要（结论/证据/置信度/待办），而不是把完整原始对话 transcript 直接抛回去，以控制上下文膨胀并降低转述噪声"
+      },
+      {
+        "key": "C",
+        "text": "需要为可重复执行的子任务设计幂等键，并规划取消传播与孤儿任务清理：父任务被取消时要级联通知子代理，避免子代理继续空转消耗 token 或产生游离副作用"
+      },
+      {
+        "key": "D",
+        "text": "共享状态越自由越好，让所有代理直接读写同一个无 schema 的大字典，并发冲突由 LLM 临场判断解决即可"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A 正确：LangGraph 等框架的共享 state 靠 reducer 定义「多个节点同时返回更新时如何合并」。消息/事件这类应追加（如 operator.add / 自定义 list 合并），状态标量这类才适合 last-write-wins；若把列表字段也用默认覆盖 reducer，后写入的代理会整段替换掉前面代理追加的内容，造成静默数据丢失，且因为不报错极难排查。B 正确：多代理通信要契约化，子代理返回自包含的结构化结果（结论、支撑证据、置信度、未完成项），协调者据此决策；回传整段 transcript 会让上下文随代理层数指数膨胀、把噪声和中间错误一并上传，还加剧「传话游戏」式的信息失真。C 正确：分布式多体必须处理部分失败——可重试的子任务用幂等键（如稳定的 task_id）保证重复执行不产生重复副作用；取消要能沿调用树传播并清理已派发的孤儿任务，否则父任务已放弃、子代理还在跑，白白烧 token 甚至留下已发消息、已扣款等游离副作用，这与微服务里的超时/取消传播、任务对账同源。D 是反模式：无 schema 的自由共享状态 + 靠 LLM 临场裁决冲突，既不可复现也无法保证正确，是多代理系统最常见的腐烂来源；正确做法是显式 schema、字段级 reducer、最小权限的状态可见范围（黑板/消息总线都应受控）。对照后端：这几乎就是并发数据结构的合并函数、DTO 契约、分布式任务的幂等与级联取消在 Agent 领域的翻版。",
+    "gapCheck": [
+      "易漏点：reducer 选错会静默丢写；回传结构化摘要而非 transcript；取消要级联并清理孤儿任务",
+      "常见误区：用无 schema 共享大字典、让 LLM 临场解决并发冲突，导致不可复现和状态腐烂",
+      "加分项：能联系幂等键设计、黑板 vs 消息总线范式、字段级合并与最小可见范围"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.multi.agent-orchestration.shared-state"
+      ],
+      "related": [
+        "ai.harness.agent-loop.compaction-recovery",
+        "ai.memory.memory-skill.session-state"
+      ],
+      "followUps": [
+        "黑板模式和消息总线两种通信范式分别适合什么拓扑？",
+        "如何设计一个能安全重试的子任务幂等键？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "共享状态 reducer、通信契约与失败恢复多选题"
+    },
+    "tags": [
+      "多代理",
+      "共享状态",
+      "reducer",
+      "幂等",
+      "失败恢复"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-ai-multi-value-0003",
+    "nodeId": "ai.multi.agent-orchestration.topology-selection",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "常见多智能体拓扑中，由一个中心代理负责拆解任务、分派给若干子代理并汇总结果的称为 ______ 拓扑；子代理之间像流水线一样把工件逐级向后移交、无中心调度的称为 ______（或 handoff/pipeline）；所有代理平等地通过群聊消息协作、无固定中心的称为 ______。",
+    "answer": {
+      "blanks": [
+        "supervisor（协调者/主管）",
+        "pipeline（流水线/handoff）",
+        "swarm（群聊/蜂群）"
+      ],
+      "synonyms": {
+        "supervisor（协调者/主管）": [
+          "supervisor",
+          "协调者",
+          "主管",
+          " orchestrator-worker",
+          "orchestrator"
+        ],
+        "pipeline（流水线/handoff）": [
+          "pipeline",
+          "handoff",
+          "流水线",
+          "编排链"
+        ],
+        "swarm（群聊/蜂群）": [
+          "swarm",
+          "群聊",
+          "蜂群",
+          "去中心化"
+        ]
+      }
+    },
+    "analysis": "三个空对应多代理的三种基本拓扑。① supervisor（协调者/主管，也称 orchestrator-worker）：中心化，主管代理持有全局计划，把子任务分派给专职 worker、收回结果再决定下一步，优点是可控、易校验、职责清晰，LangChain 实测在可分解任务上综合表现最好；代价是中心成为信息瓶颈和额外一跳推理成本。② pipeline/handoff：子代理按固定顺序像流水线一样交接自包含工件，每个代理只关心自己这一段，适合步骤明确、可线性化的流程（如先检索、再写作、再审校），控制权在平级间移交而非回到中心。③ swarm（群聊/蜂群）：代理对等、通过消息动态协作、靠对话决定谁发言，灵活但最难调试、token 成本和跑偏概率高，适合子任务间需要大量横向启发、难以预先固定流程的场景。选型的本质仍是任务耦合结构：可清晰分解且结果需中心校验选 supervisor，步骤稳定可线性化选 pipeline，探索性强、边界模糊才考虑 swarm，并始终先用好单代理。对照后端：这三种拓扑很像编排式 Saga（中心协调器）、责任链/管道过滤器、以及发布订阅的对等事件协作。",
+    "gapCheck": [
+      "易漏点：supervisor 中心化分派汇总、pipeline 平级移交工件、swarm 对等群聊，三者控制权模型不同",
+      "常见误区：把 supervisor 与静态 DAG 的 orchestrator 混为一谈，或认为 swarm 最灵活就默认最优",
+      "加分项：能结合可控性、调试成本、token 开销和任务耦合结构给出选型理由"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.multi.agent-orchestration.topology-selection"
+      ],
+      "related": [
+        "ai.multi.agent-orchestration.framework-mechanics"
+      ],
+      "followUps": [
+        "为什么实测中 supervisor 往往优于纯 swarm？",
+        "pipeline 拓扑在哪个环节最容易累积误差？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "三种多代理拓扑填空题"
+    },
+    "tags": [
+      "多代理",
+      "拓扑",
+      "supervisor",
+      "pipeline",
+      "swarm",
+      "填空题"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-ai-multi-fw-0004",
+    "nodeId": "ai.multi.agent-orchestration.framework-mechanics",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：handoff（移交）模式与 supervisor 模式的关键区别在于控制权流向——handoff 是一个代理把任务连同控制权整个移交给另一个平级代理后自己不再主导（类似工单转派），而 supervisor 是中心代理始终保留控制权、worker 干完活把结果交回中心再由中心决定下一步。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。这是区分两类常见编排模式的核心。supervisor（OpenAI Agents SDK、LangGraph supervisor 等）是中心化的分派-汇总：worker 代理只对被分配的子任务负责，执行完把结果交回主管，控制权始终在主管手里，由它决定再派给谁、是否结束，因此全局可控、易于插入评审和人审。handoff（Swarm/Agents SDK 的 handoff、客服转人工式流程）则是控制权的整体转移：代理 A 判断该由 B 处理时，把对话上下文和后续控制权一并移交给 B，A 退出主导，B 接着以自己的人设和工具继续，链路更像责任链/状态转移，适合「按类别路由到专席」的场景（账单问题转账单代理、技术问题转技术代理）。两者并非对立，框架常允许混用：supervisor 主干下，某些子流程内部用 handoff。选型考量：需要全局视角、可校验、可回溯用 supervisor；流程可表达为有限状态机、希望减少中心往返延迟用 handoff。实践坑是 handoff 链路过长会产生和群聊类似的目标漂移与上下文膨胀，需要限制移交深度并在移交时只传结构化、自包含的必要上下文。对照后端：handoff 类似责任链模式/工作流里的任务转派，supervisor 类似中央调度器持有编排权。",
+    "gapCheck": [
+      "易漏点：handoff 是平级间控制权整体转移（A 退出主导），supervisor 是中心保留控制权的分派-汇总",
+      "常见误区：把两者都说成「一个代理调用另一个」，忽略控制权归属和是否回到中心的差别",
+      "加分项：能指出 handoff 链过长的目标漂移风险与移交深度、上下文裁剪的治理"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.multi.agent-orchestration.framework-mechanics"
+      ],
+      "related": [
+        "ai.multi.agent-orchestration.topology-selection"
+      ],
+      "followUps": [
+        "handoff 时应该传递完整对话还是结构化摘要？各自后果？",
+        "如何防止 handoff 在两个代理间无限循环？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "handoff 与 supervisor 控制权差异判断题"
+    },
+    "tags": [
+      "多代理",
+      "handoff",
+      "supervisor",
+      "控制权",
+      "编排模式"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-ai-multi-tradeoff-0005",
+    "nodeId": "ai.multi.agent-orchestration.shared-state",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "多智能体系统中「消息总线（message bus）」与「黑板（blackboard）」两种通信范式，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "消息总线是代理之间通过显式消息收发、按订阅/路由通信，耦合在消息约定上；黑板是所有代理读写一个共享的结构化工作区，靠观察公共状态变化协作，耦合在共享数据 schema 上"
+      },
+      {
+        "key": "B",
+        "text": "黑板模式要求代理之间两两直接知道彼此地址并点对点调用，否则无法协作"
+      },
+      {
+        "key": "C",
+        "text": "消息总线把所有中间结果都堆在一个全局大字典里，代理轮询读取，没有任何消息概念"
+      },
+      {
+        "key": "D",
+        "text": "两种范式完全等价，选哪个对系统的可观测性和并发控制没有任何影响"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 准确区分了两种范式。消息总线（message bus / 事件总线）：代理之间不直接持有对方引用，而是往总线上发布消息、按主题订阅或按路由规则接收，通信是显式的、面向事件的，代理耦合在消息格式（契约）上，优点是松耦合、易加新订阅者、天然适合异步和流水线，代价是消息流分散、追踪一条业务要跨多个队列。黑板（blackboard）：存在一个所有代理可见的共享结构化工作区（共享 state），代理把中间结论写上去、也从上面读别人写下的信息，靠公共状态的演进驱动协作（经典于早期专家系统，LangGraph 的共享 state 就是现代黑板），代理耦合在共享数据的 schema 与读写约定上，优点是全局状态集中、可观测、易做检查点，代价是并发写冲突（需要 reducer/锁）、状态可能膨胀、要控制可见范围。B 错：点对点直连恰恰是黑板要避免的，黑板通过共享区解耦代理身份。C 把两者特点说反了——堆共享工作区是黑板而非消息总线。D 错：两者在可观测性（总线看消息链路、黑板看状态快照）、并发控制、失败恢复方式上差异明显，选型取决于任务是「事件驱动的流转」还是「围绕一份共同工件的协同构建」。对照后端：消息总线对应 MQ/事件驱动架构，黑板对应共享存储 + 状态机/工作流引擎里的全局上下文。",
+    "gapCheck": [
+      "易漏点：消息总线耦合在消息契约、面向事件收发；黑板耦合在共享 state 的 schema、面向公共状态协作",
+      "常见误区：把黑板理解成点对点调用，或把共享大字典与消息总线混为一谈",
+      "加分项：能从可观测性、并发写冲突（reducer/锁）、失败恢复角度对比并选型"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.multi.agent-orchestration.shared-state"
+      ],
+      "related": [
+        "ai.memory.memory-skill.session-state",
+        "ai.multi.agent-orchestration.framework-mechanics"
+      ],
+      "followUps": [
+        "LangGraph 的共享 state 更接近哪种范式？为什么？",
+        "黑板模式下如何防止共享状态无限膨胀？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "消息总线与黑板通信范式单选题"
+    },
+    "tags": [
+      "多代理",
+      "消息总线",
+      "黑板模式",
+      "通信范式",
+      "共享状态"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-14",
+      "version": 1,
+      "history": []
+    }
+  },
+  {
+    "id": "Q-ai-multi-agent-orchestrati-74160",
+    "nodeId": "ai.multi.agent-orchestration.framework-mechanics",
+    "type": "essay",
+    "difficulty": 3,
+    "stem": "我注意到你们做过 LangGraph 这类状态图框架，也接触过 AutoGen 这类多代理协作框架。现在假设一个审批 Agent 需要在高风险动作前暂停，等待人类确认后再继续，而且进程可能重启、服务可能恢复。请你从状态保存、中断触发方式、恢复语义、事件/消息可见性四个角度，比较 LangGraph 和 AutoGen 在这类“可恢复中断”上的设计差异；最后提炼一个跨框架通用的中断点设计原则，避免把中断做成不可恢复的阻塞。",
+    "options": [],
+    "answer": {
+      "ref": []
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "bank_update 自动生成",
+      "retrievedAt": "2026-11-15"
+    },
+    "tags": [
+      "自动生成"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-15",
+      "version": 1,
+      "history": []
+    },
+    "scoringPoints": [
+      "结论正确且给出机制",
+      "覆盖关键边界或失败场景",
+      "能联系相关考点延伸"
     ]
   }
 ]

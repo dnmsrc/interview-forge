@@ -1,0 +1,87 @@
+[
+  { "id": "cs.devops.docker", "title": "容器原理与 Docker 实践", "level": 3, "domain": "cs", "stack": "devops", "topic": "docker", "mustMaster": true, "estMinutes": 90,
+    "summary": "Linux namespace 隔离与 cgroup 限制的容器本质、镜像分层与 Dockerfile 工程化、网络存储与容器安全——理解容器不是轻量虚拟机，而是受限的普通进程，是整个云原生栈的地基" },
+  { "id": "cs.devops.k8s", "title": "Kubernetes 编排", "level": 3, "domain": "cs", "stack": "devops", "topic": "k8s", "mustMaster": true, "estMinutes": 100,
+    "summary": "控制面与节点组件、Pod/Deployment/Service 声明式对象模型、调度与探针自愈、Service/Ingress 网络与配置管理、滚动发布与 Pending/CrashLoopBackOff/OOMKilled 排障——容器规模化运维的事实标准" },
+  { "id": "cs.devops.cicd", "title": "CI/CD 与流水线", "level": 3, "domain": "cs", "stack": "devops", "topic": "cicd", "mustMaster": true, "estMinutes": 75,
+    "summary": "CI/持续交付/持续部署的边界、流水线阶段与质量门禁、分支策略与语义化版本、不可变制品与环境一致性——把代码变更安全、快速、可回滚地送到生产的工程化主干" },
+  { "id": "cs.devops.observ", "title": "可观测性与监控告警", "level": 3, "domain": "cs", "stack": "devops", "topic": "observ", "mustMaster": false, "estMinutes": 75,
+    "summary": "日志/指标/链路追踪三大支柱、结构化日志与采样、Prometheus 指标模型与 Grafana 可视化、告警分级、SLI/SLO/SLA 与错误预算驱动的 on-call——让分布式系统的内部状态可被解释、故障可被快速定位" },
+  { "id": "cs.devops.iac", "title": "基础设施即代码与可靠性", "level": 3, "domain": "cs", "stack": "devops", "topic": "iac", "mustMaster": false, "estMinutes": 60,
+    "summary": "Terraform/Ansible 的声明式与命令式分野、状态管理与配置漂移治理、蓝绿/金丝雀/灰度发布策略、特性开关、应急预案与混沌工程——把基础设施和发布过程纳入版本控制与工程验证" },
+
+  { "id": "cs.devops.docker.namespace-cgroup", "title": "容器底层：namespace/cgroup/联合文件系统与容器 vs VM", "level": 4, "domain": "cs", "stack": "devops", "topic": "docker",
+    "prerequisites": ["cs.os.process.thread-vs-process", "cs.os.memory.virtual-memory"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清容器本质是『受限的普通进程』而非轻量虚拟机：namespace（pid/net/mnt/uts/ipc/user 等）隔离视图，cgroup v1/v2 限制 CPU/内存/IO 配额，联合文件系统用只读层叠加可写层支撑 rootfs；能对比容器与虚拟机在隔离层级、启动速度、开销与安全边界上的差异，讲清容器内 PID 1 与宿主 PID 的关系及逃逸根源" },
+
+  { "id": "cs.devops.docker.image-dockerfile", "title": "镜像分层、Dockerfile 最佳实践与多阶段构建", "level": 4, "domain": "cs", "stack": "devops", "topic": "docker",
+    "prerequisites": ["cs.devops.docker.namespace-cgroup"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清镜像由多个只读层叠加、每条指令产生一层、层缓存命中条件与失效传播（COPY 后指令缓存全失效）；掌握精简基础镜像（distroless/alpine）、固定版本标签、合并 RUN 同层清缓存、.dockerignore、指令按变更频率排序等实践；能手写多阶段构建把编译工具链排除在运行镜像外并逐层解释作用，理解镜像体积对拉取时间、攻击面与节点磁盘的影响" },
+
+  { "id": "cs.devops.docker.network-volume", "title": "容器网络模式、存储卷、Compose 与容器安全加固", "level": 4, "domain": "cs", "stack": "devops", "topic": "docker",
+    "prerequisites": ["cs.devops.docker.namespace-cgroup"],
+    "related": ["cs.net.tcpip.layering"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 bridge/host/none/container 网络模式与 veth、虚拟网桥、端口映射路径；区分匿名卷、具名卷与 bind mount 的语义及容器删除后的数据命运；能用 Compose 声明多服务编排；掌握非 root 运行、只读根文件系统、按需 drop capability、镜像漏洞扫描与资源限额等加固手段，理解 docker.sock 挂载等同交出宿主 root" },
+
+  { "id": "cs.devops.k8s.arch-object", "title": "K8s 架构与核心对象：控制面、节点组件与声明式模型", "level": 4, "domain": "cs", "stack": "devops", "topic": "k8s",
+    "prerequisites": ["cs.devops.docker.namespace-cgroup"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 apiserver、etcd、scheduler、controller-manager、kubelet、kube-proxy 六大组件的职责与 Pod 创建链路；理解 Pod 是最小调度单位、同 Pod 容器共享网络存储，ReplicaSet 保副本、Deployment 管发布、Service 提供稳定入口；能讲透声明式调谐循环相对命令式脚本的自愈与可审计优势" },
+
+  { "id": "cs.devops.k8s.schedule-probe", "title": "调度、标签选择器、三类探针与资源 requests/limits", "level": 4, "domain": "cs", "stack": "devops", "topic": "k8s",
+    "prerequisites": ["cs.devops.k8s.arch-object"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清调度的过滤+打分流程与 nodeSelector/亲和性/污点容忍；准确区分 liveness（失败重启）、readiness（摘流量不重启）、startup（保护慢启动）三类探针语义；掌握 requests（调度依据）与 limits（运行上限）的区别、CPU 超限被限流而内存超限触发 OOMKilled、QoS 与驱逐顺序，能解释资源配置不当引发的节点压力" },
+
+  { "id": "cs.devops.k8s.network-config", "title": "Service 类型、Ingress、CNI 网络模型与 ConfigMap/Secret", "level": 4, "domain": "cs", "stack": "devops", "topic": "k8s",
+    "prerequisites": ["cs.devops.k8s.arch-object"],
+    "related": ["cs.net.dns.resolve", "cs.net.http.tls-handshake"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 ClusterIP/NodePort/LoadBalancer/ExternalName 四类 Service 与 kube-proxy 转发；理解 Ingress 七层路由、TLS 终结与 Controller 角色；掌握『每 Pod 一 IP、免 NAT 直连』与 CNI 职责；能区分 ConfigMap 与 Secret，讲清 Secret 仅 base64、需配 etcd 加密"},
+
+  { "id": "cs.devops.k8s.release-ops", "title": "滚动更新/回滚、HPA、Helm 与常见故障排障", "level": 4, "domain": "cs", "stack": "devops", "topic": "k8s",
+    "prerequisites": ["cs.devops.k8s.schedule-probe", "cs.devops.k8s.network-config"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲清滚动更新靠新旧 ReplicaSet 交替扩缩、maxSurge/maxUnavailable 控节奏、按修订历史回滚；HPA 自动扩缩的前提与滞后性；Helm 的 chart/values/release 模板化；掌握 Pending、CrashLoopBackOff、OOMKilled 等排查决策树，会用 describe/logs/events 定位根因"},
+
+  { "id": "cs.devops.cicd.pipeline", "title": "CI/CD 概念、流水线阶段、质量门禁与制品晋级", "level": 4, "domain": "cs", "stack": "devops", "topic": "cicd",
+    "prerequisites": ["cs.devops.docker.image-dockerfile"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清持续集成（频繁合主干并自动构建测试）、持续交付（随时可发布、人工批准上线）、持续部署（过门禁全自动上生产）三者边界；能拆解 checkout→lint/单测→构建→安全扫描→制品→部署→冒烟的流水线阶段与质量门禁拦截规则；理解制品晋级（同一不可变制品逐级晋升而非重新构建）如何保证环境一致性，以及测试左移、并行化与缓存对交付节奏的影响" },
+
+  { "id": "cs.devops.cicd.git-flow", "title": "Git 分支策略、特性开关与语义化版本", "level": 4, "domain": "cs", "stack": "devops", "topic": "cicd",
+    "prerequisites": ["cs.devops.cicd.pipeline"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲清 GitFlow（多类长生命周期分支、适合版本制发布）与 Trunk-Based Development（短分支频繁合主干、配合特性开关）的差异与适用节奏；理解特性开关把代码合并与功能曝光解耦、按用户/比例放量及开关腐化的治理；掌握语义化版本 MAJOR.MINOR.PATCH 的递增规则与破坏性变更含义、预发布标签，以及 CHANGELOG、发布审批与回滚预案等变更管理在合规环境中的作用" },
+
+  { "id": "cs.devops.cicd.artifact", "title": "不可变制品、制品库、环境一致性与回滚策略", "level": 4, "domain": "cs", "stack": "devops", "topic": "cicd",
+    "prerequisites": ["cs.devops.cicd.pipeline"],
+    "related": ["cs.devops.iac.terraform"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清不可变制品（构建后不再修改、用版本号或 digest 唯一标识）的含义与价值；制品库（registry、npm/Maven 私服）的代理缓存、保留策略与权限管理；环境一致性靠同一制品加外部化配置而非各环境重新打包；能对比应用回滚（切旧镜像，快）与数据回滚（schema 难逆、前向兼容迁移优先）的差异，理解扩展-收缩迁移，以及只回代码不回配置可能造成的不兼容" },
+
+  { "id": "cs.devops.observ.three-pillars", "title": "日志/指标/链路追踪三支柱、结构化日志与采样", "level": 4, "domain": "cs", "stack": "devops", "topic": "observ",
+    "prerequisites": ["cs.devops.k8s.arch-object"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清三支柱分工：日志记离散事件、指标是可聚合数值、链路追踪用 traceId/spanId 还原跨服务调用路径与耗时；掌握结构化日志（JSON 字段、级别、traceId 关联）的检索优势；理解 Prometheus 四种指标类型 counter/gauge/histogram/summary 及分位估算；能讲清头部/尾部/概率采样取舍，以及三支柱靠统一关联 ID 互跳" },
+
+  { "id": "cs.devops.observ.alert-slo", "title": "Prometheus/Grafana、告警分级与 SLI/SLO/错误预算", "level": 4, "domain": "cs", "stack": "devops", "topic": "observ",
+    "prerequisites": ["cs.devops.observ.three-pillars"],
+    "related": ["cs.design.limit.ha"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 Prometheus 拉模型（暴露 /metrics、服务发现、规则求值）与 Grafana 可视化、Alertmanager 分组/抑制/静默的配合；区分页面级与工单级告警及告警疲劳治理；准确区分 SLI（实测指标）、SLO（内部目标）、SLA（对外承诺赔付），掌握错误预算=（1-SLO）×总量的算法与预算耗尽冻结发布；能说明 on-call 轮值、升级链与无责复盘如何形成可靠性闭环" },
+
+  { "id": "cs.devops.iac.terraform", "title": "Terraform/Ansible：声明式 vs 命令式、状态管理与配置漂移", "level": 4, "domain": "cs", "stack": "devops", "topic": "iac",
+    "prerequisites": ["cs.devops.k8s.arch-object"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清声明式（Terraform 描述期望拓扑、provider 算 diff 收敛）与命令式（Ansible 按剧本执行、靠模块幂等）的差异与适用层（基础设施供给 vs 配置管理）；掌握 Terraform state 记录资源映射、远程 state 加锁防并发损坏、plan/apply 分离评审；理解配置漂移的检测纠正，以及 IaC 纳入 Git 版本控制、评审与模块化复用的工程纪律" },
+
+  { "id": "cs.devops.iac.release-strategy", "title": "蓝绿/金丝雀/灰度发布、特性开关与混沌工程应急体系", "level": 4, "domain": "cs", "stack": "devops", "topic": "iac",
+    "prerequisites": ["cs.devops.cicd.artifact", "cs.devops.observ.alert-slo"],
+    "related": ["cs.design.limit.circuit-breaker"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清蓝绿（两套完整环境切换、回滚最快但资源双倍）、金丝雀（先小比例流量试探再放量）、灰度（按用户标签/地域定向）的精确区别与流量实现手段（负载均衡/Service Mesh/网关）；理解特性开关在发布与降级中的双重角色及生命周期治理；掌握应急预案（runbook、一键回滚、值班升级链）与混沌工程（定义稳态假设、主动注入故障、控制爆炸半径、先测试后生产）的方法论，能按影响面与回滚成本选择发布策略" }
+]

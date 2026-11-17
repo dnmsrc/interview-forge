@@ -167,5 +167,90 @@
     "tags": ["包装类型", "NULL", "基本类型", "装箱拆箱", "闭卷题", "判断题"],
     "status": "active",
     "meta": { "created": "2026-11-11", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-jdbcmap-0007",
+    "nodeId": "be.mysql.jdbc-type-mapping.rowmapper-naming",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：JdbcTemplate 的 query 方法在结果集有 N 行时，传入的 RowMapper.mapRow 会被调用 N 次（每行一次），每次负责把当前这一行 ResultSet 映射成一个实体对象，最终聚合成 List 返回；mapRow 内部不应写跨多行的有状态逻辑。",
+    "answer": { "judge": true },
+    "analysis": "正确。RowMapper 是「单行翻译器」：JdbcTemplate 执行查询得到 ResultSet 后，while(rs.next()) 遍历每一行，对每一行回调一次 mapRow(rs, rowNum)，由开发者在其中用 rs.getXxx/rs.getObject 按列取值并 set 进一个 new 出来的实体，N 行就回调 N 次、产生 N 个对象，框架收集成 List<T>。资源管理（Connection/Statement/ResultSet 的关闭、异常转译）全由 JdbcTemplate 模板方法负责，这是模板方法模式的典型应用，开发者只填「如何映射一行」这个变化点。正因 mapRow 被反复调用且语义是无状态的单行转换，不应在里面做跨行累加、过滤业务数据或依赖调用次数的有状态操作——跨行聚合应用 SQL（group by/聚合函数），业务过滤应放在 WHERE/Service 层。另一个常见考点是 ResultSetExtractor 与 RowMapper 的区别：前者拿到整个 ResultSet 自行遍历、可映射成任意结构（含一对一/一对多嵌套），后者只处理单行、由框架循环。对照前端：RowMapper 很像数组的 map 回调——对每个元素做一次纯转换返回新对象，区别是这里数据源是数据库游标。",
+    "gapCheck": [
+      "易漏点：mapRow 每行调用一次、应是无状态单行转换，资源关闭由 JdbcTemplate 负责",
+      "常见误区：在 RowMapper 里写跨行有状态逻辑或业务过滤，破坏单一职责",
+      "加分项：能区分 RowMapper（单行）与 ResultSetExtractor（整个结果集、可做嵌套映射）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.jdbc-type-mapping.type-mapping"],
+      "related": ["be.mysql.jdbc-type-mapping.type-mapping"],
+      "followUps": ["ResultSetExtractor 适合什么映射场景？", "JdbcTemplate 是如何把 SQLException 转成 DataAccessException 的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "RowMapper 调用次数与职责，模板方法模式" },
+    "tags": ["RowMapper", "JdbcTemplate", "模板方法", "结果集映射"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-jdbcmap-0008",
+    "nodeId": "be.mysql.jdbc-type-mapping.rowmapper-naming",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "数据库下划线命名的列 `user_name`、`order_id` 在 Java 实体里对应小驼峰字段 ______、______；本项目未引入 MyBatis，没有自动驼峰开关，这层转换需要在手写的 ______（填 RowMapper / Repository / Controller 中的一个）里逐列完成。",
+    "answer": {
+      "blanks": ["userName", "orderId", "RowMapper"],
+      "synonyms": {
+        "userName": ["userName（小驼峰）"],
+        "orderId": ["orderId（小驼峰）"],
+        "RowMapper": ["rowmapper", "RowMapper（行映射器）"]
+      }
+    },
+    "analysis": "三个空考查命名约定与分层职责。①② 数据库列习惯 snake_case（下划线分词、全小写），Java 字段习惯 lowerCamelCase（小驼峰），所以 user_name→userName、order_id→orderId，转换规则是去掉下划线、下划线后首字母大写。③ 这种列名到字段名的映射发生在 RowMapper 层：因为本项目用 JdbcTemplate 而非 MyBatis，没有 map-underscore-to-camel-case 这类自动配置，必须在 mapRow 里显式 rs.getObject(\"user_name\", String.class) 再 entity.setUserName(...)。Repository（DAO）负责的是组织 SQL、调用 JdbcTemplate、返回实体，Controller 负责 HTTP 入参出参，下划线转驼峰这种「一行数据如何变成对象」的细节归属 RowMapper。补充：若用 MyBatis，可开启 mapUnderscoreToCamelCase 自动映射，或在 resultMap 里显式写 column→property；Spring Data JDBC 也默认支持命名策略转换。对照前端：后端响应是 snake_case 时，前端 TS 接口往往定义成 camelCase 并在请求层做一次 key 转换，是同一种跨层命名适配。",
+    "gapCheck": [
+      "易漏点：snake_case→lowerCamelCase 的具体规则，以及该转换在 JdbcTemplate 项目里归 RowMapper",
+      "常见误区：以为 JdbcTemplate 也有 MyBatis 的自动驼峰开关",
+      "加分项：知道 MyBatis mapUnderscoreToCamelCase、Spring Data JDBC 命名策略等自动化方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.jdbc-type-mapping.rowmapper-naming"],
+      "related": ["be.mysql.jdbc-type-mapping.type-mapping"],
+      "followUps": ["Repository、RowMapper、Controller 各自的职责边界是什么？", "MyBatis 的 resultMap 自动映射和手写 RowMapper 各有什么优劣？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "下划线转驼峰与映射层职责填空题" },
+    "tags": ["命名转换", "驼峰", "RowMapper", "分层", "填空题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-jdbcmap-0009",
+    "nodeId": "be.mysql.jdbc-type-mapping.bigdecimal-precision",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于金融/金额场景下 DECIMAL 与 BigDecimal 的使用，下列说法正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "float/double 是二进制浮点数，无法精确表示 0.1 这类十进制小数，累加金额会出现精度漂移，因此金额不能用浮点类型存储和计算" },
+      { "key": "B", "text": "MySQL 应用 DECIMAL(M,D) 定点数精确存储，Java 侧用 java.math.BigDecimal 映射，全程以十进制精确运算，不引入二进制误差" },
+      { "key": "C", "text": "BigDecimal 比较数值相等应当用 compareTo()（结果为 0 即相等），而不是 equals()——后者还会比较 scale，1.0 与 1.00 可能被判不等" },
+      { "key": "D", "text": "BigDecimal 做除法时无论能否整除都不会抛异常，直接返回结果，无需指定精度和舍入模式" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确，D 错。A 揭示根因：IEEE-754 浮点用二进制分数近似，很多十进制有限小数（如 0.1）在二进制下是无限循环，存储即被截断，多次加减后误差累积，订单金额、对账、利息等场景绝不能用 double/float 表示钱。B 给正解：数据库用 DECIMAL/NUMERIC 定点类型（M 总位数、D 小数位，如 DECIMAL(18,2)）按十进制精确存储，JDBC 映射为 BigDecimal；BigDecimal 内部用任意精度整数 + 标度（scale）表示，加减乘均精确，是金额计算的标准选择。C 是高频易错点：equals 同时比较值和 scale，new BigDecimal(\"1.0\").equals(new BigDecimal(\"1.00\")) 为 false（scale 不同），而 compareTo 只比较数值大小、返回 0 表示相等，做相等判断、集合去重前的比较都应用 compareTo()（或 stripTrailingZeros 后再处理）。D 错：BigDecimal.divide 在结果为无限循环小数且未指定精度/舍入模式时会抛 ArithmeticException: Non-terminating decimal expansion，正确写法是 divide(divisor, scale, RoundingMode.HALF_UP) 显式给出保留位数与舍入模式；此外用 new BigDecimal(double) 仍会带入浮点误差，推荐 BigDecimal.valueOf(double) 或字符串构造。",
+    "gapCheck": [
+      "易漏点：double 二进制近似的根因；DECIMAL 定点存储 + BigDecimal 精确运算的标准组合",
+      "常见误区：用 equals 比较 BigDecimal（忽略 scale）、divide 不指定舍入导致 ArithmeticException、new BigDecimal(double) 带误差",
+      "加分项：能说清 compareTo 与 equals 的 scale 差异、RoundingMode 选择与 valueOf/字符串构造"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.jdbc-type-mapping.bigdecimal-precision"],
+      "related": ["be.mysql.jdbc-type-mapping.type-mapping"],
+      "followUps": ["BigDecimal 的 scale 是什么，stripTrailingZeros 会带来什么坑？", "数据库里 DECIMAL(18,2) 的 18 和 2 分别限制了什么，超出会怎样？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "DECIMAL/BigDecimal 精度、比较与舍入综合多选题" },
+    "tags": ["BigDecimal", "DECIMAL", "金额精度", "舍入模式", "多选"],
+    "status": "active",
+    "meta": { "created": "2026-11-15", "version": 1, "history": [] }
   }
 ]

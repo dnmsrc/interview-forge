@@ -1,0 +1,118 @@
+[
+  { "id": "cs.algo.complexity", "title": "复杂度分析", "level": 3, "domain": "cs", "stack": "algo", "topic": "complexity", "mustMaster": true, "estMinutes": 90,
+    "summary": "大 O/Θ/Ω 记号、最好最坏与均摊分析、递归式与主定理——衡量算法好坏的统一语言，所有手写题与选型题的分析起点" },
+  { "id": "cs.algo.linear", "title": "线性结构", "level": 3, "domain": "cs", "stack": "algo", "topic": "linear", "mustMaster": true, "estMinutes": 100,
+    "summary": "数组与链表、栈/队列及单调栈单调队列、哈希表冲突与扩容——最常用的一批数据结构，LRU、滑窗等高频手写题的载体" },
+  { "id": "cs.algo.tree", "title": "树与堆", "level": 3, "domain": "cs", "stack": "algo", "topic": "tree", "mustMaster": true, "estMinutes": 110,
+    "summary": "二叉树递归/迭代遍历、BST、AVL 与红黑树、堆与 TopK、Trie——层次结构的存储与查询基础，也是很多高级容器的底层" },
+  { "id": "cs.algo.graph", "title": "图", "level": 3, "domain": "cs", "stack": "algo", "topic": "graph", "mustMaster": true, "estMinutes": 110,
+    "summary": "BFS/DFS 与连通性、Dijkstra/Floyd 最短路、最小生成树、拓扑排序、并查集——关系网络建模与路径/连通问题的标准武器库" },
+  { "id": "cs.algo.sort", "title": "排序与查找", "level": 3, "domain": "cs", "stack": "algo", "topic": "sort", "mustMaster": true, "estMinutes": 90,
+    "summary": "快排/归并/堆排/桶排的复杂度与稳定性对比、二分查找及左右边界变体——面试手写命中率最高的算法基本功" },
+  { "id": "cs.algo.paradigm", "title": "算法范式", "level": 3, "domain": "cs", "stack": "algo", "topic": "paradigm", "mustMaster": true, "estMinutes": 120,
+    "summary": "双指针滑动窗口、回溯、贪心、分治与动态规划（背包/LIS/编辑距离/状态转移）——从具体题目抽象出的通用解题框架" },
+
+  { "id": "cs.algo.complexity.big-o-amortized", "title": "大O时间/空间复杂度与均摊分析", "level": 4, "domain": "cs", "stack": "algo", "topic": "complexity",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 O/Θ/Ω 的数学含义与工程上为什么统一用大 O 描述上界；能手算嵌套循环、递归调用的时间复杂度并区分最好/最坏/平均情况；能结合动态数组 push 扩容讲清均摊分析（聚合分析、记账法、势能法），解释为什么单次最坏 O(n) 的 push 均摊仍是 O(1)，并能判断空间复杂度中的辅助空间与输入空间" },
+
+  { "id": "cs.algo.complexity.master-theorem", "title": "递归式求解与主定理", "level": 4, "domain": "cs", "stack": "algo", "topic": "complexity",
+    "prerequisites": ["cs.algo.complexity.big-o-amortized"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清分治递归式 T(n)=aT(n/b)+f(n) 的结构含义；能手写主定理三种情形（f(n) 与 n^log_b(a) 的多项式大小比较）并对号入座求出归并排序 O(nlogn)、二分 O(logn)、Karatsuba 等经典递归复杂度；知道主定理不适用时用递归树法或代入法（先猜后证）兜底，并能解释 log 底数在大 O 下可忽略" },
+
+  { "id": "cs.algo.linear.array-linkedlist", "title": "数组 vs 链表及操作复杂度", "level": 4, "domain": "cs", "stack": "algo", "topic": "linear",
+    "prerequisites": ["cs.algo.complexity.big-o-amortized"],
+    "related": ["cs.algo.linear.hash-table"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清数组连续内存随机访问 O(1) 与插入删除 O(n)、链表离散内存访问 O(n) 与已知节点插删 O(1) 的对偶关系；区分单链表/双向链表/循环链表；能手写链表反转（迭代三指针与递归两版）、环检测（快慢指针）、合并有序链表与找中点，并讲清 CPU 缓存友好性（局部性原理）对两者实际性能的影响" },
+
+  { "id": "cs.algo.linear.stack-queue-monotonic", "title": "栈/队列与单调栈/单调队列", "level": 4, "domain": "cs", "stack": "algo", "topic": "linear",
+    "prerequisites": ["cs.algo.linear.array-linkedlist"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清栈 LIFO 与队列 FIFO 的语义及数组/链表两种实现；能手写用栈消括号、函数调用栈与两个栈实现队列；重点掌握单调栈解决『下一个更大元素』、每日温度、柱状图最大矩形（每个元素至多入栈出栈一次 O(n)），以及单调双端队列解决滑动窗口最大值，并能解释维护单调性时元素被弹出的判定条件" },
+
+  { "id": "cs.algo.linear.hash-table", "title": "哈希表、哈希冲突与扩容", "level": 4, "domain": "cs", "stack": "algo", "topic": "linear",
+    "prerequisites": ["cs.algo.linear.array-linkedlist"],
+    "related": ["cs.algo.complexity.big-o-amortized"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清哈希函数（除留余数、扰动）与负载因子的关系；对比拉链法（链地址）与开放地址法（线性探测/二次探测/双重哈希）的冲突处理及聚集问题；能手写 LRU 缓存（哈希表+双向链表，get/put 均 O(1)）；讲清扩容 rehash 的触发时机、均摊 O(1) 依据与渐进式 rehash 思路，以及为什么哈希表平均 O(1) 而最坏 O(n)" },
+
+  { "id": "cs.algo.tree.traversal-bst", "title": "二叉树遍历（递归/迭代）与 BST", "level": 4, "domain": "cs", "stack": "algo", "topic": "tree",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能手写前/中/后序遍历的递归版与显式栈迭代版（含中序的栈模拟、后序的双栈或标记法）、层序遍历 BFS 队列模板及按层分组；讲清三种 DFS 序的命名依据与 BST 中序遍历得到有序序列这一核心性质；能在 BST 上做查找/插入/删除（删除分叶子、单子、双子取后继三种情况）并分析其期望与最坏高度" },
+
+  { "id": "cs.algo.tree.balanced-tree", "title": "AVL 与红黑树的平衡性质", "level": 4, "domain": "cs", "stack": "algo", "topic": "tree",
+    "prerequisites": ["cs.algo.tree.traversal-bst"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清普通 BST 退化为链表的风险与平衡树用旋转（LL/RR/LR/RL）维持高度 O(logn) 的思路；AVL 的平衡因子 ±1 严格约束、四种旋转触发与查找快但调整频繁的特点；红黑树五条性质（含红节点不相邻、黑高相同）如何只保证近似平衡、插入删除最多三次旋转且变色调整的工程优势，以及它在 TreeMap/epoll/进程调度中的应用" },
+
+  { "id": "cs.algo.tree.heap-topk", "title": "堆原理与 TopK/中位数问题", "level": 4, "domain": "cs", "stack": "algo", "topic": "tree",
+    "prerequisites": ["cs.algo.tree.traversal-bst"],
+    "related": ["cs.algo.sort.quick-merge-heap"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清完全二叉树用数组存储时下标 i 的左右孩子 2i+1/2i+2 映射、大顶堆小顶堆的堆序性质与上浮下沉调整；能手写堆化、插入、取顶（O(logn)）与建堆为何是 O(n)；能手写大小为 K 的小顶堆求流式 TopK（O(nlogK)）、双堆求数据流中位数，并对比全排序 O(nlogn) 方案在海量数据下的内存优势" },
+
+  { "id": "cs.algo.tree.trie", "title": "Trie 字典树与前缀检索", "level": 4, "domain": "cs", "stack": "algo", "topic": "tree",
+    "prerequisites": ["cs.algo.tree.traversal-bst"],
+    "related": ["cs.algo.linear.hash-table"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清 Trie 用公共前缀共享节点、按字符逐层下钻的结构，查询复杂度只与词长 L 有关 O(L) 而与词条数无关；能手写 Trie 的 insert/search/startsWith 三方法（节点含子节点映射与结尾标记）；对比哈希表做前缀检索的劣势，讲清 Trie 在搜索提示、自动补全、敏感词过滤（AC 自动机引子）、IP 路由最长前缀匹配中的场景与空间换时间代价" },
+
+  { "id": "cs.algo.graph.bfs-dfs", "title": "BFS/DFS 与连通性", "level": 4, "domain": "cs", "stack": "algo", "topic": "graph",
+    "prerequisites": ["cs.algo.linear.stack-queue-monotonic"],
+    "related": ["cs.algo.graph.dsu"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清邻接矩阵与邻接表两种存图方式的空间/查边差异；能手写 BFS 队列模板（无权图最短路、按层扩展）与 DFS 递归/栈模板（着色判环、连通分量）；掌握 visited 去重、图与树遍历的区别（多入口、有环），并能把岛屿数量、 Flood Fill、克隆图等题归约到 BFS/DFS 框架，分析 O(V+E) 复杂度" },
+
+  { "id": "cs.algo.graph.shortest-path", "title": "最短路 Dijkstra 与 Floyd", "level": 4, "domain": "cs", "stack": "algo", "topic": "graph",
+    "prerequisites": ["cs.algo.graph.bfs-dfs"],
+    "related": ["cs.algo.tree.heap-topk"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能手写 Dijkstra（dist 数组+贪心取未访问最小点+松弛，堆优化版 O((V+E)logV)）并讲清它不能处理负权边的原因；能手写 Floyd 三重循环动态规划 d[i][j]=min(d[i][j],d[i][k]+d[k][j])、O(V³) 求全源最短路及负环判断；区分 Bellman-Ford 对负权的处理能力，以及 BFS 只适用于无权图最短路的前提" },
+
+  { "id": "cs.algo.graph.mst-topo", "title": "最小生成树与拓扑排序", "level": 4, "domain": "cs", "stack": "algo", "topic": "graph",
+    "prerequisites": ["cs.algo.graph.bfs-dfs"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清生成树与最小生成树定义；能手推 Kruskal（边排序+并查集判环，O(ElogE)）与 Prim（从点出发用优先队列扩展最近邻，O(ElogV)）并说明适用稠密/稀疏图的取舍；能手写 Kahn 入度法拓扑排序（每轮取入度 0 点、删边更新）与 DFS 逆序法，讲清有向无环图 DAG 前提、环检测以及课程表、编译依赖等应用" },
+
+  { "id": "cs.algo.graph.dsu", "title": "并查集与连通分量", "level": 4, "domain": "cs", "stack": "algo", "topic": "graph",
+    "prerequisites": ["cs.algo.graph.bfs-dfs"],
+    "related": ["cs.algo.graph.mst-topo"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能手写并查集的 find/union 两个核心操作与 parent 数组初始化；掌握路径压缩（find 中把节点直接挂到根）与按秩/按大小合并两大优化，讲清两者叠加后单次操作接近 O(α(n))（反阿克曼函数，常数级）；能把朋友圈/等价类、Kruskal 判环、动态连通性、账户合并等问题建模为并查集，并区分它与 DFS 求连通分量的使用时机" },
+
+  { "id": "cs.algo.sort.quick-merge-heap", "title": "快排/归并/堆排/桶排对比与稳定性", "level": 4, "domain": "cs", "stack": "algo", "topic": "sort",
+    "prerequisites": ["cs.algo.complexity.master-theorem"],
+    "related": ["cs.algo.tree.heap-topk"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能手写快排（partition 双指针/挖坑、平均 O(nlogn) 最坏 O(n²) 与随机化/三数取中规避）、归并排序（分治+merge，稳定 O(nlogn)、辅助 O(n)）、堆排（原地 O(nlogn) 不稳定）；讲清稳定性定义及相等元素保序的工程意义；对比桶排/计数/基数等非比较排序 O(n+k) 的适用前提（数据范围已知、分布均匀），并能按数据特征选型" },
+
+  { "id": "cs.algo.sort.binary-search", "title": "二分查找及左右边界", "level": 4, "domain": "cs", "stack": "algo", "topic": "sort",
+    "prerequisites": ["cs.algo.complexity.big-o-amortized"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清二分成立的前提是单调性（或可把问题转化为判定函数单调）与 O(logn) 来源（每次折半）；能手写基础二分、查找第一个等于 target（左边界）、最后一个等于 target（右边界）三套模板，讲清循环不变量、区间闭合方式与 mid 防溢出写法；能处理旋转数组、求平方根、二分答案（最大化最小/最小化最大）等变体并分析边界失效条件" },
+
+  { "id": "cs.algo.paradigm.two-pointer-window", "title": "双指针与滑动窗口", "level": 4, "domain": "cs", "stack": "algo", "topic": "paradigm",
+    "prerequisites": ["cs.algo.linear.array-linkedlist"],
+    "related": ["cs.algo.linear.stack-queue-monotonic"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清对撞指针（两数之和、盛水容器）、快慢指针（原地去重、环检测）与滑动窗口（左右指针维护区间）把暴力 O(n²) 降到 O(n) 的共性——每轮指针只单调前进；能手写最长无重复字符子串（哈希计数+右扩左缩）、最小覆盖子串模板，并讲清窗口何时扩张、何时收缩、何时更新答案三个判定位置" },
+
+  { "id": "cs.algo.paradigm.backtracking", "title": "回溯法（全排列/N皇后/子集）", "level": 4, "domain": "cs", "stack": "algo", "topic": "paradigm",
+    "prerequisites": ["cs.algo.graph.bfs-dfs"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清回溯本质是 DFS 试错+撤销选择（在决策树上深度优先、走不通就回退）；能手写全排列（used 数组）、子集/组合（start 控层去重）、N 皇后（按行列对角线约束剪枝）的统一模板（做选择→递归→撤销选择）；掌握剪枝（排序后同层去重、可行性预判）对指数级搜索空间的压缩，并能估算 O(n!)、O(2^n) 量级" },
+
+  { "id": "cs.algo.paradigm.greedy-divide", "title": "贪心与分治思想", "level": 4, "domain": "cs", "stack": "algo", "topic": "paradigm",
+    "prerequisites": ["cs.algo.complexity.master-theorem"],
+    "related": ["cs.algo.sort.quick-merge-heap"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清贪心每步取当前局部最优并期望推出全局最优，其正确性必须靠贪心选择性质与最优子结构证明（反例法证伪）；能分析区间调度/跳跃游戏/Huffman 编码/找零等典型贪心；区分分治（分解-解决-合并，归并排序为代表）与减治（二分），并能辨析贪心与动态规划的本质差别：贪心不回看、DP 枚举所有子问题取最优" },
+
+  { "id": "cs.algo.paradigm.dynamic-programming", "title": "动态规划（背包/LIS/编辑距离/状态转移）", "level": 4, "domain": "cs", "stack": "algo", "topic": "paradigm",
+    "prerequisites": ["cs.algo.paradigm.greedy-divide", "cs.algo.paradigm.backtracking"],
+    "related": ["cs.algo.graph.shortest-path"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲清 DP 两要素（最优子结构、重叠子问题）与解题五步（定义 dp 含义、写状态转移方程、定初始值、定遍历顺序、返结果）；能手写 0-1 背包与完全背包（含一维滚动数组及内外层顺序差异）、LIS 最长递增子序列（O(n²) 与 O(nlogn) 贪心+二分）、编辑距离（两维状态 min 三转移）；能区分自顶向下记忆化与自底向上递推、讲清空间压缩条件，并做时间/空间复杂度推导" }
+]

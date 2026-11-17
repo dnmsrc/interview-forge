@@ -1,0 +1,342 @@
+[
+  {
+    "id": "Q-fe-js-types-0001",
+    "nodeId": "fe.js.basics.types",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "执行 `let a = 1; let b = a; b = 2;` 之后，变量 `a` 的值是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "1"
+      },
+      {
+        "key": "B",
+        "text": "2"
+      },
+      {
+        "key": "C",
+        "text": "undefined"
+      },
+      {
+        "key": "D",
+        "text": "报错"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：number 是原始类型，原始值按值拷贝。`b = a` 时把 a 中的值 1 复制了一份给 b，此后 a、b 是两个互相独立的存储位置，改 b 不影响 a，所以 a 仍是 1。B 是把对象的引用语义错套到了原始类型上。C 的 undefined 只在变量声明未赋值时出现，这里 a 明确赋了值。D 错，这段代码语法完全合法，不会报错。对比记忆：若 `a` 是对象，`b = a` 复制的是引用，两个变量指向同一个对象，改 `b.x` 才会影响 `a.x`。",
+    "gapCheck": [
+      "易漏点：7 种原始类型（number/string/boolean/null/undefined/symbol/bigint）都按值拷贝，赋值即复制",
+      "常见误区：以为 `b = a` 后两个变量会「联动」，联动只发生在对象这类引用类型上",
+      "加分项：能说出对象赋值复制的是引用（内存地址），所以多个变量共享同一个对象"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.basics.types"
+      ],
+      "related": [
+        "fe.js.basics.coercion"
+      ],
+      "followUps": [
+        "如果 a 是对象、b = a 后修改 b.name，a.name 会变吗？为什么？",
+        "如何让一个对象得到真正独立的副本（浅拷贝/深拷贝）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "原始类型按值拷贝入门题，零基础可凭赋值概念作答"
+    },
+    "tags": [
+      "JS基础",
+      "数据类型",
+      "按值拷贝",
+      "送分题"
+    ]
+  },
+  {
+    "id": "Q-fe-js-types-0002",
+    "nodeId": "fe.js.basics.types",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 `typeof` 运算符，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "`typeof null` 的结果是字符串 `\"null\"`"
+      },
+      {
+        "key": "B",
+        "text": "`typeof []`、`typeof {}`、`typeof (() => {})` 的结果都是 `\"object\"`（函数除外：函数返回 `\"function\"`）"
+      },
+      {
+        "key": "C",
+        "text": "`typeof` 对一个未声明的变量会直接抛出 ReferenceError"
+      },
+      {
+        "key": "D",
+        "text": "`typeof Symbol()` 和 `typeof 10n`（BigInt）都返回 `\"number\"`"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：typeof 对普通对象和数组都返回 \"object\"，对函数返回 \"function\"（函数本质也是对象，只是 typeof 单独给了一类）。A 错：`typeof null === \"object\"` 是 JavaScript 诞生初期遗留的历史 bug，null 实际是原始类型，检测 null 要用 `x === null`。C 错：typeof 是少数对未声明变量也安全的操作，`typeof 未声明变量` 返回 \"undefined\" 而不报错（真正访问该变量才会 ReferenceError）。D 错：`typeof Symbol()` 返回 \"symbol\"，`typeof 10n` 返回 \"bigint\"，它们是独立的原始类型，不属于 number。",
+    "gapCheck": [
+      "易漏点：`typeof null === \"object\"` 是历史遗留坑，判空要用严格等于 null",
+      "常见误区：以为 typeof 能区分数组——数组和普通对象都返回 object，判数组用 Array.isArray()",
+      "加分项：能补全 typeof 的全部返回值表（undefined/boolean/number/string/bigint/symbol/object/function/symbol）并解释装箱"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.basics.types"
+      ],
+      "related": [
+        "fe.js.basics.coercion"
+      ],
+      "followUps": [
+        "如何准确判断一个值是数组？如何判断是 null？",
+        "原始包装类型（如 new Number(1)）typeof 返回什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "typeof 返回值与 null 历史坑单选题"
+    },
+    "tags": [
+      "JS基础",
+      "typeof",
+      "null坑",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-coercion-0001",
+    "nodeId": "fe.js.basics.coercion",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 `==`（宽松相等）与 `===`（严格相等），下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "两者完全一样，只是写法不同"
+      },
+      {
+        "key": "B",
+        "text": "`===` 比较时不做隐式类型转换，类型不同直接为 false；`==` 会先做类型转换再比较值"
+      },
+      {
+        "key": "C",
+        "text": "`null == undefined` 结果为 false"
+      },
+      {
+        "key": "D",
+        "text": "工程实践中应优先使用 `==`，因为它更灵活"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 准确说出了本质区别：=== 要求类型和值都相同，类型不同立即 false，不发生任何转换；== 在类型不同时按规范做隐式转换（ToPrimitive/ToNumber 等）后再比值，因此规则隐晦、易出 bug。A 显然错误。C 错：这是 == 的特判规则，`null == undefined` 为 true，且它们与其他任何值都不宽松相等。D 错：主流规范（ESLint eqeqeq、各大厂编码规范）都建议默认一律用 ===，仅在需要显式判断「null 或 undefined」时可写 `x == null` 这一种惯用法。",
+    "gapCheck": [
+      "易漏点：== 不是「只比较值」，而是「转换后再比值」，转换规则才是难点",
+      "常见误区：记不住 null == undefined 为 true 这条特判，以及 NaN 连自己都不相等",
+      "加分项：能讲清 [] == false、'' == 0 等经典坑背后的 ToNumber/ToPrimitive 过程"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.basics.coercion"
+      ],
+      "related": [
+        "fe.js.basics.types"
+      ],
+      "followUps": [
+        "手推 `[] == ![]` 为什么是 true？",
+        "`x == null` 这一惯用法实际同时判断了哪两种情况？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "== 与 === 区别单选题"
+    },
+    "tags": [
+      "JS基础",
+      "隐式转换",
+      "相等运算符",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-coercion-0002",
+    "nodeId": "fe.js.basics.coercion",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "写出下列表达式的结果（布尔题写 true/false，数字结果写对应值）：`1 + '2'` 的结果是 ______；`'3' - 1` 的结果是 ______；`Boolean(0)` 的结果是 ______；`[] == false` 的结果是 ______。",
+    "answer": {
+      "blanks": [
+        "12",
+        "2",
+        "false",
+        "true"
+      ],
+      "synonyms": {
+        "2": [
+          "数字2"
+        ],
+        "12": [
+          "'12'",
+          "\"12\""
+        ],
+        "false": [
+          "False",
+          "假"
+        ],
+        "true": [
+          "True",
+          "真"
+        ]
+      }
+    },
+    "analysis": "① `1 + '2'`：+ 遇到字符串走字符串拼接，1 被 ToString 成 \"1\"，结果是字符串 \"12\"。② `'3' - 1`：- 只会触发数值运算，\"3\" 被 ToNumber 成 3，结果是数字 2。③ `Boolean(0)`：0 是假值，结果 false；JS 的假值清单是 0、-0、0n、''、null、undefined、NaN、false 八个。④ `[] == false`：[] 先 ToPrimitive 得到 ''，'' 与 false 再各自 ToNumber 成 0，0 == 0 为 true——这是隐式转换最经典的坑。记忆口诀：加法看字符串（拼接优先），其他算术转数字；宽松相等最终大多走向 ToNumber。",
+    "gapCheck": [
+      "易漏点：+ 号两边只要有一个字符串就拼接，而 - * / 等运算符一律转数字",
+      "常见误区：以为 [] 是对象就恒为真——宽松相等时会经历 ToPrimitive 拆成空字符串",
+      "加分项：能背全 8 个假值，并解释 NaN 是唯一一个自己不等于自己的值"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.basics.coercion"
+      ],
+      "related": [
+        "fe.js.basics.types"
+      ],
+      "followUps": [
+        "`[] + {}` 和 `{} + []` 分别得到什么？为什么？",
+        "ToPrimitive 的 hint（default/number/string）如何决定 valueOf 与 toString 的调用顺序？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "隐式转换经典表达式填空题"
+    },
+    "tags": [
+      "JS基础",
+      "隐式转换",
+      "真值假值",
+      "经典坑"
+    ]
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.js.basics.coercion",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 JS 的隐式类型转换与 ToPrimitive 规则，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "对象参与字符串拼接或加法时先走 ToPrimitive：hint 为 \"default\" 时先尝试 valueOf()，返回非原始值再尝试 toString()；Date 对象的 hint 是 \"string\"，顺序相反"
+      },
+      {
+        "key": "B",
+        "text": "[] + [] 得到空字符串，因为数组的 valueOf 返回数组本身（非原始值），回退到 toString，空数组 toString 为 \"\"，两个空串拼接仍为 \"\""
+      },
+      {
+        "key": "C",
+        "text": "if 条件、&&、|| 中的值按 ToBoolean 判定，只有 undefined、null、false、0、-0、0n、NaN、\"\" 这组假值为 false，空数组与空对象都为 true"
+      },
+      {
+        "key": "D",
+        "text": "null == undefined 为 true，是因为抽象相等算法对这两个值有专门条款；但 null >= 0 也为 true，说明 >= 与 == 走的是同一套转换规则"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A 正确：OrdinaryToPrimitive 按 hint 决定调用顺序，Date 与 Symbol 等重写了 @@toPrimitive 或默认 hint。B 正确：完整链路为 valueOf 失败 → toString 得 \"\"，+ 在两侧均为字符串语义时做拼接。C 正确：假值清单是封闭集合，引用类型无论「空」与否布尔化都为 true，这是 if ([]) 永远成立的原因。D 前半句对、后半句错：关系运算符 >= 走的是 ToNumber 比较，null 被转成 0，故 null >= 0 为 true；而 == 走抽象相等 IsLooselyEqual 的特例条款，两套算法不同，恰好结果都为 true 不代表规则相同。",
+    "gapCheck": [
+      "易漏点：hint 为 \"default\" 与 \"number\" 的默认顺序相同（先 valueOf 后 toString），Date 是少见的 string hint 例外。",
+      "常见误区：把 ==、关系比较、if 判断当成同一种转换，实际分别对应 IsLooselyEqual、ToNumeric/ToPrimitive、ToBoolean 三套规范算法。",
+      "排查线索：遇到诡异加法先手动模拟 ToPrimitive 链路；重写 valueOf/toString 的对象尤其要验证 hint。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.basics.coercion"
+      ],
+      "related": [
+        "fe.js.basics.types"
+      ],
+      "followUps": [
+        "Symbol.toPrimitive 与 valueOf/toString 同时存在时谁优先？",
+        "为什么 {} + [] 在表达式语句位置与括号位置结果可能不同？",
+        "NaN 为什么是唯一一个自身不等于自身的值，Object.is 如何修正？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 ECMAScript 规范 ToPrimitive/IsLooselyEqual 语义编写"
+    },
+    "tags": [
+      "高频",
+      "易错",
+      "类型转换"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0059"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.js.basics.types",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：JS 中函数、数组、普通对象的 typeof 结果都是 \"object\"（function 关键字声明的函数除外，其 typeof 为 \"function\"），因此要可靠地区分数组与普通对象应使用 Array.isArray()，而不是 typeof。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "表述正确。typeof 对引用类型的区分能力很弱：数组与普通对象都返回 \"object\"，可调用对象（函数）历史上被单独规定返回 \"function\"，null 还有著名的 \"object\" 历史包袱。Array.isArray 走规范的 IsArray 抽象操作，能正确识别跨 realm（如 iframe）创建的数组，比 obj instanceof Array 更可靠——后者的 prototype 链指向当前 realm 的 Array，跨窗口时会失效。补充：判断 null 要用 === null，判断整数可用 Number.isInteger，这些都说明 typeof 只是粗粒度标签而非完整类型系统。",
+    "gapCheck": [
+      "易漏点：typeof null === \"object\" 是语言历史遗留，不会被修复。",
+      "常见误区：用 instanceof Array 判断数组，在多窗口/多 realm 场景下误判。",
+      "排查线索：需要精确类型标签时可借助 Object.prototype.toString.call(x) 得到 [object Array] 等内部槽名称。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.basics.types"
+      ],
+      "related": [
+        "fe.js.basics.coercion"
+      ],
+      "followUps": [
+        "Object.prototype.toString 的 [object Xxx] 标签由哪些内部槽决定？",
+        "跨 iframe 场景下 instanceof 还有哪些经典失效案例？",
+        "BigInt、Symbol 的 typeof 返回值分别是什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 ECMAScript typeof 与 IsArray 规范语义编写"
+    },
+    "tags": [
+      "基础",
+      "typeof",
+      "判断题"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0060"
+  }
+]

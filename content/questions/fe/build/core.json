@@ -1,0 +1,1261 @@
+[
+  {
+    "id": "Q-fe-build-0001",
+    "nodeId": "fe.build.toolchain.vite",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "Vite dev 服务器冷启动远快于传统打包器的根本原因是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "用 Rust 重写了全部插件 API，单线程解析更快"
+      },
+      {
+        "key": "B",
+        "text": "不预打包整个项目，依赖交给浏览器按原生 ESM 请求、到达哪个模块才编译哪个"
+      },
+      {
+        "key": "C",
+        "text": "把产物缓存在 Service Worker 里二次打开秒开"
+      },
+      {
+        "key": "D",
+        "text": "自动把 TypeScript 编译成机器码执行"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。webpack 必须先构建完整依赖图才能起 dev server，成本 O(项目规模)；Vite 利用原生 ESM：入口 HTML/JS 返回后由浏览器逐请求拉模块，服务端按需 transform，成本 O(首屏实际请求)。第三方依赖是例外——用 esbuild 预构建（CJS→ESM 统一、小文件合并）落 .vite 深缓存，避免 waterfall 与互操作问题。A 的 Rolldown 是生产打包方向而非 dev 快的原因；C/D 无稽。",
+    "gapCheck": [
+      "易漏点：dev 快≠零配置万能——首屏之外的模块首次请求仍有按需编译延迟，大项目首屏也可能被依赖预构建 miss 拖慢",
+      "常见误区：说成「Vite 打包也快」要分 dev/build 两段答，build 传统上是 Rollup（慢但优化好），正迁移 Rolldown",
+      "加分项：能提 optimizeDeps 缓存按 lockfile hash 失效、改了 vite.config 会 restart"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.toolchain.vite"
+      ],
+      "related": [
+        "fe.build.module.esm-cjs",
+        "fe.build.bundle.caching"
+      ],
+      "followUps": [
+        "为什么第三方 CJS 依赖必须预构建？",
+        "Vite 6 的 Environment API 解决什么问题？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Vite 冷启动原理单选题"
+    },
+    "tags": [
+      "工程化",
+      "Vite",
+      "dev server",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-build-0002",
+    "nodeId": "fe.build.toolchain.vite",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "关于 Vite 的热更新与工程边界，请回答：(1) HMR 更新的完整流程与「边界」概念，什么情况下会退化为整页 reload？(2) 为什么改一个 Vue SFC 组件能保留页面状态，而某些框架需要额外插件？(3) monorepo 里 link 本地包源码做 HMR 常遇到什么坑、怎么解？",
+    "answer": {
+      "ref": "参考骨架：(1) 流程：文件变更→chokidar 捕获→模块图找影响链→向 WS 客户端下发 update 载荷→浏览器 runtime 沿图向上找 accept 边界（import.meta.hot.accept 自己接、或框架虚拟模块自带 accept 的组件模块）→执行 dispose/hotAccept 回调替换导出并冒泡 invalidate 到 importer→Vue 场景 hot.reload 组件定义走 patch 保留实例状态；找不到任何 acceptor 则 location.reload 全量刷新（副作用模块如 store 被大量 import 且无人 accept 是最常见退化点）。HMR 只保证「新增/替换」，删不掉旧监听/旧全局注册，所以累积脏状态仍需重启，官方定位是「尽力而为的开发加速」。(2) Vue SFC 编译时自动注入 module.hot.accept 与 __hmrContext（vue-loader/@vitejs/plugin-vue 生成），组件定义热替换天然安全；React Fast Refresh 需要 @vitejs/plugin-react 注入 preamble 且组件须符合可刷新约定（默认导出组件、状态 hook 化），Svelte Solid 各有专用 runtime。(3) 坑：linked 包不在 root 的 fs.allow 白名单→403 或不被 watch；包 main 指向 src 时默认被 optimizeDeps 以 dist 预构建遮蔽→改源码不生效；解法：optimizeDeps.exclude 该包 + server.fs.allow 覆盖工作区根 + warmup 预热入口，或配 allowSync 触发二次预构建 restart；Vite 7 推荐 workspace links 自动 exclude 行为。"
+    },
+    "scoringPoints": [
+      {
+        "point": "讲清 accept 边界冒泡机制与整页 reload 的触发条件",
+        "weight": 2
+      },
+      {
+        "point": "指出 HMR 无法撤销旧副作用、需重启的固有局限",
+        "weight": 2
+      },
+      {
+        "point": "Vue 编译期注入 HMR 边界 vs React 需 runtime preamble 的差异",
+        "weight": 2
+      },
+      {
+        "point": "monorepo link 三件套：fs.allow / optimizeDeps.exclude / allowSync-warmup",
+        "weight": 2
+      },
+      {
+        "point": "提到 WS 载荷与 dispose 顺序等实现细节",
+        "weight": 1
+      }
+    ],
+    "analysis": "这题在 Vite 普及的 2026 年已从「知道有 HMR」升级为「知道边界算法」。高分线：能说「HMR 是图上的冒泡协议」而不是「刷新了某个组件」；monorepo 坑是团队真实痛点，答出 exclude+fs.allow 组合直接证明踩过坑。失分：把 fast refresh 与 HMR 混谈；以为 Vite 热更新永远无损。",
+    "gapCheck": [
+      "易漏点：accept 粒度错误（accept 了一个被广泛依赖的模块）会导致旧引用悬挂渲染错乱",
+      "常见误区：生产环境也有 HMR 错觉——build 后是完整打包无热更",
+      "加分项：知道 import.meta.hot.decline 显式声明不可热更强制刷新"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.toolchain.vite"
+      ],
+      "related": [
+        "fe.build.toolchain.package-manager",
+        "fe.vue.composition.sfc-macros"
+      ],
+      "followUps": [
+        "HMR 时模块级单例状态会怎样？",
+        "vite-plugin-inspect 怎么看模块转换链？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "HMR 边界与 monorepo 主观题"
+    },
+    "tags": [
+      "工程化",
+      "Vite",
+      "HMR",
+      "monorepo",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-build-0003",
+    "nodeId": "fe.build.toolchain.webpack",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Webpack 的 loader 与 plugin，下列说法**正确的**有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "同一 use 数组中的 loader 从右往左（从下往上）执行，pitch 阶段则从左往右且可提前 return 短路后续 loader"
+      },
+      {
+        "key": "B",
+        "text": "plugin 通过 tapable 注册编译生命周期钩子，能操作整个 compilation 对象与多入口产物"
+      },
+      {
+        "key": "C",
+        "text": "loader 和 plugin 都只能在构建期运行，dev server 中间件能力必须由 plugin 的 beforeMiddleware 类钩子提供"
+      },
+      {
+        "key": "D",
+        "text": "tree-shaking 在 webpack 中即使代码是 CommonJS 写法也能完整生效"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B"
+      ]
+    },
+    "analysis": "AB 正确：loader 是「单模块翻译流水线」，执行序 right-to-left、pitch 阶段 left-to-right 且提前返回会跳过右侧 loader 进入其 normal 阶段（style-loader 的 ping-pong 就靠这个）；plugin 订阅 NormalModuleFactory/compilation/seal 等钩子改变全局。C 半对半错——devServer.setupMiddlewares 本就是 webpack-dev-server 的插件接口，但把 loader 也一棒子打死不对（raw-loader 之类仍可服务开发期）；表述含混整体判错。D 错：webpack 的摇树依赖 ESM 静态结构，CJS 的动态 require 无法安全删除未用导出。",
+    "gapCheck": [
+      "易漏点：pitch/normal/post 三阶段的 style-loader CSS 注入时序是 loader 体系最经典考点",
+      "常见误区：以为 plugin 只是「打包后处理」——resolve 阶段就能介入",
+      "加分项：能讲 Module Federation shared singleton 版本仲裁或 filesystem cache 的 buildDependencies 配置"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.toolchain.webpack"
+      ],
+      "related": [
+        "fe.build.module.transform",
+        "fe.build.bundle.optimization"
+      ],
+      "followUps": [
+        "写一个自定义 loader 需要哪些约束（this.async、raw）？",
+        "webpack5 持久缓存为什么要求固定 NODE_ENV？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "loader 与 plugin 机制多选题"
+    },
+    "tags": [
+      "工程化",
+      "Webpack",
+      "loader",
+      "plugin",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-build-0004",
+    "nodeId": "fe.build.toolchain.package-manager",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 pnpm 的 node_modules 结构，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "与 npm 相同做全局扁平提升，只是磁盘上用了硬链接去重"
+      },
+      {
+        "key": "B",
+        "text": "每个包的真实内容放在 .pnpm/<name>@<version> 虚拟 store 软链下，顶层只链接 package.json 声明的直接依赖，因此访问未声明的间接依赖会直接报错"
+      },
+      {
+        "key": "C",
+        "text": "pnpm 完全禁止嵌套依赖，peer 冲突会自动升级为 error 中断安装"
+      },
+      {
+        "key": "D",
+        "text": "因为没做扁平化，pnpm 项目里 webpack 等打包器无法解析任何依赖"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：pnpm 用「内容寻址全局 store（硬链接）+ 项目内 .pnpm 虚拟 store + 顶层仅直接依赖 symlink」三层结构，幽灵依赖（import 未声明包）在 pnpm 下默认解析失败——这正是它相对 npm 扁平化的核心优势，也是很多老项目迁 pnpm 第一步报「找不到 xxx 模块」的原因（补声明或用 public-hoist-pattern/shamefully-hoist 过渡）。A 错在结构完全不同；C 错在 peer 策略可配置 auto-install-peers；D 错在 only-Child-Of 目录名设计就是为了让打包器解析规则能命中。",
+    "gapCheck": [
+      "易漏点：迁移 pnpm 的三大典型报错：幽灵依赖、peer 缺失（auto-install-peers 决策）、依赖内部路径直 import 失效",
+      "常见误区：以为软链结构会让 Vite/webpack 解析不到——虚拟 store 命名专为兼容解析算法设计",
+      "加分项：知道 catalog 统一多包版本、workspace:* 发布时替换为真实版本号"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.toolchain.package-manager"
+      ],
+      "related": [
+        "fe.build.module.esm-cjs",
+        "fe.network.transfer.upload"
+      ],
+      "followUps": [
+        "pnpm store 硬链接跨盘失败会退回什么策略？",
+        "yarn PnP 与 pnpm 谁更严格？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "pnpm 结构单选题"
+    },
+    "tags": [
+      "工程化",
+      "pnpm",
+      "依赖管理",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-build-0005",
+    "nodeId": "fe.build.toolchain.package-manager",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：CI 上应使用 npm ci / pnpm install --frozen-lockfile 之类的 ______ 参数防止 lockfile 被静默改写；pnpm workspace 中引用本地兄弟包应写依赖版本为 ______:* 协议，发包时会被替换为真实版本；多包共用的第三方版本区间可用 pnpm 的 ______ 功能集中定义。",
+    "answer": {
+      "blanks": [
+        "frozen-lockfile",
+        "workspace",
+        "catalog"
+      ],
+      "synonyms": {
+        "frozen-lockfile": [
+          "frozen lockfile",
+          "--frozen-lockfile"
+        ],
+        "workspace": [
+          "workspace:",
+          "workspace 协议"
+        ],
+        "catalog": [
+          "catalogs",
+          "pnpm catalog"
+        ]
+      }
+    },
+    "analysis": "frozen-lockfile（pnpm）/ci（npm）保证安装严格按 lockfile、漂移即报错，是 CI 复现性的底线；workspace: 协议让 monorepo 内部互依不写死版本号、changesets 发版时统一替换；catalog（pnpm 9+，bun/yarn 亦有跟进）把「N 个包各自写 ^x.y」收敛成 pnpm-workspace.yaml 一处定义，根治版本碎片化。turborepo 的任务缓存按输入 hash 命中则跳过重跑，与这三者共同构成现代 monorepo 基座。",
+    "gapCheck": [
+      "易漏点：workspace:* 与 workspace:^/~ 的发布语义差别（精确锁定 vs 保持区间）",
+      "常见误区：CI 用普通 install 顺手升级 lockfile 导致「本地能跑线上炸」",
+      "加分项：知道 changesets version+bump 会同步重写 workspace 协议、catalog 迁移命令"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.toolchain.package-manager"
+      ],
+      "related": [
+        "fe.build.toolchain.vite",
+        "fe.build.module.esm-cjs"
+      ],
+      "followUps": [
+        "turborepo 远程缓存怎么配？",
+        "npm overrides 和 pnpm overrides 语法差异？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "workspace 协议与 lockfile 填空题"
+    },
+    "tags": [
+      "工程化",
+      "monorepo",
+      "pnpm",
+      "CI"
+    ]
+  },
+  {
+    "id": "Q-fe-build-0006",
+    "nodeId": "fe.build.module.esm-cjs",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：一个 npm 包若想同时提供 ESM 与 CJS 两种入口，只需在 package.json 的 exports 里给 \"import\" 和 \"require\" 两个条件各指一个产物文件即可，两种形态来自同一份源码不会有任何运行时一致性问题。",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "错误。这正是 dual package hazard 的成因：当应用图中同时存在 import 'pkg' 与 require 'pkg'（或某依赖经 CJS 加载），Node 会把 ESM 副本与 CJS 副本各实例化一份——模块级单例分裂（两个 EventEmitter、两份 symbol 注册表），instanceof/私有 brand check 失败，带状态的库（如 class 静态缓存）行为诡异。「exports 映射正确」只解决了解析层，不解决运行时双实例。稳妥解法是 single package 化：ESM-only，或 require condition 回指同一份 CJS 并由它包装 ESM（createRequire），或彻底去掉共享可变状态。",
+    "gapCheck": [
+      "易漏点：危害的判定信号——instanceof 失败、Symbol.for 之外的全局注册表读不到",
+      "常见误区：以为 types condition 放最外层就行（须嵌进 import/require 分支内）",
+      "加分项：知道 Node 加载 CJS 时 default 导出=module.exports 整体、named exports 靠 cjs-module-lexer 静态检测"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.module.esm-cjs"
+      ],
+      "related": [
+        "fe.build.toolchain.package-manager",
+        "fe.build.toolchain.vite"
+      ],
+      "followUps": [
+        "__esModule 标记在 interop 里起什么作用？",
+        "tsconfig 的 moduleResolution bundler 与 nodenext 怎么选？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "dual package hazard 判断题"
+    },
+    "tags": [
+      "工程化",
+      "ESM",
+      "CJS",
+      "exports",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-build-0007",
+    "nodeId": "fe.build.module.esm-cjs",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "package.json 的 exports 字段中，想让「import 语句走 ESM、require 走 CJS、TS 类型分别对应」，下列映射写法**规范**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "\"types\": \"./dist/index.d.ts\" 放顶层第一行，然后 \"import\": \"./dist/esm/index.js\", \"require\": \"./dist/cjs/index.cjs\""
+      },
+      {
+        "key": "B",
+        "text": "在每个条件下的对象里各嵌一个 \"types\"（import 分支指 .d.mts/.d.ts、require 分支指 .d.cts/.d.ts），再排 import/require，最后 \"default\" 兜底"
+      },
+      {
+        "key": "C",
+        "text": "只写 \"main\" 和 \"module\" 两个字段，exports 是实验特性无需配"
+      },
+      {
+        "key": "D",
+        "text": "条件顺序无所谓，Node 会智能推断当前是 import 还是 require"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 是规范形态：TS 的 types 条件必须放进具体分支（顶层 types 会被后续条件遮蔽或在 bundler/nodenext 下走错），Node 的条件按**书写顺序**取第一个匹配，且必须以 default 收尾兜底。A 的顶层 types 在 TS5+ 的 verbatim 解析下常见「类型与运行时形态不匹配」告警；C 的 main/module 是无 exports 时的回退协议（现代 bundler 仍认 module，但 Node 不认 module）；D 错在顺序敏感——把 require 写在 import 前，ESM 项目也会被塞 CJS。",
+    "gapCheck": [
+      "易漏点：exports 一旦存在就接管全部子路径访问，裸 main 时代的深层 import 路径会 404，需配 \"./*\" pattern",
+      "常见误区：browser 条件位置——必须在 import/require 之前否则永不被选",
+      "加分项：知道 packageType module 下 .js 即 ESM、CJS 侧要用 .cjs，两侧 d.ts 扩展名也要对应"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.module.esm-cjs"
+      ],
+      "related": [
+        "fe.build.toolchain.package-manager",
+        "fe.ts.type-system.structural-typing"
+      ],
+      "followUps": [
+        "sideEffects 与 exports 如何联动影响 tree-shaking？",
+        "为什么发布 ESM-only 包要标注 engines.node？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "exports 条件映射单选题"
+    },
+    "tags": [
+      "工程化",
+      "exports",
+      "TS",
+      "发包"
+    ]
+  },
+  {
+    "id": "Q-fe-build-0008",
+    "nodeId": "fe.build.module.transform",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于现代工具链里的 TypeScript 处理，正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "esbuild/vite 转译 TS 时会顺带做类型检查，类型错误会直接让 dev 启动失败"
+      },
+      {
+        "key": "B",
+        "text": "esbuild 只做「擦除类型」的单文件 transform，不做跨文件类型检查；类型校验由 tsc --noEmit / vue-tsc 独立承担，常挂 pre-commit 或 CI"
+      },
+      {
+        "key": "C",
+        "text": "SWC 不能替代 babel，因为 babel 插件没有任何等价物可以迁移"
+      },
+      {
+        "key": "D",
+        "text": "TS 的 enum 会被编译成字符串常量，不会产生运行时对象"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：esbuild 按文件独立 transform，类型擦除+少量语法降级，性能极高但零类型检查——所以「vite 跑得勤快但类型错误要另跑 vue-tsc」是标配分工，IDE 红波浪线也不等于构建会拦。A 错；C 太绝对：大量 preset/plugin 已有 swc 等价（装饰器/styled-components/class properties），少数 AST 深度改写类仍需 babel 兜底；D 错：数字 enum 生成双向映射 IIFE 对象、字符串 enum 只有单向，都有运行时开销，const enum 才是接近内联（isolatedModules 下还受限），故新代码普遍推荐 as const 对象或 union 字面量替代。",
+    "gapCheck": [
+      "易漏点：isolatedModules 是把 esbuild 假设显性化的开关（re-export type 要 export type），迁移必开",
+      "常见误区：以为 CI 不跑 tsc 也能守住类型——lint 只查语法不查类型",
+      "加分项：知道 tsgo（TS 7 Go 原生编译器）预告的提速与增量策略"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.module.transform"
+      ],
+      "related": [
+        "fe.ts.advanced.generics-utility",
+        "fe.build.toolchain.vite"
+      ],
+      "followUps": [
+        "为什么 vite 的 tsconfig 建议 moduleResolution bundler？",
+        "vue-tsc 和 tsc 的差值在哪？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "TS 转译与类型检查分工单选题"
+    },
+    "tags": [
+      "工程化",
+      "TypeScript",
+      "esbuild",
+      "构建"
+    ]
+  },
+  {
+    "id": "Q-fe-build-0009",
+    "nodeId": "fe.build.bundle.caching",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "一个日活十万的 Vue SPA 首屏要加载 1.8MB gzip 后的 JS。请回答：(1) 如何设计 Rollup/Vite 的分包策略来兼顾「长效强缓存」与「首屏最小化」？(2) contenthash 在其中扮演什么角色，runtime chunk 为什么要单独拆？(3) 给出你定位体积问题的完整流程与常见元凶清单。",
+    "answer": {
+      "ref": "参考骨架：(1) 分层拆：按「变更频率×访问热度」矩阵切——框架核心（vue/router/pinia）稳定低频变更单独 vendor-core 吃一年 immutable；重型按需库（图表/编辑器/markdown）一律动态 import 落到路由后 chunk；公共业务组件抽 async shared；manualChunks 函数按 node_modules 归属+大小阈值归组，避免碎片也避免巨石，rollup 自动生成的 preload helper 保留小体积。(2) contenthash=内容哈希，改一行只变所在 chunk → 其余用户继续命中强缓存（呼应 HTTP 缓存课）；runtime（模块加载映射 __vite__mapDeps/webpack runtime）每次构建都可能变，若不隔离会把所有入口 hash 连带炸掉，Vite 已自动拆，webpack 用 runtimeChunk:single 手拆。(3) 流程：visualizer 火焰图看构成→size-limit 设 PR 预算防回潮→逐项治：moment 换 dayjs 或砍 locale（IgnorePlugin/别名）、lodash 全量 import 改 lodash-es 具名（配合 tree-shaking）、polyfill 按 targets 收窄、重复日期/请求库去重、图片转 webp 走 CDN、sourcemap 不 inline、图标库全载改 unplugin-icons 按需、GZ 后仍大的富交互组件评估 SSR/延迟挂载；追加载瀑布：modulepreload 是否齐全、chunk 间循环依赖导致串行等待。"
+    },
+    "scoringPoints": [
+      {
+        "point": "分包按变更频率×热度分层而非一刀切 vendor，manualChunks 用法正确",
+        "weight": 2
+      },
+      {
+        "point": "讲清 contenthash 与强缓存联动、runtime 隔离防 hash 连锁",
+        "weight": 2
+      },
+      {
+        "point": "定位流程有工具链（visualizer+size-limit 预算）且治法对症",
+        "weight": 2
+      },
+      {
+        "point": "元凶清单 ≥4 项含 lodash/moment/图标全载/重复库这类经典项",
+        "weight": 2
+      },
+      {
+        "point": "注意到动态 import 边界与 preload helper/循环 chunk 瀑布",
+        "weight": 1
+      }
+    ],
+    "analysis": "分包题是工程化面试的「系统设计题」：答案没有唯一形态，考的是权衡叙事——先测（visualizer）再切（分层策略）再守（CI 预算）。失分：背「拆 vendor 越小越好」却不管请求数与 HTTP/2 现状；不知道 runtime/ preload helper 这些 Vite 自动产物为何存在；把 tree-shaking 当万能药却不提 sideEffects 前提。",
+    "gapCheck": [
+      "易漏点：拆得过碎在 HTTP/1 时代有害、H/2 下缓解但仍有序列化成本，答题要带权衡",
+      "常见误区：以为 manualChunks 能拆开「同一模块被同步+异步混合引用」的场景（会出现幽灵 chunk）",
+      "加分项：提到路由级 prefetch（hover/viewport 进入时预拉下一页 chunk）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.bundle.caching"
+      ],
+      "related": [
+        "fe.network.transport.cache-strategy",
+        "fe.perf.loading.critical-path"
+      ],
+      "followUps": [
+        "Vite 的 preload helper 是什么？",
+        "为什么把 vue 全家桶和业务代码拆开后首屏反而可能变慢？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "分包策略系统设计主观题"
+    },
+    "tags": [
+      "工程化",
+      "分包",
+      "Rollup",
+      "缓存",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-build-0010",
+    "nodeId": "fe.build.bundle.caching",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：只要开启了 Tree-shaking，即使依赖包未声明 sideEffects，打包器也可以放心删除该包中所有未被引用的导出，不影响行为。",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "错误。删「未引用导出」的安全性取决于能否证明模块无副作用；未声明 sideEffects 时 bundler 只能保守保活整个模块（webpack 对无 flags 的包默认不信任其顶层代码），Rollup 虽做一定启发式分析但也要求显式标注才能全删。副作用的典型：顶层自执行注册、polyfill 导入（import 'core-js' 只为副作用）、axios.interceptors 配置块——这正是 sideEffects:false 需要包作者声明、CSS 要从 false 里豁免（数组 glob）的原因；PURE 注释则帮压缩器判定调用可删。",
+    "gapCheck": [
+      "易漏点：副作用不止顶层语句，类静态属性初始化也算，需 /*#__PURE__*/ 标注 new 调用",
+      "常见误区：以为 app 端配 sideEffects 会误伤 CSS 导入被 tree-shake 掉白屏",
+      "加分项：知道 moduleSideEffects:'flaggy'/'no-tree' 的 per-module 覆盖与 webpackExports 反向优化"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.bundle.caching"
+      ],
+      "related": [
+        "fe.build.bundle.optimization",
+        "fe.build.module.esm-cjs"
+      ],
+      "followUps": [
+        "为什么 import 'polyfills' 不会被摇掉？",
+        "sideEffects 数组怎么写才既保 CSS 又放开 js？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "sideEffects 与摇树判断题"
+    },
+    "tags": [
+      "工程化",
+      "tree-shaking",
+      "sideEffects"
+    ]
+  },
+  {
+    "id": "Q-fe-build-0011",
+    "nodeId": "fe.build.bundle.optimization",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：Vite 生产构建默认基于 ______ 完成 bundle（Vite 7 起可用 Rust 的 ______ 作为 Rollup 兼容替身提速）；若要可视化分析产物构成，常用插件是 rollup-plugin-______。",
+    "answer": {
+      "blanks": [
+        "Rollup",
+        "Rolldown",
+        "visualizer"
+      ],
+      "synonyms": {
+        "Rollup": [
+          "rollup"
+        ],
+        "Rolldown": [
+          "rolldown",
+          "rolldown-vite"
+        ],
+        "visualizer": [
+          "viz",
+          "rollup-plugin-visualizer"
+        ]
+      }
+    },
+    "analysis": "Vite build 长期以 Rollup 为主引擎（静态 ESM 图+成熟插件生态），Vite 6 提供 rolldown-vite 可选通道、7 将其列为主线演进方向——Oxc/Rust 实现、承诺 Rollup 插件兼容，统一 dev/prod 语义并大幅提速；分析产物用 rollup-plugin-visualizer（treemap/sunburst）或 source-map-explorer 从 sourcemap 反推真实来源占比。Rspack 则是 webpack 生态的 Rust 另一路线，答题时可对比：Rspack 兼容 webpack loader/plugin 心智，Rolldown 兼容 Rollup 生态。",
+    "gapCheck": [
+      "易漏点：区分 dev(esbuild 预构建+按需 ESM)与 build(Rollup/Rolldown)两段引擎不同",
+      "常见误区：把 esbuild 说成 Vite 的生产打包默认（仅 target 低时部分场景兜底）",
+      "加分项：知道 vite-plugin-inspect 看中间产物、构建提速先 profile 再动"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.bundle.optimization"
+      ],
+      "related": [
+        "fe.build.toolchain.webpack",
+        "fe.build.module.transform"
+      ],
+      "followUps": [
+        "Rolldown 为什么能做到兼容 Rollup 插件？",
+        "Rspack 和 Vite 会二选一吗？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Vite 构建引擎填空题"
+    },
+    "tags": [
+      "工程化",
+      "Vite",
+      "Rolldown",
+      "构建提速"
+    ]
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.build.bundle.caching",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 Vite/Rollup 生产构建的分包（manualChunks）与浏览器长效缓存，下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "把 node_modules 全部打进一个大 vendor chunk 缓存命中率最高，是推荐的终极做法"
+      },
+      {
+        "key": "B",
+        "text": "将变动频率低、体积大的稳定依赖（如 vue 全家桶）拆为独立 chunk 并配合 contenthash，业务代码发版不会使这些 chunk 的 URL 失效，从而命中强缓存"
+      },
+      {
+        "key": "C",
+        "text": "contenthash 只由 chunk 的文件名决定，修改 chunk 内的源码注释不会改变其 hash"
+      },
+      {
+        "key": "D",
+        "text": "单独拆分 runtime chunk 的主要目的是减少首屏 JS 的字节数，与缓存无关"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：长效缓存的核心是「变动频率不同的代码隔离到不同 chunk」，稳定依赖单独成块后其 contenthash 长期不变，配合 immutable 强缓存可跨发版复用。A 错误：单一巨型 vendor 中任何一个依赖升级都会使整个 chunk 的 hash 变化、缓存整体失效，反而劣化命中率，实践中应按更新频率/共用关系细分。C 错误：contenthash 基于该 chunk 最终产物的内容计算，注释若保留在产物中就是内容的一部分；压缩后注释被移除才可能不影响 hash，选项的绝对化表述不成立。D 错误：runtime chunk 存放模块加载与 manifest 映射，单独拆是为了让业务模块变化引起的 manifest 变动不污染 vendor 缓存，首要价值是缓存隔离而非省字节。",
+    "gapCheck": [
+      "易漏点：缓存命中率取决于「chunk 内容稳定度」，hash 是结果不是手段，分包边界才是设计重点。",
+      "常见误区：以为一个大 vendor 最省心，忽略任一依赖升级都会击穿整块缓存。",
+      "排查线索：用 rollup-plugin-visualizer 看 chunk 构成与变更频率，结合服务器 Cache-Control: immutable 与发版前后 chunk 文件名 diff 验证缓存策略。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.bundle.caching"
+      ],
+      "related": [
+        "fe.build.bundle.optimization",
+        "fe.build.toolchain.vite"
+      ],
+      "followUps": [
+        "manualChunks 配置成函数形式时如何按 node_modules 包名做稳定分组？",
+        "动态 import() 的 chunk 命名与预加载（preload）由谁决定？",
+        "HTML 引用的 chunk 文件名变了，如何保证旧 HTML 不加载到已删除的产物？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Rollup/Vite 分包与 HTTP 缓存原理、官方文档语义编写"
+    },
+    "tags": [
+      "高频",
+      "工程化",
+      "缓存策略"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0049"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.build.bundle.optimization",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Tree-shaking 的生效条件与现代构建提速手段，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "ESM 的静态 import/export 能在编译期确定依赖图，是 Tree-shaking 的前提；CJS 的动态 require 无法被可靠静态分析"
+      },
+      {
+        "key": "B",
+        "text": "包在 package.json 声明 \"sideEffects\": false 后，打包器可以安全地整体删除未被引用的模块，含副作用的包应精确列出副作用文件（如 CSS）"
+      },
+      {
+        "key": "C",
+        "text": "用 esbuild 或 SWC 做 TS 转译只做「类型擦除 + 语法降级」而不做类型检查，凭借 Go/Rust 实现与跳过类型系统，速度显著快于 tsc"
+      },
+      {
+        "key": "D",
+        "text": "只要打包器支持 Tree-shaking，import { debounce } from \"lodash\" 就一定只会打包 debounce 一个函数"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A 正确：静态模块结构使 Rollup 等能在不执行代码的情况下标记未引用导出。B 正确：sideEffects 是打包器删除「整个模块」的安全凭证，有副作用的包须显式声明（如 [\"*.css\"]），否则样式等可能被误删。C 正确：esbuild/SWC 的定位是转译器，类型检查需另跑 tsc/vue-tsc，这正是其高速的关键原因之一。D 错误：经典 lodash 是 CJS 包，Rollup 对 CJS 命名导出的识别依赖 @rollup/plugin-commonjs 的静态猜测，Tree-shaking 不保证生效；应改用 lodash-es（ESM 形态）或按需插件，不能想当然。",
+    "gapCheck": [
+      "易漏点：Tree-shaking 同时要求 ESM 语法、无副作用标记、生产模式压缩（dead code elimination）三者配合。",
+      "常见误区：把「打包器支持 tree-shaking」当成对任意 npm 包都生效，忽略 CJS 包与副作用标记缺失。",
+      "排查线索：产物中搜索未使用导出名是否仍存在；检查依赖包的 module/exports 字段与 sideEffects 声明。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.bundle.optimization"
+      ],
+      "related": [
+        "fe.build.bundle.caching",
+        "fe.build.module.esm-cjs",
+        "fe.build.module.transform"
+      ],
+      "followUps": [
+        "为什么 Vite dev 模式不做 Tree-shaking 也能很快？",
+        "sideEffects 误标为 false 导致样式丢失，如何定位？",
+        "Rolldown 这类 Rust 打包器在 tree-shaking 能力上与 Rollup 的兼容关系是什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Rollup/esbuild/SWC 官方文档语义与构建原理编写"
+    },
+    "tags": [
+      "高频",
+      "Tree-shaking",
+      "构建提速"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0050"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.build.bundle.optimization",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "某 Vite + Vue3 中后台项目的生产构建耗时从最初 40 秒劣化到 4 分钟，CI 资源没有变化。请给出一份系统性的构建提速排查与优化清单（至少覆盖 5 个维度），并说明每个手段为什么有效、适用边界是什么。",
+    "scoringPoints": [
+      {
+        "point": "先用量化手段定位瓶颈：--profile/debug 计时、rollup-plugin-visualizer 看产物体积、区分是转译慢、压缩慢还是依赖预构建慢，避免盲目优化",
+        "weight": 2
+      },
+      {
+        "point": "转译层提速：用 esbuild/SWC 替代 babel/tsc 做类型擦除与语法降级，或评估 Vite 7+ 的 Rolldown（Rust）模式；说明原生实现与跳过类型系统带来的收益及插件生态边界",
+        "weight": 2
+      },
+      {
+        "point": "持久化缓存与并行：启用构建缓存（依赖预构建缓存、CI 上挂载 node_modules/.vite 与缓存目录）、利用多核并行，保证 lockfile 与配置稳定以提升命中率",
+        "weight": 2
+      },
+      {
+        "point": "缩小处理范围：生产 sourcemap 改用成本更低的形式或关闭、收窄 browserslist target 减少降级工作量、避免转译 node_modules、合理配置 external 与按需加载",
+        "weight": 2
+      },
+      {
+        "point": "工程治理：路由级动态 import 切分降低单次构建与压缩的峰值体量、稳定分包策略、定期清理僵尸依赖；强调先测量后优化与回归验证",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "参考答案：①先测量后动手——用 vite build --profile/--debug 输出各阶段耗时，用 visualizer 分析产物体积，确认瓶颈在转译、压缩还是预构建。②替换转译内核：esbuild（Go）或 SWC（Rust）只做类型擦除和语法降级、不跑类型系统，比 Babel/tsc 快一个数量级；Vite 7 起可评估 Rolldown 作为 Rollup 的 Rust 兼容替身，但需核对插件兼容性。③缓存与并行：保证依赖预构建缓存（node_modules/.vite）与打包器缓存目录在 CI 间可复用，lockfile 不变才能命中；多核并行处理独立模块。④收敛处理面：生产环境按需要选择 sourcemap 策略（hidden/cheap 或关闭），browserslist target 贴近真实用户浏览器以少做降级，node_modules 默认不转译，纯 ESM 依赖可加入 optimizeDeps 排除/包含名单。⑤降低单次构建体量：路由级动态 import 天然分包、稳定 manualChunks、清理未使用依赖与巨型库（如全量 lodash、moment）。边界：SWC 插件与 Babel 不通用、装饰器等特殊语法需额外配置；缓存换来速度但要求构建确定性，CI 上要防「脏缓存」，必要时按 lockfile 哈希做 key 并定期失效。"
+    },
+    "analysis": "本题考察构建优化的工程方法论而非单点记忆。高分答案必须体现「先 profiling 再优化」的纪律、能区分 dev 预构建与生产 bundle 两条耗时路径，并理解原生工具链（Go/Rust）快在跳过类型系统与并行内存模型，同时说得出兼容性代价。",
+    "gapCheck": [
+      "易漏点：区分 dev 冷启动（esbuild 预构建 + 原生 ESM）与生产构建（Rollup/Rolldown 全量打包）两条不同的耗时链路。",
+      "常见误区：直接套「换 SWC 就快」的结论，不验证插件兼容性，也不先量化瓶颈。",
+      "排查线索：CI 缓存命中率、lockfile 漂移、sourcemap 配置、browserslist 目标范围是四个最常见的隐性劣化来源。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.bundle.optimization"
+      ],
+      "related": [
+        "fe.build.toolchain.vite",
+        "fe.build.module.transform",
+        "fe.build.bundle.caching"
+      ],
+      "followUps": [
+        "如何判断项目是否适合迁移到 Rolldown？",
+        "CI 上的构建缓存 key 应该包含哪些要素才能既快又安全？",
+        "压缩阶段（minify）耗时过高时 esbuild minify 与 terser 如何取舍？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vite/Rollup/SWC/esbuild 官方文档语义与工程实践编写"
+    },
+    "tags": [
+      "工程化",
+      "构建提速",
+      "排查题"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0051"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.build.module.esm-cjs",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空（双包发布与互操作）：一个库同时提供 ESM 与 CJS 入口时，package.json 的 exports 映射中用 ______ 条件对应 import 语句、用 ______ 条件对应 require()；CJS 模块经 ESM 导入时 module.exports 整体成为默认导出、命名导出靠工具静态分析补全，这套机制称为 ______；同一份库的 ESM 与 CJS 副本若被应用同时加载，会各自持有一份模块状态，这类问题通常称为 ______。",
+    "answer": {
+      "blanks": [
+        "import",
+        "require",
+        "interop（互操作）",
+        "dual-package hazard（双包陷阱/双包危害）"
+      ],
+      "synonyms": {
+        "import": [
+          "import 条件"
+        ],
+        "require": [
+          "require 条件"
+        ],
+        "interop（互操作）": [
+          "interop",
+          "互操作",
+          "cjs interop",
+          "cjs-esm 互操作"
+        ],
+        "dual-package hazard（双包陷阱/双包危害）": [
+          "dual-package hazard",
+          "双包陷阱",
+          "双包危害",
+          "双包问题",
+          "dual package hazard"
+        ]
+      }
+    },
+    "analysis": "exports 的条件导出按加载方式选择条件：import 命中 ESM 产物、require 命中 CJS 产物，types/default 等条件另有顺序规则。interop 解决两套模块系统的语义鸿沟：CJS 没有默认导出概念，导入时 module.exports 被包成 default，命名导出由 Node 的 cjs-module-lexer 或打包器静态识别。dual-package hazard 指包的两份实例（如 ESM 入口与 CJS 入口各加载一次）拥有独立的模块级状态，单例语义被破坏（典型如事件总线、计数器出现两份）；缓解手段包括 state 外置到独立实例、只暴露一种形态或用同构写法让两入口共享状态。",
+    "gapCheck": [
+      "易漏点：条件导出还有「条件顺序」与嵌套写法，types 通常要放最前，default 兜底放最后。",
+      "常见误区：以为写了 import/require 两个条件就万事大吉，忽略两份产物运行时状态不一致。",
+      "排查线索：应用里出现「同一个包 instanceof 失败 / 单例失效」时，优先检查是否 ESM、CJS 各加载了一份。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.module.esm-cjs"
+      ],
+      "related": [
+        "fe.build.module.transform",
+        "fe.build.toolchain.package-manager"
+      ],
+      "followUps": [
+        "为什么 TypeScript 的 moduleResolution 设为 bundler/node16 时对 exports 的解析行为不同？",
+        "如何写一份同时被 Node 与打包器正确识别的类型导出（types 条件）？",
+        "只用 ESM 发包（\"type\": \"module\"）能彻底避开 dual-package hazard 吗，代价是什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Node.js 包导出条件与 ESM/CJS 互操作官方文档语义编写"
+    },
+    "tags": [
+      "高频",
+      "双包发布",
+      "填空"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0052"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.build.module.transform",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Babel、SWC、esbuild 的分工与 browserslist 策略，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "esbuild 与 SWC 都能完成语法降级（transform），但默认不注入 core-js 这类运行时 API polyfill；esbuild 明确不提供 polyfill 能力，需要另行处理"
+      },
+      {
+        "key": "B",
+        "text": "browserslist 是目标环境的单一事实源，@babel/preset-env、Autoprefixer、postcss-preset-env 等工具都会读取同一份查询配置"
+      },
+      {
+        "key": "C",
+        "text": "Babel 插件工作在 JS AST 之上，SWC 插件生态基于 Rust（含 WASM 形态），两套插件互不兼容，迁移时需要找等价替代"
+      },
+      {
+        "key": "D",
+        "text": "Vite 配置 build.target: \"esnext\" 后保留全部最新语法，老旧浏览器可依靠 dev 期的 HMR 通道自动获得降级运行能力"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A 正确：语法降级（arrow function、可选链等）与 API polyfill（Promise、Array.prototype.flat 等运行时能力）是两件事，esbuild 刻意不做 polyfill，SWC 也需额外配置，通常仍靠 core-js。B 正确：browserslist 统一描述目标浏览器份额/版本，避免 Babel 与 CSS 前缀工具各配一套导致目标漂移。C 正确：插件体系绑定各自的 AST 与运行时（Babel 插件是 JS 包，SWC 插件是 Rust/WASM），不能直接复用。D 错误：HMR 只是开发期模块热替换机制，与生产环境的语法兼容毫无关系；esnext 产物在老浏览器里直接语法解析失败，必须靠正确的 target 与 polyfill 策略兜底。",
+    "gapCheck": [
+      "易漏点：「语法转换」与「API 补丁」是两层问题，target 只管前者，polyfill 要单独规划。",
+      "常见误区：以为换了 esbuild/SWC 就自动解决 IE/老机型兼容，忽略 core-js 与 browserslist 联动。",
+      "排查线索：线上白屏报 SyntaxError 时先查 build.target 与实际用户浏览器分布，再查 polyfill 覆盖率。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.module.transform"
+      ],
+      "related": [
+        "fe.build.toolchain.vite",
+        "fe.build.bundle.optimization"
+      ],
+      "followUps": [
+        "preset-env 的 useBuiltIns: entry 与 usage 两种 polyfill 注入策略有何区别？",
+        "browserslist 查询写得过于宽松会同时拖慢构建和增大产物，机理是什么？",
+        "SWC 缺失某个 Babel 插件等价物时，工程上有哪些兜底方案？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Babel/SWC/esbuild/browserslist 官方文档语义编写"
+    },
+    "tags": [
+      "转译",
+      "polyfill",
+      "工具链"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0053"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.build.module.transform",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "现代 Vite + TypeScript 项目里，「类型检查」与「类型擦除式转译」被拆成两条独立管线（构建用 esbuild/Rollup，类型检查另跑 vue-tsc 或 tsc --noEmit）。请解释这样拆分的收益与风险，并给出 CI 中的推荐编排方式。",
+    "scoringPoints": [
+      {
+        "point": "说清两条管线职责：转译器只擦除类型并做语法降级，不理解类型系统；类型正确性由 tsc/vue-tsc --noEmit 专门保证",
+        "weight": 2
+      },
+      {
+        "point": "收益：转译速度数量级提升、dev 体验流畅、职责单一便于缓存与并行；类型检查可独立按需运行",
+        "weight": 2
+      },
+      {
+        "point": "风险：vite build 不因类型错误失败，错误可能漏进产物；IDE、本地、CI 三处 TS 版本/配置不一致会出现「本地红 CI 绿」",
+        "weight": 2
+      },
+      {
+        "point": "CI 编排：build 与 vue-tsc --noEmit 并行或设为合并门禁、二者都必须通过；锁定 typescript 版本、复用同一份 tsconfig，PR 阶段即拦截",
+        "weight": 2
+      },
+      {
+        "point": "边界补充：const enum、装饰器、参数属性等依赖类型层 emit 的特性在纯擦除模式下行为不同，需改用隔离友好写法或配置对应 SWC 插件",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "参考答案：类型擦除（type stripping）指转译器把类型注解当成语法节点直接删除、不做类型推断与检查，esbuild/SWC 因此能用单次遍历完成转译，速度比 tsc 快数十倍；而类型检查需要完整类型系统、跨文件推断，代价高且与产物生成无必然耦合，于是拆成两条管线。收益：构建/dev 冷启动极快、转译结果确定性强、类型检查可以只在 CI 或保存时由独立进程承担并独立缓存。风险：vite build 成功不代表类型正确，若 CI 没挂类型检查，带类型错误的代码照样上线；TS 版本漂移或 tsconfig 不一致还会导致 IDE 报错但构建通过。CI 推荐：在流水线中并行执行 npm run build 与 npm run typecheck（vue-tsc --noEmit / tsc -p tsconfig.json --noEmit），两者都作为必过门禁；锁定 typescript 与 vue-tsc 版本，统一 extends 基础 tsconfig。边界：isolatedModules 要求下 const enum、declare 类 emit、参数属性等写法受限，装饰器需 SWC/Babel 对应插件显式开启，否则擦除后语义改变。"
+    },
+    "analysis": "关键区分点是「转译是否需要理解类型」。esbuild 单趟扫描删注解，而 tsc 的检查是全程序分析，二者复杂度完全不同。高分回答会主动提到 isolatedModules 约束与 CI 门禁，而不是只停留在「一个快一个慢」。",
+    "gapCheck": [
+      "易漏点：vite build 的成功只是「能编成 JS」，类型安全需要独立门禁兜底。",
+      "常见误区：把 IDE 里的红线等同于构建失败，或反过来认为构建通过即类型无误。",
+      "排查线索：CI 中 typecheck 与 build 用的 TS 版本、tsconfig 引用链是否一致，是排查「本地/CI 结论不一致」的第一站。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.module.transform"
+      ],
+      "related": [
+        "fe.build.toolchain.vite",
+        "fe.build.bundle.optimization",
+        "fe.ts.advanced.generics-utility"
+      ],
+      "followUps": [
+        "isolatedModules 为什么禁止跨文件的 const enum？",
+        "vue-tsc 相比 tsc 在 SFC 类型检查上多做了什么？",
+        "有没有办法让类型错误阻断 dev 服务器而不明显拖慢体验？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vite/esbuild/TypeScript 官方文档语义与 CI 工程实践编写"
+    },
+    "tags": [
+      "类型系统",
+      "CI 门禁",
+      "工程化"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0054"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.build.toolchain.package-manager",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 npm/pnpm/bun 的安装原理与 monorepo 依赖治理，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "pnpm 采用内容寻址的全局 store，包实体以硬链接方式进入项目，同一版本在磁盘上只保存一份实体文件，节省空间且安装快"
+      },
+      {
+        "key": "B",
+        "text": "pnpm 默认的隔离式 node_modules 使代码无法访问未在 package.json 声明的依赖，phantom dependency（幽灵依赖）问题被结构性阻断"
+      },
+      {
+        "key": "C",
+        "text": "bun 的 bun.lock 与 npm 的 package-lock.json、pnpm-lock.yaml 语义完全等价、可以无条件互换使用"
+      },
+      {
+        "key": "D",
+        "text": "workspace 协议（workspace:*）声明的本地兄弟包依赖，在 publish 前会被包管理器自动替换成真实版本号"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A 正确：pnpm 的 store 按内容哈希存储，项目 node_modules 里是硬链接加符号链接的组合，兼顾零拷贝复用与隔离。B 正确：依赖只在顶层符号链接暴露直接声明项，深层包访问不到未声明依赖，这是相对 npm 扁平 node_modules 的核心治理价值。C 错误：bun 虽能读取 npm/yarn 的 lockfile 以便迁移，但 bun.lock 有自己的格式与解析语义，不同管理器的提升（hoist）、peer 解析策略存在差异，不能宣称无条件等价互换，团队应统一管理器并提交对应 lockfile。D 正确：workspace:* 是开发期占位，发布时被改写为具体版本，保证发出去的包不携带 monorepo 内部协议。",
+    "gapCheck": [
+      "易漏点：硬链接共享的是文件实体，删除项目里的链接不影响全局 store；store 与虚拟 store 的两层结构要分清。",
+      "常见误区：在 pnpm 项目里凭「能 require 到」就使用未声明的包，一旦提升策略变化立即构建失败。",
+      "排查线索：monorepo 出现依赖版本漂移时，先查 lockfile 是否被不同包管理器改写、peer 依赖解析是否一致。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.toolchain.package-manager"
+      ],
+      "related": [
+        "fe.build.module.esm-cjs",
+        "fe.build.toolchain.vite"
+      ],
+      "followUps": [
+        "pnpm 的 node_modules 结构为什么能同时做到省磁盘与防幽灵依赖？",
+        "peerDependencies 在 pnpm 严格隔离下常见的报错与 resolve 策略有哪些？",
+        "团队从 npm 迁移到 bun 需要验证哪些兼容性清单？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 pnpm/bun/npm 官方文档语义与 monorepo 实践编写"
+    },
+    "tags": [
+      "高频",
+      "包管理",
+      "monorepo"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0055"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.build.toolchain.vite",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空（Vite dev 预构建）：Vite 冷启动时使用基于 Go 的 ______ 对 CJS/UMD 等依赖做预打包并统一转为 ESM；预构建产物默认缓存在项目的 ______ 目录；浏览器原生 ESM 下裸模块会引发大量瀑布式请求，预构建的另一个关键作用是 ______；当 lockfile 内容哈希、依赖列表或 ______ 配置项发生变化时，缓存会判定失效并在下一次启动时重新预构建。",
+    "answer": {
+      "blanks": [
+        "esbuild",
+        "node_modules/.vite",
+        "把众多模块合并打包以减少请求瀑布（降低模块请求数）",
+        "optimizeDeps（include/exclude 等）"
+      ],
+      "synonyms": {
+        "esbuild": [
+          "esbuild 预构建"
+        ],
+        "node_modules/.vite": [
+          ".vite",
+          "node_modules/.vite 目录",
+          ".vite 目录"
+        ],
+        "把众多模块合并打包以减少请求瀑布（降低模块请求数）": [
+          "合并模块减少请求数",
+          "减少 HTTP 请求瀑布",
+          "打包合并依赖",
+          "减少模块请求数量"
+        ],
+        "optimizeDeps（include/exclude 等）": [
+          "optimizeDeps",
+          "optimizeDeps.include",
+          "optimizeDeps.exclude",
+          "预构建配置"
+        ]
+      }
+    },
+    "analysis": "Vite dev 把依赖（很少变动）与源码（频繁变动）分开处理：依赖用 esbuild 一次性预构建为单文件/少量 ESM，既解决 CJS 不能被浏览器直接 import 的问题，又把成百上千个微模块合并成少数请求，消除原生 ESM 的请求瀑布。缓存目录 node_modules/.vite 按浏览器分类存放；失效判定综合 lockfile 哈希、受预构建影响的依赖清单、vite.config 中的 optimizeDeps 选项以及补丁版本等因素。运行中新发现未预构建的裸依赖时还会触发二次预构建并刷新页面（可通过 optimizeDeps.include 提前声明来避免）。",
+    "gapCheck": [
+      "易漏点：预构建只发生在 dev/SSR 依赖处理层，生产 bundle 仍由 Rollup（或 Rolldown）完成，两者不要混淆。",
+      "常见误区：把请求瀑布归咎于网络慢，实际根因是未预构建的 ESM 依赖模块粒度过细。",
+      "排查线索：页面频繁整页 reload 且日志提示 new dependencies optimized，应把对应包加入 optimizeDeps.include。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.toolchain.vite"
+      ],
+      "related": [
+        "fe.build.module.esm-cjs",
+        "fe.build.module.transform",
+        "fe.build.bundle.optimization"
+      ],
+      "followUps": [
+        "为什么 ESM 依赖（如 lodash-es）有时反而需要被 include 进预构建？",
+        "预构建缓存损坏时手动清目录与 --force 各自发生了什么？",
+        "monorepo 中 link 的本地包为什么常要配 optimizeDeps.exclude？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vite 官方依赖预构建文档语义编写"
+    },
+    "tags": [
+      "Vite",
+      "预构建",
+      "填空"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0056"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.build.toolchain.webpack",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 Webpack 5 的持久化缓存（cache: { type: \"filesystem\" }），下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "持久缓存开启后 loader 与 plugin 的执行结果全部无条件复用，无需考虑版本因素"
+      },
+      {
+        "key": "B",
+        "text": "缓存条目带有基于内容与环境的 buildDependencies 与版本快照，配置文件、Node/ Webpack/loader 版本变化都会使对应缓存失效，属于「可失效的确定性缓存」"
+      },
+      {
+        "key": "C",
+        "text": "持久缓存只缓存最终 bundle 文件，模块编译过程不缓存，因此提速主要体现在压缩阶段"
+      },
+      {
+        "key": "D",
+        "text": "filesystem 缓存与内存缓存互斥，开启文件缓存后热更新只能走冷编译"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：Webpack5 持久缓存把模块编译、模块图等中间产物落盘，并用 buildDependencies（含 webpack/lib 自身、配置文件、loader 版本等）与多种哈希计算失效条件，CI 中还可跨流水线恢复缓存。A 错误：缓存复用是有条件的，环境与版本变化正是失效信号；写自定义 loader/plugin 若不确定还需显式声明 cache 失效依赖。C 错误：缓存的核心对象是模块级编译产物与 resolve 结果，整体构建各阶段都受益，而非只缓存最终 bundle。D 错误：filesystem 缓存与内存缓存分层协作，watch 模式仍优先使用内存，文件缓存解决的是冷启动复用。",
+    "gapCheck": [
+      "易漏点：自定义 loader/plugin 若读取了配置外的文件，需要通过 this.addBuildDependency 等方式登记，否则会读到陈旧缓存。",
+      "常见误区：把持久缓存当成「永远命中」，忽略 lockfile、Node 版本、配置变更引发的合理失效。",
+      "排查线索：构建结果疑似陈旧时先清 cache 目录验证，再检查 buildDependencies 是否覆盖了所有输入。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.toolchain.webpack"
+      ],
+      "related": [
+        "fe.build.bundle.caching",
+        "fe.build.bundle.optimization",
+        "fe.build.toolchain.vite"
+      ],
+      "followUps": [
+        "CI 环境中持久缓存的 key 应包含哪些要素？",
+        "Module Federation 与传统 externals 在共享依赖加载上的本质差异是什么？",
+        "Webpack 的 loader 链为什么从右向左执行，与 plugin 的 tapable 钩子有何分工？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Webpack5 持久缓存官方文档语义与构建原理编写"
+    },
+    "tags": [
+      "Webpack",
+      "持久缓存",
+      "高频"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0057"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.build.toolchain.webpack",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请结合一次 loader 链与 plugin 钩子的执行时序，说明：(1) loader 与 plugin 各自的职责边界；(2) 为什么 loader 从右向左（use 数组逆序）执行；(3) 一个自定义 plugin 通过 Tapable 钩子介入编译的最小结构是什么。",
+    "scoringPoints": [
+      {
+        "point": "职责边界：loader 只负责单个模块源码到源码的转换（TS、CSS、图片等），无构建全局视图；plugin 监听 compiler/compilation 生命周期钩子，可跨模块干预资源、chunk 与产物",
+        "weight": 3
+      },
+      {
+        "point": "逆序执行原因：loader 是函数管道 compose 模型，右侧 loader 先把原始源码转成中间形态，逐层向左加工，最终交给 Webpack 可识别的 JS；类似函数从内向外应用",
+        "weight": 3
+      },
+      {
+        "point": "最小 plugin 结构：class 形式、定义 apply(compiler) 方法、通过 compiler.hooks.xxx.tap/tapAsync 注册回调，compilation 阶段再挂 compilation.hooks，体现 Tapable 的 Sync/Async 钩子分类",
+        "weight": 3
+      },
+      {
+        "point": "能举出真实钩子或场景（如 emit 阶段改 asset、normalModuleFactory 的 beforeResolve），说明 pitch loader 与普通 loader 的区别作为加分项",
+        "weight": 1
+      }
+    ],
+    "answer": {
+      "ref": "参考答案：(1) loader 是模块级转译器，输入源码字符串、输出转换后的源码（或带 sourcemap），一次只处理一个文件，典型如 babel-loader、css-loader；plugin 是构建级扩展，订阅 Webpack 生命周期（基于 Tapable 的发布订阅），能在 make、seal、emit 等阶段读取/修改整个 compilation，甚至生成额外资源。(2) use: [\"a-loader\",\"b-loader\",\"c-loader\"] 的执行序是 c → b → a，因为 loader 被组织成函数管道：resource 先经最贴近文件的 c 转换，结果交给 b，最后 a 产出 Webpack 能并入模块图的 JS 模块；这与数学上 f(g(x)) 的从内向外求值一致。loader 还支持 pitch 阶段，pitch 按从左向右先跑一遍，可提前熔断管道。(3) 最小结构：class MyPlugin { apply(compiler) { compiler.hooks.emit.tapPromise(\"MyPlugin\", compilation => { /* 读改 compilation.assets */ }); } }，同步用 tap、异步用 tapAsync/tapPromise；需要模块级钩子时在 compiler.hooks.thisCompilation 里拿 compilation 再挂其 hooks。"
+    },
+    "analysis": "本题的区分度在「职责边界 + 时序机理 + 最小骨架」三层。答不出逆序原因通常说明只背过配置；写不出 apply(compiler) 与 Tapable 注册方式则停留在使用层。pitch loader、SyncHook/AsyncSeriesHook 分类是拉开深度的加分点。",
+    "gapCheck": [
+      "易漏点：loader 可以是同步或异步（this.async()），且 normal 与 pitch 两条执行方向相反。",
+      "常见误区：把 plugin 当成「另一种 loader」，忽略其拥有整个 compilation 的读写能力。",
+      "排查线索：自定义产物不生效时先确认挂载的钩子阶段（processAssets/emit 的时机差异）与 tap 类型是否匹配。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.build.toolchain.webpack"
+      ],
+      "related": [
+        "fe.build.module.transform",
+        "fe.build.bundle.optimization"
+      ],
+      "followUps": [
+        "Tapable 的 SyncBailHook 与 AsyncSeriesHook 在熔断语义上有何不同？",
+        "asset module（type: \"asset\"）替代了哪些传统 loader？",
+        "plugin 在 Module Federation 的运行时里扮演什么角色？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Webpack loader/plugin 与 Tapable 官方文档语义编写"
+    },
+    "tags": [
+      "Webpack",
+      "loader",
+      "plugin"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0058"
+  }
+]

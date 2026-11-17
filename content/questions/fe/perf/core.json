@@ -1,0 +1,1033 @@
+[
+  {
+    "id": "Q-fe-perf-0001",
+    "nodeId": "fe.perf.metrics.core",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 Core Web Vitals 的官方度量口径，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "INP 取页面生命周期内最慢一次交互的延迟，2024 年取代了 FID"
+      },
+      {
+        "key": "B",
+        "text": "LCP 只统计 <img> 元素，文本块不会成为 LCP 候选"
+      },
+      {
+        "key": "C",
+        "text": "CLS 会排除最近一次输入后 500ms 窗口内的布局偏移，且桌面端达标线按 P75 分位统计"
+      },
+      {
+        "key": "D",
+        "text": "三项指标都以页面平均值达标 75% 为「good」判定标准"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "C"
+      ]
+    },
+    "analysis": "C 正确：CLS 有「预期窗口」（最近输入起 500ms、上限 1250ms 内发生的偏移不计），用户触发的展开不该被惩罚；CrUX 达标口径是全部会话分布的 P75 落在良好阈值内（桌面与移动分开评估）。A 错在 INP 是全部交互的 P75（移动 P98）而非最坏一次；B 错在 LCP 候选包含 video、背景图和最大文本块（字体阻塞还会推迟文本 LCP）；D 错在按 P75 分位不是均值。",
+    "gapCheck": [
+      "易漏点：LCP 的字体依赖——webfont 未换入前文本不最终绘制，LCP 会被推迟到字体就绪",
+      "常见误区：把 INP 与 FID 混为一谈（FID 只测首次交互的 dispatch 延迟，不含处理与渲染）",
+      "加分项：知道 good 判定要求三项同时达标，且 CrUX 数据是 28 天滚动 P75"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.metrics.core"
+      ],
+      "related": [
+        "fe.browser.events.input-frame",
+        "fe.perf.metrics.profiling"
+      ],
+      "followUps": [
+        "为什么 web-vitals 库要在页面 hidden 时上报？",
+        "bfcache 恢复的导航怎么处理指标？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "CWV 口径单选题"
+    },
+    "tags": [
+      "性能",
+      "Core Web Vitals",
+      "LCP",
+      "CLS",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-perf-0002",
+    "nodeId": "fe.perf.metrics.core",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "老板问：「我们 Lighthouse 跑了 92 分，为什么用户还在投诉卡？」请回答：(1) 实验室数据与真实用户数据的本质差异在哪？(2) 设计一套前端性能监控（RUM）上报方案要覆盖哪些要点？(3) 拿到字段数据后如何下钻定位问题人群与页面？",
+    "answer": {
+      "ref": "参考骨架：(1) 差异三源：环境（合成测试固定 CPU/网络、无真实设备分布与弱网尾部）、交互（Lighthouse 不点击不滚动，测不到 INP 与懒加载后段）、状态（冷缓存冷数据 vs 老用户热 bfcache 大 DOM 长会话；AB 实验/广告脚本也不在合成环境）；所以 Lighthouse 只能当 CI 回归门槛（budget 断言），体验结论必须看 CrUX/RUM 的 P75。(2) RUM 要点：采集用 web-vitals 库 onLCP/onCLS/onINP+onTTFB/onFCP，开启 attribute 归因（LCP 的 element/url、CLS 的 sources、INP 的 next paint interact target 与 LoAF 关联），上报通道 sendBeacon/keepalive 防导航丢包、采样率与批量合并控制成本、必带维度（page/route 模板化去 query、device/effectiveType/connection、AB 分组、首访与否、SPA 需按路由切换重置导航起点 performance.navigation 或 PerformanceNavigationTiming type=navigate 判定）、隐私（不上报 URL 敏感 query、遵守 GPC）；终值语义：LCP 在首次 hidden 定稿、CLS 会话级累加 hidden 分段 flush、INP 全程更新 hidden 终报。(3) 下钻：按 route×设备等级×网络分桶看 P75 热力找「最差象限」，再看该桶内 LCP 元素分布（是不是 hero 图/字体）、INP 的 interaction 类型与 LoAF 脚本归属聚合、CLS 的 sources 元素排行；对比版本发布时间线做 diff，最后用实验室复现同条件（CPU throttle+同网络档）做归因修复，修完回字段数据验证 P75 移动。"
+    },
+    "scoringPoints": [
+      {
+        "point": "讲清合成/字段数据的三类偏差来源并给出各自正确用途",
+        "weight": 2
+      },
+      {
+        "point": "web-vitals 采集细节：attribute 归因、hidden 终值语义、beacon 通道",
+        "weight": 2
+      },
+      {
+        "point": "SPA 路由维度的导航重置与 page 归一化处理",
+        "weight": 2
+      },
+      {
+        "point": "下钻方法：分桶找最差象限+按元素/脚本聚合归因",
+        "weight": 2
+      },
+      {
+        "point": "闭环意识：修复后回字段 P75 验证而非本地体感",
+        "weight": 1
+      }
+    ],
+    "analysis": "「92 分为何还卡」是 2026 年性能岗开场高频题，考的就是实验室/字段二分法与 attribution 数据素养。高分答案会把 web-vitals 的 attribute 细节（element、sources、LoAF）说出来——这是只跑过 Lighthouse 的人答不出的。失分：把 Lighthouse 低分等同于用户卡；不知道 LCP/INP 的 hidden 终值机制导致自研 SDK 上报一堆半程值。追问方向：CrUX 与自建 RUM 数据打架信谁（口径差异：CrUX 含 Chrome 真实分布、自建看自家用户，分开看趋势别混比）。",
+    "gapCheck": [
+      "易漏点：SPA 里 pushState 不触发新的 navigation timing，必须手动标记路由边界",
+      "常见误区：采样上报忘了按维度分层，小流量端（低端安卓）被平均数淹没",
+      "加分项：提到 session-based 百分位（按会话聚合再取分位）避免重度用户权重过大"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.metrics.core"
+      ],
+      "related": [
+        "fe.perf.metrics.profiling",
+        "fe.network.transport.http-basics"
+      ],
+      "followUps": [
+        "CrUX 为什么看不到长尾路由？",
+        "性能预算怎么挂进 CI？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "RUM 监控体系主观题"
+    },
+    "tags": [
+      "性能",
+      "RUM",
+      "web-vitals",
+      "监控",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-perf-0003",
+    "nodeId": "fe.perf.metrics.profiling",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "录制 Performance 面板后发现某按钮点击的 INP 达 400ms，Event Timing 轨道把该交互拆为 delay / input processing / presentation 三段，其中 input processing 占 350ms。这说明瓶颈在：",
+    "options": [
+      {
+        "key": "A",
+        "text": "主线程被上一个长任务占用，事件排队等待派发"
+      },
+      {
+        "key": "B",
+        "text": "事件回调自身同步执行时间过长（计算/强制布局/同步 setState 链）"
+      },
+      {
+        "key": "C",
+        "text": "渲染进程的样式重算与光栅化太慢"
+      },
+      {
+        "key": "D",
+        "text": "网络请求拖慢下一帧绘制"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。三段模型各治各病：processing 段＝从事件派发进回调到回调栈清空的时间，350ms 说明就是 handler 自己慢（大循环、读几何强制同步布局、整表同步重渲染）；delay 高才是 A 的队列阻塞；presentation 高对应 C 的渲染管线重（大 paint/大层）；D 通常不影响 INP（INP 只等下一帧不等资源，除非图片解码撑晚 LCP 类场景）。修法顺着调用树 self time 找热点函数，再按切分/降频/Worker 三板斧处理。",
+    "gapCheck": [
+      "易漏点：先看是哪一段高再开药方，是 Profiling 纪律的第一条",
+      "常见误区：把所有卡顿都归「JS 太长」，delay 高的正解其实是拆分上游长任务或让出（scheduler.yield）",
+      "加分项：知道 Chrome DevTools 的 Insights 面板与 LoAF 自动标注 script 归属"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.metrics.profiling"
+      ],
+      "related": [
+        "fe.browser.events.input-frame",
+        "fe.perf.longlist.offload"
+      ],
+      "followUps": [
+        "如何用 performance.measureUserAgentSpecificMemory 佐证内存假设？",
+        "第三方脚本 delay 别人家的任务怎么归因？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "INP 三段归因单选题"
+    },
+    "tags": [
+      "性能",
+      "DevTools",
+      "INP",
+      "Profiling",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-perf-0004",
+    "nodeId": "fe.perf.loading.critical-path",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "某电商首页（已 SSR）线上 LCP 移动端 P75=4.2s：LCP 元素是首屏 banner 大图，字体文件来自境外 CDN，另有两个第三方营销脚本放在 head 同步加载。请按「HTML→CSS→字体→图片→JS」逐段诊断并给出处置清单，说明每项手段为什么能动 LCP 这个数字。",
+    "answer": {
+      "ref": "参考骨架：先取证（RUM attribute 的 LCP element/url/load state + 实验室复现瀑布），再逐段：①HTML 段：SSR 是否真直出（查看源码有无首屏 DOM）、TTFB 是否偏高（边缘缓存命中/ISR/stale-while-revalidate，压缩升 brotli/zstd 字典）；②CSS 段：首屏关键 CSS 内联（外链大 CSS 是 render-blocking，4G 下多一轮 RTT 直接推后首次绘制与 LCP），其余样式 media=print onload 交换异步；③字体段：境外 CDN 意味着 DNS+TLS+慢 RTT——自托管（fontsource）+子集化（unicode-range 中文分片）+preload 关键字体文件+font-display 策略选 swap/buffer（文本型 LCP 会等字体，swap 可先用 fallback 快速绘制但可能 CLS，需配 size-adjust 匹配回退字形）；④图片段：banner 是 LCP——禁 loading=lazy、fetchpriority=high+preload as=image imagesrcset 声明响应式候选、宽高/aspect-ratio 占位、CDN 实时转 AVIF/WebP 按 Accept 协商、移动端 srcset 选小尺寸防浪费带宽、考虑海报图降质到肉眼可接受档；⑤JS 段：head 里的同步第三方 script 阻塞 HTML 解析连带推迟 banner 的 preload scanner 之外真正解析——defer 化/gtm afterInteractive/Tag Assessor 清理，营销像素挪 body 末尾或 Worker（Partytown）；每项改完以字段 P75 验证，警惕「preload 一堆次要资源反而抢 banner 带宽」。"
+    },
+    "scoringPoints": [
+      {
+        "point": "先取证后开药的流程意识（attribute 归因+同条件复现）",
+        "weight": 2
+      },
+      {
+        "point": "CSS 阻塞渲染与关键 CSS 内联的收益机制",
+        "weight": 2
+      },
+      {
+        "point": "字体的跨境 CDN 治理组合拳与文本 LCP/CLS 权衡（size-adjust）",
+        "weight": 2
+      },
+      {
+        "point": "LCP 图片处置完整：禁 lazy、fetchpriority、格式协商、srcset",
+        "weight": 2
+      },
+      {
+        "point": "head 同步三方脚本对解析与 LCP 的放大效应及 defer 化",
+        "weight": 1
+      }
+    ],
+    "analysis": "LCP 攻坚最能区分「背过优化清单」与「真调过站点」：答案要体现每段优化与 LCP 数字的因果链（少一轮 RTT、提前首次绘制、图片下载提前排程），而不是罗列名词。字体与 LCP 的关系（文本等待 swap）和「preload 过量反噬」是 2026 年的高分细节。失分：给 SSR 站建议「改用 SSR」（已经是 SSR）；让 banner 加 loading=lazy 这种反向操作。",
+    "gapCheck": [
+      "易漏点：preload scanner 会让图片提前下载，但 JS 文档写入器仍会阻塞后续资源解析顺序",
+      "常见误区：以为 font-display:block 能防跳动却把文本 LCP 拖更久",
+      "加分项：提到 Early Hints 103 让 preload 在 HTML 到达前起飞"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.loading.critical-path"
+      ],
+      "related": [
+        "fe.perf.loading.resource-hint",
+        "fe.network.optimize.load-priority"
+      ],
+      "followUps": [
+        "岛架构/Selective Hydration 对 LCP 有收益吗？",
+        "为什么 zstd 字典压缩对静态站收益巨大？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "LCP 分段诊断主观题"
+    },
+    "tags": [
+      "性能",
+      "LCP",
+      "首屏",
+      "字体",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-perf-0005",
+    "nodeId": "fe.perf.loading.critical-path",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：CSR 单页应用首屏慢的结构性原因是「空 HTML → 下载 JS → 执行框架 → 再发数据请求 → 再渲染」的串行瀑布，SSR/流式渲染的本质收益是把 HTML 直出提前、让首屏内容与 JS 下载并行发生。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。CSR 的关键路径上首屏 DOM 依赖「JS 全量就位+执行完成」，数据请求还要排在框架初始化之后（waterfall of waterfalls）；SSR 让浏览器拿到 HTML 即可绘制首屏（FCP/LCP 大幅提前），JS 加载执行延后到 hydration 只影响 TTI/交互；流式 SSR 更进一步——框架分块 flush（app router 的 Suspense 分段），首块 HTML 到达就开始解析渲染，不必等整个页面数据齐。代价也要提：服务端成本、缓存复杂度、hydration 前的交互空窗（岛屿/选择性水合缓解）。",
+    "gapCheck": [
+      "易漏点：SSR 改善的是绘制类指标（FCP/LCP），对交互就绪（INP/TTI）未必自动变好，hydration 本身就是长任务",
+      "常见误区：以为 SSG 一定优于 SSR——个性化/强时效首屏用 SSG 会退化到客户端取数",
+      "加分项：能对比 Edge SSR/RTK Query prefetch/Resumable 各自的取舍谱系"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.loading.critical-path"
+      ],
+      "related": [
+        "fe.vue.router.dynamic-routes",
+        "cs.devops"
+      ],
+      "followUps": [
+        "流式 SSR 下 SEO 与白屏兜底怎么处理？",
+        "hydration 时间过长有哪些现代解法？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "CSR 瀑布与 SSR 收益判断题"
+    },
+    "tags": [
+      "性能",
+      "SSR",
+      "CSR",
+      "首屏",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-perf-0006",
+    "nodeId": "fe.perf.loading.resource-hint",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "以下图片优化做法中，能有效改善性能或稳定性（且不反噬 LCP）的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "为所有 img 无条件加 loading=\"lazy\"，包括首屏 banner 大图"
+      },
+      {
+        "key": "B",
+        "text": "给 img 写显式 width/height（或 aspect-ratio），浏览器预留精确盒子避免加载后跳动"
+      },
+      {
+        "key": "C",
+        "text": "CDN 按 Accept 头协商输出 AVIF/WebP，老浏览器自动回退 JPEG"
+      },
+      {
+        "key": "D",
+        "text": "用 srcset+sizes 让浏览器按视口与 DPR 选择合适候选，sizes 写小一档会导致下载偏大的图"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B",
+        "C",
+        "D"
+      ]
+    },
+    "analysis": "BCD 正确。B 是 CLS 防线：无占位的图片加载完成即撑开布局，是 CLS 头号来源；C 是格式协商的标准工程形态（同一 URL 内容协商，无需前端判断 UA）；D 描述准确——sizes 是对候选适用宽度的提示，提示失真会让浏览器选中过大候选浪费带宽拖慢 LCP。A 错在「无条件」：LCP 图 lazy 化会把下载推迟到布局判定之后，字段 LCP 显著变差，首屏关键图应 fetchpriority=high 甚至 preload。",
+    "gapCheck": [
+      "易漏点：lazy 的浏览器启发式距离阈值不可控，首屏边缘图可能被过早或过晚加载，关键路径图交回 fetchpriority 管",
+      "常见误区：以为 AVIF 全面优于 WebP——编码慢与部分转码链路色彩问题要按素材评估",
+      "加分项：知道 decoding=async、Fetch Priority 规范下 importance 属性与优先级映射"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.loading.resource-hint"
+      ],
+      "related": [
+        "fe.perf.loading.critical-path",
+        "fe.network.optimize.load-priority"
+      ],
+      "followUps": [
+        "IntersectionObserver 懒加载相比原生 lazy 有什么可控优势？",
+        "视频首帧 poster 化怎么做？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "图片优化实践多选题"
+    },
+    "tags": [
+      "性能",
+      "图片",
+      "lazy",
+      "CLS",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-perf-0007",
+    "nodeId": "fe.perf.loading.resource-hint",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：用 IntersectionObserver 实现进入视口前______px 预加载列表图片，应配置观察器的 ______ 选项；自托管网络字体时配合 unicode-range 做 ______ 化，让浏览器只下载当前文案所需分片。",
+    "answer": {
+      "blanks": [
+        "300",
+        "rootMargin",
+        "子集"
+      ],
+      "synonyms": {
+        "300": [
+          "200",
+          "500",
+          "100-500",
+          "适量"
+        ],
+        "rootMargin": [
+          "root margin",
+          "root-margin"
+        ],
+        "子集": [
+          "subset",
+          "subset 化",
+          "subsetting",
+          "subset化"
+        ]
+      }
+    },
+    "analysis": "IO 懒加载的价值就在可控：rootMargin:'300px' 造预热带，滚到前一段就开始下载，平衡「省流量」与「不白图」；具体数值按图片体积与滚动速度实测（答案 200-500 区间均可接受）。字体侧组合拳：fontsource 自托管消除跨境 RTT + unicode-range 分片（中文按常用字表切几十片）+ font-display 策略，三者缺一都会把字体变成 LCP 路上的地雷。",
+    "gapCheck": [
+      "易漏点：IO 的 root 默认视口，嵌套滚动容器列表要把 root 指到容器元素否则永不触发",
+      "常见误区：rootMargin 对 IO 的生效前提是被观察元素在 root 相交计算内，display:none 元素不触发",
+      "加分项：知道 variable fonts 单文件多变体省请求、以及 FontFace API 动态加载监听 loadingdone"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.loading.resource-hint"
+      ],
+      "related": [
+        "fe.js.dom.event",
+        "fe.perf.loading.critical-path"
+      ],
+      "followUps": [
+        "为什么 loading=lazy 的图片在打印时会被强制加载？",
+        "如何检测关键字体加载完成时机？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "懒加载与字体填空题"
+    },
+    "tags": [
+      "性能",
+      "懒加载",
+      "IntersectionObserver",
+      "字体"
+    ]
+  },
+  {
+    "id": "Q-fe-perf-0008",
+    "nodeId": "fe.perf.longlist.virtual",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "实现支持动态行高的虚拟列表时，「向上滚动时内容突然跳动、滚动条长度反复变化」的最常见成因是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "overscan 缓冲行数设置太少"
+      },
+      {
+        "key": "B",
+        "text": "测得真实行高后用估算值修正总高/偏移，改变了 scrollTop 对应的内容位置而未做锚定补偿"
+      },
+      {
+        "key": "C",
+        "text": "没有给列表项加 will-change 提合成层"
+      },
+      {
+        "key": "D",
+        "text": "scroll 事件没有用 debounce 而是直接监听"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。动态高度虚拟列表的核心矛盾：窗口位置=f(scrollTop)，而 scrollTop 的语义又随总高/上方偏移变化——真实测高替换预估值的那一刻，视口上方的累计偏移变了，浏览器保持 scrollTop 不变就等于内容整体位移，表现为跳动；成熟库（TanStack Virtual 的 measureElements/锚定、DynamicScroller 的 offset 校正）都靠「测量点锚定+偏移增量补偿」消解。A 造成快速滚动白屏而非跳动；C 与跳动无关；D 该节流不是去抖，去抖反而更卡。",
+    "gapCheck": [
+      "易漏点：跳动本质是坐标系统自反馈，理解这点才能 debug 各种漂移变体（下拉加载更多时顶部插入同理要补偿 scrollTop）",
+      "常见误区：把 ResizeObserver 批量测高当成免费——一次全量测量本身就是一轮强制布局",
+      "加分项：知道 content-visibility:auto + contain-intrinsic-size 可做「准虚拟化」轻量替代"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.longlist.virtual"
+      ],
+      "related": [
+        "fe.vue.perf.virtual-list",
+        "fe.perf.longlist.offload"
+      ],
+      "followUps": [
+        "列表项回收复用后内部状态为什么会串？",
+        "sticky 表头与虚拟化组合要注意什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "动态高度虚拟列表跳动单选题"
+    },
+    "tags": [
+      "性能",
+      "虚拟列表",
+      "动态高度",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-perf-0009",
+    "nodeId": "fe.perf.longlist.virtual",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "白板题：不借助任何库，实现一个固定行高虚拟列表的最小可行版。请给出：(1) 核心计算公式与 DOM 结构；(2) 滚动更新的节流策略与渲染流程；(3) 接入框架后的两个关键工程细节（key 与组件复用状态）；(4) 当列表项含输入框/播放器时回收复用会引发什么事故、怎么防。",
+    "answer": {
+      "ref": "参考骨架：(1) 结构三层：外层容器（overflow:auto、相对定位、固定视口高）+ 撑高层（height=total=count×H、width:1px 保证滚动条存在或用 spacer 方案）+ 绝对定位切片层（top=start×H，渲染 visibleCount+2×overscan 项）；公式：start=max(0, floor(scrollTop/H))、visibleCount=ceil(viewportH/H)+1、end=min(count, start+visibleCount)、total=count×H。(2) scroll 监听经 rAF 合帧（一帧多次 scroll 只算一次）更新 state{start}；slice 变化才重渲染，绝对定位 top 用 transform:translateY 更省 layout；边界：scrollTop 归零与末项 clamp、容器 resize 重算 viewportH（ResizeObserver）。(3) key 必须绑「数据索引/稳定 id」而非渲染序号——用 idx%pageSize 之类会让 patch 错位、动画错乱；固定行高且行纯展示时可像 RecycleScroller 那样组件实例池复用（position 驱动 props），要求组件完全受控。(4) 事故：非受控内部状态（input 未回写、播放器播到第 37 项的视频还在放、checkbox 本地 v-model 残留）被下一个数据继承，用户看到「张三的草稿出现在李四行」；防御：状态一律提升到数据源（每行 draft 字段）、组件加 :key=稳定行 id 或实现 reset 生命周期（监听 position 变化清副作用）、卸载即暂停媒体（vueuse useMediaPaused/Audio.pause onBeforeUnmount）、编辑器类重组件干脆退出虚拟化或降级窗口渲染（保留前后 N 项实例）。"
+    },
+    "scoringPoints": [
+      {
+        "point": "公式与三层结构正确（撑高层+定位层+切片）",
+        "weight": 2
+      },
+      {
+        "point": "rAF 合帧与 slice diff 最小更新意识，transform 代替 top",
+        "weight": 2
+      },
+      {
+        "point": "key 绑数据索引的理由讲透（复用池 patch 错位）",
+        "weight": 2
+      },
+      {
+        "point": "复用状态污染事故描述具体且有治理清单（受控化/reset/媒体暂停）",
+        "weight": 2
+      },
+      {
+        "point": "边界处理：resize、末项 clamp、scrollbar 宽度抖动",
+        "weight": 1
+      }
+    ],
+    "analysis": "手写虚拟列表是 2026 仍常出现的现场/白板题，考的是「用数学换 DOM」的思想与框架直觉的结合。高分线在第三四问：知道 key 绑数据索引而非渲染序号、能举出输入框/播放器串数据这类真实事故的人明显做过生产级大列表。失分：忘撑滚动条高度（列表塌成窗口高）、用 debounce 处理 scroll、以为 overscan 越大越好（DOM 又回去了）。追问：双向无限滚动（聊天）怎么锚定底部？——reverse 布局+上拉测高补偿。",
+    "gapCheck": [
+      "易漏点：切片层要用 transform 定位，改 top 会每帧触发 layout",
+      "常见误区：以为虚拟列表对短列表也划算（<3 屏时窗口计算开销大于收益）",
+      "加分项：能提 itemSize 预估函数、分组异构行高的 rangeExtractor 设计"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.longlist.virtual"
+      ],
+      "related": [
+        "fe.vue.perf.virtual-list",
+        "fe.browser.events.input-frame"
+      ],
+      "followUps": [
+        "聊天场景倒置列表如何保持底部锚定？",
+        "列宽虚拟化（横向大数据表格）与行虚拟化有何不同？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "手写虚拟列表白板主观题"
+    },
+    "tags": [
+      "性能",
+      "虚拟列表",
+      "白板题",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-perf-0010",
+    "nodeId": "fe.perf.longlist.offload",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "要把一个 800ms 的大循环拆成可中断的任务序列，既保持响应又能尽快跑完。Chrome 129+ 环境下最贴切的工具是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "setTimeout(fn, 16) 逐片调度，每片自动对齐下一帧"
+      },
+      {
+        "key": "B",
+        "text": "scheduler.yield()：以 YieldingTask 身份回到事件循环，保持原队列优先级且允许插队者先行"
+      },
+      {
+        "key": "C",
+        "text": "Promise.resolve().then 递归切片，微任务之间浏览器自然让出渲染"
+      },
+      {
+        "key": "D",
+        "text": "把循环塞进 requestAnimationFrame，rAF 会自动分片"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。scheduler.yield() 把「让出」原语化：当前任务挂起重新入队（保持原优先级，用户输入等高优任务可以先跑），配合 yield* scheduler.yield() 的异步迭代器写法能把任意 for 循环改造为协作式分片，INP 显著改善且总耗时几乎不退化。A 的问题：setTimeout 降为 Lowest 优先级、片间间隙不受控总时长膨胀，且 4ms 最小钳制叠加递归层层劣化；C 是经典误区——同轮微任务会被全部清空后才渲染，递归微任务切片根本让不出帧（除非混宏任务）；D 的 rAF 不分片，只是给了你每帧一次的执行窗口，单回调仍可能长跑。",
+    "gapCheck": [
+      "易漏点：yield 是「让出」不是「等待」，需要自己写循环分片逻辑（或 reactively 类库封装）",
+      "常见误区：以为 setTimeout 切片是免费——低优先级导致后台排队、INP 修好了但任务完成更晚",
+      "加分项：知道跨浏览器兜底可用 scheduler-polyfill 或 MessageChannel 宏任务模拟，以及 INP 切分的让出点应选在数据批边界"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.longlist.offload"
+      ],
+      "related": [
+        "fe.browser.events.event-loop",
+        "fe.perf.metrics.profiling"
+      ],
+      "followUps": [
+        "哪些计算适合搬进 Web Worker 而不是 yield 切分？",
+        "useTransition 的并发渲染和 yield 是什么关系？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "scheduler.yield 让出单选题"
+    },
+    "tags": [
+      "性能",
+      "长任务",
+      "scheduler.yield",
+      "INP"
+    ]
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.perf.loading.critical-path",
+    "type": "essay",
+    "difficulty": 4,
+    "stem": "某内容型站点首屏 LCP 长期偏高（移动端 4G 实测约 4.2s）。请系统阐述你会如何沿关键渲染路径（Critical Rendering Path）定位并优化：从资源发现、阻塞关系、CSS/字体、到渲染流水线，给出可落地的优化顺序与衡量指标，并说明各手段之间可能的权衡。",
+    "analysis": "本题要求把关键渲染路径拆成「网络发现 → 加载阻塞 → 样式/字体 → 渲染绘制」全链路，并结合 Core Web Vitals（尤其 LCP）给出有优先级的工程方案。高分答案应体现「先测量后优化、按收益/成本排序、关注权衡」的思路，而非罗列技巧。",
+    "scoringPoints": [
+      {
+        "point": "测量定位：用 Lighthouse/DevTools/Network 与 CrUX/RUM 确定 LCP 元素及其阶段（TTFB/资源加载/渲染延迟），区分服务端与前端瓶颈",
+        "weight": 2
+      },
+      {
+        "point": "资源发现：关键资源提前发现（preload、early hint、减少重定向/串联请求），收敛关键链长度与关键请求数",
+        "weight": 2
+      },
+      {
+        "point": "阻塞关系：压缩/拆分关键 CSS、JS 代码分割与 defer/async、移除渲染阻塞资源，避免长任务挤占主线程",
+        "weight": 2
+      },
+      {
+        "point": "CSS/字体：关键 CSS 内联、font-display:swap/optional、预连接字体源、控制字号与字体数量，避免 FOIT 与布局抖动",
+        "weight": 2
+      },
+      {
+        "point": "渲染流水线与权衡：服务端/流式 SSR、图片优化（优先级 fetchpriority、现代格式/响应式）、缓存/CDN；说明 preload 滥用带宽、内联 CSS 影响缓存等权衡，并以 LCP/CLS/INP/TBT 复验",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "参考思路：①先测量定位——通过 Lighthouse、DevTools Performance/Network 与真实用户监控（CrUX/RUM）识别 LCP 元素（通常是主图或最大文本块），把 LCP 拆成 TTFB、资源加载、元素渲染延迟三段，判断瓶颈在服务端响应、网络还是主线程。②缩短资源发现——消除重定向与串行请求，对 LCP 图片/关键字体/CSS 使用 preload 与 103 Early Hints，预连接（preconnect/dns-prefetch）关键源，减少关键请求数量与关键链长度。③解除加载阻塞——JS 做路由级代码分割、tree-shaking，非关键脚本用 defer/async 并推迟第三方脚本；关键 CSS 最小化并内联首屏部分，其余异步加载，避免长任务（TBT 高）拖慢渲染。④治理 CSS 与字体——内联关键 CSS、移除未用样式；字体设置 font-display:swap 或 optional、预连接字体源、用 unicode-range 与可变字体控制请求量，防止 FOIT 与字体替换引起的 CLS。⑤优化渲染与图片——LCP 图片用 fetchpriority=\"high\"、采用 AVIF/WebP 与响应式 srcset、合理尺寸避免布局位移；可引入 SSR/流式 SSR 加快首字节与首屏。配合 CDN、HTTP/2/3 与长效缓存。⑥权衡与复验——preload/内联过多会挤占带宽、削弱缓存收益，需按实际 LCP 元素精准使用；优化后用 LCP（目标 ≤2.5s）、CLS（≤0.1）、INP（≤200ms）与 TBT 回归验证，避免单一指标改善却损害其他体验。"
+    },
+    "gapCheck": [
+      "易漏点：先定位 LCP 元素与耗时阶段再动手，避免无差别 preload；很多 LCP 问题其实出在 TTFB 或主线程长任务而非图片体积。",
+      "常见误区：把所有资源都 preload 或把大量 CSS 内联，反而抢占关键带宽、破坏缓存，导致整体变慢。",
+      "加分线索：能结合流式 SSR、fetchpriority 与 INP/CLS 做多指标平衡，并用 RUM 而非仅实验室数据闭环者更优。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.loading.critical-path"
+      ],
+      "related": [
+        "fe.perf.loading.resource-hint",
+        "fe.perf.metrics.core",
+        "fe.eco.ssr.frameworks"
+      ],
+      "followUps": [
+        "如何判断 LCP 瓶颈在 TTFB、资源加载还是渲染延迟？",
+        "preload 与 preconnect 的适用边界分别是什么，滥用会有什么后果？",
+        "流式 SSR 为什么能改善 LCP，它对 CLS 和数据获取提出了什么要求？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于关键渲染路径与 Core Web Vitals 官方指标原理编写"
+    },
+    "tags": [
+      "性能优化",
+      "LCP",
+      "关键渲染路径"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0103"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.perf.loading.resource-hint",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断：对页面上所有 <img> 统一加上 rel=\"preload\" 总能加快首屏；因为 preload 会让浏览器提前下载资源，所以资源提示用得越多越好。",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "错误。preload 是高优先级、强制提前获取的提示，适合「发现较晚但确实关键」的少数资源（如 LCP 图片、关键字体、首屏必需 CSS）。对所有图片无差别 preload 会在页面加载早期抢占有限的网络带宽与连接，反而拖慢真正关键的资源，且预加载了最终未使用的资源会在控制台产生浪费告警、增加流量与耗电。资源提示（preconnect/dns-prefetch/preload/prefetch/modulepreload）应按资源关键性、使用概率与优先级精细使用：preconnect 控制在关键少数源，prefetch 用于下一跳导航大概率用到的低优先级资源。",
+    "gapCheck": [
+      "易漏点：preload 具有强制性与较高优先级，只应用于确定会用到且发现偏晚的关键资源。",
+      "常见误区：资源提示「多多益善」；实际滥用会抢占带宽、产生未使用预载告警并浪费用户流量。",
+      "排查线索：DevTools Network 面板检查资源优先级与发起时机，结合控制台 preload 警告识别无效预载。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.loading.resource-hint"
+      ],
+      "related": [
+        "fe.perf.loading.critical-path",
+        "fe.perf.metrics.core"
+      ],
+      "followUps": [
+        "preload 与 prefetch 在优先级和使用场景上有什么区别？",
+        "为什么 preconnect 过多反而可能影响性能？",
+        "modulepreload 相比普通 preload 在模块加载上多解决了什么问题？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于浏览器资源提示与加载优先级机制编写"
+    },
+    "tags": [
+      "资源提示",
+      "preload",
+      "易错"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0104"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.perf.longlist.offload",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "面对上万条数据的长列表，下列「不做完整虚拟滚动」的降本/卸载手段中，哪些确实能有效降低首屏渲染与内存压力？",
+    "options": [
+      {
+        "key": "A",
+        "text": "分页或「加载更多」按批次拉取与渲染，控制同一时刻挂载的 DOM 节点规模"
+      },
+      {
+        "key": "B",
+        "text": "使用 content-visibility: auto 让视口外内容跳过渲染（含布局与绘制），配合 contain-intrinsic-size 占位"
+      },
+      {
+        "key": "C",
+        "text": "把一万条数据一次性全量 map 成 DOM，仅靠给容器加 overflow:auto 就能让浏览器自动不渲染屏外节点"
+      },
+      {
+        "key": "D",
+        "text": "对列表项做组件级记忆化、懒加载项内重资源（图片懒加载），并在数据层做按需请求而非一次性灌入"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A 正确，分页/加载更多从数据与挂载节点数量上做总量控制，是最直接的卸载方式。B 正确，content-visibility: auto 使浏览器跳过屏外元素的布局与绘制（仍保留元素本身），配合 contain-intrinsic-size 预留尺寸避免滚动条跳动，能显著降低长页面渲染成本。D 正确，组件记忆化减少无效重渲染、图片懒加载与按需数据请求降低内存与网络压力，都是有效配套手段。C 错误，overflow:auto 只决定滚动容器与裁剪，并不会让浏览器跳过已生成 DOM 的渲染；全量 map 一万个节点仍会产生庞大的 DOM 树、高内存与首次布局开销，浏览器不会因此自动虚拟化。",
+    "gapCheck": [
+      "易漏点：content-visibility 跳过的是渲染工作量而非 DOM 本身，节点仍占内存，需配合 contain-intrinsic-size 防跳动。",
+      "常见误区：以为设置滚动容器就等于虚拟列表；不改变挂载节点数量，布局/内存压力依旧存在。",
+      "加分线索：能区分「减少挂载量（分页/虚拟化）」与「降低单帧渲染成本（content-visibility/记忆化）」两类优化路径者更优。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.longlist.offload"
+      ],
+      "related": [
+        "fe.perf.longlist.virtual",
+        "fe.perf.metrics.profiling"
+      ],
+      "followUps": [
+        "content-visibility:auto 与虚拟列表分别在什么量级的数据下更合适？",
+        "contain-intrinsic-size 取值不当会带来哪些滚动条问题？",
+        "分页加载与无限滚动在 SEO 和回跳定位上各有什么取舍？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于浏览器渲染机制与长列表优化实践编写"
+    },
+    "tags": [
+      "长列表",
+      "content-visibility",
+      "渲染优化"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0105"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.perf.longlist.offload",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请对比「分页/加载更多」「content-visibility 懒渲染」「完整虚拟列表」三种长列表方案在 DOM 节点规模、滚动体验、实现复杂度与适用场景上的差异，并给出各自的选型建议。",
+    "analysis": "本题考查长列表三类方案的工程取舍，关键是区分它们作用的层面：分页控制数据/挂载总量，content-visibility 降低屏外渲染成本但不减少 DOM，虚拟列表从根本上把 DOM 数量约束在可视区附近。选型取决于数据量级、滚动形态（含不定高、回跳、搜索定位）与团队成本。",
+    "scoringPoints": [
+      {
+        "point": "DOM 规模：分页按批挂载有限节点；content-visibility 节点可能仍很多但跳过屏外渲染；虚拟列表仅渲染可视区+缓冲，DOM 恒定且最少",
+        "weight": 3
+      },
+      {
+        "point": "滚动体验：分页需翻页/点击打断连续滚动；content-visibility 连续滚动但首次进入仍有渲染成本、需占位防抖动；虚拟列表流畅但不定高/锚点/双向滚动处理复杂",
+        "weight": 2
+      },
+      {
+        "point": "复杂度：分页最低；content-visibility 低（CSS 为主）；虚拟列表最高（测量、缓冲、定位、键盘可达性）",
+        "weight": 2
+      },
+      {
+        "point": "选型：中量数据或天然分页用分页；大量静态长文档用 content-visibility；数万级、要求平滑无限滚动用虚拟列表",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "参考要点：①DOM 节点规模——分页/加载更多把同一时刻挂载节点限制在每批大小；content-visibility 不减少 DOM 数量，只是让屏外节点跳过布局绘制；虚拟列表只渲染可视区加缓冲区，DOM 数量随视口恒定、与数据总量解耦，最省内存。②滚动体验——分页是翻页或点击加载，连续浏览被打断但实现稳定、利于 SEO 与回跳；content-visibility 保持连续滚动，配合 contain-intrinsic-size 避免滚动条跳动，但元素首次进入视口仍需现场渲染；虚拟列表滚动最顺滑、可撑数万行，但不定高测量、滚动锚点、搜索定位、键盘与无障碍支持都更棘手。③实现复杂度——分页最低，content-visibility 主要是 CSS 成本较低，虚拟列表最高（常借助成熟库并处理高度估算与缓冲区）。④选型建议——千级以内或天然分页/需 SEO 用分页；超长静态文档、详情页等用 content-visibility 快速降本；数万~无限数据且要求平滑滚动的信息流/表格/看板选虚拟列表，必要时分页与虚拟化组合使用。"
+    },
+    "gapCheck": [
+      "易漏点：content-visibility 优化的是渲染工作量，不解决 DOM 内存占用；虚拟列表才真正约束节点数量。",
+      "常见误区：任何长列表都上虚拟列表，忽略不定高、锚点定位与无障碍带来的复杂度和潜在体验问题。",
+      "加分线索：能提出「分页+虚拟化」组合、并说明缓冲区大小与滚动跳动权衡者更优。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.longlist.offload"
+      ],
+      "related": [
+        "fe.perf.longlist.virtual",
+        "fe.perf.metrics.core"
+      ],
+      "followUps": [
+        "不定高虚拟列表通常如何测量与缓存每项高度？",
+        "虚拟列表中如何可靠实现「滚动到指定 id」与搜索高亮定位？",
+        "content-visibility 对页面内查找（Ctrl+F）和无障碍树有什么影响？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于长列表渲染方案对比与工程实践编写"
+    },
+    "tags": [
+      "长列表",
+      "方案选型",
+      "虚拟列表"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0106"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.perf.longlist.virtual",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "定高虚拟列表的核心计算：可视区起始索引通常由 scrollTop 除以 ______ 得到；为容纳每项高度不一时的测量，虚拟列表一般通过 ______ 尺寸 API 监听元素实际高度（或维护高度缓存）；滚动容器用一个撑高的 ______ 元素模拟完整列表总高度，使滚动条长度与真实数据量一致。",
+    "answer": {
+      "blanks": [
+        "itemSize（单项高度）",
+        "ResizeObserver",
+        " spacer（占位/幽灵元素）"
+      ],
+      "synonyms": {
+        "itemSize（单项高度）": [
+          "单项高度",
+          "行高",
+          "itemSize",
+          "itemHeight"
+        ],
+        "ResizeObserver": [
+          "Resize Observer",
+          "resize-observer"
+        ],
+        " spacer（占位/幽灵元素）": [
+          "占位元素",
+          "幽灵元素",
+          "spacer",
+          "撑高元素"
+        ]
+      }
+    },
+    "analysis": "第一空：定高列表中 startIndex = floor(scrollTop / itemSize)，再结合可视区高度算 endIndex，并额外渲染 overscan 缓冲区。第二空：不定高场景需要用 ResizeObserver 监听每项渲染后的真实尺寸，动态更新高度缓存与偏移量（offset），常见做法是前缀和表或预估+实测修正。第三空：虚拟列表在容器内放一个高度等于「总数据量对应总高度」的 spacer（ghost/spacer 元素）撑开滚动条，实际渲染的项用 transform: translateY 或绝对定位放到正确偏移，从而保证滚动条比例与真实列表一致、且 DOM 数量恒定。",
+    "gapCheck": [
+      "易漏点：除了可视区索引还要渲染 overscan 缓冲项，否则快速滚动会出现短暂白屏。",
+      "常见误区：不定高时仍按固定行高计算偏移，导致定位错乱；必须用 ResizeObserver 实测并修正高度缓存。",
+      "排查线索：滚动条长度不对先查 spacer 总高度；定位跳动则检查偏移量前缀和与高度估算修正逻辑。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.longlist.virtual"
+      ],
+      "related": [
+        "fe.perf.longlist.offload",
+        "fe.perf.metrics.profiling"
+      ],
+      "followUps": [
+        "不定高虚拟列表如何用前缀和维护每项的 offset？",
+        "overscan 缓冲区设得过大或过小分别有什么后果？",
+        "为什么用 transform 平移比频繁修改 top/height 更利于合成层性能？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于虚拟列表核心算法与浏览器观察 API 原理编写"
+    },
+    "tags": [
+      "虚拟列表",
+      "ResizeObserver",
+      "算法题"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0107"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.perf.metrics.core",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断：在 2024 年起的 Core Web Vitals 三大指标中，INP（Interaction to Next Paint）已正式取代 FID 成为衡量全站交互响应性的指标，且 INP 会观测页面生命周期内的所有交互而不仅是首次输入。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。自 2024 年 3 月起，INP 正式取代 FID 成为 Core Web Vitals 的交互响应性指标。关键区别在于：FID 只测量首次交互的「输入延迟」（从交互到浏览器开始处理的时间），且不覆盖事件处理与呈现；INP 则观测页面整个生命周期内的所有点击、触摸、键盘交互，取其中较差（近似高分位）的一次，度量从输入到下一帧绘制的完整耗时（含输入延迟、事件处理、呈现延迟）。三大核心指标现为 LCP（加载，良好阈值 ≤2.5s）、INP（交互，良好 ≤200ms）、CLS（视觉稳定，良好 ≤0.1）。",
+    "gapCheck": [
+      "易漏点：INP 是全周期、多交互的高分位统计，而 FID 只看首次输入的输入延迟，二者口径不同不能直接等同。",
+      "常见误区：仍把 FID 当现行核心指标，或以为 INP 只测量 oninput 文本输入；实际覆盖 click/tap/keyboard 等交互。",
+      "加分线索：能说清 INP 三段构成（输入延迟、处理时长、呈现延迟）并关联长任务/主线程优化者更优。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.metrics.core"
+      ],
+      "related": [
+        "fe.perf.metrics.profiling",
+        "fe.perf.loading.critical-path"
+      ],
+      "followUps": [
+        "INP 的三段耗时分别对应主线程的哪些工作？",
+        "为什么滚动和 hover 不计入 INP？",
+        "如何用 web-vitals 库在 RUM 中采集 INP 的高分位数据？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Google Core Web Vitals 指标演进（INP 取代 FID）官方语义编写"
+    },
+    "tags": [
+      "CoreWebVitals",
+      "INP",
+      "高频"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0108"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.perf.metrics.profiling",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断：在一次动画帧中先读取 element.offsetHeight 再修改样式、又立即读取另一个元素的 getBoundingClientRect()，这种「读写交替」会迫使浏览器提前执行布局计算，产生强制同步布局（forced reflow / layout thrashing）。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。浏览器本可把多次 DOM 写操作批量推迟，在帧末统一做一次布局（reflow）。但当脚本在样式被修改后、又同步读取需要最新布局信息的属性（offsetHeight/offsetTop、scrollTop、getBoundingClientRect 等）时，浏览器为返回准确值不得不立刻清空队列、强制执行一次布局，即强制同步布局。读写交替出现会导致一帧内多次 reflow（layout thrashing），拉长任务、掉帧并恶化 INP。优化原则是「先批量读、再批量写」，或使用 FastDOM 这类调度、把读写分离，并尽量用 transform/opacity 走合成层避免触发布局。",
+    "gapCheck": [
+      "易漏点：触发强制布局的是「写后立刻读布局属性」，单纯读取或批量写入本身不会导致 thrashing。",
+      "常见误区：只关注 JS 执行时长而忽视布局抖动；DevTools 中表现为大量紫色 Layout 事件与「forced reflow」警告。",
+      "排查线索：Performance 面板看 Layout 区块是否异常密集，并用「布局抖动」定位反复读取 offset/rect 的代码。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.metrics.profiling"
+      ],
+      "related": [
+        "fe.perf.metrics.core",
+        "fe.perf.longlist.virtual"
+      ],
+      "followUps": [
+        "哪些 DOM 属性读取会强制浏览器返回最新布局？",
+        "为什么 transform 和 opacity 动画通常不触发 reflow？",
+        "如何用 requestAnimationFrame 安排读写顺序以避免布局抖动？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于浏览器渲染流水线与强制同步布局机制编写"
+    },
+    "tags": [
+      "DevTools",
+      "强制布局",
+      "渲染性能"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0109"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.perf.metrics.profiling",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "用 Chrome DevTools 排查性能问题时：在 Performance 面板录制后，主线程上超过 50ms 的单任务被标记为 ______（长任务）；怀疑内存泄漏时，用 Memory 面板拍摄并对比多张 ______ 快照，观察分离节点（detached nodes）与对象增量；分析某个函数运行时耗时占比，可启用 CPU 面板的 ______ 类型录制来查看调用树与自耗时/总耗时。",
+    "answer": {
+      "blanks": [
+        "Long Task（长任务）",
+        "Heap Snapshot（堆快照）",
+        "CPU profiler（CPU 性能分析）"
+      ],
+      "synonyms": {
+        "Long Task（长任务）": [
+          "long task",
+          "长任务",
+          "LongTask"
+        ],
+        "Heap Snapshot（堆快照）": [
+          "heap snapshot",
+          "堆快照",
+          "HeapSnapshot"
+        ],
+        "CPU profiler（CPU 性能分析）": [
+          "CPU profile",
+          "CPU 分析",
+          "profiler",
+          "CPU profiling"
+        ]
+      }
+    },
+    "analysis": "第一空：主线程单个任务执行超过 50ms 即 Long Task，会阻塞交互、推高 INP/TBT，Performance 面板会以红色角标提示。第二空：Memory 面板的 Heap Snapshot 可多次拍摄并对比（comparison），分离的 DOM 节点（detached，仍被 JS 引用而无法回收）是常见泄漏信号，也可用 Allocation instrumentation on timeline 看分配时间线。第三空：CPU 分析（性能分析器/CPU profiler）录制给出火焰图与调用树，区分 Self Time（函数自身耗时）与 Total Time（含子调用），用于定位热点函数。三者分别对应「主线程时序—内存生命周期—CPU 调用耗时」三个排查维度。",
+    "gapCheck": [
+      "易漏点：长任务门槛是单任务 50ms，影响的是交互响应（INP）而非仅加载速度。",
+      "常见误区：看到 detached node 就断言泄漏；需确认操作后多次 GC 仍无法回收且被业务引用持有才算。",
+      "排查线索：区分 Self Time 与 Total Time，优先优化自耗时高的热点；内存问题先用 GC 后对比堆快照再下结论。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.perf.metrics.profiling"
+      ],
+      "related": [
+        "fe.perf.metrics.core",
+        "fe.perf.longlist.offload"
+      ],
+      "followUps": [
+        "detached DOM 节点通常由哪些引用模式造成，如何验证能否被 GC 回收？",
+        "Self Time 与 Total Time 在定位热点时应分别怎么用？",
+        "如何用 Performance 面板的时间线把长任务与具体 React/Vue 提交阶段对应起来？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Chrome DevTools 性能与内存分析工作流编写"
+    },
+    "tags": [
+      "DevTools",
+      "内存泄漏",
+      "性能分析"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0110"
+  }
+]

@@ -1,0 +1,392 @@
+[
+  {
+    "id": "Q-be-java-syntax-0001",
+    "nodeId": "be.java.core.syntax-basics",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "下列关于 Java 基本数据类型的说法，**正确**的是：",
+    "options": [
+      { "key": "A", "text": "int 是 32 位整数类型，long 是 64 位整数类型，写 long 字面量通常要加 L 后缀，如 long n = 100L;" },
+      { "key": "B", "text": "Java 有 9 种基本数据类型，其中 String 是最常用的一种" },
+      { "key": "C", "text": "boolean 类型可以用 0 和 1 来表示 false 和 true，和 C 语言一样" },
+      { "key": "D", "text": "double 占用 4 个字节，float 占用 8 个字节" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：Java 有 8 种基本类型，整型里 int 占 4 字节（32 位）、long 占 8 字节（64 位）；超出 int 范围或想明确声明 long 时，字面量要加 L（推荐大写，小写 l 容易和数字 1 混淆）。B 错：基本类型只有 byte、short、int、long、float、double、char、boolean 共 8 种，String 是引用类型（java.lang.String 类），不属于基本类型。C 错：Java 的 boolean 只能取字面值 true/false，不能像 C 语言那样用 1/0 代替，也不能与整数互相赋值。D 把字节数说反了：float 占 4 字节、double 占 8 字节，double 精度更高。",
+    "gapCheck": [
+      "易漏点：基本类型固定 8 种，String 是类不是基本类型；char 占 2 字节（按 UTF-16 code unit 计）",
+      "常见误区：把 C 语言的 0/1 布尔习惯带进 Java，或记反 float/double 的字节数",
+      "加分项：能背全各整型取值范围（如 int 约 ±21 亿），并说出 long 字面量为何推荐大写 L"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.syntax-basics"],
+      "related": ["be.java.core.oop"],
+      "followUps": ["8 种基本类型各自占几个字节、默认值分别是什么？", "基本类型和对应的包装类型（如 int 与 Integer）有什么区别？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "根考点零基础入门单选题，凭基本概念即可作答" },
+    "tags": ["Java基础", "基本数据类型", "送分题", "高频开场"]
+  },
+  {
+    "id": "Q-be-java-syntax-0002",
+    "nodeId": "be.java.core.syntax-basics",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "流程控制与常量填空：在循环中，想立即结束**整个循环**、跳到循环之后继续执行，用关键字 ______；只想跳过**本次循环剩余语句**、直接进入下一次迭代，用 ______；用关键字 ______ 修饰的变量只能赋值一次、其后不可再改变（即常量）。",
+    "answer": {
+      "blanks": ["break", "continue", "final"],
+      "synonyms": {
+        "final": ["final 关键字", "final修饰"]
+      }
+    },
+    "analysis": "① break：立即跳出当前所在的整个循环（或 switch 分支），程序从循环体之后继续。② continue：只结束本次循环中剩下的语句，直接跳到下一次循环条件判断/迭代，循环本身并不终止。③ final：修饰变量时表示该变量只能被赋值一次，之后不可重新赋值（成员/局部常量）；final 还可修饰方法（不可被重写）和类（不可被继承），但此处语境是常量。记忆口诀：break 是「破门而出」，continue 是「本次算了，下一轮」。",
+    "gapCheck": [
+      "易漏点：break 结束的是整个循环，continue 只跳过本轮；二者作用层级完全不同",
+      "常见误区：把 continue 当成结束循环，或以为 final 变量在编译期一定有值（空白 final 可在构造器中赋值）",
+      "加分项：能说出带标签的 break/continue 可作用于外层嵌套循环，并区分 final 修饰类、方法、变量的三种含义"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.syntax-basics"],
+      "related": ["be.java.core.oop"],
+      "followUps": ["嵌套双层循环时，如何用 break 直接跳出外层循环？", "final、finally、finalize 三个词分别是什么意思？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "流程控制关键字与 final 常量填空题" },
+    "tags": ["Java基础", "流程控制", "break/continue", "final"]
+  },
+  {
+    "id": "Q-be-java-oop-0001",
+    "nodeId": "be.java.core.oop",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "父类 `Animal` 有方法 `void sound()`，子类 `Dog extends Animal` 也定义了 `void sound()`。关于这种「重写（Override）」，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "方法名和参数列表必须与父类被重写方法一致，运行时按对象的实际类型动态绑定执行哪个版本" },
+      { "key": "B", "text": "只要方法名相同就算重写，参数列表可以随便改" },
+      { "key": "C", "text": "子类重写方法可以把访问权限从父类的 public 收窄为 private" },
+      { "key": "D", "text": "private 方法和 static 方法也能被子类正常重写并产生多态" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：重写要求子类方法与父类方法「方法名 + 参数列表」完全相同（返回值类型兼容即可），并依靠 JVM 的动态绑定（虚方法分派）在运行时根据对象实际类型决定调用哪个版本，这正是多态的实现机制。B 错：参数列表不同就不是重写而是重载（Overload），重载是编译期静态分派，和多态重写是两回事。C 错：重写只能相等或放大访问权限（protected→public 可以），不能收窄（public→private 非法），否则编译报错，这是里氏替换原则的要求。D 错：private 方法对子类不可见、static 方法属于类而非实例，二者都不参与动态分派，子类写同名方法只是「隐藏/遮蔽」，并非重写，不会产生多态。",
+    "gapCheck": [
+      "易漏点：重写看运行时对象实际类型（动态绑定），重载看编译时引用类型（静态分派）",
+      "常见误区：以为方法名相同就是重写；或重写时随意收窄访问权限、改大返回值类型导致编译失败",
+      "加分项：能说清 @Override 注解的编译期校验作用，以及 private/static/final 方法为何不能被重写"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.oop"],
+      "related": ["be.java.core.collection"],
+      "followUps": ["重载（Overload）和重写（Override）在分派时机上有什么本质区别？", "重写方法时返回值类型、异常声明分别要遵守什么规则？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "方法重写与动态绑定单选题" },
+    "tags": ["面向对象", "重写Override", "多态", "动态绑定"]
+  },
+  {
+    "id": "Q-be-java-oop-0002",
+    "nodeId": "be.java.core.oop",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：抽象类可以包含普通成员变量、构造方法和有方法体的具体方法，也可以没有任何抽象方法；而接口在 Java 8 之前只能有抽象方法和常量，Java 8 起才允许 default/default 实例方法和 static 静态方法，且接口中的变量默认是 public static final 常量。",
+    "answer": { "judge": true },
+    "analysis": "正确。抽象类本质仍是「类」，可以有构造方法（供子类 super 调用）、成员变量、具体方法和抽象方法，甚至可以一个抽象方法都没有（仅用于禁止实例化）；抽象类不能被 new 实例化。接口是更纯粹的行为契约：Java 8 之前方法默认 public abstract、变量默认 public static final；Java 8 引入 default 方法（带默认实现的实例方法，解决接口演进的兼容问题）和 static 方法；Java 9 又允许 private 方法供 default 方法复用。一个类只能 extends 一个抽象类（单继承），但可以 implements 多个接口，这是选型时「抽象类表示 is-a 共性、接口表示 can-do 能力」的关键依据。",
+    "gapCheck": [
+      "易漏点：抽象类可以没有抽象方法、可以有构造方法；接口不能有普通实例字段和构造方法",
+      "常见误区：以为接口里能定义普通成员变量——接口字段一律是 public static final 常量",
+      "加分项：能结合 default 方法的「多继承冲突规则」说明实现类为何有时必须重写 default 方法"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.oop"],
+      "related": ["be.java.core.collection"],
+      "followUps": ["一个类实现的两个接口有同名 default 方法时会怎样？", "抽象类和接口在构造方法、字段、多继承能力上各有什么差异？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "抽象类与接口区别判断题，覆盖 Java 8 接口演进" },
+    "tags": ["面向对象", "抽象类", "接口", "Java8"]
+  },
+  {
+    "id": "Q-be-java-string-0001",
+    "nodeId": "be.java.core.string-common",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "执行下列代码后，`a == b` 与 `a.equals(b)` 的结果分别是：\n```java\nInteger a = 100;\nInteger b = 100;\nInteger c = 200;\nInteger d = 200;\n```",
+    "options": [
+      { "key": "A", "text": "a == b 为 true，a.equals(b) 为 true；c == d 为 false，c.equals(d) 为 true" },
+      { "key": "B", "text": "a == b 和 c == d 都为 true，因为值都相等" },
+      { "key": "C", "text": "a == b 为 false，因为 == 比较的是对象地址" },
+      { "key": "D", "text": "包装类没有自动装箱，这段代码编译不通过" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确。自动装箱时 Integer 对 -128~127 之间的值使用 IntegerCache 缓存对象：a、b 都指向缓存里同一个 Integer(100)，所以 == 为 true；而 200 超出缓存上界（默认上界 127），c、d 各自 new 出不同对象，== 比较地址为 false。equals 比较的是数值，两组数值分别相等，所以 equals 都为 true。B 错：忽略了缓存边界，200 不会被缓存。C 错：100 命中缓存，a、b 恰好是同一对象，== 为 true。D 错：把 int 字面量赋给 Integer 会触发自动装箱（编译器插入 Integer.valueOf），代码完全合法。结论：包装类比较值一律用 equals，不要依赖 == 的缓存巧合。",
+    "gapCheck": [
+      "易漏点：Integer 缓存默认区间是 -128~127，上界 127 可通过 -XX:AutoBoxCacheMax 调整，下界固定 -128",
+      "常见误区：用 == 比较两个包装对象，在小数值时碰巧通过、超过 127 就出 bug",
+      "加分项：能说出 Boolean/Byte/Short/Long/Character 也有各自缓存，并解释 valueOf 与 new Integer 的区别"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.string-common"],
+      "related": ["be.java.core.syntax-basics"],
+      "followUps": ["自动拆箱时若包装对象为 null 会发生什么？", "为什么工程上比较包装类型统一用 equals 而不是 ==？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Integer 缓存与自动装箱经典单选题" },
+    "tags": ["包装类", "Integer缓存", "自动装箱", "高频坑"]
+  },
+  {
+    "id": "Q-be-java-string-0002",
+    "nodeId": "be.java.core.string-common",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "关于 String、StringBuilder、StringBuffer，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "String 是不可变类，底层字符内容被 final 保护，对它做拼接等「修改」实际会生成新的 String 对象" },
+      { "key": "B", "text": "循环里大量拼接字符串应优先用 StringBuilder，避免反复创建临时对象" },
+      { "key": "C", "text": "StringBuffer 的方法加了 synchronized，线程安全但通常比 StringBuilder 慢" },
+      { "key": "D", "text": "StringBuilder 是线程安全的，多线程共享拼接不会有任何问题" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：String 被设计为不可变（immutable），其内部存储字符的数组在 Java 8 是 final char[]、Java 9 起改为 final byte[] 并加编码标记，任何「修改」都返回新对象，原对象不变，这也是字符串常量池和 hashCode 缓存能成立的前提。B 正确：循环中用 += 拼接 String，每次都新建对象、旧对象变成垃圾，O(n²) 级开销；StringBuilder 维护可变缓冲区， amortized O(1) 追加，是循环拼接的标准选择。C 正确：StringBuffer 与 StringBuilder API 几乎一致，区别是前者方法带 synchronized、线程安全，竞争下有锁开销，单线程场景因此更慢。D 错：StringBuilder 刻意不加锁、不是线程安全的，多线程并发 append 可能丢失数据或数组越界；需要线程安全才用 StringBuffer 或外部加锁。",
+    "gapCheck": [
+      "易漏点：Java 9 起 String 底层由 char[] 改为 byte[] + coder（Compact Strings），但不可变性不变",
+      "常见误区：在循环里用 String 的 += 拼接，造成大量临时对象和频繁 Young GC",
+      "加分项：能说出简单单行拼接编译器会用 invokedynamic/StringConcatFactory 优化，以及 StringBuilder 初始容量与扩容代价"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.string-common"],
+      "related": ["be.java.core.syntax-basics"],
+      "followUps": ["String 的不可变性是怎么保证的？为什么它能安全放进常量池？", "StringBuilder 默认初始容量是多少、扩容策略是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "String 不可变性与三种字符串类型选型多选题" },
+    "tags": ["String", "StringBuilder", "不可变", "高频"]
+  },
+  {
+    "id": "Q-be-java-collection-0001",
+    "nodeId": "be.java.core.collection",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 HashMap（基于 JDK 8+），下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "底层是「数组 + 链表 + 红黑树」，链表长度达到树化阈值且数组容量达标时会转成红黑树，节点数回落后还会退化回链表" },
+      { "key": "B", "text": "HashMap 是线程安全的，多线程并发 put 不需要任何同步措施" },
+      { "key": "C", "text": "负载因子设得越大，哈希冲突越少、空间浪费越多" },
+      { "key": "D", "text": "HashMap 按 key 的插入顺序遍历，顺序永远不变" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：JDK 8 的 HashMap 主体是 Node[] 数组，哈希冲突的元素挂成链表；当某个桶链表长度 ≥ 8（TREEIFY_THRESHOLD）且 table 容量 ≥ 64（MIN_TREEIFY_CAPACITY）时树化为红黑树，把最坏查找从 O(n) 降到 O(log n)；树上节点降到 ≤ 6（UNTREEIFY_THRESHOLD）时再退化为链表，避免频繁树化/退化的抖动。B 错：HashMap 非线程安全，并发 put 在 JDK 7 可能形成环形链表死循环，JDK 8 虽不再环化但仍会丢数据/覆盖，并发场景应用 ConcurrentHashMap。C 错：负载因子越大，触发扩容的门槛越高、数组填得越满，冲突反而增多、查询变慢，但更省空间；调小负载因子才是冲突少、费空间。D 错：HashMap 不保证遍历顺序，扩容后位置还会重排；需要保序用 LinkedHashMap，需要排序用 TreeMap。",
+    "gapCheck": [
+      "易漏点：树化有两个条件——链表 ≥8 且数组容量 ≥64，容量不足时优先扩容而不是树化",
+      "常见误区：只记「链表长度到 8 就树化」，忽略容量门槛和退化阈值 6",
+      "加分项：能讲清 put 流程（hash→桶→空则插入/链表或树→判断扩容）与容量始终是 2 的幂的位运算取模原理"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.collection"],
+      "related": ["be.java.core.string-common"],
+      "followUps": ["为什么树化阈值是 8、退化阈值是 6，而不是同一个数？", "ConcurrentHashMap 在 JDK 8 里用什么手段保证线程安全？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "HashMap 底层结构与树化机制单选题" },
+    "tags": ["集合", "HashMap", "红黑树", "高频必考"]
+  },
+  {
+    "id": "Q-be-java-collection-0002",
+    "nodeId": "be.java.core.collection",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：ArrayList 基于动态数组、按下标随机访问是 O(1)，但在中间插入/删除需要移动元素、为 O(n)；LinkedList 基于双向链表，头尾插入删除较快但按下标访问要沿链遍历、为 O(n)。另外，在 for-each 遍历 ArrayList 时并发修改集合会触发 ConcurrentModificationException（fail-fast 机制）。",
+    "answer": { "judge": true },
+    "analysis": "正确。ArrayList 内部是 Object[] 数组，get(index) 直接按地址偏移取值，随机访问 O(1)；但 add/remove 中间位置要 System.arraycopy 搬移后续元素，O(n)，容量不足时还会扩容（旧容量的约 1.5 倍）并整体拷贝。LinkedList 是双向链表，节点持有 prev/next，头尾增删 O(1)，但 get(index) 只能从头或尾逐节点遍历，O(n)，且每个节点额外存两个指针、更耗内存。fail-fast 部分也正确：迭代器维护 expectedModCount，遍历中若集合被结构性修改（modCount 变化），next/remove 时检测不一致就抛 ConcurrentModificationException；它是「尽力而为」的检测机制，不能当作并发正确性保证，并发场景应使用 CopyOnWriteArrayList 等并发集合。",
+    "gapCheck": [
+      "易漏点：LinkedList 同时实现了 List 和 Deque，随机访问并不比 ArrayList 快，反而因指针跳转更慢",
+      "常见误区：以为链表做什么都快——按下标查找是它的弱项；或把 fail-fast 当成线程安全保障",
+      "加分项：能说出 ArrayList 扩容为 1.5 倍、fail-fast 基于 modCount，以及遍历时删除应用迭代器 remove"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.collection"],
+      "related": ["be.java.core.string-common"],
+      "followUps": ["遍历时想安全删除元素应该怎么写？", "ArrayList 和数组（如 int[]）相比有什么区别，为什么还需要 ArrayList？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "List 两种实现对比与 fail-fast 判断题" },
+    "tags": ["集合", "ArrayList", "LinkedList", "fail-fast"]
+  },
+  {
+    "id": "Q-be-java-excgen-0001",
+    "nodeId": "be.java.core.exception-generic",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 Java 异常体系，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "NullPointerException、IllegalArgumentException 属于运行时异常（RuntimeException 子类），方法签名上不强制声明，编译也不强制捕获" },
+      { "key": "B", "text": "受检异常（Checked Exception）指的是 RuntimeException 及其子类" },
+      { "key": "C", "text": "catch 块的书写顺序无所谓，先写大类型 Exception 再写具体子类也能正常编译" },
+      { "key": "D", "text": "finally 块里写了 return，不会影响 try 块里已经算出的返回值" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：Throwable 下分 Error 和 Exception，Exception 又分受检异常与 RuntimeException 体系。RuntimeException 及其子类（NPE、非法参数、数组越界、ClassCastException 等）称非受检异常，编译器不强制 try-catch 也不要求 throws，通常代表可通过改进代码避免的程序缺陷。B 错：受检异常是 Exception 下除 RuntimeException 之外的那些（如 IOException、SQLException、InterruptedException），编译期就强制你 catch 或在方法上 throws。C 错：catch 必须「先子类后父类」，先 catch Exception 会把后面的具体子类全部遮蔽，编译器直接报错「已捕获的异常不可达」。D 错：finally 中若有 return，会覆盖 try 中的返回值（finally 在 return 表达式求值之后、方法真正返回前执行），这是经典坑，工程上禁止在 finally 里 return。",
+    "gapCheck": [
+      "易漏点：异常分两支——Error（JVM 级，如 OOM/StackOverflow）与 Exception；受检与否的分界线是 RuntimeException",
+      "常见误区：把 RuntimeException 当成受检异常，或在 finally 里 return/抛异常吞掉原始异常",
+      "加分项：能说出 try-with-resources 自动关闭资源的原理（AutoCloseable + 抑制异常 suppressed exceptions）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.exception-generic"],
+      "related": ["be.java.core.collection"],
+      "followUps": ["try-catch-finally 的执行顺序是怎样的？finally 是否一定会执行？", "try-with-resources 相比传统 finally 关流好在哪里？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "受检/运行时异常体系与 catch 顺序单选题" },
+    "tags": ["异常", "受检异常", "RuntimeException", "高频"]
+  },
+  {
+    "id": "Q-be-java-excgen-0002",
+    "nodeId": "be.java.core.exception-generic",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "泛型填空：要表示「只能读、元素是 Number 或其子类」的上界通配符，写成 List<? ______ Number>；要表示「只能往里放、元素是 Integer 或其父类」的下界通配符，写成 List<? ______ Integer>；泛型只存在于编译期、运行时被抹掉成原始类型的机制叫 ______。",
+    "answer": {
+      "blanks": ["extends", "super", "类型擦除"],
+      "synonyms": {
+        "extends": ["? extends", "extends（上界）"],
+        "super": ["? super", "super（下界）"],
+        "类型擦除": ["擦除", "类型擦除（Type Erasure）", "Type Erasure"]
+      }
+    },
+    "analysis": "① ? extends Number 是上界通配符（PECS 里的 Producer）：集合元素保证「是 Number 或子类」，读取时可以当 Number 用，但编译器不允许 add（除 null），因为无法确定里面到底是哪个具体子类型。② ? super Integer 是下界通配符（PECS 里的 Consumer）：集合是 Integer 或其父类型，能安全 add(Integer)，但读出来只能当 Object。③ 类型擦除（Type Erasure）：为兼容 JDK 5 之前的代码，泛型参数在编译后被擦除（无界的替换为 Object，有界的替换为上界类型），运行时 List<String> 和 List<Integer> 都是同一个 List 类，因此不能 new T()、不能写 new T[]、不能用基本类型做类型参数（得用包装类）。记忆口诀 PECS：Producer extends、Consumer super。",
+    "gapCheck": [
+      "易漏点：extends 上界容器不能写、super 下界容器读出来只能当 Object，这是 PECS 的核心",
+      "常见误区：以为泛型信息运行时还在——类型擦除导致无法在运行时拿到 T 的 class",
+      "加分项：能解释为什么泛型不支持基本类型、List<int> 非法，以及桥接方法如何保证多态"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.exception-generic"],
+      "related": ["be.java.core.collection"],
+      "followUps": ["为什么 Java 泛型不支持基本数据类型？", "PECS 原则在 Collections.copy 的签名里是怎么体现的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "泛型通配符与类型擦除填空题" },
+    "tags": ["泛型", "通配符", "PECS", "类型擦除"]
+  },
+  {
+    "id": "Q-be-java-collection-0003",
+    "nodeId": "be.java.core.collection",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Java 集合框架中 List、Set、Map 的实现与选型，下列说法正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "ArrayList 基于动态数组、随机访问 O(1) 但中间插入删除需移动元素 O(n)；LinkedList 基于双向链表，增删节点 O(1) 但按下标访问 O(n)" },
+      { "key": "B", "text": "HashSet 底层就是一个 HashMap，元素存为 key、value 用同一个固定 Object 占位，因此也依赖 hashCode/equals 判重" },
+      { "key": "C", "text": "TreeMap/TreeSet 基于红黑树，key 有序，插入/查找稳定 O(log n)，要求 key 实现 Comparable 或传入 Comparator" },
+      { "key": "D", "text": "HashMap 允许一个 null 键和多个 null 值，而 Hashtable 与 ConcurrentHashMap 的 key/value 都不允许 null" }
+    ],
+    "answer": { "keys": ["A", "B", "C", "D"] },
+    "analysis": "四项全部正确，系统覆盖集合选型主干。A 是 List 两实现的取舍本质：数组连续内存支持 O(1) 随机访问但插入删除要搬移后续元素，链表改指针 O(1) 却无法按下标直达、需遍历 O(n)；实际工程中 ArrayList 命中率远高于 LinkedList，因为现代 CPU 缓存对连续数组极友好，链表节点离散反而缓存不友好。B 点明 HashSet 的实现真相：它内部持有一个 HashMap，add(e) 即 map.put(e, PRESENT)，PRESENT 是静态共享的占位 Object，判重完全走 HashMap 的 hashCode 定位桶 + equals 比较逻辑。C 区分『有序』与『排序』：HashMap 无序、LinkedHashMap 保插入序，而 TreeMap 靠红黑树按比较器维持 key 的自然/定制排序，每次操作 O(log n)，无比较能力的 key 会抛 ClassCastException。D 是高频对比：HashMap 用 null 作键时固定落在 0 号桶、只允许一个；Hashtable 是遗留线程安全类、直接对 null 抛 NPE；ConcurrentHashMap 不允许 null 是为了在并发下消除『get 返回 null 到底是不存在还是值为 null』的二义性（单线程 HashMap 可用 containsKey 消歧，并发下 containsKey 与 get 之间状态会变）。",
+    "gapCheck": [
+      "易漏点：HashSet 本质是 HashMap 的 key 集合；链表 O(1) 增删不包含查找定位的 O(n)",
+      "常见误区：以为 LinkedList 一定比 ArrayList 快，忽略缓存局部性与实际访问模式",
+      "加分项：能讲清 ConcurrentHashMap 禁 null 是为消除并发二义性，以及 TreeMap 的比较器约束"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.collection"],
+      "related": ["be.java.dsa.hash", "be.java.dsa.linear"],
+      "followUps": ["为什么 ConcurrentHashMap 不允许 null 而 HashMap 允许，二义性具体指什么？", "LinkedHashMap 如何同时维护哈希表与双向链表，它在 LRU 中怎么用？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "List/Set/Map 实现原理与选型综合多选题" },
+    "tags": ["集合框架", "ArrayList", "HashMap", "TreeMap", "多选"]
+  },
+  {
+    "id": "Q-be-java-excgen-0003",
+    "nodeId": "be.java.core.exception-generic",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：Java 中 RuntimeException 及其子类（非受检异常）不需要在方法签名上用 throws 声明、编译器也不强制 try-catch；而受检异常（checked exception）必须显式处理或向上声明，这是编译期就检查的契约。",
+    "answer": { "judge": true },
+    "analysis": "正确，这正是 Java 异常体系受检/非受检二分的核心规则。Throwable 下分 Error 与 Exception：Error（如 OutOfMemoryError、StackOverflowError）是 JVM 级严重故障，程序通常无法处理，属非受检；Exception 中除 RuntimeException 分支外的都是受检异常（如 IOException、SQLException、ClassNotFoundException），编译器强制要求要么 try-catch 就地处理，要么在方法 throws 子句声明继续上抛，否则编译不过——它把『可能失败且调用方应当知情/恢复』写成了编译期契约。RuntimeException（NullPointerException、IllegalArgumentException、IndexOutOfBoundsException 等）及其子类则是非受检异常，源于程序逻辑缺陷，编译器不强制声明或捕获，可在任意处由 JVM 自动抛出。设计取舍上：受检异常强调可恢复的外部故障并强制调用方面对，但过度使用会污染签名、在 Lambda/Stream 中传播困难；现代实践（含 Spring/JDBC 模板）常把受检异常包装成非受检的 DataAccessException 等运行时异常上抛，以减少模板代码。需要注意 throws 声明非受检异常语法上允许（仅作文档），但没有强制效力。",
+    "gapCheck": [
+      "易漏点：Error 与 RuntimeException 同为非受检，受检专指 Exception 下除 RuntimeException 外的分支",
+      "常见误区：以为所有异常都必须捕获，或把 NPE 这类逻辑缺陷当成受检异常处理",
+      "加分项：能讲受检异常的编译期契约意义及其在 Lambda/Stream 中的传播困境与包装实践"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.exception-generic"],
+      "related": ["be.java.core.oop"],
+      "followUps": ["为什么 Spring 要把 SQLException 包装成 DataAccessException 运行时异常？", "try-with-resources 对异常类型有什么要求，suppressed exception 是怎么回事？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "受检与非受检异常边界的判断题" },
+    "tags": ["异常体系", "受检异常", "RuntimeException", "throws", "判断"]
+  },
+  {
+    "id": "Q-be-java-oop-0003",
+    "nodeId": "be.java.core.oop",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Java 面向对象的封装、继承、多态，下列说法正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "多态的成立需要三个条件：继承（或实现接口）、方法重写、父类引用指向子类对象，调用时按实际对象类型动态绑定" },
+      { "key": "B", "text": "static 方法和 private 方法不能被重写（override），子类写同名 static 方法只是隐藏（hide），不参与运行时多态" },
+      { "key": "C", "text": "重载（overload）发生在同一个类中、方法名相同参数列表不同，是编译期就确定调用版本的静态分派，不属于运行时多态" },
+      { "key": "D", "text": "构造方法可以被继承和重写，子类直接用父类构造器名即可 override 它" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确，D 错。A 给出运行时多态的完整要件：继承/实现提供类型层次，重写提供差异化行为，向上转型（父引用指子对象）触发动态绑定——JVM 在运行期根据对象的实际类型（而非引用的静态类型）通过虚方法表（vtable）分派到对应重写版本。B 区分类的两种『同名』机制：实例方法可被重写并参与动态绑定；static 方法属于类而非实例，没有动态分派，子类定义同名静态方法只是方法隐藏（method hiding），调用哪个版本看引用的静态类型；private 方法对子类不可见，谈不上重写，加 @Override 会直接编译报错。C 厘清重载与重写的本质差别：重载在同类（或继承链）中靠参数个数/类型/顺序区分，编译器在编译期依据静态类型决定调用目标，属静态分派（编译时多态），与运行时多态相对。D 错：构造方法不被继承、也不能重写——子类构造器名必须与自身类名相同，它通过 super(...) 调用父类构造器（且必须放在首行），二者是协作关系而非 override；若未显式 super，编译器自动插入无参 super()，父类没有无参构造时还会编译失败。",
+    "gapCheck": [
+      "易漏点：多态三要件 + 动态绑定看实际类型；重载是编译期静态分派不算运行时多态",
+      "常见误区：把 static 同名方法当重写，或以为构造器能被继承/重写",
+      "加分项：能从 vtable/静态分派-动态分派的 JVM 层面解释重写与重载"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.oop"],
+      "related": ["be.java.core.exception-generic"],
+      "followUps": ["字段（成员变量）也具有多态性吗，为什么说字段看静态类型、方法看实际类型？", "super() 为什么必须在构造器第一行，省略时编译器如何插入？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "封装继承多态、重写重载与构造器综合多选题" },
+    "tags": ["面向对象", "多态", "重写重载", "动态绑定", "多选"]
+  },
+  {
+    "id": "Q-be-java-string-0003",
+    "nodeId": "be.java.core.string-common",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：String 是不可变类（底层 char/byte 数组被 final 保护且不暴露修改入口），因此字符串拼接用 + 在循环里反复执行会不断创建新对象、效率很低；这种场景应当用 StringBuilder（单线程）或 StringBuffer（需线程安全时）。",
+    "answer": { "judge": true },
+    "analysis": "正确，覆盖了 String 不可变性与拼接选型两个高频点。不可变性是 String 的根本设计：类被 final 修饰禁止继承破坏行为，实际存储值的数组（JDK9 前 char[]、之后为紧凑布局的 byte[]）也是 private final，且没有任何 setter，所有看似修改的操作（substring、concat、toUpperCase、+）都返回新对象，原串不变。这带来哈希可缓存（HashMap key 安全）、天生线程安全、字符串常量池可共享等收益，代价是频繁拼接产生大量中间对象。编译器对简单的一行 a+b+c 会自动优化成一个 StringBuilder，但对『循环体内 s += x』这种跨迭代拼接，优化会在每次循环新建 StringBuilder、整体退化为 O(n²) 的对象爆炸。正确做法是循环外显式创建一个 StringBuilder 复用，单线程首选它（无同步、更快）；StringBuffer 的 append 等方法带 synchronized、线程安全但有锁开销，仅在多线程共享同一缓冲区时才需要。JDK9 还引入 invokedynamic 驱动的 StringConcatFactory 改进拼接，但循环内累积仍是显式 StringBuilder 最优。",
+    "gapCheck": [
+      "易漏点：不可变性的实现是 final 类 + private final 数组 + 无修改入口，修改即新对象",
+      "常见误区：以为编译器的 + 优化能覆盖循环内拼接（实际每次循环新建 Builder、O(n²)）",
+      "加分项：能区分 StringBuilder（非同步）与 StringBuffer（synchronized），并提 JDK9 紧凑布局与 invokedynamic"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.string-common"],
+      "related": ["be.java.core.collection"],
+      "followUps": ["字符串常量池在 JDK7 前后位置有何变化，intern() 的作用与风险是什么？", "JDK9 的紧凑字符串（compact string）为什么能把堆占用降下来？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "String 不可变性与循环拼接选型判断题" },
+    "tags": ["String", "不可变", "StringBuilder", "字符串常量池", "判断"]
+  },
+  {
+    "id": "Q-be-java-syntax-0003",
+    "nodeId": "be.java.core.syntax-basics",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：Java 中 == 比较的是两个引用是否指向同一个对象（或基本类型的值是否相等），而 String、包装类等对象要比较内容是否相等应当使用 equals()；对可能为 null 的对象直接调 equals 会抛 NullPointerException。",
+    "answer": { "judge": true },
+    "analysis": "正确，这是 Java 语法中最基础也最容易踩的相等性边界。对基本类型（int、char、boolean 等），== 直接比较栈上的值；对引用类型，== 比较的是引用地址，即两个变量是否指向堆中的同一个对象，而不是对象内容。String 重写了 equals 按字符序列逐字比较，所以 new String(\"a\").equals(new String(\"a\")) 为 true，但二者 == 为 false（除非都指向常量池中的同一驻留对象）。八个包装类也都重写了 equals 做值比较；同时它们对小值做了缓存（Integer 默认缓存 -128~127，Boolean、Byte、Character 部分范围等），缓存区间内自动装箱用 == 可能恰好为 true，区间外则为 false——因此包装类比较值一律用 equals，绝不能依赖 ==，否则会出现『有时相等有时不等』的诡异 bug。空安全方面，若引用可能为 null，obj.equals(literal) 会 NPE，规范写法是把常量/字面量放前面：\"x\".equals(obj)，或用 JDK7+ 的 java.util.Objects.equals(a,b)（内部做空判断，两边都 null 返回 true、一边 null 返回 false）。重写 equals 时必须遵守自反、对称、传递、一致、null 返回 false 五契约，并同时重写 hashCode 以保证在 HashMap/HashSet 中行为正确。",
+    "gapCheck": [
+      "易漏点：== 比引用地址、equals 比内容；包装类有装箱缓存，== 结果随取值区间变化",
+      "常见误区：用 == 比较 Integer/String 内容，或对可能为 null 的对象直接调 equals",
+      "加分项：能提 Objects.equals 空安全写法，以及重写 equals 必须同步重写 hashCode 的契约"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.core.syntax-basics"],
+      "related": ["be.java.core.string-common", "be.java.dsa.hash"],
+      "followUps": ["Integer 装箱缓存的边界是多少，超出后 == 为什么失效？", "为什么重写 equals 就一定要重写 hashCode，违反会在 HashMap 里出什么问题？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "== 与 equals、装箱缓存与空安全判断题" },
+    "tags": ["基本语法", "equals", "==", "装箱缓存", "空指针", "判断"]
+  }
+]

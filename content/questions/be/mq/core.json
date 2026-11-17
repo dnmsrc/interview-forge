@@ -1,0 +1,348 @@
+[
+  {
+    "id": "Q-be-mq-kafka-0001",
+    "nodeId": "be.mq.arch.kafka",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 Kafka 的分区、副本、ISR 与高吞吐设计，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "Topic 分成多个 Partition，每个分区是一段追加写、有序的日志并维护 offset；同一分区内消息有序，跨分区不保证全局有序" },
+      { "key": "B", "text": "acks=all 表示只要 Leader 副本自己写入成功就立即应答，吞吐最高、可靠性最低" },
+      { "key": "C", "text": "ISR（同步副本集合）包含所有落后任意程度的 Follower，Leader 宕机时从全部 Follower 中随机选一个当新 Leader" },
+      { "key": "D", "text": "Kafka 高吞吐主要靠随机写磁盘和逐条网络发送实现，与页缓存、零拷贝没有关系" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：Topic 物理上拆成多个 Partition，每个分区是只追加（append-only）的有序日志，消息在分区内按 offset 单调递增、消费端靠 offset 记录位置；单分区内严格有序，不同分区并行处理、不保证全局顺序，因此「分区有序」靠相同业务 key（如订单 id）经 hash 路由到同一分区实现。B 错：acks 有三档——acks=0 发出去不等应答（可能丢、最快）、acks=1（默认）Leader 写入即应答（Leader 宕机且未同步给 Follower 时会丢）、acks=all（或 -1）需 Leader 和所有 ISR 副本都确认才应答，可靠性最高、延迟略高，配合 min.insync.replicas≥2 才真正生效。C 错：ISR（In-Sync Replicas）只包含与 Leader 同步进度在 replica.lag.time.max.ms 阈值内的 Follower，落后过多会被踢出 ISR；Leader 宕机时优先从 ISR 中选举新 Leader，避免选到数据落后太多的副本。HW（高水位）取 ISR 中最小 LEO，决定消费者能读到的最新位置，保证副本一致。D 错：Kafka 高吞吐来自顺序写盘（远快于随机写）、操作系统页缓存（page cache，写入先落缓存）、sendfile 零拷贝（数据直接从页缓存经内核态发到网卡，绕过用户态拷贝和 read/write 两次上下文切换）、批量压缩与顺序 IO；它适合日志、埋点、大数据流这类高吞吐场景，而不擅长复杂路由。对照前端：分区很像把一张大表按 key 分片，offset 类似每条记录的自增游标；零拷贝可理解为文件不经 JS 层中转直接由底层管道送出。",
+    "gapCheck": [
+      "易漏点：有序性只在单分区内成立；acks=all 要配合 min.insync.replicas 才有意义",
+      "常见误区：以为 acks=all 是 Leader 写成功即可，或以为 ISR 包含所有 Follower、选主随机",
+      "加分项：能讲清 LEO/HW、消费者组 rebalance、顺序写+页缓存+sendfile 零拷贝三件套如何共同撑起高吞吐"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.arch.kafka"],
+      "related": ["be.mq.arch.rabbitmq", "be.mq.reliability.idempotent"],
+      "followUps": ["如何保证同一订单的多条消息严格按顺序消费？", "HW 和 LEO 分别是什么，HW 截断（truncation）可能造成什么问题？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Kafka 分区/ISR/acks 与高吞吐单选题" },
+    "tags": ["Kafka", "分区", "ISR", "零拷贝", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-rabbit-0001",
+    "nodeId": "be.mq.arch.rabbitmq",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 RabbitMQ 的 AMQP 模型、交换机路由以及与 Kafka 的选型对比，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "生产者把消息发到 Exchange，由 Exchange 根据 Binding 规则路由到一个或多个 Queue；Queue 才是实际存储消息、供消费者拉取的地方" },
+      { "key": "B", "text": "direct 按 routing key 精确匹配，fanout 广播到所有绑定队列（忽略 routing key），topic 支持 * 和 # 通配符按模式匹配" },
+      { "key": "C", "text": "消费失败且 requeue 关闭时，消息可成为死信进入配置了 DLX（死信交换机）的队列，便于后续人工或程序补偿处理" },
+      { "key": "D", "text": "RabbitMQ 以超高吞吐和可长期回溯重放历史消息见长，而 Kafka 因支持四种复杂交换机更适合精细化业务路由" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：AMQP 的核心是 Exchange（交换机）本身不存消息，只负责按 Binding（绑定关系 + routing key）把消息路由到 Queue，Queue 才是存放和投递消息的实体；生产者甚至不直接接触队列。B 正确：四种交换机——direct 用 routing key 全等匹配；fanout 无条件广播到所有绑定队列（类似发布订阅，最快）；topic 按点分单词做模式匹配，* 匹配一个单词、# 匹配零或多个单词（如 order.*.paid）；headers 交换机则依据消息头属性匹配、不依赖 routing key（较少用）。C 正确：消息被消费者 basicReject/basicNack 且 requeue=false、或 TTL 到期、或队列达到长度上限时，会变成死信（dead letter）转发到该队列声明的死信交换机 DLX 再进死信队列，实现失败消息的隔离与兜底重试，避免无限 requeue 造成的消息毒丸和 CPU 空转。D 错：特性恰好说反了——RabbitMQ 强在丰富的路由模型、低延迟、确认机制和灵活的业务消息处理，但吞吐相对有限、消息确认后默认不保留、不擅长长期回溯重放；Kafka 以分区日志高吞吐、消息可按 offset 长期保留和重复消费见长，但路由能力简单。典型决策：业务通知、订单、需要复杂路由/死信的选 RabbitMQ；埋点、日志、流处理、海量数据管道选 Kafka。对照前端：Exchange 像事件总线里的事件路由器，fanout 类似广播、topic 类似通配符订阅，死信队列类似失败消息进死信/重试队列而非无限重抛。",
+    "gapCheck": [
+      "易漏点：Exchange 不存消息只路由，Queue 才存储；topic 通配符 *（一个单词）与 #（多个单词）别记反",
+      "常见误区：把 Kafka 的高吞吐/可回溯特性安到 RabbitMQ 头上，或以为 requeue 能无限安全重试",
+      "加分项：能讲死信的三种触发条件、消费者手动 ack 与 nack/requeue 的取舍，以及两中间件在顺序/回溯/运维上的对比"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.arch.rabbitmq"],
+      "related": ["be.mq.arch.kafka", "be.mq.reliability.delivery"],
+      "followUps": ["消息一直消费失败会怎样，如何用 DLX + TTL 做延迟重试队列？", "同样是异步解耦，什么信号会让你在 RabbitMQ 和 Kafka 之间二选一？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "RabbitMQ 交换机路由与选型多选题" },
+    "tags": ["RabbitMQ", "交换机", "死信队列", "AMQP", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-deliver-0001",
+    "nodeId": "be.mq.reliability.delivery",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：消息丢失可能发生在生产端、Broker、消费端三段，需分别用生产者确认（confirm/回调重试）、Broker 持久化加多副本、消费端处理成功后再手动 ack 来堵口；at-least-once（至少一次）可能重复投递，因此消费端通常还要配合幂等才能做到业务上的 exactly-once 效果。",
+    "answer": { "judge": true },
+    "analysis": "正确。三段保障逐一对应：① 生产端——RabbitMQ 开启 publisher confirm（消息到达 Broker 并路由成功才回 ack，失败回 nack 触发重试/落本地消息表），Kafka 用 acks=all + retries + 回调；② Broker 端——RabbitMQ 队列和消息声明 durable/persistent 并配合镜像队列/Quorum 队列，Kafka 靠多副本（replication.factor≥2、min.insync.replicas≥2）保证单盘/单节点故障不丢；③ 消费端——关闭自动 ack，业务处理（含落库）成功后再手动确认，RabbitMQ 用 basicAck、Kafka 手动提交 offset，避免「先确认后处理、处理失败消息却已被标记消费」。投递语义上：at-most-once（至多一次，可能丢不重复，先 ack 后处理）、at-least-once（至少一次，不丢但可能重复，先处理后 ack，是工程主流）、exactly-once（精确一次）在跨系统下极难，Kafka 事务/幂等 producer 只在 Kafka 体系内有效，跨 DB + MQ 的业务精确一次通常靠「at-least-once + 消费端幂等」实现等效效果。DB 操作与发消息的一致性可用本地消息表（业务与消息同库事务写入，再异步投递）或事务消息（RocketMQ 半消息 + 回查）解决。对照前端：这类似前端「先改本地状态再发请求」与「请求成功后再改状态」的取舍——先确认后处理一旦中途失败就丢更新，先处理后确认失败可重试但要防重复提交。",
+    "gapCheck": [
+      "易漏点：丢消息分生产/Broker/消费三段，要分别上手段；消费端务必处理成功再手动 ack",
+      "常见误区：开了自动 ack 以为就可靠，或以为 exactly-once 靠 Broker 一个开关就能跨系统实现",
+      "加分项：能讲本地消息表/事务消息如何保证 DB 与发消息一致，以及三种投递语义的真实代价"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.reliability.delivery"],
+      "related": ["be.mq.reliability.idempotent", "be.mq.arch.kafka"],
+      "followUps": ["生产者 confirm 超时但消息其实已到 Broker，重试会不会造成重复？怎么兜底？", "本地消息表方案的完整时序是怎样的，定时任务起什么作用？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "三段可靠投递与投递语义判断题" },
+    "tags": ["消息可靠性", "confirm", "手动ack", "投递语义", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-idem-0001",
+    "nodeId": "be.mq.reliability.idempotent",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于消息的重复消费幂等、分区有序与消息积压治理，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "at-least-once 下重复投递不可避免，消费端可用唯一键去重表、Redis SET NX、业务状态机或数据库乐观锁保证同一消息处理多次与处理一次效果相同" },
+      { "key": "B", "text": "想要全局严格有序，只需把消费者实例数扩到越多越好，多线程并发消费同一分区也不会破坏顺序" },
+      { "key": "C", "text": "消息积压时应优先把消费者全部重启清空 offset，让未处理消息直接丢弃，从而最快恢复系统" },
+      { "key": "D", "text": "只要消费端做了幂等，分区数量和路由 key 怎么设置都不会影响消息的先后顺序" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：at-least-once 意味着网络抖动、ack 丢失、rebalance 都会让消息重投，幂等要在消费端落地——常见手段：① 唯一键去重表（消息带全局唯一 id，处理前 insert 去重表，唯一索引冲突即重复，与业务更新放同一事务）；② Redis SET NX 标记处理过的消息 id（注意配合过期时间和原子性）；③ 业务状态机（如订单只能「待支付→已支付」单向流转，重复的已支付消息无法再次推进）；④ 数据库乐观锁（update ... where version=? 或带状态条件，影响行数为 0 即重复）。B 错：全局有序代价极高（通常只能单分区单消费者、无并发，吞吐受限）；工程上追求的是「分区/队列内有序」——用相同业务 key（订单 id）hash 到同一分区，并保证该分区由单线程或按 key 串行处理；多线程并发消费同一分区若不做 key 级串行化会乱序。C 错：丢弃消息会造成数据丢失，是错误应急。积压治理先定位原因（消费变慢/消费者宕机/突发流量），再扩容消费者实例（注意消费者数超过分区数后新增实例分不到分区，Kafka 需同步扩分区）、临时增加处理线程、或把积压消息转储到新 topic 由更多消费者并行消化，事后还要排查慢消费根因（慢 SQL、外部依赖超时），死信队列兜底持续失败的消息。D 错：幂等解决的是「重复」，有序解决的是「先后」，两者正交；若相关消息被路由到不同分区并行消费，即使消费逻辑幂等也可能后发先至造成状态错乱，所以有序仍依赖 key 路由到固定分区。对照前端：幂等很像前端防重复提交（按钮置灰 + 请求唯一 id 去重）；分区有序类似同一用户的操作放进同一条串行队列，避免并发乱序。",
+    "gapCheck": [
+      "易漏点：幂等（防重复）与有序（保先后）是两个独立问题；消费者数不能超过分区数，超出的实例空闲",
+      "常见误区：以为重启丢 offset 能治积压（实际丢数据），或以为全局有序可以靠堆消费者实现",
+      "加分项：能讲唯一键去重表与业务同事务的写法、Kafka 扩分区与扩容消费者的配套、积压转储临时 topic 的应急流程"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.reliability.idempotent"],
+      "related": ["be.mq.reliability.delivery", "be.mq.arch.kafka"],
+      "followUps": ["用 Redis SET NX 做幂等，Redis 挂了或标记过期后还可靠吗？怎么和 DB 去重表取舍？", "线上消息积压几十万，你的完整排查和应急步骤是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "幂等、分区有序与积压治理单选题" },
+    "tags": ["幂等", "消息顺序", "消息积压", "死信队列", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-kafka-0002",
+    "nodeId": "be.mq.arch.kafka",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Kafka 的生产者分区路由、消费者组 rebalance 与消费位点，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "生产者若显式指定 partition 就直接进该分区；否则有 key 时按 key 的哈希路由到固定分区（这是同 key 消息有序的前提），无 key 时由分区器分配（新版默认 StickyPartitioninger，兼顾批量与负载均衡）" },
+      { "key": "B", "text": "消费者组成员增减或订阅主题的分区数变化会触发 rebalance，分区在成员间重新分配，rebalance 期间该组消费者会短暂暂停消费（存在 stop-the-world 窗口）" },
+      { "key": "C", "text": "消费位点 offset 提交后保存在内部主题 __consumer_offsets 中，而不是只存在消费者进程本地，因此消费者重启或换实例后能从已提交位点继续消费" },
+      { "key": "D", "text": "同一个消费组内，一个分区可以被组内多个消费者同时消费，以此线性提升该分区的消费并行度" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：Kafka 分区器优先级为「手动指定分区 > 按 key 哈希 > 自动分区」；相同 key 经 murmur2 等哈希稳定落到同一分区，是分区内有序的基础，无 key 时旧版轮询、新版 Sticky 黏在一个分区攒批以提升吞吐、批次满再轮换。B 正确：rebalance 是消费者组的成员/分区再平衡，触发条件包括成员加入或退出（含心跳超时被判下线）、订阅分区数变化；再平衡期间组内分区分配被重新计算、消费暂停，频繁 rebalance 会明显抖动，应调大 session/心跳超时、避免长 GC。C 正确：位点集中存放在内部 topic __consumer_offsets（按 group 记录各分区 committed offset），使消费进度与具体消费者解耦；可选择自动提交或手动提交（处理完再提交更可靠）。D 错：同一消费组内一个分区在任一时刻只分配给一个消费者，这是组内负载均衡与避免重复处理的约束；想提高并行度只能增加分区并让消费者数与之匹配，不同消费组之间则各自独立消费全量、互不影响。对照前端：消费组很像一组 worker 按分片（分区）抢任务、每个分片同一时刻只给一个 worker；位点存储类似把处理进度写在共享的 checkpoint 而非 worker 内存。",
+    "gapCheck": [
+      "易漏点：分区路由优先级与 key 哈希保证同 key 同分区；位点存 __consumer_offsets 而非本地",
+      "常见误区：以为同组多消费者能并发消费同一分区，或忽视 rebalance 期间的消费暂停窗口",
+      "加分项：能讲 Sticky 分区器、rebalance 触发条件与调优、自动/手动提交位点的可靠性差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.arch.kafka"],
+      "related": ["be.mq.arch.rabbitmq", "be.mq.reliability.idempotent"],
+      "followUps": ["rebalance 频繁发生通常由哪些原因引起，怎么调参缓解？", "自动提交 offset 为什么在异常时可能丢消息或重复消费？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Kafka 分区路由/rebalance/位点机制多选题" },
+    "tags": ["Kafka", "分区路由", "rebalance", "消费位点", "消费者组"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-kafka-0003",
+    "nodeId": "be.mq.arch.kafka",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "补全 Kafka 高吞吐与可靠性的关键机制：Kafka 把消息直接 ______ 追加到分区日志文件，避免随机写的寻址开销；并充分利用操作系统的 ______（page cache），写入先落内存、读取尽量命中缓存而不走磁盘；消费端投递时采用 ______ 系统调用实现零拷贝，数据从页缓存直达网卡、绕过用户态拷贝与多次上下文切换；可靠性方面 acks=______ 表示 Leader 与所有 ISR 副本都确认后才应答（需配合 min.insync.replicas 才有意义）。",
+    "answer": {
+      "blanks": ["顺序写", "页缓存", "sendfile", "all"],
+      "synonyms": {
+        "顺序写": ["顺序写盘", "顺序写入", "顺序IO", "顺序写磁盘"],
+        "页缓存": ["pagecache", "page cache", "页面缓存", "OS页缓存"],
+        "sendfile": ["send file", "sendfile()", "零拷贝sendfile"],
+        "all": ["-1", "all(-1)", "acks=all", "全部确认"]
+      }
+    },
+    "analysis": "四个空对应 Kafka 高吞吐与可靠性的支柱。① 顺序写盘：分区日志是 append-only 文件，机械盘顺序写远快于随机写（接近内存随机访问量级），省去大量寻道。② 页缓存（page cache）：生产写入先进入 OS 页缓存即返回，由内核异步刷盘，消费读取也优先命中页缓存，避免 JVM 堆内缓存带来的 GC 与重复缓存问题。③ sendfile 零拷贝：传统 read+write 要经「磁盘→内核缓冲→用户缓冲→socket 缓冲→网卡」多次拷贝和上下文切换，sendfile 让数据从页缓存经内核直接 DMA 到网卡，绕过用户态，配合消息批量压缩进一步省 CPU。④ acks=all（等价 -1）：Leader 与所有当前 ISR 副本都确认写入才应答，配合 min.insync.replicas≥2、replication.factor≥3，才能在 Leader 宕机时不丢已确认消息，代价是延迟略增；acks=0 不等应答最快可能丢、acks=1 仅 Leader 确认。对照前端：零拷贝可理解为文件不经 JS 层中转、由底层管道直接送出；顺序写 + 页缓存则像「只往日志尾部追加 + 依赖系统级缓存」而非随机改写。",
+    "gapCheck": [
+      "易漏点：高吞吐三件套是顺序写盘、页缓存、sendfile 零拷贝；acks=all 要配 min.insync.replicas",
+      "常见误区：以为 Kafka 靠随机写或堆内大缓存提速，或以为 acks=all 单独就能保证不丢",
+      "加分项：能对比传统 read+write 与 sendfile 的拷贝/上下文切换次数，并说清 acks 三档取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.arch.kafka"],
+      "related": ["be.mq.arch.rabbitmq", "be.mq.reliability.delivery"],
+      "followUps": ["sendfile 零拷贝具体省掉了哪几次数据拷贝和上下文切换？", "acks=all 但 min.insync.replicas=1 时为什么仍可能丢数据？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "Kafka 高吞吐三件套与 acks 填空题" },
+    "tags": ["Kafka", "零拷贝", "sendfile", "页缓存", "填空题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-rabbit-0002",
+    "nodeId": "be.mq.arch.rabbitmq",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "要在 RabbitMQ 中实现「失败消息隔离」与「延迟投递」。关于死信（dead letter）与基于 DLX 的延迟队列，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "消息成为死信的条件包括：被消费者 basicReject/basicNack 且 requeue=false、消息或队列 TTL 到期、队列达到最大长度；死信会被转发到该队列声明的死信交换机（DLX）再路由进死信队列，借助「带 TTL 的队列 + DLX」即可实现延迟队列" },
+      { "key": "B", "text": "消息一旦成为死信就会被 Broker 立即永久删除，没有任何队列能再接收到它" },
+      { "key": "C", "text": "消费失败时设置 requeue=true 让它无限重回队列头部，这就是延迟队列，且不会带来任何副作用" },
+      { "key": "D", "text": "RabbitMQ 所有版本都原生内置精确延迟交换机，做延迟消息完全不需要任何插件或 TTL 组合" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确，完整概括死信三触发与 DLX 延迟方案：死信来源有「显式拒绝且不重回队列、TTL 过期、队列满（x-max-length）」三类，配置了 x-dead-letter-exchange 的队列会把死信转发到指定 DLX，再按绑定路由到死信队列供补偿消费；经典延迟队列做法是让消息先进入一个设置了 TTL、且没有消费者的「缓冲队列」，TTL 到期变死信后经 DLX 路由到真正的工作队列，从而实现「延迟 N 时间后再投递」（如订单超时关单）。B 错：死信正是为了不被静默丢弃而设计，会被 DLX 接收，配合告警和重放形成兜底。C 错：requeue=true 无限重试会让「毒丸消息」反复回到队首、被同一消费者立刻再次消费，造成 CPU 空转并阻塞后续正常消息，正确做法是 requeue=false 转死信或做带退避的延迟重试。D 错：原生 AMQP 只有 TTL+DLX 这种「模拟」延迟（同一队列 TTL 固定、队头消息未到期还会阻塞后面到期更早的消息），要任意粒度的精确延迟需安装 rabbitmq-delayed-message-exchange 插件。对照前端：死信队列很像请求失败后进入的重试/死信通道，而不是无限同步重抛卡死整个任务队列。",
+    "gapCheck": [
+      "易漏点：死信三触发（拒绝不重回、TTL 到期、队列满）；DLX+TTL 缓冲队列实现延迟投递",
+      "常见误区：以为死信会被直接删除、requeue 无限重试无代价，或认为原生支持任意精确延迟",
+      "加分项：能讲 TTL 队头阻塞问题、延迟消息插件的作用，以及死信队列的告警与重放闭环"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.arch.rabbitmq"],
+      "related": ["be.mq.arch.kafka", "be.mq.reliability.idempotent"],
+      "followUps": ["为什么用 TTL+DLX 做延迟队列会有队头阻塞，插件方案如何规避？", "死信队列里的消息应该怎么设计自动重试和人工介入流程？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "RabbitMQ 死信触发与 DLX 延迟队列单选题" },
+    "tags": ["RabbitMQ", "死信队列", "DLX", "延迟队列", "TTL"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-rabbit-0003",
+    "nodeId": "be.mq.arch.rabbitmq",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：RabbitMQ 的 topic 交换机按「点分单词」的 routing key 做模式匹配，绑定键中 * 恰好匹配一个单词、# 匹配零个或多个单词；因此绑定键 order.*.paid 能匹配 order.wechat.paid 却不能匹配 order.paid（中间少一个单词），而 order.# 可以匹配 order.paid。另外 Exchange 自身不存储消息，若一条消息路由不到任何队列且未开启 mandatory，会被 Broker 直接丢弃。",
+    "answer": { "judge": true },
+    "analysis": "正确。topic 交换机的通配规则以点号切分单词：* 占位且仅占位一个单词，# 可匹配零个或多个单词。order.*.paid 要求三段、中间任意单词，故 order.wechat.paid 命中、order.paid 只有两段不命中；order.# 中 # 吃掉 paid 这一个（乃至多个）单词，因此 order.paid 命中，# 也能匹配裸 order。这套规则适合按层级主题做订阅，如 order.created.#、*.error。需要对比的是：direct 做 routing key 全等匹配、fanout 忽略 routing key 无条件广播、headers 依据消息头属性匹配。后半句同样成立且常被忽视：Exchange 是无状态的路由组件、不落盘存储消息，消息必须路由到至少一个 Queue 才有归宿；若交换机找不到匹配队列，默认直接丢弃，设置 mandatory=true 后 Broker 会通过 basic.return 把无法路由的消息退回生产者，也可配置备份交换机（AE, alternate exchange）兜底。对照前端：topic 绑定很像事件总线里的通配符订阅（* 匹配单层、# 匹配多层路径），Exchange 则像纯路由函数、自身不缓存事件。",
+    "gapCheck": [
+      "易漏点：* 匹配一个单词、# 匹配零或多个单词，按点号分段；Exchange 不存消息",
+      "常见误区：把 * 和 # 的匹配范围记反，或以为消息到了 Exchange 就一定不会丢",
+      "加分项：知道 mandatory + basic.return 与备份交换机 AE 对不可路由消息的兜底处理"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.arch.rabbitmq"],
+      "related": ["be.mq.arch.kafka", "be.mq.reliability.delivery"],
+      "followUps": ["mandatory=true 时不可路由的消息如何退回生产者，怎么接住它？", "topic 交换机与 direct 交换机在路由灵活性和性能上有什么取舍？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "topic 通配符规则与 Exchange 不存消息判断题" },
+    "tags": ["RabbitMQ", "topic交换机", "通配符", "routing key", "mandatory"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-deliver-0002",
+    "nodeId": "be.mq.reliability.delivery",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "要保证「数据库事务提交」与「发出 MQ 消息」之间的一致性，避免出现「库已提交但消息没发出」或「消息已发但库回滚」。下列方案**正确且常用**的有：",
+    "options": [
+      { "key": "A", "text": "本地消息表：把业务数据变更和一条待发送消息写在同一个本地数据库事务里提交，再由后台任务扫描消息表异步投递，投递成功后更新状态，失败则重试，从而保证最终一致" },
+      { "key": "B", "text": "事务消息（如 RocketMQ 半消息）：先发送对消费者不可见的半消息，执行本地事务后再二次确认 commit/rollback，Broker 对长期无回执的消息主动回查本地事务状态来决定投递或删除" },
+      { "key": "C", "text": "RabbitMQ 开启 publisher confirm，生产者根据 Broker 的 ack/nack 回调判断是否到达，失败的消息落库或重试，可堵住生产端「以为发成功其实没到」的缺口" },
+      { "key": "D", "text": "在业务方法里先调用 MQ 发送、再写数据库，中间不加任何补偿，靠两者默认行为就能保证数据库与消息强一致" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：本地消息表（可靠消息最终一致）把「改业务表」和「插消息表」放进同一本地事务，利用数据库 ACID 保证二者原子，要么都成功要么都回滚；之后独立线程/定时任务轮询未发送记录投递到 MQ，收到确认再标记，失败按退避重试，天然抗进程崩溃，缺点是多一张表和轮询延迟。B 正确：事务消息把投递与本地事务解耦——半消息（half message）对消费者不可见，先发它再执行本地事务，根据本地结果 commit（转为可见可投递）或 rollback（删除），若一直没收到二次确认，Broker 发起事务状态回查，由应用告知提交/回滚，解决了「先发消息后写库」的悬空问题。C 正确：publisher confirm 是生产端到达确认，Broker 成功路由/落盘后回 ack、异常回 nack，回调里把失败消息落库重试，配合持久化才能真正不丢。D 错：先发消息后写库且无补偿，一旦库写入失败/事务回滚，已发出的消息无法撤回，下游会基于一个并不存在的业务事实行动；而先写库后发消息又可能库成功、发送失败，因此必须靠 A/B 这类一致性方案兜底，本质都是把跨资源的「强一致」转化为可重试的「最终一致」。对照前端：这类似「先改本地数据再发同步请求」的一致性难题——把待同步动作写进本地 outbox 队列、由后台可靠重发，比裸调两次且不补偿稳妥得多。",
+    "gapCheck": [
+      "易漏点：本地消息表靠同库事务保证业务与消息原子、后台重试投递；事务消息靠半消息+回查",
+      "常见误区：以为裸调「发消息+写库」两步能强一致，忽略中间任一步失败的悬空/回滚问题",
+      "加分项：能对比本地消息表（通用、有轮询延迟）与事务消息（依赖 MQ 特性、实时性好）的取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.reliability.delivery"],
+      "related": ["be.mq.reliability.idempotent", "be.mq.arch.kafka", "be.mq.arch.rabbitmq"],
+      "followUps": ["本地消息表的后台扫描任务如何避免重复投递，和消费端幂等怎么配合？", "RocketMQ 事务消息的回查接口如果一直返回「未知」，Broker 会怎么处理？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "本地消息表/事务消息保证库与消息一致性多选题" },
+    "tags": ["消息可靠性", "本地消息表", "事务消息", "publisher confirm", "最终一致"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-deliver-0003",
+    "nodeId": "be.mq.reliability.delivery",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "两类业务对消息可靠性的诉求不同：① 埋点日志采集，极端情况下丢少量日志可接受，更看重最高吞吐与最低延迟；② 支付结果通知，绝不允许丢消息，但允许重复投递、且消费端已做幂等。它们分别**最适合**的投递语义是：",
+    "options": [
+      { "key": "A", "text": "日志用 at-most-once（至多一次：可能丢、不会重复，如 acks=0 或先确认后处理）；支付通知用 at-least-once（至少一次：不丢、可能重复，配合消费端幂等达到业务等效精确一次）" },
+      { "key": "B", "text": "两者都用 exactly-once，因为只要 Broker 打开一个开关，就能在数据库与 MQ 跨系统间无条件实现精确一次" },
+      { "key": "C", "text": "日志用 at-least-once、支付通知用 at-most-once，可靠性要求越高越应选至多一次" },
+      { "key": "D", "text": "at-least-once 的含义是消息保证不会重复，因此支付场景无需再做幂等" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确，准确对应三种语义的取舍。at-most-once（至多一次）：消息最多投递一次，失败不重试，可能丢失但绝不重复，靠「先 ack 再处理」或 acks=0 实现，延迟低、吞吐高，契合可容忍少量丢失的埋点/监控日志。at-least-once（至少一次）：保证不丢，靠「先处理成功再手动 ack/提交位点 + 失败重试」，但网络抖动、ack 丢失、rebalance 会导致重投、可能重复，是工程主流；支付这类不能丢的场景选它，再在消费端用唯一键去重/状态机/幂等 producer 把重复吸收，达到「业务效果上的精确一次」。exactly-once（精确一次）在跨 DB+MQ 的异构系统间极难，Kafka 的事务与幂等 producer 只在 Kafka 自身「生产→分区→消费→回填」链路内成立，并非一个跨系统全局开关，故 B 错误。C 把两者说反，可靠性要求高恰恰不能用可能丢的 at-most-once。D 概念错误：at-least-once 正是「可能重复」的代名词，幂等是必备配套而非可选项。对照前端：at-most-once 像「埋点请求发出去就不管、失败不重发」，at-least-once 像「关键请求失败自动重试但要防重复提交」。",
+    "gapCheck": [
+      "易漏点：at-most-once 可能丢不重复、at-least-once 不丢可能重复、跨系统 exactly-once 极难",
+      "常见误区：以为 Broker 有精确一次开关就能跨库跨 MQ 生效，或以为至少一次不会重复",
+      "加分项：能讲 Kafka 事务/幂等 producer 的有效边界，以及「at-least-once + 消费幂等」的工程等效方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.reliability.delivery"],
+      "related": ["be.mq.reliability.idempotent", "be.mq.arch.kafka"],
+      "followUps": ["Kafka 的幂等 producer 和事务分别解决了哪一段的重复，边界在哪？", "为什么跨数据库和 MQ 的 exactly-once 不能只靠中间件开关实现？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "三种投递语义按业务可靠性诉求选型单选题" },
+    "tags": ["投递语义", "at-most-once", "at-least-once", "exactly-once", "幂等"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-idem-0002",
+    "nodeId": "be.mq.reliability.idempotent",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：Kafka 只保证单个分区内的消息有序，跨分区不保证全局顺序；要让同一订单的一系列状态变更按先后消费，应让这些消息携带相同 key（如订单 id）从而被路由到同一分区，并保证该分区在消费组内只由一个消费者、且对同一 key 串行处理；若消费者内部再开多线程并发处理同一分区拉取到的消息、又不做 key 级串行化，即使分区里存储是有序的，最终处理结果仍可能乱序。",
+    "answer": { "judge": true },
+    "analysis": "正确。有序性的边界要分清：Kafka 仅在单个分区内严格按 offset 顺序保存和投递，多个分区并行、彼此无先后保证，因此全局有序通常只能靠单分区单消费者，代价是牺牲并行度、吞吐受限，工程上普遍追求「分区/队列内有序」而非全局有序。实现路径：① 生产端用业务键（订单 id）作为消息 key，相同 key 哈希稳定落在同一分区；② 消费端一个分区在组内只分配给一个消费者，保证拉取顺序；③ 若为提速在消费者内部用线程池并发处理，必须按 key 做 hash 路由到固定线程/内存队列串行执行，否则后拉取的消息可能先处理完，破坏状态机顺序。RabbitMQ 同理，用单个队列 + 单消费者保证队列内顺序。还要注意「重试」也会破坏顺序——一条消息失败重试时，后面的消息可能先行处理，常需把失败消息转到独立重试队列、暂停该 key 的后续消息。对照前端：这与把同一用户/同一订单的更新放进同一条串行队列（如按 id hash 到固定 worker）是同一思想，并发处理不同 key、串行处理同一 key。",
+    "gapCheck": [
+      "易漏点：有序只在单分区内成立；同 key 路由同分区 + 单消费者 + key 级串行三者缺一不可",
+      "常见误区：以为多线程并发消费同一分区仍天然有序，或追求代价极高的全局单分区有序",
+      "加分项：能讲失败重试对顺序的破坏及「隔离重试队列/暂停同 key」处理，以及 RabbitMQ 单队列单消费者"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.reliability.idempotent"],
+      "related": ["be.mq.arch.kafka", "be.mq.reliability.delivery"],
+      "followUps": ["消费线程池里如何按 key 做 hash 路由保证同一订单串行、不同订单并行？", "一条消息处理失败进入重试，如何避免它后面的同 key 消息被提前处理导致乱序？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "分区内有序与多线程消费乱序风险判断题" },
+    "tags": ["消息顺序", "分区有序", "消费者组", "key路由", "串行化"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mq-idem-0003",
+    "nodeId": "be.mq.reliability.idempotent",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "补全消费幂等手段与消息积压治理：消费端幂等常用——用消息全局唯一 id 配合数据库 ______（靠唯一索引冲突识别重复，并与业务更新放在同一事务）、用 Redis 的 ______ 原子命令标记已处理消息 id、或用业务 ______ 限制状态只能单向流转；线上出现消息积压时，若根因是消费能力不足可扩容消费者，但 Kafka 同一消费组的消费者实例数一旦超过 ______ 数量，多出的实例将分不到数据而空闲，必要时需同步扩容或把积压消息转储到新 topic 由更多消费者并行消化。",
+    "answer": {
+      "blanks": ["去重表", "SET NX", "状态机", "分区"],
+      "synonyms": {
+        "去重表": ["唯一键去重表", "幂等表", "唯一索引表", "去重表"],
+        "SET NX": ["setnx", "SETNX", "set nx", "SET NX EX"],
+        "状态机": ["状态机流转", "有限状态机", "状态流转"],
+        "分区": ["partition", "Partition", "分区数", "topic分区"]
+      }
+    },
+    "analysis": "四个空串起幂等与积压两条主线。幂等三招：① 数据库去重表（唯一键/唯一索引）——消息带全局唯一 id，处理前 insert 去重表，唯一索引冲突即判定重复直接跳过，且与业务更新放同一本地事务保证原子，是最可靠的落地方案；② Redis SET NX（SET key value NX EX）——以消息 id 为 key 原子占位，设置成功才处理，轻量快速但要考虑 Redis 可用性与标记 TTL；③ 业务状态机——如订单只允许「待支付→已支付→已发货」单向流转，重复的已支付消息无法再次推进状态，常与乐观锁（update ... where status=?）配合。积压治理先定位根因（消费者变慢/宕机、突发流量、下游依赖故障），再对症扩容；关键约束是 Kafka 消费并行度上限等于分区数，消费者实例多于分区时多余实例空转，所以单纯加机器可能无效，需同步扩分区（注意新分区只对新消息生效、旧消息分布不变），或把积压消息转储到分区更多的临时 topic、用更大消费集群并行消化，事后再排查慢 SQL/外部调用等慢消费根因，持续失败的消息进死信队列兜底。对照前端：去重表像请求唯一 id 的服务端去重、状态机像组件里只允许单向迁移的状态、扩消费者受分区限制则像 worker 数不能超过任务分片数。",
+    "gapCheck": [
+      "易漏点：幂等三招（去重表/SET NX/状态机）；消费者数超过分区数后新增实例空闲、需配套扩分区或转储",
+      "常见误区：以为盲目加消费者就能治积压，忽略并行度受分区数约束、扩分区不重分布旧消息",
+      "加分项：能讲去重表与业务同事务、转储临时 topic 的应急流程，以及慢消费根因排查与死信兜底"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mq.reliability.idempotent"],
+      "related": ["be.mq.reliability.delivery", "be.mq.arch.kafka", "be.redis.cache.distributed-lock"],
+      "followUps": ["Redis SET NX 幂等标记如果设置了过期时间、消息处理又特别慢会有什么风险？", "把积压转储到新 topic 的完整应急步骤是什么，如何保证转储过程不丢不重？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "消费幂等手段与积压治理约束填空题" },
+    "tags": ["幂等", "去重表", "消息积压", "分区", "填空题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  }
+]

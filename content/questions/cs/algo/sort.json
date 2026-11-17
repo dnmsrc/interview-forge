@@ -1,0 +1,340 @@
+[
+  {
+    "id": "Q-cs-algo-sort-0001",
+    "nodeId": "cs.algo.sort.quick-merge-heap",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "对一个基本有序、长度为 n 的数组使用普通固定基准（始终取首元素）的快速排序，其最坏时间复杂度是：",
+    "options": [
+      { "key": "A", "text": "O(n log n)" },
+      { "key": "B", "text": "O(n²)，因为每次分区极不平衡，递归退化成 n 层、每层总扫描 O(n)" },
+      { "key": "C", "text": "O(n)" },
+      { "key": "D", "text": "O(log n)" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确。快排的平均 O(n log n) 依赖分区相对均衡：理想时每层 O(n)、共 log n 层。固定取首元素为基准时，对已排序（或逆序）数组，每次分区结果是 0 个与 n-1 个，递归深度变 n，总比较次数 n+(n-1)+…+1=O(n²)。这也是工程实现采用随机化选基准、三数取中（median-of-three）的原因。O(n) 是插入排序在基本有序数据上的表现，不是快排。",
+    "gapCheck": [
+      "易漏点：快排的 O(n log n) 是平均复杂度，最坏 O(n²) 由分区失衡触发",
+      "常见误区：以为快排在任何输入下都是 n log n，忽略基准选择策略",
+      "加分项：能讲随机化快排把最坏情况变成概率事件、期望 O(n log n)，以及 introsort（快排退化时转堆排）的工程兜底"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.quick-merge-heap"],
+      "related": ["cs.algo.complexity.master-theorem"],
+      "followUps": [
+        "三数取中具体怎么选基准？能彻底消除最坏情况吗？",
+        "C++ STL 的 introsort 在什么阈值下切换算法？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "快排最坏复杂度单选题" },
+    "tags": ["快速排序", "最坏情况", "复杂度", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-sort-0002",
+    "nodeId": "cs.algo.sort.quick-merge-heap",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于常见排序算法的复杂度与稳定性，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "归并排序时间稳定为 O(n log n) 且是稳定排序，代价是需要 O(n) 辅助空间" },
+      { "key": "B", "text": "堆排序原地 O(n log n) 但不稳定，缓存局部性也不如快排" },
+      { "key": "C", "text": "快速排序平均 O(n log n)、最坏 O(n²)、原地分区但不稳定" },
+      { "key": "D", "text": "计数排序/桶排序在数据范围已知且分布合适时可达 O(n)，且没有任何前提限制" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确，三者构成比较排序的主力对比。归并靠分治保证稳定 n log n，merge 必须有临时区；堆排原地但堆顶与末尾的远距离交换破坏相等元素次序，且跳跃式访存对缓存不友好；快排平均快、原地，但分区交换不稳定且有 n² 最坏。D 前半句对、后半句错：非比较排序的线性时间有严格前提——计数排序要求 key 是范围有限的整数（范围 k 太大时空间 O(k) 不可接受，总复杂度 O(n+k)）；桶排序要求数据能均匀映射到桶，分布倾斜导致桶内排序成本回升；基数排序依赖稳定的逐位排序与固定位数。它们不是通用排序，不能替代比较排序 O(n log n) 的下界。",
+    "gapCheck": [
+      "易漏点：稳定性、空间、最坏情况三个维度要分开记，归并稳定但费空间、堆排省空间但不稳定",
+      "常见误区：把桶排/计数排当成无条件 O(n)——范围与分布前提不满足时优势消失",
+      "加分项：能讲比较排序 O(n log n) 下界来自决策树叶子数论证"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.quick-merge-heap"],
+      "related": ["cs.algo.tree.heap-topk", "cs.algo.complexity.big-o-amortized"],
+      "followUps": [
+        "为什么基于比较的排序不可能突破 O(n log n)？",
+        "TimSort 是怎么结合归并与插入排序成为语言默认排序的？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "排序算法复杂度稳定性多选题" },
+    "tags": ["排序", "稳定性", "归并", "堆排", "快排"]
+  },
+  {
+    "id": "Q-cs-algo-sort-0003",
+    "nodeId": "cs.algo.sort.quick-merge-heap",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：实现快速排序（对数字数组升序）。要求：①写出 partition 分区函数并说明基准归位过程；②写出递归主函数并处理边界；③分析平均与最坏时间复杂度、空间复杂度与稳定性；④说明随机化选基准如何缓解最坏情况。",
+    "answer": {
+      "ref": "partition 选一个基准 pivot（演示用区间末尾元素），用指针 i 维护『小于 pivot 区间』的右边界：扫描 j，遇到 a[j]<pivot 就 i++ 并交换 a[i]、a[j]；扫描结束把基准换到 i+1 位置，返回该下标——此时基准左边都比它小、右边都不比它小，基准永久归位。快排主函数对区间 [l,r] 分区后递归排左段 [l,p-1] 与右段 [p+1,r]，l>=r 时终止。复杂度：平均 O(n log n)（分区较平衡，log n 层每层 O(n)）；最坏 O(n²)（固定基准遇有序数据，分区 0/(n-1) 失衡，递归 n 层）；空间 O(log n) 平均递归栈、最坏 O(n)；分区交换不保留相等元素原序，不稳定。随机化基准让输入顺序无法稳定制造最坏分区，把 O(n²) 变成极低概率事件，期望复杂度 O(n log n)。",
+      "code": "function quickSort(a, l = 0, r = a.length - 1) {\n  if (l >= r) return a;\n  const p = partition(a, l, r);\n  quickSort(a, l, p - 1);\n  quickSort(a, p + 1, r);\n  return a;\n}\n\nfunction partition(a, l, r) {\n  // 随机化基准：随机选一个与末尾交换，规避有序数据最坏情况\n  const ri = l + Math.floor(Math.random() * (r - l + 1));\n  [a[ri], a[r]] = [a[r], a[ri]];\n  const pivot = a[r];\n  let i = l - 1;                 // 小于 pivot 区间的右边界\n  for (let j = l; j < r; j++) {\n    if (a[j] < pivot) {\n      i++;\n      [a[i], a[j]] = [a[j], a[i]];\n    }\n  }\n  [a[i + 1], a[r]] = [a[r], a[i + 1]]; // 基准归位\n  return i + 1;\n}\n\n// console.log(quickSort([3,6,1,5,2,4])) // [1,2,3,4,5,6]"
+    },
+    "scoringPoints": [
+      { "point": "partition 边界指针与交换顺序正确，基准最终归位并返回其下标", "weight": 3 },
+      { "point": "递归区间 [l,p-1]/[p+1,r] 与 l>=r 终止条件正确，不会死循环", "weight": 2 },
+      { "point": "复杂度三维答全：平均 nlogn、最坏 n²、空间 logn~n、不稳定", "weight": 2 },
+      { "point": "随机化/三数取中缓解最坏情况的原理讲清", "weight": 1 }
+    ],
+    "analysis": "快排是手写排序的第一高频。典型失分：①分区返回值搞错导致递归区间重叠死循环；②基准不先换到固定位置，交换逻辑混乱；③只写平均复杂度不提最坏情况与不稳定性；④声称快排空间 O(1)，忽略递归栈。能进一步讲三路快排（处理大量重复元素）、尾递归优化、小数组转插入排序，属于明显加分。",
+    "gapCheck": [
+      "易漏点：基准归位那一步交换不能省，否则返回下标位置上的元素不是 pivot",
+      "常见误区：把快排当稳定排序——远距离分区交换会打乱相等元素的相对顺序",
+      "加分项：能讲三路分区（荷兰国旗问题）把等于 pivot 的元素集中，重复值多时接近 O(n)"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.quick-merge-heap"],
+      "related": ["cs.algo.complexity.master-theorem", "cs.algo.paradigm.greedy-divide"],
+      "followUps": [
+        "三路快排怎么处理全是相同元素的数组？复杂度是多少？",
+        "手写一个非递归（显式栈）版本的快排要注意什么？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "快速排序手写代码题" },
+    "tags": ["手写题", "快速排序", "partition", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-sort-0004",
+    "nodeId": "cs.algo.sort.quick-merge-heap",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：排序的稳定性是指相等的关键字在排序后仍保持它们在原数组中的相对次序；多关键字排序（如先按成绩排序、再按年龄排序且希望年龄相同时保留成绩次序）必须借助稳定排序，否则前一轮排序的成果会被下一轮打乱。",
+    "answer": { "judge": true },
+    "analysis": "正确。稳定性描述的是相等元素的相对次序保持问题，与『排序结果正不正确』无关——不稳定排序对单关键字数组同样给出正确结果，但在多关键字、对象排序、分页合并等场景会丢信息。经典多关键字做法是从最低优先级关键字开始、依次用稳定排序排到最高优先级（LSD 思路），每一轮的次序在后续相等比较中被保留。常见稳定排序：插入、冒泡、归并、计数/基数/桶；不稳定：选择、快排、堆排、希尔。",
+    "gapCheck": [
+      "易漏点：不稳定排序不是『排错』，而是不保证相等元素的原序，单值场景看不出差别",
+      "常见误区：以为给比较器加相等判断就能让快排变稳定——交换模式决定了它本质不稳定",
+      "加分项：能讲如何把不稳定排序改造为稳定排序（给元素附加原始下标作为次关键字）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.quick-merge-heap"],
+      "related": ["cs.algo.tree.heap-topk"],
+      "followUps": [
+        "为什么堆排序天然不稳定？举一个交换破坏次序的具体例子",
+        "数据库 ORDER BY a, b 的执行可以怎么利用稳定排序性质？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "排序稳定性概念判断题" },
+    "tags": ["稳定性", "多关键字排序", "基础概念"]
+  },
+  {
+    "id": "Q-cs-algo-sort-0005",
+    "nodeId": "cs.algo.sort.quick-merge-heap",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：基于比较的排序，时间复杂度的理论下界是 O(______)；不依赖比较的计数排序、桶排序、基数排序在前提满足时可达 O(______)；归并排序的辅助空间是 O(______)，而堆排序的辅助空间是 O(______)（忽略递归栈）。",
+    "answer": {
+      "blanks": ["n log n", "n", "n", "1"],
+      "synonyms": {
+        "n log n": ["nlogn", "n*log n", "n log n"],
+        "n": ["N", "O(n)"],
+        "1": ["常数", "O(1)"]
+      }
+    },
+    "analysis": "①比较排序可以抽象成决策树：n 个元素有 n! 种排列，每个叶节点对应一种排列，二叉决策树至少要有 n! 个叶子，树高 Ω(log(n!))=Ω(n log n)，这是任何比较排序都突破不了的下界。②非比较排序直接利用 key 的数值特征（计数、分桶、按位），绕开比较模型，前提满足时线性。③归并 merge 阶段需要等大临时数组 O(n)。④堆排序在原数组上建堆、交换、下沉，辅助空间 O(1)，是原地排序。",
+    "gapCheck": [
+      "易漏点：O(n log n) 下界只约束比较排序，非比较排序不受此限但有自己的数据前提",
+      "常见误区：把计数排序的 O(n+k) 简记为 O(n) 时忘记 k（数值范围）可能很大",
+      "加分项：能用决策树论证 log(n!) 与 n log n 同阶（斯特林公式）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.quick-merge-heap"],
+      "related": ["cs.algo.complexity.big-o-amortized"],
+      "followUps": [
+        "斯特林公式怎么说明 log(n!) = Θ(n log n)？",
+        "基数排序为什么每一轮必须使用稳定排序？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "排序下界与空间填空题" },
+    "tags": ["排序下界", "非比较排序", "填空题", "理论"]
+  },
+  {
+    "id": "Q-cs-algo-sort-0006",
+    "nodeId": "cs.algo.sort.binary-search",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "二分查找能把有序数组的查找压到 O(log n)，其成立的核心前提是：",
+    "options": [
+      { "key": "A", "text": "数组元素都是整数" },
+      { "key": "B", "text": "查找空间具有单调性：每次比较都能根据结果排除一半的候选区间（问题可转化为单调的判定函数）" },
+      { "key": "C", "text": "数组长度必须是 2 的幂" },
+      { "key": "D", "text": "数组中不能有重复元素" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 是本质：二分不要求数据是整数，也不要求长度为 2 的幂，它依赖的是『一次比较能决定目标在左半还是右半』的单调性质——数值有序是最常见的表现，二分答案类题目（如最小化最大值）则是把单调性构造在判定函数上。A 错，字符串等可比较类型同样适用。C 错，任意长度都能折半，只是区间不均分。D 错，重复元素完全可以二分，区别只是基础二分命中其中一个、左右边界模板专门定位第一个和最后一个。",
+    "gapCheck": [
+      "易漏点：二分的对象是『单调判定』而非仅限有序数组，二分答案是同一思想的推广",
+      "常见误区：以为有重复元素就不能二分——需要的是换左右边界模板",
+      "加分项：能讲旋转有序数组仍可二分的原因——两段中至少一段保持单调"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.binary-search"],
+      "related": ["cs.algo.complexity.big-o-amortized"],
+      "followUps": [
+        "『二分答案』题目怎么构造单调的 check 函数？",
+        "旋转数组找目标值，哪一段可以安全地做区间判断？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "二分查找前提单选题" },
+    "tags": ["二分查找", "单调性", "基础", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-sort-0007",
+    "nodeId": "cs.algo.sort.binary-search",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：给定升序数组 `nums`（可能含重复元素）与目标值 `target`，实现三个函数：①基础二分（命中任一即可，未命中返回 -1）；②查找第一个等于 target 的下标（左边界）；③查找最后一个等于 target 的下标（右边界）。要求用闭区间写法，讲清循环不变量与边界更新，并分析复杂度。",
+    "answer": {
+      "ref": "统一闭区间 [l,r]，循环条件 l<=r，mid 用 l+((r-l)>>1) 防溢出。基础版：nums[mid]===target 直接返回；小于则 l=mid+1，大于则 r=mid-1。左边界：命中时不立即返回，令 r=mid-1 继续向左压缩，循环结束后 l 即第一个等于 target 的位置（还要校验 l 越界与值相等），找不到返回 -1。右边界对称：命中时令 l=mid+1 继续向右压缩，结束后检查 r。循环不变量：左边界版中，r 右侧（不含）的元素都 ≥target 且答案若存在必在 [l,r] 或为最终的 l；每轮区间严格缩小（更新都带 ±1），所以不会死循环。三个函数时间 O(log n)、空间 O(1)。",
+      "code": "// ① 基础二分\nfunction binarySearch(nums, target) {\n  let l = 0, r = nums.length - 1;\n  while (l <= r) {\n    const mid = l + ((r - l) >> 1);  // 防溢出写法\n    if (nums[mid] === target) return mid;\n    if (nums[mid] < target) l = mid + 1;\n    else r = mid - 1;\n  }\n  return -1;\n}\n\n// ② 左边界：第一个 == target\nfunction lowerBound(nums, target) {\n  let l = 0, r = nums.length - 1;\n  while (l <= r) {\n    const mid = l + ((r - l) >> 1);\n    if (nums[mid] < target) l = mid + 1;\n    else r = mid - 1;               // >= 时继续向左压\n  }\n  // l 是第一个 >= target 的位置\n  return (l < nums.length && nums[l] === target) ? l : -1;\n}\n\n// ③ 右边界：最后一个 == target\nfunction upperBound(nums, target) {\n  let l = 0, r = nums.length - 1;\n  while (l <= r) {\n    const mid = l + ((r - l) >> 1);\n    if (nums[mid] <= target) l = mid + 1;  // <= 时继续向右压\n    else r = mid - 1;\n  }\n  // r 是最后一个 <= target 的位置\n  return (r >= 0 && nums[r] === target) ? r : -1;\n}"
+    },
+    "scoringPoints": [
+      { "point": "三套模板闭区间条件 l<=r、mid 防溢出、更新带 ±1 无死循环", "weight": 3 },
+      { "point": "左/右边界命中后继续压缩的方向正确，结束后的越界与相等校验齐全", "weight": 3 },
+      { "point": "能讲清循环不变量（候选答案始终在维护的区间内）", "weight": 1 },
+      { "point": "复杂度 O(log n)/O(1) 正确", "weight": 1 }
+    ],
+    "analysis": "二分左右边界是面试区分度很高的手写题。典型失分：①循环条件与区间更新不配套（l<=r 却写 l=mid 造成死循环）；②左边界找到一个就返回，答的不是『第一个』；③循环结束不做越界检查，target 不存在时返回错误下标；④mid 写成 (l+r)/2，超大数组有整数溢出风险。能说明 lower_bound/upper_bound 在 C++ STL 中的对应、以及插入位置语义（左边界值即第一个 ≥target 的位置），属于加分。",
+    "gapCheck": [
+      "易漏点：边界版二分的返回值在 target 不存在时仍有含义（插入位置），但题目要求 -1 时必须补校验",
+      "常见误区：混用开区间与闭区间模板——一套代码里 l<=r 配 l=mid 必然死循环",
+      "加分项：能把同一模板迁移到旋转数组、求平方根、二分答案等变体"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.binary-search"],
+      "related": ["cs.algo.complexity.big-o-amortized"],
+      "followUps": [
+        "统计 target 在数组中出现次数，为什么用右边界减左边界加 1？",
+        "用二分求非负整数 x 的整数平方根，判定函数怎么写？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "二分查找左右边界手写代码题" },
+    "tags": ["手写题", "二分查找", "左右边界", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-sort-0008",
+    "nodeId": "cs.algo.sort.binary-search",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：数组 `[4,5,6,7,0,1,2]` 是一个旋转有序数组，在其中搜索目标值仍可以用二分达到 O(log n)；因为每次取中点后，左右两段中至少有一段是严格有序的，可以先判断 target 是否落在有序段内来决定丢弃哪一半。",
+    "answer": { "judge": true },
+    "analysis": "正确。旋转数组由两段有序子数组拼接，中点切下去后必有一段（左段或右段）保持单调：若 nums[l]<=nums[mid] 则左段有序，判断 target 是否在 [nums[l],nums[mid]) 内决定搜左还是搜右；否则右段有序，对称处理。每次仍排除一半，O(log n)。注意细节：含重复元素时 nums[l]===nums[mid] 会让『哪段有序』无法判断，最坏退化到 O(n)（需 l++ 缩边界），这是 LeetCode 搜索旋转排序数组 II 的考点。",
+    "gapCheck": [
+      "易漏点：判断有序段要用 nums[l] <= nums[mid]（等号对应 l===mid 的边界情形）",
+      "常见误区：以为旋转破坏了单调性就不能二分——二分依赖的是每次能安全排除一半",
+      "加分项：能讲重复元素版本为何最坏 O(n)，以及求旋转点（最小元素）的二分写法"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.binary-search"],
+      "related": ["cs.algo.sort.quick-merge-heap"],
+      "followUps": [
+        "怎么用二分找旋转数组的最小值（旋转点）？",
+        "含重复元素的旋转数组二分，最坏复杂度为什么退化？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "旋转数组二分可行性判断题" },
+    "tags": ["二分查找", "旋转数组", "变体", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-sort-0009",
+    "nodeId": "cs.algo.sort.binary-search",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于二分查找的边界写法与变体，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "闭区间 [l,r] 模板中循环条件写 l<=r，且每次排除一半时更新为 l=mid+1 或 r=mid-1，区间严格缩小，不会死循环" },
+      { "key": "B", "text": "mid 写成 l+((r-l)>>1) 与 (l+r)/2 数学等价，但前者避免了 l+r 在大数组下的整数溢出，是工程推荐写法" },
+      { "key": "C", "text": "在有序数组中统计 target 的出现次数，可以分别求出左边界与右边界，答案为 右边界-左边界+1（target 不存在时左边界校验不通过，计数为 0）" },
+      { "key": "D", "text": "『二分答案』不需要数组有序，只要可行性判定函数 check(x) 关于 x 单调（x 可行则更小的 x 都可行，或反之）就能在答案值域上二分" }
+    ],
+    "answer": { "keys": ["A", "B", "C", "D"] },
+    "analysis": "四项全部正确。A 是闭区间模板的自洽性：l<=r 保证单元素区间也被检查，±1 更新保证区间每轮严格变小。B 是经典防溢出细节，32 位环境 l+r 可能超过 INT_MAX。C 把左右边界模板组合成频次查询，比遍历计数少一个 O(n)。D 点出二分的本质是单调判定而非有序数组：分割数组最大值、运输能力、吃香蕉速度等题都在答案值域上二分，复杂度为 O(log 值域)×单次 check 成本。四选项合起来覆盖模板安全、工程细节、组合用法与思想推广。",
+    "gapCheck": [
+      "易漏点：l<=r 必须配 ±1 更新；若配 l=mid 或 r=mid，相邻下标时区间不再缩小，直接死循环",
+      "常见误区：把二分局限在『有序数组找元素』，识别不出答案值域上的单调判定场景",
+      "加分项：能讲浮点二分（while 控制精度 eps）与整数二分在终止条件上的差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.binary-search"],
+      "related": ["cs.algo.complexity.big-o-amortized", "cs.algo.sort.quick-merge-heap"],
+      "followUps": [
+        "左闭右开 [l,r) 模板的循环条件和更新式分别长什么样？",
+        "二分答案时如何科学估计搜索上界，估小了会有什么后果？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "二分边界写法与变体多选题" },
+    "tags": ["二分查找", "边界", "二分答案", "防溢出"]
+  },
+  {
+    "id": "Q-cs-algo-sort-0010",
+    "nodeId": "cs.algo.sort.binary-search",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请回答：①手写二分最常见的三类 bug 是什么，怎么规避；②什么是『二分答案』，它与在有序数组里找值有什么共通点；③给一个二分答案的典型场景并描述判定函数的单调性；④归并排序为什么适合外排序，简述 k 路归并的思路。",
+    "answer": {
+      "ref": "参考骨架：【三类 bug】①区间定义与循环条件不配套：闭区间 [l,r] 配 while(l<=r)、左闭右开 [l,r) 配 while(l<r)，混用会漏查或死循环；②边界更新不收缩：写成 l=mid 而不是 l=mid+1，当 l、r 相邻时区间永远不变；③整数溢出：(l+r)/2 在 32 位环境可能溢出，应写 l+((r-l)>>1)。规避方法是固定一套模板（推荐闭区间）并明确循环不变量。\n【二分答案】当题目求『最大的可行值/最小的不可行值』且可行性随答案单调变化时（x 可行则所有更小的 x 都可行），不在数据集合里找元素，而是在答案值域上二分，每次用 check(mid) 判定可行性来缩区间。共通点：两者都依赖单调性把候选空间每轮砍掉一半，复杂度都是 O(log 值域)×单次 check 成本。\n【典型场景】分割数组的最大值/运输能力（ship within days）：船载重 cap 越大，所需运输天数越少，是单调递减关系；check(cap)=按 cap 贪心装船算出的天数是否 ≤ 给定天数，在 cap 值域二分找最小可行值。同类还有珂朵莉式吃香蕉速度、木头切割长度等。\n【归并与外排序】数据量大到内存装不下时，先把大文件切成可装入内存的块，每块内部排序后写回磁盘（生成 run）；再做 k 路归并：每个 run 维护一个读缓冲区和当前元素，用最小堆（大小 k）反复取 k 路中最小者写入输出缓冲区，缓冲区满则刷盘、某路读完则填充。归并只要求顺序读与两两合并，磁盘友好；堆让每轮选最小从 O(k) 降到 O(log k)。这就是大数据排序（如 Hadoop/Spark shuffle sort）的基础思路。"
+    },
+    "scoringPoints": [
+      { "point": "三类 bug 与规避具体准确（区间配套、收缩更新、防溢出）", "weight": 2 },
+      { "point": "二分答案的单调性本质与 check 函数讲清", "weight": 2 },
+      { "point": "典型场景的判定函数与单调方向描述正确", "weight": 2 },
+      { "point": "外排序分块排序+k 路归并+最小堆选最小的思路完整", "weight": 2 }
+    ],
+    "analysis": "这是排序查找章节的综合收口题。常见失分：二分 bug 只说『边界处理不好』给不出具体模式；二分答案没听过或与普通查找混淆；外排序只字未提磁盘 IO 与归并的关系。能把二分答案的 check 单调性、外排序的堆优化与真实大数据系统联系起来，回答就有工程深度。",
+    "gapCheck": [
+      "易漏点：二分答案的搜索空间是答案值域不是下标，复杂度要乘上 check 的成本",
+      "常见误区：死循环问题一律归因于循环条件——根因常是更新式没有严格缩小区间",
+      "加分项：能讲 k 路归并的 IO 次数估算与败者树（loser tree）对堆方案的进一步优化"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.binary-search"],
+      "related": ["cs.algo.sort.quick-merge-heap", "cs.algo.tree.heap-topk"],
+      "followUps": [
+        "二分答案时答案上界怎么估计？估错了会怎样？",
+        "外排序的总磁盘 IO 量与 run 数量、缓冲区大小是什么关系？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "二分 bug 与二分答案外排序主观题" },
+    "tags": ["二分查找", "二分答案", "外排序", "归并", "体系化"]
+  },
+  {
+    "id": "Q-cs-algo-sort-0011",
+    "nodeId": "cs.algo.sort.quick-merge-heap",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于工程语言标准库中排序算法的选择，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "V8 的 Array.prototype.sort 早期用插入排序+快排，现代版本采用 TimSort（归并与插入的混合），默认稳定" },
+      { "key": "B", "text": "C++ std::sort 通常是 introsort：快排为主，递归过深时转堆排规避 O(n²)，小区间转插入排序，因此不保证稳定；要稳定需用 stable_sort" },
+      { "key": "C", "text": "Java 对对象数组用稳定排序（历史上是改造的归并/TimSort），对原始类型数组用双轴快排，因为原始类型不存在相等元素的稳定性语义问题" },
+      { "key": "D", "text": "所有语言的默认排序都是严格 O(n log n) 且稳定，工程上不需要关心算法差异" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 都是教材口径与主流实现事实。TimSort 利用真实数据中的有序片段（run）做归并，对部分有序数据接近 O(n)，且稳定，Python sorted、V8、Java 对象排序都采用同类思路。introsort 用堆排兜底快排最坏情况、插入排序处理小区间，是工程鲁棒性的典型设计。Java 的区分体现了稳定性的价值判断：对象有身份、相等对象可能需要保序，原始类型值相同无从区分，选更快的双轴快排。D 错：默认排序在稳定性、最坏复杂度、空间开销上差异显著，且 TimSort 类算法在最坏与平均之间的行为也不同，选型与性能分析时不能一概而论。",
+    "gapCheck": [
+      "易漏点：稳定与不稳定排序在标准库里是分开提供的（sort vs stableSort），默认行为因语言而异",
+      "常见误区：以为库函数是『纯』教科书算法——主流实现都是混合算法，针对真实数据分布优化",
+      "加分项：能讲 TimSort 的 run 识别与 Galloping 模式、双轴快排的分区思想"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.sort.quick-merge-heap"],
+      "related": ["cs.algo.tree.heap-topk"],
+      "followUps": [
+        "TimSort 为什么对部分有序数据能接近 O(n)？",
+        "双轴快排相比单轴快排潜在的缓存与分区优势是什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "标准库排序实现多选题" },
+    "tags": ["工程实践", "TimSort", "introsort", "稳定性"]
+  }
+]

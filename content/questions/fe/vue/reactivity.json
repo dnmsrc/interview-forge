@@ -6,26 +6,77 @@
     "difficulty": 2,
     "stem": "下面代码执行后 `log` 的内容是什么？\n```js\nconst state = reactive({ user: { name: 'vue' } })\nconst rawUser = toRaw(state.user)\nrawUser.name = 'react'\nconsole.log(state.user.name)\n```\n关于输出与原因，下列说法**正确**的是：",
     "options": [
-      { "key": "A", "text": "打印 'vue'，因为 toRaw 返回的是原始对象的一份快照拷贝，改它不影响代理" },
-      { "key": "B", "text": "打印 'react'，但不会触发依赖该属性的 effect——直接改原始对象绕过了 Proxy 的 set 拦截" },
-      { "key": "C", "text": "打印 'react' 且会正常触发 effect，因为 toRaw 后的对象仍然共享同一份 reactive 元数据" },
-      { "key": "D", "text": "打印 'vue'，因为 state.user 每次访问都会新建一个代理，rawUser 与它根本不是同一个对象" }]
-    ,
-    "answer": { "keys": ["B"] },
-    "analysis": "`toRaw` 返回的是挂在 `__v_raw` 上的**原始对象本身**而非拷贝，所以 `state.user`（懒代理产物）与 `rawUser` 指向同一 target，写入会反映到 `state.user.name` → 排除 A/D；但直接操作原始对象没有经过 Proxy 的 `set` trap，不会调用 `trigger`，依赖收集链路被完全绕过 → C 错 B 对。D 的前半句也错：同一层访问的代理是被 WeakMap 缓存复用的，不是每次都新建。",
-    "gapCheck": ["易漏点：toRaw 只跳过当前层的代理，嵌套层若已被代理仍要逐层 toRaw", "常见误区：把『视图不更新』归因成『数据没变』，实际数据已变、只是没人被 trigger", "排查线索：Vue devtools 里能看到值变了但组件没重渲染，就该怀疑 toRaw/markRaw/解构丢响应"],
-    "knowledgeLinks": {
-      "prereq": ["fe.vue.reactivity.proxify"],
-      "related": ["fe.vue.reactivity.ref-family", "fe.vue.compiler.block-tree"],
-      "followUps": ["那 toRaw 的设计用途到底是什么？（脱离响应式做持久化/第三方库传参，而不是拿来写）", "markRaw 和 shallowReactive 都能避免深层代理，怎么选？", "为什么 reactive 内部要用 WeakMap 缓存代理？"]
+      {
+        "key": "A",
+        "text": "打印 'vue'，因为 toRaw 返回的是原始对象的一份快照拷贝，改它不影响代理"
+      },
+      {
+        "key": "B",
+        "text": "打印 'react'，但不会触发依赖该属性的 effect——直接改原始对象绕过了 Proxy 的 set 拦截"
+      },
+      {
+        "key": "C",
+        "text": "打印 'react' 且会正常触发 effect，因为 toRaw 后的对象仍然共享同一份 reactive 元数据"
+      },
+      {
+        "key": "D",
+        "text": "打印 'vue'，因为 state.user 每次访问都会新建一个代理，rawUser 与它根本不是同一个对象"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
     },
-    "resources": [{ "title": "Vue 官方 API·reactivity-advanced", "digest": "toRaw 明确说明用于『读取原始值』（高性能批量读写或存入第三方库），直接改原始对象会绕过代理导致不同步；markRaw 将对象标记为不可被转为代理。" }],
+    "analysis": "`toRaw` 返回的是挂在 `__v_raw` 上的**原始对象本身**而非拷贝，所以 `state.user`（懒代理产物）与 `rawUser` 指向同一 target，写入会反映到 `state.user.name` → 排除 A/D；但直接操作原始对象没有经过 Proxy 的 `set` trap，不会调用 `trigger`，依赖收集链路被完全绕过 → C 错 B 对。D 的前半句也错：同一层访问的代理是被 WeakMap 缓存复用的，不是每次都新建。",
+    "gapCheck": [
+      "易漏点：toRaw 只跳过当前层的代理，嵌套层若已被代理仍要逐层 toRaw",
+      "常见误区：把『视图不更新』归因成『数据没变』，实际数据已变、只是没人被 trigger",
+      "排查线索：Vue devtools 里能看到值变了但组件没重渲染，就该怀疑 toRaw/markRaw/解构丢响应"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.reactivity.proxify"
+      ],
+      "related": [
+        "fe.vue.reactivity.ref-family",
+        "fe.vue.compiler.block-tree"
+      ],
+      "followUps": [
+        "那 toRaw 的设计用途到底是什么？（脱离响应式做持久化/第三方库传参，而不是拿来写）",
+        "markRaw 和 shallowReactive 都能避免深层代理，怎么选？",
+        "为什么 reactive 内部要用 WeakMap 缓存代理？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "Vue 官方 API·reactivity-advanced",
+        "digest": "toRaw 明确说明用于『读取原始值』（高性能批量读写或存入第三方库），直接改原始对象会绕过代理导致不同步；markRaw 将对象标记为不可被转为代理。"
+      }
+    ],
     "openBookAllowed": false,
-    "source": { "kind": "official", "url": "https://vuejs.org/api/reactivity-advanced.html", "retrievedAt": "2026-11-09", "note": "toRaw / markRaw 小节，Vue 3.5 文档" },
-    "tags": ["高频", "响应式边界", "陷阱题"],
+    "source": {
+      "kind": "official",
+      "url": "https://vuejs.org/api/reactivity-advanced.html",
+      "retrievedAt": "2026-11-09",
+      "note": "toRaw / markRaw 小节，Vue 3.5 文档"
+    },
+    "tags": [
+      "高频",
+      "响应式边界",
+      "陷阱题"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "接上题：如果先把 `rawUser.name = 'react'` 换成 `trigger(toRaw(state))` 之后再加一行手动 `triggerRef` 风格的调用（伪代码 `trigger(state, 'user')`），视图会更新吗？请说明 trigger 按 key+子 dep 触发时为什么对『改了孙子层』常常无效。", "analysis": "trigger 需要命中『被收集过的那条 dep』。effect 之前收集的是 state.user 这一层的 key dep 以及 user 代理内部 name 的 dep；直接改 raw 的 name 没有走到 user 代理的 set，name dep 不会被 trigger。对 state 顶层 trigger 只会触发 ITERATE/key('user') 相关订阅者，name 的订阅者不在其中——这正是 trigger API 要求传精确 (target, type, key) 的原因。" },
-      { "angle": "反向问", "stem": "反过来：`const raw = toRaw(state); raw.user = { name: 'new' }` 这样给原始对象整体替换一层 user，effect 会触发吗？和改 raw 内部属性有何区别？", "analysis": "也不触发。trigger 只发生在代理对象的 trap 里，raw 上没有代理，任何写入都不会通知。区别只在影响面：替换 raw.user 会让后续经代理访问读到新值（同一 target），而 effect 依旧不知道。两个场景共同结论：toRaw 适合读，不适合写。" }
+      {
+        "angle": "加约束",
+        "stem": "接上题：如果先把 `rawUser.name = 'react'` 换成 `trigger(toRaw(state))` 之后再加一行手动 `triggerRef` 风格的调用（伪代码 `trigger(state, 'user')`），视图会更新吗？请说明 trigger 按 key+子 dep 触发时为什么对『改了孙子层』常常无效。",
+        "analysis": "trigger 需要命中『被收集过的那条 dep』。effect 之前收集的是 state.user 这一层的 key dep 以及 user 代理内部 name 的 dep；直接改 raw 的 name 没有走到 user 代理的 set，name dep 不会被 trigger。对 state 顶层 trigger 只会触发 ITERATE/key('user') 相关订阅者，name 的订阅者不在其中——这正是 trigger API 要求传精确 (target, type, key) 的原因。"
+      },
+      {
+        "angle": "反向问",
+        "stem": "反过来：`const raw = toRaw(state); raw.user = { name: 'new' }` 这样给原始对象整体替换一层 user，effect 会触发吗？和改 raw 内部属性有何区别？",
+        "analysis": "也不触发。trigger 只发生在代理对象的 trap 里，raw 上没有代理，任何写入都不会通知。区别只在影响面：替换 raw.user 会让后续经代理访问读到新值（同一 target），而 effect 依旧不知道。两个场景共同结论：toRaw 适合读，不适合写。"
+      }
     ]
   },
   {
@@ -34,19 +85,44 @@
     "type": "judge",
     "difficulty": 2,
     "stem": "判断正误：`reactive()` 拿到对象后会立即递归地把所有嵌套属性都转换成代理，这样才能保证深层属性改动可被追踪。",
-    "answer": { "judge": false },
+    "answer": {
+      "judge": false
+    },
     "analysis": "错。reactive 是**懒代理**：createReactiveObject 只代理最外层；get trap 里读到 value 是 object 且 shouldTrack 时才 `isReadonly ? readonly(value) : reactive(value)`，嵌套层在被访问的那一刻才创建代理并缓存进 proxyMap。未被任何 effect 读到的分支永远不产生代理，这是 3.x 相对 Vue2 递归 defineProperty 的关键性能改进之一。",
-    "gapCheck": ["易漏点：懒代理意味着『没被读过就没有响应式』，动态新增的超深分支首次访问才被纳入", "常见误区：把 shallowReactive（只代理第一层、永不向下）当成懒代理（访问到才代理）", "追问延伸：为什么 for...in / Object.keys 也能让未访问过的 key 建立 ITERATE 依赖？"],
+    "gapCheck": [
+      "易漏点：懒代理意味着『没被读过就没有响应式』，动态新增的超深分支首次访问才被纳入",
+      "常见误区：把 shallowReactive（只代理第一层、永不向下）当成懒代理（访问到才代理）",
+      "追问延伸：为什么 for...in / Object.keys 也能让未访问过的 key 建立 ITERATE 依赖？"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.reactivity.proxify"],
-      "related": ["fe.vue.reactivity.effect-dep", "fe.vue.perf.granularity-tools"],
-      "followUps": ["那 Vue2 的 Object.defineProperty 是怎么处理嵌套的？代价是什么？", "懒代理对内存和首屏有什么具体收益？", "什么情况下你会主动用 shallowReactive 而不是默认 reactive？"]
+      "prereq": [
+        "fe.vue.reactivity.proxify"
+      ],
+      "related": [
+        "fe.vue.reactivity.effect-dep",
+        "fe.vue.perf.granularity-tools"
+      ],
+      "followUps": [
+        "那 Vue2 的 Object.defineProperty 是怎么处理嵌套的？代价是什么？",
+        "懒代理对内存和首屏有什么具体收益？",
+        "什么情况下你会主动用 shallowReactive 而不是默认 reactive？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "基于 @vue/reactivity createReactiveObject 懒代理实现编写" },
-    "tags": ["必考", "响应式原理"],
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 @vue/reactivity createReactiveObject 懒代理实现编写"
+    },
+    "tags": [
+      "必考",
+      "响应式原理"
+    ],
     "variants": [
-      { "angle": "换问法", "stem": "判断正误：`shallowReactive(obj)` 与默认的 `reactive(obj)` 一样都是懒代理，区别仅在于前者访问到嵌套对象时也不再向下创建代理。", "analysis": "对。两者都不在构造时递归；shallowReactive 的 get trap 里没有『object 就转代理』这一步（baseHandlers 的 get 中 isShallow 分支直接返回值），所以嵌套对象永远是裸对象，改深层不会触发。该说法准确区分了『懒』与『浅』两个概念。" }
+      {
+        "angle": "换问法",
+        "stem": "判断正误：`shallowReactive(obj)` 与默认的 `reactive(obj)` 一样都是懒代理，区别仅在于前者访问到嵌套对象时也不再向下创建代理。",
+        "analysis": "对。两者都不在构造时递归；shallowReactive 的 get trap 里没有『object 就转代理』这一步（baseHandlers 的 get 中 isShallow 分支直接返回值），所以嵌套对象永远是裸对象，改深层不会触发。该说法准确区分了『懒』与『浅』两个概念。"
+      }
     ]
   },
   {
@@ -56,25 +132,74 @@
     "difficulty": 3,
     "stem": "关于 Vue 3.4 把 effect 依赖改为数组（deps/depsFlags + 版本计数）、3.5 进一步重构为 Sub/Dep/Link 双向链表，下列说法**正确**的有：",
     "options": [
-      { "key": "A", "text": "3.4 起 effect 不再无脑全量重跑：依赖版本未变的普通 watcher 会被跳过（skipped），computed 则只走 dirty 检查" },
-      { "key": "B", "text": "3.5 的双链表让依赖关系增删从 Set 的哈希开销降为 O(1) 指针操作，并显著降低了内存占用" },
-      { "key": "C", "text": "3.5 重构后 watch 的 source getter 不再做深拷贝快照，因此所有 deep watcher 的行为都发生了破坏性变更" },
-      { "key": "D", "text": "官方口径是这次重构『没有预期的破坏性变更』，主要收益是内存与性能优化（官方给出过依赖密集场景大幅提升的数据）" }]
-    ,
-    "answer": { "keys": ["A", "B", "D"] },
-    "analysis": "A 对：3.4 重写响应式的核心就是 version counting + depsFlags 跳过未变化依赖；B 对：3.5 Release Notes 明确描述 Sub/Dep/Link 双向链表取代原结构，O(1) 插删、内存下降（社区实测约 56%）；D 对：3.5 公告原文强调 no breaking changes expected。C 错：deep watcher 仍保留快照比对语义，行为兼容；『所有 deep watcher 破坏性变更』与官方口径相反。",
-    "gapCheck": ["易漏点：能报出官方数字更好——3.5 公告称依赖多场景性能提升最高 176%、内存降约 56%", "常见误区：把 3.4 的『effect 数组化』和 3.5 的『双链表』混成同一次重构", "加分项：说出 activeSub/activeLink 栈支持嵌套 effect、computed 靠 dep 版本传播失效"],
-    "knowledgeLinks": {
-      "prereq": ["fe.vue.reactivity.effect-dep"],
-      "related": ["fe.vue.ecosystem.vue-versions", "fe.vue.reactivity.computed-watch"],
-      "followUps": ["双链表里的 Link 同时挂在 Sub 链和 Dep 链上是为了解决什么问题？（两侧 O(1) 摘除 + 遍历顺序稳定）", "为什么 3.4 要先用数组替代 Set？（Set 遍历与删除开销、无法按位标记）", "这套演进和 alien-signals 的 topo order 有什么关系？"]
+      {
+        "key": "A",
+        "text": "3.4 起 effect 不再无脑全量重跑：依赖版本未变的普通 watcher 会被跳过（skipped），computed 则只走 dirty 检查"
+      },
+      {
+        "key": "B",
+        "text": "3.5 的双链表让依赖关系增删从 Set 的哈希开销降为 O(1) 指针操作，并显著降低了内存占用"
+      },
+      {
+        "key": "C",
+        "text": "3.5 重构后 watch 的 source getter 不再做深拷贝快照，因此所有 deep watcher 的行为都发生了破坏性变更"
+      },
+      {
+        "key": "D",
+        "text": "官方口径是这次重构『没有预期的破坏性变更』，主要收益是内存与性能优化（官方给出过依赖密集场景大幅提升的数据）"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
     },
-    "resources": [{ "title": "Announcing Vue 3.5（官方博客）", "digest": "介绍 Sub/Dep 双链表重构：Link 节点同时连接订阅者与依赖，O(1) 添加删除、分支依赖自动清理；给出内存 -56%、大型列表场景性能提升可达 176% 的基准数据，并声明无预期破坏性变更。" }],
+    "analysis": "A 对：3.4 重写响应式的核心就是 version counting + depsFlags 跳过未变化依赖；B 对：3.5 Release Notes 明确描述 Sub/Dep/Link 双向链表取代原结构，O(1) 插删、内存下降（社区实测约 56%）；D 对：3.5 公告原文强调 no breaking changes expected。C 错：deep watcher 仍保留快照比对语义，行为兼容；『所有 deep watcher 破坏性变更』与官方口径相反。",
+    "gapCheck": [
+      "易漏点：能报出官方数字更好——3.5 公告称依赖多场景性能提升最高 176%、内存降约 56%",
+      "常见误区：把 3.4 的『effect 数组化』和 3.5 的『双链表』混成同一次重构",
+      "加分项：说出 activeSub/activeLink 栈支持嵌套 effect、computed 靠 dep 版本传播失效"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.reactivity.effect-dep"
+      ],
+      "related": [
+        "fe.vue.ecosystem.vue-versions",
+        "fe.vue.reactivity.computed-watch"
+      ],
+      "followUps": [
+        "双链表里的 Link 同时挂在 Sub 链和 Dep 链上是为了解决什么问题？（两侧 O(1) 摘除 + 遍历顺序稳定）",
+        "为什么 3.4 要先用数组替代 Set？（Set 遍历与删除开销、无法按位标记）",
+        "这套演进和 alien-signals 的 topo order 有什么关系？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "Announcing Vue 3.5（官方博客）",
+        "digest": "介绍 Sub/Dep 双链表重构：Link 节点同时连接订阅者与依赖，O(1) 添加删除、分支依赖自动清理；给出内存 -56%、大型列表场景性能提升可达 176% 的基准数据，并声明无预期破坏性变更。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "official", "url": "https://blog.vuejs.org/posts/vue-3-5", "retrievedAt": "2026-11-09", "note": "Vue 3.5 Release Notes 响应式重构章节" },
-    "tags": ["2026新趋势", "源码向", "版本演进"],
+    "source": {
+      "kind": "official",
+      "url": "https://blog.vuejs.org/posts/vue-3-5",
+      "retrievedAt": "2026-11-09",
+      "note": "Vue 3.5 Release Notes 响应式重构章节"
+    },
+    "tags": [
+      "2026新趋势",
+      "源码向",
+      "版本演进"
+    ],
     "variants": [
-      { "angle": "追问延伸", "stem": "面试官接着问：既然 3.5 已经是双链表，为什么社区还在讨论把它再换成 alien-signals（3.6 探索方向）？双链表还差在哪？", "analysis": "双链表解决的是『增删依赖的存储成本』，但更新传播仍是 push 式遍历订阅者，菱形依赖下需要多次版本检查去重。alien-signals 用全局版本 + 拓扑序（depth-first propagation + pull 阶段）把『同一信号被多个下游感知』的冗余传播降到 O(变化路径)，批量一致性更强，也是 SolidJS 快的原因。答题要点：指出 push 遍历 vs 拓扑拉取的差异，以及 Vue 团队一贯的渐进替换风格。" }
+      {
+        "angle": "追问延伸",
+        "stem": "面试官接着问：既然 3.5 已经是双链表，为什么社区还在讨论把它再换成 alien-signals（3.6 探索方向）？双链表还差在哪？",
+        "analysis": "双链表解决的是『增删依赖的存储成本』，但更新传播仍是 push 式遍历订阅者，菱形依赖下需要多次版本检查去重。alien-signals 用全局版本 + 拓扑序（depth-first propagation + pull 阶段）把『同一信号被多个下游感知』的冗余传播降到 O(变化路径)，批量一致性更强，也是 SolidJS 快的原因。答题要点：指出 push 遍历 vs 拓扑拉取的差异，以及 Vue 团队一贯的渐进替换风格。"
+      }
     ]
   },
   {
@@ -83,19 +208,61 @@
     "type": "blank",
     "difficulty": 3,
     "stem": "补全关于迭代依赖的说法：对 `reactive(new Map())`，effect 里调用 `map.get(k)` 收集的是 key 维度的依赖，配合 Vue 3.5 的 Reactive Iterator，`map.set(k, v)` 只会触发收集过该 ______ 以及收集过 ______ 这两个特殊 Symbol 的 effect；而对 reactive 数组，`for (const x of arr)` 或展开 `[...arr]` 走的是数组迭代器，收集的是数组级的 ______ 依赖，任何一个元素变化都可能重新执行。",
-    "answer": { "blanks": ["具体key", "ITERATE_KEY", "ITERATE"], "synonyms": { "ITERATE_KEY": ["迭代symbol", "Symbol.iterator对应key"], "ITERATE": ["数组级iterate", "ARRAY_ITERATE_KEY"] } },
+    "answer": {
+      "blanks": [
+        "具体key",
+        "ITERATE_KEY",
+        "ITERATE"
+      ],
+      "synonyms": {
+        "ITERATE_KEY": [
+          "迭代symbol",
+          "Symbol.iterator对应key"
+        ],
+        "ITERATE": [
+          "数组级iterate",
+          "ARRAY_ITERATE_KEY"
+        ]
+      }
+    },
     "analysis": "MAP_KEY/VALUE_ITERATE 与 ITERATE_KEY 是 Map/Set 响应式的四个特殊键：get/set/delete 按 key 建 dep，has/clear/迭代按 ITERATE_KEY 建 dep。3.5 的对象迭代器让 forEach/entries 等只按当前 key 精确触发（公告原文举例：只有迭代器用到的 key 变化才触发）。数组的迭代器（values/entries/Symbol.iterator）历史上就统一收集 ARRAY_ITERATE_KEY，粒度粗——这是『改一个元素整个遍历 effect 重跑』的根源，v-for 模板编译成 renderItem 按下标读所以不受此限。",
-    "gapCheck": ["易漏点：区分 ARRAY_ITERATE_KEY（数组级）与 ITERATE_KEY（对象/Map 级）是两道不同的 dep", "常见误区：以为 3.5 之后数组也按键精确触发——对象迭代器精确了，数组仍是数组级", "同义兜底：答『迭代 symbol』『Array_Iterate_Key』都应判对"],
+    "gapCheck": [
+      "易漏点：区分 ARRAY_ITERATE_KEY（数组级）与 ITERATE_KEY（对象/Map 级）是两道不同的 dep",
+      "常见误区：以为 3.5 之后数组也按键精确触发——对象迭代器精确了，数组仍是数组级",
+      "同义兜底：答『迭代 symbol』『Array_Iterate_Key』都应判对"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.reactivity.effect-dep"],
-      "related": ["fe.vue.reactivity.proxify", "fe.vue.perf.granularity-tools"],
-      "followUps": ["为什么数组迭代不做按 index 精确化？（index 随 push/splice 位移，精确化成本高于收益）", "v-for 为什么不经过 Symbol.iterator？（renderList 直接读 length+下标，天然按 index 收集）", "Map 的 size 属性和 clear 分别触发哪个 key？"]
+      "prereq": [
+        "fe.vue.reactivity.effect-dep"
+      ],
+      "related": [
+        "fe.vue.reactivity.proxify",
+        "fe.vue.perf.granularity-tools"
+      ],
+      "followUps": [
+        "为什么数组迭代不做按 index 精确化？（index 随 push/splice 位移，精确化成本高于收益）",
+        "v-for 为什么不经过 Symbol.iterator？（renderList 直接读 length+下标，天然按 index 收集）",
+        "Map 的 size 属性和 clear 分别触发哪个 key？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "official", "url": "https://blog.vuejs.org/posts/vue-3-5", "retrievedAt": "2026-11-09", "note": "3.5 公告 Reactive Iterator 段：iterating over reactive objects now triggers only on affected keys" },
-    "tags": ["源码向", "3.5特性", "细节控"],
+    "source": {
+      "kind": "official",
+      "url": "https://blog.vuejs.org/posts/vue-3-5",
+      "retrievedAt": "2026-11-09",
+      "note": "3.5 公告 Reactive Iterator 段：iterating over reactive objects now triggers only on affected keys"
+    },
+    "tags": [
+      "源码向",
+      "3.5特性",
+      "细节控"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "`const m = reactive(new Map([['a',1]])); watchEffect(() => console.log(m.has('b')))`。第一次执行后分别执行 (1) `m.set('b', 2)` (2) `m.set('z', 9)`，哪种会让 watchEffect 重新执行？答：______；原因是 has() 只收集了 key 'b' 与 ITERATE_KEY，set('z') 不动 ______ 所以不触发。", "analysis": "只有 (1) 触发。has 的 collection 逻辑：track(target, HAS, key)。set('b') 时若 key 从不存在变存在会 trigger(HAS, 'b') 与 ITERATE_KEY；set('z') 只 trigger('z') 与 ITERATE_KEY——has('b') 没收集 ITERATE_KEY 吗？has 只 track key='b'，不 track ITERATE_KEY（size/clear/迭代才 track ITERATE），所以 set('z') 完全不碰 'b' 的 dep。两空分别填『(1)/m.set(b,2)』与『ITERATE_KEY 与 b 的 key dep』。" }
+      {
+        "angle": "换场景",
+        "stem": "`const m = reactive(new Map([['a',1]])); watchEffect(() => console.log(m.has('b')))`。第一次执行后分别执行 (1) `m.set('b', 2)` (2) `m.set('z', 9)`，哪种会让 watchEffect 重新执行？答：______；原因是 has() 只收集了 key 'b' 与 ITERATE_KEY，set('z') 不动 ______ 所以不触发。",
+        "analysis": "只有 (1) 触发。has 的 collection 逻辑：track(target, HAS, key)。set('b') 时若 key 从不存在变存在会 trigger(HAS, 'b') 与 ITERATE_KEY；set('z') 只 trigger('z') 与 ITERATE_KEY——has('b') 没收集 ITERATE_KEY 吗？has 只 track key='b'，不 track ITERATE_KEY（size/clear/迭代才 track ITERATE），所以 set('z') 完全不碰 'b' 的 dep。两空分别填『(1)/m.set(b,2)』与『ITERATE_KEY 与 b 的 key dep』。"
+      }
     ]
   },
   {
@@ -104,26 +271,69 @@
     "type": "short",
     "difficulty": 2,
     "stem": "面试官要求结合业务说清『Vue2 的 Object.defineProperty 到底有哪些做不到，逼得 Vue3 换 Proxy』。请列出至少 4 条硬伤，每条附一个可感知的现象或代码场景。",
-    "answer": { "ref": "①监听不到新增/删除属性：obj.newProp = 1 或 delete obj.a 不会触发 setter，必须 Vue.set/$delete，表现为往 reactive 对象塞新字段后视图不更新（Vue2 里后端返回的动态字段常踩）。②监听不到数组索引赋值与 length：arr[0]=x、arr.length=0 无感，只能靠变异方法打补丁（push/splice 重写），arr[index] 直接赋值视图不动。③初始化必须递归 defineProperty 全部属性：大对象首屏开销大、新增深层字段不在监听名单，与 Proxy 懒代理对比鲜明。④Map/Set/Date 等集合类型完全无法按 key 追踪，只能整体替换引用。⑤闭包陷阱：getter 里递归读子对象才能收集依赖，无法表达 ITERATE_KEY 这类『遍历语义』的依赖，深度遍历成本 O(n)。Proxy 方案：任意 trap 全拦截 + 懒代理 + 按 key/迭代建 dep，上述全部解决；代价是不支持 IE11、存在 this/原型语义差异（如 Date.getter 需修正）。" },
+    "answer": {
+      "ref": "①监听不到新增/删除属性：obj.newProp = 1 或 delete obj.a 不会触发 setter，必须 Vue.set/$delete，表现为往 reactive 对象塞新字段后视图不更新（Vue2 里后端返回的动态字段常踩）。②监听不到数组索引赋值与 length：arr[0]=x、arr.length=0 无感，只能靠变异方法打补丁（push/splice 重写），arr[index] 直接赋值视图不动。③初始化必须递归 defineProperty 全部属性：大对象首屏开销大、新增深层字段不在监听名单，与 Proxy 懒代理对比鲜明。④Map/Set/Date 等集合类型完全无法按 key 追踪，只能整体替换引用。⑤闭包陷阱：getter 里递归读子对象才能收集依赖，无法表达 ITERATE_KEY 这类『遍历语义』的依赖，深度遍历成本 O(n)。Proxy 方案：任意 trap 全拦截 + 懒代理 + 按 key/迭代建 dep，上述全部解决；代价是不支持 IE11、存在 this/原型语义差异（如 Date.getter 需修正）。"
+    },
     "scoringPoints": [
-      { "point": "指出新增/删除属性盲区并给出现象（Vue.set 的存在即为证据）", "weight": 2 },
-      { "point": "指出数组索引/length 赋值监听不到，只能重写变异方法", "weight": 2 },
-      { "point": "指出初始化递归 defineProperty 的性能问题，并能对照 Vue3 懒代理", "weight": 2 },
-      { "point": "提到 Map/Set 等内置集合类型无法按 key 观测", "weight": 1 },
-      { "point": "顺带讲 Proxy 自身的代价（IE11、invariant/this 语义），体现权衡观", "weight": 1 }
+      {
+        "point": "指出新增/删除属性盲区并给出现象（Vue.set 的存在即为证据）",
+        "weight": 2
+      },
+      {
+        "point": "指出数组索引/length 赋值监听不到，只能重写变异方法",
+        "weight": 2
+      },
+      {
+        "point": "指出初始化递归 defineProperty 的性能问题，并能对照 Vue3 懒代理",
+        "weight": 2
+      },
+      {
+        "point": "提到 Map/Set 等内置集合类型无法按 key 观测",
+        "weight": 1
+      },
+      {
+        "point": "顺带讲 Proxy 自身的代价（IE11、invariant/this 语义），体现权衡观",
+        "weight": 1
+      }
     ],
     "analysis": "本题考『为什么换』而不是『是什么』。五条硬伤里前两条（新增属性、数组索引）是面试必杀线，能用 Vue.set 的存在反证最好。递归开销与 Map/Set 属于第二梯队，能对照 Vue3 方案作答即满分档。提到 Proxy 局限（不支持 IE、Date/Map 原生 getter 绑死 this 导致 Vue 要做 patch）是把回答从背诵抬到理解层的关键。",
-    "gapCheck": ["易漏点：只背『Proxy 更先进』却说不出任何一个 defineProperty 做不到的具体现象", "常见误区：把 Vue2 数组响应式说成『完全失效』——它重写了 7 个变异方法，只是索引赋值失效", "高分细节：Vue2 靠 Object.freeze 处理不可扩展对象、靠 __ob__ 挂 Observer，这些补丁痕迹正是旧方案的自供状"],
+    "gapCheck": [
+      "易漏点：只背『Proxy 更先进』却说不出任何一个 defineProperty 做不到的具体现象",
+      "常见误区：把 Vue2 数组响应式说成『完全失效』——它重写了 7 个变异方法，只是索引赋值失效",
+      "高分细节：Vue2 靠 Object.freeze 处理不可扩展对象、靠 __ob__ 挂 Observer，这些补丁痕迹正是旧方案的自供状"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.reactivity.proxify"],
-      "related": ["fe.vue.reactivity.effect-dep", "fe.vue.ecosystem.vue-vs-react"],
-      "followUps": ["Proxy 有哪 13 种 trap？Vue 实际用了哪几种、各干什么？", "既然 Proxy 拦得住新增属性，为什么还要 markRaw？", "Date/RegExp 放进 reactive 会发生什么？（Vue 对它们 special-case，改了也不触发）"]
+      "prereq": [
+        "fe.vue.reactivity.proxify"
+      ],
+      "related": [
+        "fe.vue.reactivity.effect-dep",
+        "fe.vue.ecosystem.vue-vs-react"
+      ],
+      "followUps": [
+        "Proxy 有哪 13 种 trap？Vue 实际用了哪几种、各干什么？",
+        "既然 Proxy 拦得住新增属性，为什么还要 markRaw？",
+        "Date/RegExp 放进 reactive 会发生什么？（Vue 对它们 special-case，改了也不触发）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://jishuzhan.net/article/1954084595732885505", "retrievedAt": "2026-11-09", "note": "Vue 3.5 响应式设计全解析，含 defineProperty→Proxy 演进动机" },
-    "tags": ["高频", "必考", "对比题"],
+    "source": {
+      "kind": "web",
+      "url": "https://jishuzhan.net/article/1954084595732885505",
+      "retrievedAt": "2026-11-09",
+      "note": "Vue 3.5 响应式设计全解析，含 defineProperty→Proxy 演进动机"
+    },
+    "tags": [
+      "高频",
+      "必考",
+      "对比题"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "反问式追问：『Proxy 也不是银弹』——请说出 reactive 用 Proxy 之后仍然存在的 3 个坑（提示：不是讲 defineProperty）。", "analysis": "标准坑位：①解构丢失响应性（const {a}=state 拿走的是值，需 toRefs）；②原始对象陷阱：对 raw 读写绕过代理（toRaw 场景）；③整体替换 reactive 对象断链（state = reactive({...}) 后旧引用失联，模板里要用 Object.assign 或改用 ref）；④Map/Set 的 this 语义要求 Vue patch 迭代器、class 实例私有字段不响应；⑤Date/RegExp/typed array 不被代理拦截内部状态。能讲出『为什么 Proxy 解决不了解构』（代理的是容器本身，取出的值脱离容器）即为深入。" }
+      {
+        "angle": "反向问",
+        "stem": "反问式追问：『Proxy 也不是银弹』——请说出 reactive 用 Proxy 之后仍然存在的 3 个坑（提示：不是讲 defineProperty）。",
+        "analysis": "标准坑位：①解构丢失响应性（const {a}=state 拿走的是值，需 toRefs）；②原始对象陷阱：对 raw 读写绕过代理（toRaw 场景）；③整体替换 reactive 对象断链（state = reactive({...}) 后旧引用失联，模板里要用 Object.assign 或改用 ref）；④Map/Set 的 this 语义要求 Vue patch 迭代器、class 实例私有字段不响应；⑤Date/RegExp/typed array 不被代理拦截内部状态。能讲出『为什么 Proxy 解决不了解构』（代理的是容器本身，取出的值脱离容器）即为深入。"
+      }
     ]
   },
   {
@@ -132,27 +342,75 @@
     "type": "essay",
     "difficulty": 4,
     "stem": "架构论述题：以『一次 list.push(item) 之后谁被通知、如何被通知』为主线，完整论述 Vue2、Vue3.0~3.4、Vue3.5 三个时代响应式系统的差异：依赖怎么存、通知怎么走、computed 怎么失效、内存怎么回收。要求讲到具体数据结构名词，并给出你对每次演进『解决了什么核心矛盾』的判断。",
-    "answer": { "ref": "参考骨架：【Vue2】Observer 递归 defineProperty；dep 挂每个 key 上（闭包持有），订阅者是 Watcher（组件/m/computed 各一）；push 被重写 → ob.dep.notify() 通知该数组的每一个订阅 Watcher（整数组级粗粒度），Watcher.update 进 nextTick 队列 queueFlush；computed 也是 Watcher，dirty 靠 lazy+queue 重算；内存问题：递归 defineProperty 常驻、订阅者与被观察对象互相引用靠 dep 数组 splice 手动拆。【3.0~3.4】Proxy 懒代理 + track(target,type,key)→targetMap(WeakMap)→dep(Set<effect>)；effect.run 前 cleanup 清空旧依赖再重建，天然解决分支残留；computed = effect.scheduler 只标 dirty + _dirtyLevels 计数，push→trigger 沿 dep 调 scheduler，pre-flush job 排序执行；3.4 加 version 计数：dep 带全局版本，effect.depsFlags 记录哪些 dep 变了，全没变就 skip。【3.5】Sub/Dep/Link：每个 Link 同时挂进 Sub 的订阅链和 Dep 的发布者链（双向链表），add/remove O(1)，分支依赖靠 activeLink 游标惰性回收；trigger 遍历 Dep 的 sub 链调 notify；computed 失效改为沿 dep 逐级 bump version + lazy push，watch 回调阶段 pull 最新值再 diff（deep 仍快照）；内存：链表节点复用数组池，官方口径内存 -56%。【演进判断】三次重构解决的核心矛盾依次是：①拦截能力（defineProperty 表达不了新增/数组/迭代）②通知成本与幂等（Set 去重但增删贵、无版本就全量重跑）③订阅关系的存储与生命周期（对象图大时 Set+闭包驻留，链表 O(1)+可惰性清扫）。加分：连到 alien-signals 拓扑序与 Vapor 的动机。" },
+    "answer": {
+      "ref": "参考骨架：【Vue2】Observer 递归 defineProperty；dep 挂每个 key 上（闭包持有），订阅者是 Watcher（组件/m/computed 各一）；push 被重写 → ob.dep.notify() 通知该数组的每一个订阅 Watcher（整数组级粗粒度），Watcher.update 进 nextTick 队列 queueFlush；computed 也是 Watcher，dirty 靠 lazy+queue 重算；内存问题：递归 defineProperty 常驻、订阅者与被观察对象互相引用靠 dep 数组 splice 手动拆。【3.0~3.4】Proxy 懒代理 + track(target,type,key)→targetMap(WeakMap)→dep(Set<effect>)；effect.run 前 cleanup 清空旧依赖再重建，天然解决分支残留；computed = effect.scheduler 只标 dirty + _dirtyLevels 计数，push→trigger 沿 dep 调 scheduler，pre-flush job 排序执行；3.4 加 version 计数：dep 带全局版本，effect.depsFlags 记录哪些 dep 变了，全没变就 skip。【3.5】Sub/Dep/Link：每个 Link 同时挂进 Sub 的订阅链和 Dep 的发布者链（双向链表），add/remove O(1)，分支依赖靠 activeLink 游标惰性回收；trigger 遍历 Dep 的 sub 链调 notify；computed 失效改为沿 dep 逐级 bump version + lazy push，watch 回调阶段 pull 最新值再 diff（deep 仍快照）；内存：链表节点复用数组池，官方口径内存 -56%。【演进判断】三次重构解决的核心矛盾依次是：①拦截能力（defineProperty 表达不了新增/数组/迭代）②通知成本与幂等（Set 去重但增删贵、无版本就全量重跑）③订阅关系的存储与生命周期（对象图大时 Set+闭包驻留，链表 O(1)+可惰性清扫）。加分：连到 alien-signals 拓扑序与 Vapor 的动机。"
+    },
     "scoringPoints": [
-      { "point": "Vue2 部分讲出递归 defineProperty、dep 挂 key、Watcher 订阅与数组重写 notify 的粗粒度", "weight": 2 },
-      { "point": "3.x 部分讲出 targetMap 三层结构与 effect 作为订阅者、cleanup 重建依赖", "weight": 2 },
-      { "point": "讲出 3.4 版本计数/skip 机制或 3.5 Sub/Dep/Link 任一具体数据结构", "weight": 2 },
-      { "point": "computed 失效链路：scheduler 标脏、版本传播或 _dirtyLevels，而非『computed 也会立刻重算』", "weight": 2 },
-      { "point": "对每次演进给出『解决的核心矛盾』级别的判断而非罗列 feature", "weight": 2 },
-      { "point": "能把线头延伸到 3.6 alien-signals/Vapor 或 Vue2↔3 内存回收差异之一", "weight": 1 }
+      {
+        "point": "Vue2 部分讲出递归 defineProperty、dep 挂 key、Watcher 订阅与数组重写 notify 的粗粒度",
+        "weight": 2
+      },
+      {
+        "point": "3.x 部分讲出 targetMap 三层结构与 effect 作为订阅者、cleanup 重建依赖",
+        "weight": 2
+      },
+      {
+        "point": "讲出 3.4 版本计数/skip 机制或 3.5 Sub/Dep/Link 任一具体数据结构",
+        "weight": 2
+      },
+      {
+        "point": "computed 失效链路：scheduler 标脏、版本传播或 _dirtyLevels，而非『computed 也会立刻重算』",
+        "weight": 2
+      },
+      {
+        "point": "对每次演进给出『解决的核心矛盾』级别的判断而非罗列 feature",
+        "weight": 2
+      },
+      {
+        "point": "能把线头延伸到 3.6 alien-signals/Vapor 或 Vue2↔3 内存回收差异之一",
+        "weight": 1
+      }
     ],
     "analysis": "考官要的是『一条主线穿三代』的叙事能力：同一次 push 在 Vue2 惊动整个数组的所有 Watcher；在 3.0 惊动收集过 ARRAY_ITERATE_KEY 的 effect；在 3.5 沿着 Dep 的 Sub 链 O(1) 摘挂并靠版本让无关订阅 skip。答不出具体结构名词（targetMap/Link/version）只说『更高效了』封顶 1 分档。常见失分是把 computed 说成立即重算、把 3.4 和 3.5 混为一谈。",
-    "gapCheck": ["易漏点：内存回收角度几乎没人答——3.5 的 Link 数组池与惰性清理正是重构的真实动机之一", "常见误区：认为 push 会通知『用到过这个数组的一切』；实际只通知收集过 ARRAY_ITERATE_KEY 的 effect", "结构要求：先立主线再分代展开，最后 30 秒收敛到『矛盾判断』，否则论述散架"],
+    "gapCheck": [
+      "易漏点：内存回收角度几乎没人答——3.5 的 Link 数组池与惰性清理正是重构的真实动机之一",
+      "常见误区：认为 push 会通知『用到过这个数组的一切』；实际只通知收集过 ARRAY_ITERATE_KEY 的 effect",
+      "结构要求：先立主线再分代展开，最后 30 秒收敛到『矛盾判断』，否则论述散架"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.reactivity.effect-dep", "fe.vue.reactivity.proxify"],
-      "related": ["fe.vue.ecosystem.vapor-signals", "fe.vue.scheduler.flush-jobs", "fe.vue.ecosystem.vue-vs-react"],
-      "followUps": ["如果让你设计，push 想做到按 index 精确通知，dep 结构要怎么改？", "版本计数的全局 dep 版本和 alien-signals 的全局 epoch 是同一个思想吗？", "这套响应式和 Svelte/Solid 的 signals 比，Vue 放弃了什么？"]
+      "prereq": [
+        "fe.vue.reactivity.effect-dep",
+        "fe.vue.reactivity.proxify"
+      ],
+      "related": [
+        "fe.vue.ecosystem.vapor-signals",
+        "fe.vue.scheduler.flush-jobs",
+        "fe.vue.ecosystem.vue-vs-react"
+      ],
+      "followUps": [
+        "如果让你设计，push 想做到按 index 精确通知，dep 结构要怎么改？",
+        "版本计数的全局 dep 版本和 alien-signals 的全局 epoch 是同一个思想吗？",
+        "这套响应式和 Svelte/Solid 的 signals 比，Vue 放弃了什么？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "official", "url": "https://blog.vuejs.org/posts/vue-3-5", "retrievedAt": "2026-11-09", "note": "3.5 公告 + 3.4 公告重写响应式章节综合；社区解读见 juejin.cn/post/7469978939273740322" },
-    "tags": ["大厂压轴", "源码深水区", "叙事能力"],
+    "source": {
+      "kind": "official",
+      "url": "https://blog.vuejs.org/posts/vue-3-5",
+      "retrievedAt": "2026-11-09",
+      "note": "3.5 公告 + 3.4 公告重写响应式章节综合；社区解读见 juejin.cn/post/7469978939273740322"
+    },
+    "tags": [
+      "大厂压轴",
+      "源码深水区",
+      "叙事能力"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "同主题但限定输出形式：用『一张对比表 + 三句演进结论』回答，禁止写成流水账段落。表格列建议：依赖存储结构 / 通知路径 / computed 失效 / 分支依赖清理 / 内存特征，行是 Vue2、3.4、3.5。", "analysis": "考察信息压缩能力。合格表格示例：依赖存储：闭包 dep 数组 | targetMap WeakMap→Set(effect) | Dep⇄Sub 经 Link 双向链；通知：Watcher.update 全量 | trigger 调 scheduler+版本 skip | Sub 链遍历+版本 skip；computed：lazy watcher | scheduler 标脏+_dirtyLevels | dep 版本 bump+lazy pull；分支清理：无（常驻）| run 前 cleanup | 惰性游标回收；内存：递归 DP 常驻 | Set 驻留 | 链表+池化 O(1)。三句结论围绕『拦截能力→通知成本→存储结构』递进。缺任一行扣该行权重。" }
+      {
+        "angle": "加约束",
+        "stem": "同主题但限定输出形式：用『一张对比表 + 三句演进结论』回答，禁止写成流水账段落。表格列建议：依赖存储结构 / 通知路径 / computed 失效 / 分支依赖清理 / 内存特征，行是 Vue2、3.4、3.5。",
+        "analysis": "考察信息压缩能力。合格表格示例：依赖存储：闭包 dep 数组 | targetMap WeakMap→Set(effect) | Dep⇄Sub 经 Link 双向链；通知：Watcher.update 全量 | trigger 调 scheduler+版本 skip | Sub 链遍历+版本 skip；computed：lazy watcher | scheduler 标脏+_dirtyLevels | dep 版本 bump+lazy pull；分支清理：无（常驻）| run 前 cleanup | 惰性游标回收；内存：递归 DP 常驻 | Set 驻留 | 链表+池化 O(1)。三句结论围绕『拦截能力→通知成本→存储结构』递进。缺任一行扣该行权重。"
+      }
     ]
   },
   {
@@ -161,27 +419,75 @@
     "type": "code",
     "difficulty": 3,
     "stem": "手写题（面试白板版，不要求跑通 Vue 全部特性）：实现迷你 `reactive(target)` 与 `effect(fn)`，要求：①get 收集依赖、set 改动后自动重跑 fn；②同一 key 不重复收集；③支持嵌套对象（懒代理即可）。请写出核心代码并口述你的 dep 结构。",
-    "answer": { "ref": "得分结构：targetMap = new WeakMap(target -> Map(key -> Set(fn)))；activeEffect 全局栈支持嵌套 effect；reactive 用 new Proxy + proxyMap 缓存；get：track 后返回值，值是 object 时 return reactive(v)（懒代理）；set：Reflect 兜底后 trigger 对应 key 的订阅集合并去重执行。附加分：cleanup（run 前先把自己从所有 deps 删掉）防分支泄漏；version 跳过；数组 push 走 ARRAY_ITERATE dep。", "code": "let activeEffect = null\nconst bucket = new WeakMap() // target -> Map<key, Set<effect>>\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = bucket.get(target)\n  if (!depsMap) bucket.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect) // Set 天然去重\n  activeEffect.deps.push(dep)\n}\nfunction trigger(target, key) {\n  const dep = bucket.get(target)?.get(key)\n  if (!dep) return\n  ;[...dep].forEach((fn) => { if (fn !== activeEffect) fn() })\n}\nconst proxyMap = new WeakMap()\nfunction reactive(target) {\n  if (proxyMap.has(target)) return proxyMap.get(target) // 复用代理\n  const proxy = new Proxy(target, {\n    get(t, k, r) {\n      track(t, k)\n      const v = Reflect.get(t, k, r)\n      return typeof v === 'object' && v !== null ? reactive(v) : v // 懒代理\n    },\n    set(t, k, v, r) {\n      const had = Object.prototype.hasOwnProperty.call(t, k)\n      const old = t[k]\n      const ok = Reflect.set(t, k, v, r)\n      if (!had || old !== v) trigger(t, k)\n      return ok\n    },\n  })\n  proxyMap.set(target, proxy)\n  return proxy\n}\nfunction effect(fn) {\n  const effectFn = () => {\n    for (const d of effectFn.deps) d.delete(effectFn) // cleanup 防分支残留\n    effectFn.deps = []\n    const prev = activeEffect\n    activeEffect = effectFn\n    try { return fn() } finally { activeEffect = prev }\n  }\n  effectFn.deps = []\n  effectFn()\n  return effectFn\n}" },
+    "answer": {
+      "ref": "得分结构：targetMap = new WeakMap(target -> Map(key -> Set(fn)))；activeEffect 全局栈支持嵌套 effect；reactive 用 new Proxy + proxyMap 缓存；get：track 后返回值，值是 object 时 return reactive(v)（懒代理）；set：Reflect 兜底后 trigger 对应 key 的订阅集合并去重执行。附加分：cleanup（run 前先把自己从所有 deps 删掉）防分支泄漏；version 跳过；数组 push 走 ARRAY_ITERATE dep。",
+      "code": "let activeEffect = null\nconst bucket = new WeakMap() // target -> Map<key, Set<effect>>\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = bucket.get(target)\n  if (!depsMap) bucket.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect) // Set 天然去重\n  activeEffect.deps.push(dep)\n}\nfunction trigger(target, key) {\n  const dep = bucket.get(target)?.get(key)\n  if (!dep) return\n  ;[...dep].forEach((fn) => { if (fn !== activeEffect) fn() })\n}\nconst proxyMap = new WeakMap()\nfunction reactive(target) {\n  if (proxyMap.has(target)) return proxyMap.get(target) // 复用代理\n  const proxy = new Proxy(target, {\n    get(t, k, r) {\n      track(t, k)\n      const v = Reflect.get(t, k, r)\n      return typeof v === 'object' && v !== null ? reactive(v) : v // 懒代理\n    },\n    set(t, k, v, r) {\n      const had = Object.prototype.hasOwnProperty.call(t, k)\n      const old = t[k]\n      const ok = Reflect.set(t, k, v, r)\n      if (!had || old !== v) trigger(t, k)\n      return ok\n    },\n  })\n  proxyMap.set(target, proxy)\n  return proxy\n}\nfunction effect(fn) {\n  const effectFn = () => {\n    for (const d of effectFn.deps) d.delete(effectFn) // cleanup 防分支残留\n    effectFn.deps = []\n    const prev = activeEffect\n    activeEffect = effectFn\n    try { return fn() } finally { activeEffect = prev }\n  }\n  effectFn.deps = []\n  effectFn()\n  return effectFn\n}"
+    },
     "scoringPoints": [
-      { "point": "写出三层桶结构（WeakMap→Map→Set/链表均可）且 track 里有 activeEffect 判空", "weight": 3 },
-      { "point": "set 后按 key 精确 trigger，并用 HOP/旧值比较避免无意义触发", "weight": 2 },
-      { "point": "嵌套懒代理：get 中 object 才转 reactive，且有 proxyMap 缓存复用", "weight": 2 },
-      { "point": "activeEffect 用栈保存现场（finally 还原），支持嵌套 effect", "weight": 1 },
-      { "point": "cleanup：重跑前清除旧依赖，说明它解决分支/停止问题", "weight": 1 },
-      { "point": "主动声明简化项（迭代依赖、数组特判、调度异步化均省略）体现边界意识", "weight": 1 }
+      {
+        "point": "写出三层桶结构（WeakMap→Map→Set/链表均可）且 track 里有 activeEffect 判空",
+        "weight": 3
+      },
+      {
+        "point": "set 后按 key 精确 trigger，并用 HOP/旧值比较避免无意义触发",
+        "weight": 2
+      },
+      {
+        "point": "嵌套懒代理：get 中 object 才转 reactive，且有 proxyMap 缓存复用",
+        "weight": 2
+      },
+      {
+        "point": "activeEffect 用栈保存现场（finally 还原），支持嵌套 effect",
+        "weight": 1
+      },
+      {
+        "point": "cleanup：重跑前清除旧依赖，说明它解决分支/停止问题",
+        "weight": 1
+      },
+      {
+        "point": "主动声明简化项（迭代依赖、数组特判、调度异步化均省略）体现边界意识",
+        "weight": 1
+      }
     ],
     "analysis": "分水岭在三件事：dep 结构是否画对（很多人写不出 WeakMap 三层）、trigger 是否按 key 精确（全量 notify 直接掉档）、有没有 cleanup/HOP 意识。懒代理必须当场讲出来——『为什么不构造时递归』是本题隐藏考点。把自己代码里刻意省略的部分说出来（调度、迭代 dep、readonly）反而是加分项，说明知道生产实现和自己玩具的差距。",
-    "gapCheck": ["易漏点：dep.add(activeEffect) 之外还要 activeEffect.deps.push——没有反向引用就永远无法 cleanup", "常见误区：set trap 无条件 trigger，导致赋值相同值也循环触发（effect 里写自己依赖的字段会爆栈）", "白板纪律：先口述结构再动手写，边写边标『这里 Vue 还多做了什么』"],
+    "gapCheck": [
+      "易漏点：dep.add(activeEffect) 之外还要 activeEffect.deps.push——没有反向引用就永远无法 cleanup",
+      "常见误区：set trap 无条件 trigger，导致赋值相同值也循环触发（effect 里写自己依赖的字段会爆栈）",
+      "白板纪律：先口述结构再动手写，边写边标『这里 Vue 还多做了什么』"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.reactivity.effect-dep", "fe.vue.reactivity.proxify"],
-      "related": ["fe.vue.ecosystem.vue-vs-react", "fe.vue.scheduler.flush-jobs"],
-      "followUps": ["把你的同步 trigger 改成 Vue 的调度：加一个 flag+队列，怎么改？", "现在把 Set 换成双向链表你会怎么设计 Link？（两侧 prev/next，O(1) 摘除）", "effect 想支持 onInvalidate/onWatcherCleanup 语义，代码里加在哪？"]
+      "prereq": [
+        "fe.vue.reactivity.effect-dep",
+        "fe.vue.reactivity.proxify"
+      ],
+      "related": [
+        "fe.vue.ecosystem.vue-vs-react",
+        "fe.vue.scheduler.flush-jobs"
+      ],
+      "followUps": [
+        "把你的同步 trigger 改成 Vue 的调度：加一个 flag+队列，怎么改？",
+        "现在把 Set 换成双向链表你会怎么设计 Link？（两侧 prev/next，O(1) 摘除）",
+        "effect 想支持 onInvalidate/onWatcherCleanup 语义，代码里加在哪？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://juejin.cn/post/7469978939273740322", "retrievedAt": "2026-11-09", "note": "vue/reactivity 3.5 源码总结文章；手写题原型来自高频面试手写清单" },
-    "tags": ["手写题", "大厂一面", "高频"],
+    "source": {
+      "kind": "web",
+      "url": "https://juejin.cn/post/7469978939273740322",
+      "retrievedAt": "2026-11-09",
+      "note": "vue/reactivity 3.5 源码总结文章；手写题原型来自高频面试手写清单"
+    },
+    "tags": [
+      "手写题",
+      "大厂一面",
+      "高频"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "追加约束重构：给上一题的 effect 加上 lazy 模式与『手动 triggerRef 才执行』的 stop 能力——effect 首次不执行返回 runner，stop() 后永久不再订阅任何 dep。写出 diff 部分并说明 stop 与 cleanup 的关系。", "analysis": "关键增量：effect(fn,{lazy:true}) 时不立即执行；runner 暴露 run；stop 的本质是把自己从 deps 里全部 delete（复用 cleanup 逻辑）并打 stopped 标记，track 时若 sub.stopped=true 则拒绝再入链。关系：cleanup 是『每次 run 前的依赖重置』，stop 是『最后一次 cleanup + 拒绝再订阅』；漏掉 stopped 标记的话，残留的 trigger 引用还能把 stop 过的 effect 拉起来——这是面试官最爱挖的坑。" }
+      {
+        "angle": "加约束",
+        "stem": "追加约束重构：给上一题的 effect 加上 lazy 模式与『手动 triggerRef 才执行』的 stop 能力——effect 首次不执行返回 runner，stop() 后永久不再订阅任何 dep。写出 diff 部分并说明 stop 与 cleanup 的关系。",
+        "analysis": "关键增量：effect(fn,{lazy:true}) 时不立即执行；runner 暴露 run；stop 的本质是把自己从 deps 里全部 delete（复用 cleanup 逻辑）并打 stopped 标记，track 时若 sub.stopped=true 则拒绝再入链。关系：cleanup 是『每次 run 前的依赖重置』，stop 是『最后一次 cleanup + 拒绝再订阅』；漏掉 stopped 标记的话，残留的 trigger 引用还能把 stop 过的 effect 拉起来——这是面试官最爱挖的坑。"
+      }
     ]
   },
   {
@@ -191,25 +497,72 @@
     "difficulty": 3,
     "stem": "组件 setup 里有如下代码：\n```js\nconst list = ref([])\nconst total = computed(() => {\n  console.log('compute')\n  return list.value.reduce((s, x) => s + x.price, 0)\n})\nlist.value = [{ price: 1 }, { price: 2 }]\nawait nextTick()\n```\n关于 'compute' 的打印次数与时机：",
     "options": [
-      { "key": "A", "text": "赋值后立即打印一次，因为数据变化会马上传播给 computed" },
-      { "key": "B", "text": "赋值后不打印；只有模板渲染或 watchEffect/watch 等订阅者读取 total.value 时才打印，且多次读只算一次" },
-      { "key": "C", "text": "打印两次：赋值时一次、nextTick 渲染时一次，computed 每次被订阅都会重新求值" },
-      { "key": "D", "text": "完全不打印，computed 只在显式调用 .value 时才算，模板读取不算消费方" }]
-    ,
-    "answer": { "keys": ["B"] },
-    "analysis": "computed 是**惰性**的：赋值 list 只让 computed 的 effect 标记失效（3.5 里是 bump dep 版本 + lazy 向下游传播），并不执行 getter；当下游（render effect / watchEffect / 手动 .value）真正读取时才求值，之后凭干净版本缓存，重复读不再计算 → B。A/C 都把失效当成重算（那是 eager effect 的行为）；D 错在模板 render 就是最典型的订阅者，『完全不打印』意味着页面永远显示初始值。",
-    "gapCheck": ["易漏点：没人订阅的 computed 连失效都不往下走，副作用可能永远不执行——computed 里放副作用是坏味道", "常见误区：把 3.4 起『watch 订阅的 computed 变化才回调』与『computed 立即求值』混淆：watch 场景下 computed 作为 source 会被 watch 主动读一次才建立订阅", "延伸：computed 的缓存失效粒度是整个 getter，哪怕只依赖了一个字段，任何依赖变化都整体重算"],
-    "knowledgeLinks": {
-      "prereq": ["fe.vue.reactivity.computed-watch"],
-      "related": ["fe.vue.reactivity.effect-dep", "fe.vue.scheduler.nexttick"],
-      "followUps": ["那 watch 一个 computed 时，computed 到底何时求值？（watch 回调前 pull 一次）", "computed 有 setter 吗？什么场景用得到？（可写 computed 做派生回写/多选映射）", "3.4 的 _dirtyLevels 链式失效是怎么避免逐层递归的？"]
+      {
+        "key": "A",
+        "text": "赋值后立即打印一次，因为数据变化会马上传播给 computed"
+      },
+      {
+        "key": "B",
+        "text": "赋值后不打印；只有模板渲染或 watchEffect/watch 等订阅者读取 total.value 时才打印，且多次读只算一次"
+      },
+      {
+        "key": "C",
+        "text": "打印两次：赋值时一次、nextTick 渲染时一次，computed 每次被订阅都会重新求值"
+      },
+      {
+        "key": "D",
+        "text": "完全不打印，computed 只在显式调用 .value 时才算，模板读取不算消费方"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
     },
-    "resources": [{ "title": "Vue 官方 guide·computed-watch", "digest": "computed 默认惰性：无订阅者不执行，getter 结果按依赖版本缓存；watch 监听 computed 时会在变更确认阶段读取其值。可写 computed 提供 get/set 对。" }],
+    "analysis": "computed 是**惰性**的：赋值 list 只让 computed 的 effect 标记失效（3.5 里是 bump dep 版本 + lazy 向下游传播），并不执行 getter；当下游（render effect / watchEffect / 手动 .value）真正读取时才求值，之后凭干净版本缓存，重复读不再计算 → B。A/C 都把失效当成重算（那是 eager effect 的行为）；D 错在模板 render 就是最典型的订阅者，『完全不打印』意味着页面永远显示初始值。",
+    "gapCheck": [
+      "易漏点：没人订阅的 computed 连失效都不往下走，副作用可能永远不执行——computed 里放副作用是坏味道",
+      "常见误区：把 3.4 起『watch 订阅的 computed 变化才回调』与『computed 立即求值』混淆：watch 场景下 computed 作为 source 会被 watch 主动读一次才建立订阅",
+      "延伸：computed 的缓存失效粒度是整个 getter，哪怕只依赖了一个字段，任何依赖变化都整体重算"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.reactivity.computed-watch"
+      ],
+      "related": [
+        "fe.vue.reactivity.effect-dep",
+        "fe.vue.scheduler.nexttick"
+      ],
+      "followUps": [
+        "那 watch 一个 computed 时，computed 到底何时求值？（watch 回调前 pull 一次）",
+        "computed 有 setter 吗？什么场景用得到？（可写 computed 做派生回写/多选映射）",
+        "3.4 的 _dirtyLevels 链式失效是怎么避免逐层递归的？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "Vue 官方 guide·computed-watch",
+        "digest": "computed 默认惰性：无订阅者不执行，getter 结果按依赖版本缓存；watch 监听 computed 时会在变更确认阶段读取其值。可写 computed 提供 get/set 对。"
+      }
+    ],
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://zhuanlan.zhihu.com/p/1997984549074923943", "retrievedAt": "2026-11-09", "note": "2026 Vue/React 面试对比文，computed 惰性时序为其中高频追问点" },
-    "tags": ["时序题", "高频", "易错"],
+    "source": {
+      "kind": "web",
+      "url": "https://zhuanlan.zhihu.com/p/1997984549074923943",
+      "retrievedAt": "2026-11-09",
+      "note": "2026 Vue/React 面试对比文，computed 惰性时序为其中高频追问点"
+    },
+    "tags": [
+      "时序题",
+      "高频",
+      "易错"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "把场景改成 watch：`watch(total, v => console.log('w', v)); list.value = [...]`。'w' 会打印吗？如果 total 从未被模板使用、也没有别的订阅者，watch 监听 computed 还可靠吗？请说明 watch 对 computed source 的订阅建立时机。", "analysis": "会打印。watch 创建时就把 getter（这里是 computed 的 getter 包装）run 一次建立订阅并记录旧值——即使没有任何其他消费者，这一步也会强制 computed 求值一次；之后 list 变化 → computed 失效 → watch 的 scheduler 在新周期读取新值 diff 后触发回调。要点：watch(source=computed) 是可靠的，因为 watch 本身就是订阅者；不可靠的是『没有任何人读的 computed 的副作用』。这题反向验证了惰性 + 订阅建立的配对关系。" }
+      {
+        "angle": "换场景",
+        "stem": "把场景改成 watch：`watch(total, v => console.log('w', v)); list.value = [...]`。'w' 会打印吗？如果 total 从未被模板使用、也没有别的订阅者，watch 监听 computed 还可靠吗？请说明 watch 对 computed source 的订阅建立时机。",
+        "analysis": "会打印。watch 创建时就把 getter（这里是 computed 的 getter 包装）run 一次建立订阅并记录旧值——即使没有任何其他消费者，这一步也会强制 computed 求值一次；之后 list 变化 → computed 失效 → watch 的 scheduler 在新周期读取新值 diff 后触发回调。要点：watch(source=computed) 是可靠的，因为 watch 本身就是订阅者；不可靠的是『没有任何人读的 computed 的副作用』。这题反向验证了惰性 + 订阅建立的配对关系。"
+      }
     ]
   },
   {
@@ -219,24 +572,305 @@
     "difficulty": 3,
     "stem": "关于 ref 家族与解包规则，下列说法**正确**的有：",
     "options": [
-      { "key": "A", "text": "`watch(shallowRefObj, cb, { deep: true })` 时，深层属性变化不会自动触发 cb，需要手动 `triggerRef()`" },
-      { "key": "B", "text": "ref 放在 reactive 对象的**属性**上会被自动解包，但放在数组元素或 Map value 里访问时必须写 .value" },
-      { "key": "C", "text": "`toRef(state, 'a')` 与 `{ a: state.a }` 等价，都是拿到值的静态拷贝" },
-      { "key": "D", "text": "`customRef` 返回的对象自带 track/trigger 参数，可以用来实现一个防抖后再通知的 ref" }]
-    ,
-    "answer": { "keys": ["A", "B", "D"] },
+      {
+        "key": "A",
+        "text": "`watch(shallowRefObj, cb, { deep: true })` 时，深层属性变化不会自动触发 cb，需要手动 `triggerRef()`"
+      },
+      {
+        "key": "B",
+        "text": "ref 放在 reactive 对象的**属性**上会被自动解包，但放在数组元素或 Map value 里访问时必须写 .value"
+      },
+      {
+        "key": "C",
+        "text": "`toRef(state, 'a')` 与 `{ a: state.a }` 等价，都是拿到值的静态拷贝"
+      },
+      {
+        "key": "D",
+        "text": "`customRef` 返回的对象自带 track/trigger 参数，可以用来实现一个防抖后再通知的 ref"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
     "analysis": "A 对：shallowRef 只把 .value **整体替换**当作变更，deep watch 虽深度遍历但浅层代理根本不代理内层对象、收集不到内层 dep，故深层改动哑火，必须 triggerRef 手动广播。B 对：解包规则只对 reactive 对象的 property 生效（UnwrapRef 类型与运行时双保证），数组下标/Map value 不解包。C 错：toRef 返回的是绑定源（get/set 透传回 state.a），state.a 变它跟着变；{ a: state.a } 才是静态拷贝——这正是 toRef 的存在意义。D 对：customRef((track,trigger)=>{...}) 手控收集与触发时机，是实现 debouncedRef 的标准姿势。",
-    "gapCheck": ["易漏点：B 项的『数组不解包』连老手都常翻车——state.list[0] 里存着 ref 时要 .value，或用 toRaw/map 归一化", "常见误区：把 shallowRef 当浅拷贝 API；把 triggerRef 当『刷新』乱用掩盖设计问题", "类型侧加分：UnwrapRef 的递归解包在深层嵌套+any 时会放弃推断，答出这点属 3 分档"],
+    "gapCheck": [
+      "易漏点：B 项的『数组不解包』连老手都常翻车——state.list[0] 里存着 ref 时要 .value，或用 toRaw/map 归一化",
+      "常见误区：把 shallowRef 当浅拷贝 API；把 triggerRef 当『刷新』乱用掩盖设计问题",
+      "类型侧加分：UnwrapRef 的递归解包在深层嵌套+any 时会放弃推断，答出这点属 3 分档"
+    ],
     "knowledgeLinks": {
-      "prereq": ["fe.vue.reactivity.ref-family"],
-      "related": ["fe.vue.perf.granularity-tools", "fe.vue.state.pinia-internals"],
-      "followUps": ["为什么大列表场景推荐 shallowRef 装整个数据源而不是逐个 ref？", "toRef 和 Vue2 时代的 .sync 有什么思想上的相似？", "3.5 新增的 toRefs 对 props 解构保持响应，和 toRef 什么区别？"]
+      "prereq": [
+        "fe.vue.reactivity.ref-family"
+      ],
+      "related": [
+        "fe.vue.perf.granularity-tools",
+        "fe.vue.state.pinia-internals"
+      ],
+      "followUps": [
+        "为什么大列表场景推荐 shallowRef 装整个数据源而不是逐个 ref？",
+        "toRef 和 Vue2 时代的 .sync 有什么思想上的相似？",
+        "3.5 新增的 toRefs 对 props 解构保持响应，和 toRef 什么区别？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "official", "url": "https://vuejs.org/api/reactivity-advanced.html", "retrievedAt": "2026-11-09", "note": "Custom Refs / shallowRef 小节；解包规则见 reactivity-fundamentals The `.value` Gotcha 与 Unwrapping Rules" },
-    "tags": ["易错合集", "必考", "文档细节"],
+    "source": {
+      "kind": "official",
+      "url": "https://vuejs.org/api/reactivity-advanced.html",
+      "retrievedAt": "2026-11-09",
+      "note": "Custom Refs / shallowRef 小节；解包规则见 reactivity-fundamentals The `.value` Gotcha 与 Unwrapping Rules"
+    },
+    "tags": [
+      "易错合集",
+      "必考",
+      "文档细节"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "反向排查题：同事写了 `const state = reactive({ user: ref(null) })`，然后在 setup 顶层 `const u = state.user` 想直接当响应式用，结果接口回来后视图没更新。请解释两层各错在哪，并给出两种修法。", "analysis": "第一层：state.user 属性位置会被解包，u 拿到的是解包瞬间的值 null——普通变量捕获即脱钩（setup 顶层 const 拿走的是当时快照，不是绑定）。第二层：即便 u 是 ref 本身，后续 state.user = newUser 整体替换也不会更新那个已被解包的普通变量。修法一：保留 ref 语义 `const u = computed(() => state.user)` 或直接模板里写 state.user；修法二：改用 storeToRefs/toRef 拿绑定。考点：解包发生在属性访问瞬间 + 普通变量的静态性双重叠加。" }
+      {
+        "angle": "反向问",
+        "stem": "反向排查题：同事写了 `const state = reactive({ user: ref(null) })`，然后在 setup 顶层 `const u = state.user` 想直接当响应式用，结果接口回来后视图没更新。请解释两层各错在哪，并给出两种修法。",
+        "analysis": "第一层：state.user 属性位置会被解包，u 拿到的是解包瞬间的值 null——普通变量捕获即脱钩（setup 顶层 const 拿走的是当时快照，不是绑定）。第二层：即便 u 是 ref 本身，后续 state.user = newUser 整体替换也不会更新那个已被解包的普通变量。修法一：保留 ref 语义 `const u = computed(() => state.user)` 或直接模板里写 state.user；修法二：改用 storeToRefs/toRef 拿绑定。考点：解包发生在属性访问瞬间 + 普通变量的静态性双重叠加。"
+      }
     ]
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.vue.reactivity.computed-watch",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空（watch 家族语义）：Vue 3 的 watch 默认在组件更新 ______（前/后）执行回调，对应 flush 选项的默认值 ______；需要在回调中拿到更新后的 DOM 应把 flush 设为 ______；watch 与 watchEffect 的关键区别之一是 watch 默认 ______（立即/懒）执行，除非显式传入 immediate；直接侦听一个 reactive 对象（而非 getter）时，watch 会隐式开启 ______ 模式。",
+    "answer": {
+      "blanks": [
+        "前",
+        "\"pre\"（pre）",
+        "\"post\"（post）",
+        "懒（不立即）",
+        "deep（深度侦听）"
+      ],
+      "synonyms": {
+        "前": [
+          "之前",
+          "更新前"
+        ],
+        "\"pre\"（pre）": [
+          "pre",
+          "\"pre\"",
+          "flush: pre"
+        ],
+        "\"post\"（post）": [
+          "post",
+          "\"post\"",
+          "flush: post"
+        ],
+        "懒（不立即）": [
+          "懒",
+          "懒执行",
+          "不立即"
+        ],
+        "deep（深度侦听）": [
+          "deep",
+          "深度",
+          "隐式 deep"
+        ]
+      }
+    },
+    "analysis": "flush 控制回调与组件渲染的时序：pre（默认）在组件 DOM 更新前排队执行，适合在渲染前修正数据；post 在更新后执行，回调中可读取最新 DOM；sync 则在依赖变化时同步触发，滥用会造成重复执行与性能问题，一般避免。watch 是懒的，只在 source 变化时跑回调，immediate: true 才会立即用当前值执行一次；watchEffect 相反，创建即执行一次以自动收集依赖。深度规则上：watch(reactiveObj, cb) 隐式 deep（reactive 对象无法浅层侦听），而 watch(() => state.nested, cb) 只在 getter 返回引用变化时触发，需要 deep: true 才能感知嵌套变更。3.5 还提供 onWatcherCleanup 用于在回调内注册过期清理（取代手工 onCleanup 参数的新写法）。",
+    "gapCheck": [
+      "易漏点：flush: \"post\" 才保证 DOM 已更新；默认 pre 回调里读 DOM 拿到的是上一帧内容。",
+      "常见误区：对 getter 形式的 watch 期待深层触发，忘记显式 deep: true。",
+      "排查线索：回调里 DOM 值「慢一拍」先查 flush；频繁触发先查是否误用 sync 或隐式 deep。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.reactivity.computed-watch"
+      ],
+      "related": [
+        "fe.vue.reactivity.effect-dep",
+        "fe.vue.reactivity.ref-family"
+      ],
+      "followUps": [
+        "watchEffect 的依赖收集在异步分支里为什么会丢失？",
+        "onWatcherCleanup 解决了异步竞态的哪类问题？",
+        "deep: true 对大对象的遍历成本在 3.5 双链表结构下有变化吗？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vue3 watch/watchEffect 官方文档语义与 3.5 API 编写"
+    },
+    "tags": [
+      "Vue3",
+      "watch",
+      "填空"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0069"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.vue.reactivity.computed-watch",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "代码评审题：同事在组件中写了如下逻辑（伪代码）：用一个 watch 侦听筛选条件 keyword，回调里调用接口并把结果赋值给 list；同时又用一个 watch 侦听 list，回调里把 list 做 reduce 汇总写进 total。请指出至少 4 个设计/时序问题，并给出基于 computed 与 watch 职责边界的重构方案。",
+    "scoringPoints": [
+      {
+        "point": "职责错位：total 是 list 的纯派生值，应用 computed 惰性缓存表达，而非 watch+命令式赋值；watch 适合产生副作用（请求、存储、DOM），不适合做状态派生",
+        "weight": 2
+      },
+      {
+        "point": "异步竞态：keyword 快速连续变化时旧请求可能晚于新请求返回，回调没有取消/过期保护，存在过期响应覆盖新数据问题，应用 onWatcherCleanup/AbortController 或请求序号守卫",
+        "weight": 2
+      },
+      {
+        "point": "时序与额外渲染：watch 链（keyword→请求→list→total）引入多次调度往返与额外刷新，computed 派生在同一渲染周期内惰性求值，减少一次响应式跳数",
+        "weight": 2
+      },
+      {
+        "point": "初始化与触发面：默认懒 watch 在首屏不发请求需补 immediate，或改用 watchEffect 显式表达「依赖即触发」；deep/flush 选择不当会引发重复回调",
+        "weight": 2
+      },
+      {
+        "point": "重构方案：total = computed(...)；单一 watch(keyword, 带清理的异步回调) 负责请求副作用；说明 computed 无订阅者不求值、缓存随依赖版本失效的机制",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "参考答案：问题①职责错位——total 完全由 list 同步派生，没有任何副作用，正确工具是 computed：const total = computed(() => list.value.reduce(...))，computed 惰性且带缓存，无消费者时不求值，依赖变化只标记脏、下次读取才重算；用 watch 手工维护派生状态等于放弃声明式缓存，还可能与 list 更新时序错位。问题②异步竞态——两次 keyword 变化发出两个请求，网络乱序时旧响应后返回会覆盖新结果；应在 watch 回调中用 onWatcherCleanup（Vue 3.5）注册 AbortController.abort()，或维护自增请求 id，回包时校验只接受最新一次。问题③调度链路过长——keyword watcher → 异步赋值 list → list watcher → 赋值 total，至少跨两个 flush 周期且产生冗余触发；重构后派生值在渲染读取时一次性计算，链长缩短。问题④初始化语义缺失——watch 默认懒执行，首屏列表为空可能正是漏了 immediate: true；这类「依赖变化即重新拉取」也可用 watchEffect 表达，但异步清理仍不可少。重构后结构：const total = computed(() => ...)；watch(keyword, async (kw, _old, onCleanup) => { const ctrl = new AbortController(); onCleanup(() => ctrl.abort()); list.value = await fetchList(kw, { signal: ctrl.signal }) })（3.5 推荐改用 onWatcherCleanup()）。模板只消费 list 与 total，职责清晰：computed 管派生、watch 管副作用。"
+    },
+    "analysis": "本题核心是「派生归 computed、副作用归 watch」的架构判断，叠加异步竞态这一工程高频 bug。能讲出 computed 的惰性缓存与脏标记机制、watch 清理 API（onCleanup/onWatcherCleanup/AbortController）的作用，即达到 level4 深度。",
+    "gapCheck": [
+      "易漏点：watch 回调中的异步函数返回的 Promise 不会被 Vue 等待，竞态必须由开发者自己治理。",
+      "常见误区：把 computed 当 watch 用（在 getter 里发请求/改状态），getter 必须保持纯函数。",
+      "排查线索：数据「回退成旧值」优先查请求乱序；派生值偶尔不更新先查是否被错误实现成 watch 赋值链路。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.reactivity.computed-watch"
+      ],
+      "related": [
+        "fe.vue.reactivity.effect-dep",
+        "fe.vue.reactivity.ref-family"
+      ],
+      "followUps": [
+        "computed 的缓存在 Vue 3.5 中是如何随 dep 版本号标记脏的？",
+        "watchEffect 与带 immediate 的 watch 在依赖追踪范围上有何差异？",
+        "如何给 watch 的异步回调写可取消的 fetch 封装？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vue3 computed/watch 机制与 3.5 清理 API 原理编写"
+    },
+    "tags": [
+      "Vue3",
+      "代码评审",
+      "异步竞态"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0070"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.vue.reactivity.ref-family",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：在 reactive 对象的属性位置存放的 ref 会被自动解包（state.count 直接拿到值而非 Ref 对象）；但把 ref 放进普通数组并再用 reactive 包裹后，通过数组下标访问该元素时同样会自动解包，因此 reactive 容器内任何位置的 ref 行为完全一致。",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "整句错误，错在以偏概全。前半句正确：reactive 对象属性位置的 ref 会在 get/set trap 中自动解包，state.count 拿到的是内部值，赋值 state.count = 1 也会自动转发给 ref.value。但数组是明确例外：reactive 数组中的 ref 元素不会被解包，arr[0] 拿到的仍是 Ref 对象，需要 arr[0].value 访问；这是 Vue 刻意保留的语义，避免与数组的数值型下标、迭代协议冲突。此外还有其他边界：Map/Set/WeakMap/WeakCollection 中的 ref 不解包（需通过集合 API 手动 .value）；shallowReactive 浅层容器完全不做 ref 解包；模板中只有顶层 ref 属性享受自动解包。把「属性位置解包」推广为「任何位置都解包」是 ref 家族最常见的误用来源。",
+    "gapCheck": [
+      "易漏点：解包规则随容器类型变化——普通对象属性解包、数组元素与集合条目不解包、shallow 系列全不解包。",
+      "常见误区：在 reactive 数组里直接用元素值参与运算得到 undefined 或 Ref 对象，排查时想不到解包边界。",
+      "排查线索：拿到 [RefImpl] 样式的值时，先确认访问路径是否经过数组下标或集合方法。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.reactivity.ref-family"
+      ],
+      "related": [
+        "fe.vue.reactivity.proxify",
+        "fe.vue.reactivity.computed-watch"
+      ],
+      "followUps": [
+        "为什么 Vue 选择不给 reactive 数组中的 ref 自动解包？",
+        "toRef 与 toRefs 在解构场景下分别解决什么问题？",
+        "模板 ref（useTemplateRef）与数据 ref 在解包规则上有什么不同？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vue3 ref 解包规则官方文档语义编写"
+    },
+    "tags": [
+      "Vue3",
+      "ref 解包",
+      "易错"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0071"
+  },
+  {
+    "g": 3,
+    "nodeId": "fe.vue.reactivity.ref-family",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请说明 customRef 的 track/trigger 机制，并实现一个「带防抖写入」的 customRef：读取时正常返回值，写入后延迟 300ms 才真正更新视图（期间连续写入只保留最后一次）。写出完整代码并解释它与普通 ref、shallowRef 的定位差异。",
+    "scoringPoints": [
+      {
+        "point": "机制说明：customRef(factory) 工厂接收 track、trigger 两个函数，get 中显式调用 track() 注册依赖，set 中更新值后调用 trigger() 通知，依赖收集时机完全由开发者控制",
+        "weight": 2
+      },
+      {
+        "point": "代码正确性：factory 闭包保存 value 与定时器 id；set 中 clearTimeout 后重设定时，300ms 后赋值并 trigger；get 中先 track 再返回；多次写入只保留最后一次",
+        "weight": 3
+      },
+      {
+        "point": "资源治理：提到定时器清理/组件卸载场景（effectScope 或 onScopeDispose 清 timer）避免泄漏，体现工程完备性",
+        "weight": 2
+      },
+      {
+        "point": "定位差异：普通 ref 自动代理深层对象且即时 trigger；shallowRef 放弃深层代理、引用替换才触发；customRef 不改变代理深度，核心价值是自定义「何时收集/何时通知」的调度策略",
+        "weight": 3
+      }
+    ],
+    "answer": {
+      "ref": "评分要点与参考实现：customRef 把 ref 的依赖收集与触发从内置实现暴露给开发者——工厂函数收到 track 与 trigger：get 里必须手动 track() 才能让当前 effect 订阅，set 里在合适时机 trigger() 才会广播更新，因此可以插入防抖、节流、校验、远程同步等任意调度逻辑。\nfunction debouncedRef(initial, delay = 300) {\n  let timer = null\n  return customRef((track, trigger) => {\n    return {\n      get() {\n        track()          // 注册依赖，不调用则视图不会订阅\n        return initial\n      },\n      set(newVal) {\n        clearTimeout(timer)\n        timer = setTimeout(() => {\n          initial = newVal\n          timer = null\n          trigger()        // 延迟结束后才通知，连续写入被防抖合并\n        }, delay)\n      }\n    }\n  })\n}\n// 用法：const keyword = debouncedRef(\"\", 300)；模板绑定输入框，watch(keyword, ...) 天然只在停顿后触发\n工程补充：定时器应纳入 effectScope 管理或在 onScopeDispose 中 clearTimeout，防止组件卸载后定时器仍持有闭包。定位差异：ref = 深层响应式 + 即时通知的默认实现；shallowRef = 浅层契约，解决大数据代理成本；customRef = 通知策略可编排，代理深度规则与普通 ref 一致（对象值仍走 reactive 包装），它改变的是 track/trigger 的时序而非深度。典型场景除防抖外还有：localStorage 持久化 ref、只读防写 ref、异步资源 ref（loading/error 状态机）。"
+    },
+    "analysis": "区分度在三层：①是否真正理解 track 必须在 get 内显式调用（漏写则订阅失效）；②防抖实现是否处理了 timer 复用与卸载清理；③能否把 customRef 与 shallowRef 的设计维度区分开（调度时机 vs 代理深度），混为一谈即未理解 ref 家族的分类轴。",
+    "gapCheck": [
+      "易漏点：get 中漏掉 track() 是 customRef 最常见 bug，表现为赋值后视图毫无反应。",
+      "常见误区：把 customRef 当成 shallowRef 的替代品，二者解决的问题正交（通知策略 vs 响应深度）。",
+      "排查线索：防抖 ref 在组件卸载后仍触发更新，检查定时器是否接入 scope 生命周期清理。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.vue.reactivity.ref-family"
+      ],
+      "related": [
+        "fe.vue.reactivity.effect-dep",
+        "fe.vue.reactivity.computed-watch",
+        "fe.vue.perf.granularity-tools"
+      ],
+      "followUps": [
+        "如何在 customRef 上叠加只读语义（对外暴露只读代理）？",
+        "effectScope 如何统一回收 customRef 内的定时器与事件监听？",
+        "用 customRef 实现 localStorage 持久化时需要处理哪些序列化与跨标签页同步问题？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Vue3 customRef/effectScope 官方文档语义编写"
+    },
+    "tags": [
+      "Vue3",
+      "customRef",
+      "手写题"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0072"
   }
 ]

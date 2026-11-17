@@ -1,0 +1,513 @@
+[
+  {
+    "id": "Q-be-spring-inject-0001",
+    "nodeId": "be.spring.ioc.inject-scan",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 Spring 的控制反转（IoC）、依赖注入方式与组件扫描，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "构造器注入能在对象创建时一次性确定全部必需依赖，且可把字段声明为 final，因此被 Spring 官方推荐" },
+      { "key": "B", "text": "@Autowired 与 @Resource 完全等价，二者都是先按 Bean 名称匹配、找不到再按类型匹配" },
+      { "key": "C", "text": "@Controller、@Service、@Repository 是三套完全独立的注解，只有加上 @Component 才会被扫描成 Bean" },
+      { "key": "D", "text": "@Bean 注解标在普通业务类上即可让该类被组件扫描注册，无需配合 @Configuration 使用" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：构造器注入让依赖在 new 的时候就齐备，字段可声明为 final 保证不可变，也天然避免了循环依赖被悄悄掩盖、便于脱离容器写单元测试（直接 new 传 mock），Spring 官方文档明确推荐；单构造器时 Lombok 的 @RequiredArgsConstructor 就是生成它。B 错：@Autowired 是 Spring 注解，默认按类型（byType）注入，配合 @Qualifier 才按名称筛选；@Resource（JSR-250）默认按名称（byName）匹配，二者顺序相反。C 错：@Controller/@Service/@Repository 本身都被 @Component 元注解标注（组合注解），被 @ComponentScan 扫到即可注册为 Bean，无需再写 @Component；它们的差异主要是语义分层与 @Repository 额外做持久层异常转换。D 错：@Bean 用在 @Configuration 类的方法上，用于手工装配第三方库的对象（方法返回值交给容器）；让普通业务类被扫描注册用的是 @Component 系列注解。对照前端：IoC 容器很像一个全局的依赖注入容器（类似 NestJS 的 Module/Provider 体系），类不再自己 new 依赖，而是由容器负责创建并注入，从而解耦、可替换、可测试。",
+    "gapCheck": [
+      "易漏点：@Autowired 按类型、@Resource 默认按名称；同类型多个 Bean 时 @Autowired 要配 @Qualifier",
+      "常见误区：以为字段注入最省事最好，忽视其无法 final、脱离容器难测试、易掩盖循环依赖的问题",
+      "加分项：能讲清 @Configuration 的 proxyBeanMethods 与 lite/full 模式，以及 @ComponentScan 的 basePackages 扫描范围"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.ioc.inject-scan"],
+      "related": ["be.spring.ioc.bean-lifecycle", "be.spring.mvc.autoconfig"],
+      "followUps": ["同一个接口有多个实现类时，@Autowired 怎么确定注入哪一个？", "构造器注入遇到循环依赖为什么启动就报错，而 setter 注入不会？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "IoC/DI 注入方式与组件扫描单选题" },
+    "tags": ["Spring", "IoC", "依赖注入", "组件扫描", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-bean-0001",
+    "nodeId": "be.spring.ioc.bean-lifecycle",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：Spring 通过三级缓存（singletonObjects、earlySingletonObjects、singletonFactories）解决单例 Bean 的 setter/字段循环依赖，其核心是提前暴露一个 ObjectFactory；但若两个 Bean 采用构造器注入互相依赖，则三级缓存也无法解决，容器启动会直接抛出 BeanCurrentlyInCreationException。",
+    "answer": { "judge": true },
+    "analysis": "正确。一级缓存 singletonObjects 存完全初始化好的成品 Bean，二级 earlySingletonObjects 存提前暴露的早期引用（可能是半成品），三级 singletonFactories 存 ObjectFactory（对象工厂）。A 实例化后、属性填充前把自己的 ObjectFactory 放进三级缓存；A 填充时发现依赖 B，转去创建 B，B 又依赖 A，于是从三级缓存调用 ObjectFactory.getObject() 拿到 A 的早期引用（若 A 需要被 AOP 代理，此处生成的就是代理对象），并升入二级缓存，B 得以完成注入并创建完毕，A 再拿到 B 完成闭环。它解决的是「对象已实例化但未填充完」的 setter/字段循环依赖。构造器循环依赖之所以救不了：构造器注入要求 new 的同时传入依赖，而此时 A 连实例都还没构造出来，三级缓存里尚无任何早期引用可暴露，Spring 无法先造半个 A，故直接抛 BeanCurrentlyIncreationException。补充：Spring 官方并不鼓励循环依赖，@Async 等场景因代理生成时机特殊还可能使三级缓存失效；Spring Boot 2.6 起默认禁止循环依赖，需 spring.main.allow-circular-references=true 才放开。",
+    "gapCheck": [
+      "易漏点：三级缓存存的是 ObjectFactory 而非 Bean 本身，调用 getObject 才生成早期引用（含 AOP 代理）并升入二级",
+      "常见误区：以为三级缓存能解决一切循环依赖，忽略构造器注入和 @Async 代理时机问题",
+      "加分项：能说清为什么需要三级而不是两级（延迟生成代理、保证单例代理唯一），以及 Spring Boot 2.6 默认禁循环依赖"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.ioc.bean-lifecycle"],
+      "related": ["be.spring.aop.proxy", "be.spring.ioc.inject-scan"],
+      "followUps": ["为什么必须用三级缓存，两级缓存提前放代理对象不行吗？", "Bean 从实例化到销毁依次经历哪些生命周期回调（@PostConstruct、InitializingBean、initMethod 的先后）？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "三级缓存与构造器循环依赖判断题" },
+    "tags": ["Spring", "Bean 生命周期", "三级缓存", "循环依赖", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-proxy-0001",
+    "nodeId": "be.spring.aop.proxy",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Spring AOP 的动态代理与切面术语，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "JDK 动态代理基于接口实现（Proxy + InvocationHandler），被代理类至少要实现一个接口；CGLIB 通过继承生成子类（MethodInterceptor）来拦截方法" },
+      { "key": "B", "text": "从 Spring Boot 2.x 开始，spring.aop.proxy-target-class 默认 true，即默认优先使用 CGLIB 代理" },
+      { "key": "C", "text": "AOP 的代理对象是在 BeanPostProcessor（具体为 AbstractAutoProxyCreator）的后置处理阶段被包装并替换进容器的" },
+      { "key": "D", "text": "CGLIB 能代理 final 类和 final/private 方法，因为子类可以覆盖它们来织入增强逻辑" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：JDK 动态代理只能代理接口，运行期用 Proxy.newProxyInstance 生成实现了目标接口的代理类，调用被 InvocationHandler.invoke 拦截；CGLIB 不要求接口，靠字节码框架 ASM 动态生成目标类的子类并重写非 final 方法，回调 MethodInterceptor。B 正确：Spring Boot 2.x 起 spring.aop.proxy-target-class 默认为 true，容器默认采用 CGLIB（基于类的代理），避免「有接口走 JDK、无接口走 CGLIB」的行为不一致；Spring Framework 5.x 之后同样默认 CGLIB。C 正确：AOP 本质是在 Bean 初始化后的 BeanPostProcessor 环节，由 AbstractAutoProxyCreator 判断该 Bean 是否匹配切点，匹配则用代理工厂包一层代理对象放回容器，这也是三级缓存里 ObjectFactory 能提前产出代理的原因。D 错：final 类无法被继承、final 方法不能被子类覆盖、private 方法子类不可见，因此 CGLIB 对它们都无法织入，调用这类方法会绕过增强（这也是自调用事务失效的同源问题）。对照前端：AOP 很像给对象方法套一层高阶函数/中间件（类似 Express 中间件或 JS 的 Proxy 包装），在不改原类代码的前提下统一加日志、权限、事务等横切逻辑。",
+    "gapCheck": [
+      "易漏点：JDK 代理必须有接口、CGLIB 靠继承；Spring Boot 2.x 起默认 CGLIB",
+      "常见误区：以为 CGLIB 万能，能代理 final 类/final 方法/private 方法，实际都会绕过增强",
+      "加分项：能讲清切面 Aspect、切点 Pointcut、通知 Advice、连接点 JoinPoint、织入 Weaving 五术语及五类通知（@Before/@After/@AfterReturning/@AfterThrowing/@Around）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.aop.proxy"],
+      "related": ["be.spring.ioc.bean-lifecycle", "be.spring.aop.transaction"],
+      "followUps": ["同类中 this 调用一个带 @Transactional 的方法为什么事务不生效？", "@Around 环绕通知里不调用 ProceedingJoinPoint.proceed() 会怎样？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "JDK/CGLIB 代理与 AOP 术语多选题" },
+    "tags": ["Spring", "AOP", "动态代理", "CGLIB", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-tx-0001",
+    "nodeId": "be.spring.aop.transaction",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "在同类 OrderService 中，无注解的 createOrder() 内部用 this 直接调用了带 @Transactional 的 saveOrder()，且 saveOrder() 内部抛出的是受检异常 IOException（方法上未声明 rollbackFor）。关于事务表现与传播行为，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "this 自调用绕过代理导致 @Transactional 根本不生效，saveOrder 不会开启事务；即便生效，默认也只对 RuntimeException 和 Error 回滚，受检 IOException 默认不回滚" },
+      { "key": "B", "text": "只要方法上写了 @Transactional，无论 this 自调用还是外部调用都会被代理拦截，事务一定生效" },
+      { "key": "C", "text": "默认情况下受检异常（IOException）也会触发事务回滚，rollbackFor 没有任何作用" },
+      { "key": "D", "text": "REQUIRES_NEW 传播行为是加入外层已有事务、与外层共用同一个物理事务一起提交或回滚" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确，点出两个独立的坑：① 自调用失效——Spring 事务靠 AOP 代理在方法入口开启连接、绑定 ThreadLocal 并在出口提交/回滚，this.saveOrder() 是对原始目标对象的调用、不经过代理，注解完全不生效；② 回滚规则——默认 rollback 规则只匹配 RuntimeException 与 Error，受检异常（如 IOException）默认不回滚，需要显式 @Transactional(rollbackFor = Exception.class)。B 错：注解能否生效取决于调用是否经过代理对象，自调用、非 public 方法、final 方法都会让增强失效。C 错：rollbackFor 正是用来扩大回滚异常范围的，写 rollbackFor=Exception.class 后受检异常才回滚。D 错：REQUIRES_NEW 会挂起外层事务、新开一个独立物理事务（独立连接），各自提交回滚互不影响；真正「加入外层事务、共用一个物理事务」的是默认的 REQUIRED。常见兜底：自注入（@Lazy 自身代理）、AopContext.currentProxy()、拆到另一个 Bean，或改用 TransactionTemplate 编程式事务。对照前端：可理解为拦截器只拦「从外部进来的请求」，组件内部函数互相直调不会再过一遍拦截器。",
+    "gapCheck": [
+      "易漏点：this 自调用、非 public、final、异常被 catch 吞掉、底层引擎不支持事务，是四大失效场景",
+      "常见误区：以为写了注解就一定有事务；或不知道默认受检异常不回滚，漏写 rollbackFor",
+      "加分项：能讲清 REQUIRED/REQUIRES_NEW/NESTED（保存点）/SUPPORTS 等传播行为差异与 TransactionTemplate 兜底"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.aop.transaction"],
+      "related": ["be.spring.aop.proxy", "be.spring.ioc.bean-lifecycle"],
+      "followUps": ["NESTED 和 REQUIRES_NEW 都涉及新事务，它们到底差在哪（保存点 vs 独立连接）？", "异常在事务方法里被 try-catch 吞掉后还会回滚吗？怎么手动标记回滚？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "@Transactional 自调用失效与回滚规则单选题" },
+    "tags": ["Spring", "声明式事务", "事务传播", "事务失效", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-mvc-0001",
+    "nodeId": "be.spring.mvc.request-flow",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Spring MVC 处理一次 HTTP 请求的链路与参数绑定，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "请求先到 DispatcherServlet，由 HandlerMapping 找到对应 Handler（Controller 方法），再交给 HandlerAdapter 实际调用" },
+      { "key": "B", "text": "@RestController = @Controller + @ResponseBody，返回值经 HttpMessageConverter（如 MappingJackson2HttpMessageConverter）序列化为 JSON，而不是走视图解析" },
+      { "key": "C", "text": "@PathVariable 取 URL 路径变量、@RequestParam 取查询串/表单参数、@RequestBody 取请求体并做反序列化，三者来源不同" },
+      { "key": "D", "text": "Filter（过滤器）属于 Spring MVC 拦截器体系，能拿到 Controller 方法信息，且总在 HandlerInterceptor 之后执行" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：标准链路是 DispatcherServlet 作为前端控制器统一接收 → HandlerMapping 根据 URL 映射到 HandlerExecutionChain（含拦截器链）→ HandlerAdapter 负责实际反射调用 Controller 方法 → 返回 ModelAndView 或响应体 → 视图解析/消息转换器写出。B 正确：@RestController 是组合注解，类上隐含 @ResponseBody，返回对象不再走 ViewResolver 渲染页面，而是由内容协商选中的 HttpMessageConverter 转成 JSON（默认 Jackson）。C 正确：@PathVariable 绑定 URI 模板片段（/orders/{id}），@RequestParam 绑定 query string 或 form 表单键值，@RequestBody 把整个请求体通过 Converter 反序列化为对象（通常配 @Valid 做 JSR-303 校验）。D 错：Filter 是 Servlet 规范层面的组件（javax.servlet.Filter），在 DispatcherServlet 之外、请求进入 Spring MVC 之前就执行，拿不到具体 Controller 方法元信息；HandlerInterceptor 才是 Spring MVC 的拦截器，能通过 HandlerMethod 拿到目标方法，执行顺序是「Filter → DispatcherServlet → Interceptor.preHandle → Controller → Interceptor.postHandle/afterCompletion」。对照前端：DispatcherServlet 类似一个总路由/网关，HandlerMapping 像前端路由表，拦截器与过滤器的区别类似「全局中间件」和「路由级守卫」的分层。",
+    "gapCheck": [
+      "易漏点：Filter 是 Servlet 规范、在 DispatcherServlet 外；Interceptor 是 Spring MVC 体系、能拿到 HandlerMethod",
+      "常见误区：混淆 @RequestParam/@PathVariable/@RequestBody 的数据来源，或以为 @RestController 还要配视图解析",
+      "加分项：能讲 @ControllerAdvice + @ExceptionHandler 做全局异常统一返回，以及 preHandle 返回 false 如何中断请求"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.mvc.request-flow"],
+      "related": ["be.spring.ioc.inject-scan", "be.spring.mvc.autoconfig"],
+      "followUps": ["拦截器的 preHandle、postHandle、afterCompletion 分别在什么时机执行？", "@Valid 校验失败抛的 MethodArgumentNotValidException 怎么做全局捕获并返回友好错误？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "DispatcherServlet 链路与参数绑定多选题" },
+    "tags": ["Spring MVC", "DispatcherServlet", "参数绑定", "拦截器", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-auto-0001",
+    "nodeId": "be.spring.mvc.autoconfig",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：@SpringBootApplication 是 @SpringBootConfiguration、@EnableAutoConfiguration、@ComponentScan 三者的组合；自动装配会根据 classpath 上是否存在某类（@ConditionalOnClass）、用户是否已自定义同类型 Bean（@ConditionalOnMissingBean）等条件，按需注册自动配置类里的 Bean，从而实现「约定优于配置」。",
+    "answer": { "judge": true },
+    "analysis": "正确。@SpringBootApplication 是三合一组合注解：@SpringBootConfiguration（本质是 @Configuration，标记为配置类）、@ComponentScan（扫描启动类所在包及子包的 @Component 系列）、@EnableAutoConfiguration（驱动自动装配）。自动装配的关键机制：Spring Boot 2.7 之前依赖 jar 包 META-INF/spring.factories 中登记的 EnableAutoConfiguration 全限定类名，2.7 起改为 META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports（每行一个自动配置类，spring.factories 方式被废弃）；容器加载这些配置类时，用一系列 @Conditional 注解决定是否生效——@ConditionalOnClass 类路径存在某类才装配、@ConditionalOnMissingBean 容器里没有用户自定义的同类型 Bean 才装配（这保证用户配置优先、可覆盖默认）、@ConditionalOnProperty 配置项满足才生效、@ConditionalOnBean 依赖某 Bean 存在才生效。starter 则是「依赖聚合 + 自动配置类」的打包，引入一个 starter 就把相关 jar 和默认 Bean 都备齐。内嵌 Tomcat 也是由 servlet 容器的自动配置在启动时拉起。对照前端：这很像按需插件机制——某个库在依赖里出现就自动启用默认配置，而你一旦自己实现了同名能力就覆盖默认值。",
+    "gapCheck": [
+      "易漏点：Boot 2.7 起自动配置登记从 spring.factories 迁移到 AutoConfiguration.imports 文件",
+      "常见误区：以为自动配置是无脑全装，实际每个 Bean 都受 @Conditional 系列条件门控",
+      "加分项：能手写一个自定义 starter（自动配置类 + 条件注解 + 配置属性 @ConfigurationProperties）并讲清 @ConditionalOnMissingBean 的覆盖顺序"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.mvc.autoconfig"],
+      "related": ["be.spring.ioc.inject-scan", "be.spring.ioc.bean-lifecycle"],
+      "followUps": ["如何排除某个不想要的自动配置类（exclude / spring.autoconfigure.exclude）？", "自定义 starter 时怎么保证用户的 Bean 一定能覆盖你的默认 Bean？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Spring Boot 自动装配与条件注解判断题" },
+    "tags": ["Spring Boot", "自动装配", "starter", "条件注解", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-inject-0002",
+    "nodeId": "be.spring.ioc.inject-scan",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "某接口 PaymentService 同时有 AliPayService、WechatPayService 两个实现并都注册成了 Bean，在注入点直接写 @Autowired PaymentService 会因候选不唯一而报错。下列能明确指定注入目标、且描述**正确**的做法有：",
+    "options": [
+      { "key": "A", "text": "在注入点配合 @Qualifier(\"aliPayService\")，让 @Autowired 先按类型选出候选、再按 Bean 名称精确筛选" },
+      { "key": "B", "text": "在其中一个实现类上标注 @Primary，当存在多个同类型候选且未显式指定名称时，容器优先注入被 @Primary 标记的那个" },
+      { "key": "C", "text": "把构造器参数名/字段名写成与目标 Bean 名称一致（如 aliPayService），@Autowired 按类型得到多个候选后会回退用参数名匹配" },
+      { "key": "D", "text": "只要同类型存在多个 Bean，@Autowired 就必然抛 NoUniqueBeanDefinitionException，框架没有任何消歧手段" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：@Autowired 默认 byType，当同类型有多个 Bean 时，配合 @Qualifier 指定 Bean 名称做二次筛选是最直接的消歧方式。B 正确：@Primary 给某个候选设置默认优先级，多处注入又不想每个点都写 @Qualifier 时，用它统一指定「缺省实现」。C 正确：当按类型匹配出多个结果，Spring 会进一步用字段名/参数名作为 Bean 名称去匹配（候选名默认是类名首字母小写），名字对得上也能消歧，但可读性不如显式 @Qualifier。D 错：除上述三种外，还可改用 JSR-250 的 @Resource（默认 byName，名称找不到再回退类型），或注入 Map<String,PaymentService>、List<PaymentService> 一次性拿到全部实现做策略分发。对照前端：这很像 NestJS 用注入令牌（token/字符串标识）区分同一接口的多个 provider，或 React 里用具名 key 从依赖容器取不同实现。",
+    "gapCheck": [
+      "易漏点：@Autowired 先按类型、多候选再按名称；@Qualifier 是显式按名、@Primary 是设缺省优先",
+      "常见误区：以为多实现必然启动报错，不知道参数名匹配、@Resource、集合注入等消歧途径",
+      "加分项：会用 List/Map 注入同一接口全部实现做策略模式，并讲清 Bean 名称默认取类名首字母小写"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.ioc.inject-scan"],
+      "related": ["be.spring.ioc.bean-lifecycle", "be.spring.mvc.autoconfig"],
+      "followUps": ["注入 List<某个接口> 时，集合里 Bean 的顺序由什么决定？", "@Resource 与 @Autowired 在匹配顺序上到底差在哪？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "多实现 Bean 的消歧注入场景多选题" },
+    "tags": ["Spring", "依赖注入", "@Qualifier", "@Primary", "多实现消歧"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-inject-0003",
+    "nodeId": "be.spring.ioc.inject-scan",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：@Service、@Repository、@Controller、@Configuration 自身都被 @Component 元注解标注，因此都会被 @ComponentScan 扫描注册为 Bean；其中 @Repository 额外承担把底层持久化技术异常统一转换为 Spring DataAccessException 的职责，而 @Configuration 标注的类会被 CGLIB 生成代理，以保证类内部 @Bean 方法之间互相调用时返回的仍是同一个单例对象。",
+    "answer": { "judge": true },
+    "analysis": "正确。这四个注解都是 @Component 的「派生/组合注解」（元标注了 @Component），组件扫描时一视同仁地注册为 Bean，差异主要在语义分层与附加能力：@Controller 标识表现层、@Service 标识业务层、@Repository 标识持久层，且 @Repository 上的 PersistenceExceptionTranslationPostProcessor 会把 JPA/JDBC 等厂商异常翻译成与技术无关的 DataAccessException 体系，便于上层统一捕获。@Configuration 是最特殊的：它标记的是「全配置类」，容器用 CGLIB 为其生成子类代理，使得同一个 @Configuration 类里一个 @Bean 方法直接调用另一个 @Bean 方法时，不会真的 new 第二个对象，而是被代理拦截后从容器返回已存在的单例，保证 Bean 间引用的单例语义；若只标 @Component 而非 @Configuration，则是 lite 模式，方法间直调会每次执行、得到新对象。对照前端：组合注解很像用一个上层注解封装多个底层装饰器，类似 JS 里把多个装饰器组合成一个语义化注解。",
+    "gapCheck": [
+      "易漏点：四个注解都元标注 @Component 才会被扫描，区别在语义与 @Repository 异常转换、@Configuration 代理",
+      "常见误区：以为 @Controller/@Service 是与 @Component 完全独立、需要叠加才生效的注解",
+      "加分项：能讲清 full（@Configuration）与 lite（@Component + @Bean）模式下方法互调的单例差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.ioc.inject-scan"],
+      "related": ["be.spring.ioc.bean-lifecycle", "be.spring.mvc.autoconfig"],
+      "followUps": ["@Configuration(proxyBeanMethods = false) 关掉代理后有什么好处和限制？", "为什么 @Repository 能把不同持久层框架的异常统一成一套？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "构造型注解与 @Configuration 代理判断题" },
+    "tags": ["Spring", "组件扫描", "构造型注解", "@Configuration", "CGLIB"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-bean-0002",
+    "nodeId": "be.spring.ioc.bean-lifecycle",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "把一个 Bean 的作用域声明为 prototype，却把它注入到某个 singleton Bean 中；运行期多次调用该 singleton Bean 的方法，拿到的这个依赖始终是同一个对象。对这一现象**最准确**的解释是：",
+    "options": [
+      { "key": "A", "text": "依赖注入只在 singleton Bean 初始化时发生一次，prototype Bean 被注入后就被单例长期持有，不会在每次方法调用时重新创建；要每次都拿到新实例，应改用方法注入（@Lookup）、ObjectFactory/ObjectProvider 或注入代理" },
+      { "key": "B", "text": "prototype 作用域在 Spring 中失效了，属于框架缺陷，只能重启应用" },
+      { "key": "C", "text": "必须给 prototype Bean 再加一个 @Lazy 注解它才能每次新建，不加就永远是单例" },
+      { "key": "D", "text": "singleton 与 prototype 两种作用域不能在同一个容器里共存，容器会静默把 prototype 降级成 singleton" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确：singleton Bean 在容器启动时只创建一次，其依赖也在这一次初始化过程中被注入并固定下来；被注入的 prototype Bean 虽然本身是多例，但它的创建发生在「宿主单例初始化」那一刻，之后宿主持有的就是那个确定的引用，方法反复调用自然拿到同一个对象——这是作用域与注入时机共同决定的正常行为。要让每次调用都得到新的 prototype 实例，常见方案：① 用 @Lookup 注解的抽象方法，容器用 CGLIB 覆写该方法、每次调用返回新 Bean；② 注入 ObjectFactory<T>/ObjectProvider<T>，用时再 getObject()；③ 给注入点加 @Lazy 注入一个代理，每次调用代理方法才临时解析目标 Bean（C 把它说成「不加就永远单例的唯一前提」是错的，它只是可选解法之一，并非根因）。B、D 均不符合 Spring 设计，两种作用域完全可共存。对照前端：这类似单例服务里在构造时缓存了一个依赖，之后复用同一引用；想要「按需新建」就得通过工厂函数每次现取，而不是用构造时注入的固定实例。",
+    "gapCheck": [
+      "易漏点：prototype 被注入 singleton 后只会在宿主初始化时创建一次，作用域差异被注入时机「冻结」",
+      "常见误区：以为声明 prototype 就到处都是新对象，忽略宿主单例长期持有的事实",
+      "加分项：能给出 @Lookup、ObjectProvider、@Lazy 代理三种按需获取新实例的方案与取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.ioc.bean-lifecycle"],
+      "related": ["be.spring.ioc.inject-scan", "be.spring.aop.proxy"],
+      "followUps": ["@Lookup 方法为什么可以是抽象方法，Spring 是怎么让它能调用的？", "Web 作用域（request/session）的 Bean 注入单例时为什么通常要配作用域代理？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "prototype 注入 singleton 的作用域陷阱单选题" },
+    "tags": ["Spring", "Bean 作用域", "prototype", "@Lookup", "排障"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-bean-0003",
+    "nodeId": "be.spring.ioc.bean-lifecycle",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "补全 Spring Bean 的生命周期主线：Bean 实例化（调用构造器）之后进入 ______（即填充属性与依赖）；随后执行各类 Aware 回调，并由 BeanPostProcessor 的 ______ 方法在初始化方法之前做前置处理；初始化方法（@PostConstruct、InitializingBean、initMethod）执行完，再由 BeanPostProcessor 的 ______ 方法做后置包装（AOP 代理就在这一步生成并替换原对象）；容器关闭时单例 Bean 再执行销毁回调。",
+    "answer": {
+      "blanks": ["属性填充", "postProcessBeforeInitialization", "postProcessAfterInitialization"],
+      "synonyms": {
+        "属性填充": ["属性注入", "populateBean", "依赖填充"],
+        "postProcessBeforeInitialization": ["前置处理", "beforeInitialization", "before"],
+        "postProcessAfterInitialization": ["后置处理", "afterInitialization", "after"]
+      }
+    },
+    "analysis": "三个空串起 Bean 的标准生命周期：① 实例化（instantiate，调用构造器生成裸对象）之后是属性填充（populateBean），完成 @Autowired 等依赖注入；② 接着执行 BeanNameAware/BeanFactoryAware 等 Aware 回调，再由 BeanPostProcessor.postProcessBeforeInitialization 做初始化前置处理，然后才轮到初始化方法，三者顺序为 @PostConstruct → InitializingBean.afterPropertiesSet → 自定义 initMethod；③ 初始化完成后调用 BeanPostProcessor.postProcessAfterInitialization，AOP 的 AbstractAutoProxyCreator 正是在这一步判断切点并生成代理对象放回容器，这也解释了为什么三级缓存暴露的早期引用在需要代理时拿到的是代理。最后容器关闭触发 @PreDestroy、DisposableBean.destroy、destroyMethod 等销毁回调（仅单例由容器管理销毁，prototype 不负责）。对照前端：这很像一个对象从 new、注入依赖、beforeCreate/created 钩子、再被高阶组件包裹成代理、最后 unmounted 清理的完整挂载与卸载流程。",
+    "gapCheck": [
+      "易漏点：先实例化再属性填充，BeanPostProcessor 分前置/后置两个方法夹着初始化阶段",
+      "常见误区：把 AOP 代理生成时机放到实例化阶段，实际在 postProcessAfterInitialization",
+      "加分项：能说出三种初始化回调的先后顺序，以及 prototype Bean 容器不管理销毁回调"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.ioc.bean-lifecycle"],
+      "related": ["be.spring.aop.proxy", "be.spring.ioc.inject-scan"],
+      "followUps": ["@PostConstruct、InitializingBean、initMethod 三者的执行顺序是什么？", "为什么 AOP 代理要在 BeanPostProcessor 后置阶段才生成？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "Bean 生命周期与 BeanPostProcessor 填空题" },
+    "tags": ["Spring", "Bean 生命周期", "BeanPostProcessor", "初始化回调", "填空题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-proxy-0002",
+    "nodeId": "be.spring.aop.proxy",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：一个没有实现任何接口的类，Spring AOP 无法使用 JDK 动态代理（它只能代理接口），只能改用 CGLIB 通过生成该类的子类来织入增强；正因为 CGLIB 依赖继承重写方法，所以目标类的 final 方法、private 方法以及被声明为 final 的类本身都无法被代理，对这些方法的调用会绕过切面逻辑。",
+    "answer": { "judge": true },
+    "analysis": "正确。JDK 动态代理基于 java.lang.reflect.Proxy，运行期生成的是「实现了目标接口」的代理类，目标对象若不实现任何接口，JDK 代理无从下手；CGLIB 则用 ASM 字节码动态生成目标类的子类、重写非 final 的普通方法并回调 MethodInterceptor，因此不要求接口。其能力边界正来自继承机制：final 类不能被继承，根本无法生成子类代理；final 方法不能被子类覆盖、private 方法对子类不可见，这两类方法即便类能被代理，调用它们时也不会进入拦截逻辑，切面（日志、事务、权限等）统统失效——这与「同类 this 自调用事务不生效」是同源问题，自调用走的是原始对象而非代理。需要注意 CGLIB 代理要求目标类提供可访问的构造器（默认无参构造最省心）。Spring Boot 2.x 起默认 proxy-target-class=true，即统一优先 CGLIB，避免有无接口时代理行为不一致。对照前端：这类似用 Proxy/高阶函数包装对象时，只能拦截可被覆盖的属性，被冻结（Object.freeze）或不可见的内部方法同样无法被增强。",
+    "gapCheck": [
+      "易漏点：无接口只能 CGLIB；final 类/final 方法/private 方法都无法被 CGLIB 织入",
+      "常见误区：以为 CGLIB 万能，任何方法都能增强，忽视继承与可见性限制",
+      "加分项：能联系自调用失效，说明代理对象与原始目标对象的区别及 CGLIB 对构造器的要求"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.aop.proxy"],
+      "related": ["be.spring.aop.transaction", "be.spring.ioc.bean-lifecycle"],
+      "followUps": ["为什么 this 自调用会让事务和切面失效，怎么改才能重新走代理？", "Spring Boot 2.x 默认 CGLIB 后，工程里还需要关心 JDK 代理吗？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "CGLIB 代理边界与 final/private 限制判断题" },
+    "tags": ["Spring", "AOP", "CGLIB", "动态代理", "final"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-proxy-0003",
+    "nodeId": "be.spring.aop.proxy",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "某切面要求：无论目标方法是正常返回还是抛出异常，都必须执行一段收尾逻辑（释放连接、清理 ThreadLocal 等）。在五类通知中，语义上**最贴合**「方法退出后必定执行」这一需求的是：",
+    "options": [
+      { "key": "A", "text": "@After（最终通知）：目标方法退出后执行，无论正常返回还是抛异常都会触发，作用类似 finally 代码块" },
+      { "key": "B", "text": "@Before（前置通知）：在目标方法执行之前运行，适合做参数校验，但无法承担方法结束后的兜底收尾" },
+      { "key": "C", "text": "@AfterReturning（返回通知）：只在目标方法正常返回后执行，一旦抛异常就不会触发" },
+      { "key": "D", "text": "@AfterThrowing（异常通知）：只在方法抛出异常时触发，正常返回路径完全不执行" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：@After 是最终通知（after advice），无论连接点正常结束还是异常退出都会执行，语义等同 try-finally 中的 finally，最适合放资源释放、ThreadLocal 清理这类「必须兜底」的逻辑。B 的 @Before 仅在方法进入前运行，无法在结束时收尾。C 的 @AfterReturning 只在正常返回时触发、能拿到返回值，异常路径被跳过；D 的 @AfterThrowing 恰好相反，只在抛异常时触发、能拿到异常对象，正常路径不执行。完整执行顺序为：@Around 进入 → @Before → 目标方法 →（正常则 @AfterReturning，异常则 @AfterThrowing）→ @After → @Around 退出。功能最强的是 @Around（环绕通知），它包裹 ProceedingJoinPoint.proceed()，可以自行 try-catch-finally、决定是否放行、修改入参和返回值，因此收尾逻辑用 @Around 的 finally 也能实现，但单纯「无条件收尾」用 @After 语义最清晰、样板更少。对照前端：这与 JS 的 try/catch/finally、React useEffect 的清理函数（cleanup）是同一种「无论成功失败都回收资源」的思想。",
+    "gapCheck": [
+      "易漏点：@After 类似 finally 必执行；@AfterReturning 只管正常、@AfterThrowing 只管异常",
+      "常见误区：把资源释放写进 @AfterReturning，结果异常路径泄漏连接/ThreadLocal",
+      "加分项：能排出五类通知完整执行顺序，并说明 @Around 可统一承担前置+后置+异常处理"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.aop.proxy"],
+      "related": ["be.spring.aop.transaction", "be.spring.ioc.bean-lifecycle"],
+      "followUps": ["@Around 里忘记调用 proceed() 会发生什么？", "@AfterThrowing 捕获异常后，异常还会继续向上抛吗？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "五类通知执行时机与资源清理单选题" },
+    "tags": ["Spring", "AOP", "通知类型", "@After", "资源清理"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-tx-0002",
+    "nodeId": "be.spring.aop.transaction",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 Spring 声明式事务的传播行为（propagation），下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "REQUIRED（默认）：当前线程已存在事务就加入它，没有事务则新建一个，是最常用的传播级别" },
+      { "key": "B", "text": "REQUIRES_NEW：挂起当前事务并新开一个独立物理事务（占用独立数据库连接），内外两个事务各自提交、回滚，互不影响" },
+      { "key": "C", "text": "NESTED：在当前事务内创建保存点（savepoint），子逻辑回滚只回到保存点、外层事务仍可继续提交，但它依赖外层事务确实存在" },
+      { "key": "D", "text": "SUPPORTS 传播级别会强制新建事务，即使当前没有任何事务也一定会开启一个新连接" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：REQUIRED 是默认值，有事务就复用、没有就新建，绝大多数业务方法用它即可，复用意味着内外共用同一个物理事务，任一环节标记回滚整体回滚。B 正确：REQUIRES_NEW 会先挂起外层事务（让出当前连接），新开独立连接和独立事务，因此内层失败不影响外层、外层回滚也不连累内层，常用于「即使主业务失败也要独立落库」的日志/审计记录，代价是同时占用两个连接、易耗尽连接池。C 正确：NESTED 基于 JDBC 保存点，在外层事务内嵌套一个子事务，子事务回滚仅撤销到 savepoint，外层可捕获后继续；它不是独立物理事务，没有外层事务时行为退化为新建，且需要数据源支持保存点。D 错：SUPPORTS 的语义是「有事务就加入、没有就以非事务方式运行」，并不会强制开事务；真正强制新开的是 REQUIRES_NEW，无论是否存在外层都新建。另有 MANDATORY（必须处在事务中否则报错）、NOT_SUPPORTED（挂起事务、非事务运行）、NEVER（有事务反而报错）。对照前端：传播行为很像嵌套函数调用时「复用外层上下文还是新开独立上下文」的策略，REQUIRES_NEW 类似开一个独立作用域、其结果不受外层 try-catch 影响。",
+    "gapCheck": [
+      "易漏点：REQUIRES_NEW 是独立连接独立事务、NESTED 是同一事务内的保存点，二者本质不同",
+      "常见误区：把 SUPPORTS 当成强制开事务，或分不清 NESTED 回滚与外层事务的关系",
+      "加分项：能结合连接池占用解释 REQUIRES_NEW 的代价，并说清 MANDATORY/NOT_SUPPORTED/NEVER 的语义"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.aop.transaction"],
+      "related": ["be.spring.aop.proxy", "be.spring.ioc.bean-lifecycle"],
+      "followUps": ["NESTED 的保存点回滚和 REQUIRES_NEW 的独立事务在隔离性上差在哪？", "为什么大量使用 REQUIRES_NEW 可能把数据库连接池耗尽？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "事务传播行为 REQUIRED/REQUIRES_NEW/NESTED 多选题" },
+    "tags": ["Spring", "声明式事务", "事务传播", "REQUIRES_NEW", "NESTED"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-tx-0003",
+    "nodeId": "be.spring.aop.transaction",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：在带 @Transactional 的方法内部用 try-catch 把业务异常捕获且没有重新抛出，Spring 事务拦截器在方法出口感知不到异常，会按正常流程提交事务，导致本应回滚的改动被提交；此时可以在 catch 块中手动调用 TransactionAspectSupport.currentTransactionStatus().setRollbackOnly() 显式标记回滚。",
+    "answer": { "judge": true },
+    "analysis": "正确。声明式事务由 AOP 代理在方法外围管理：拦截器开启事务后反射调用目标方法，再根据方法是否抛出「符合回滚规则的异常」决定提交还是回滚。若异常在方法内部被 try-catch 吞掉、没有向上抛到代理层，拦截器看到的就是一次正常返回，于是照常 commit，数据被错误提交——这是四大失效场景之外非常高频的「异常被吃掉」坑。两种正确处理：① 不在事务边界内吞异常，记录日志后重新抛出，让代理感知并回滚；② 确需在内部捕获处理时，手动拿到事务状态并 setRollbackOnly()，强制当前事务最终回滚（即便方法正常返回，提交时也会转为回滚并抛 UnexpectedRollbackException）。还要叠加默认回滚规则：默认只对 RuntimeException 和 Error 回滚，受检异常需 rollbackFor=Exception.class。对照前端：这类似 Express/路由守卫里你在 handler 内部 catch 住错误却不调用 next(error)，外层错误中间件就以为请求成功、不会进入失败分支；要显式把失败信号传出去。",
+    "gapCheck": [
+      "易漏点：代理靠「方法抛出的异常」判断回滚，内部 catch 吞异常会被当成成功而提交",
+      "常见误区：以为只要方法里发生过异常事务就一定回滚，忽略异常是否传播到代理层",
+      "加分项：会用 setRollbackOnly 手动标记回滚，并记得默认受检异常不回滚需配 rollbackFor"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.aop.transaction"],
+      "related": ["be.spring.aop.proxy"],
+      "followUps": ["setRollbackOnly 后方法正常返回，为什么调用方还会收到 UnexpectedRollbackException？", "既要捕获异常做补偿、又要保证事务回滚，有哪几种稳妥写法？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "异常被 catch 吞掉导致事务不回滚判断题" },
+    "tags": ["Spring", "声明式事务", "事务失效", "异常捕获", "setRollbackOnly"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-mvc-0002",
+    "nodeId": "be.spring.mvc.request-flow",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 Servlet Filter 与 Spring MVC HandlerInterceptor 的执行位置和能力差异，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "Filter 是 Servlet 规范组件，工作在 DispatcherServlet 之外，能拦截所有进入容器的请求但拿不到具体 Controller 方法；HandlerInterceptor 属于 Spring MVC，可通过 HandlerMethod 拿到目标方法信息，preHandle 返回 false 可中断请求" },
+      { "key": "B", "text": "Filter 能注入 Spring 管理的 Bean，而 HandlerInterceptor 因为是 MVC 内部组件反而无法注入任何 Bean" },
+      { "key": "C", "text": "HandlerInterceptor 的执行时机早于 Filter，请求会先经过拦截器再到达过滤器" },
+      { "key": "D", "text": "HandlerInterceptor 的 postHandle 在响应已经完全写出之后才执行，适合做最终的资源回收" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确，准确切中两者分层：Filter 由 Servlet 容器管理、位于 DispatcherServlet 前后，对所有 URL（甚至静态资源）生效，但它在请求进入 Spring MVC 之前运行，自然不知道最终会调到哪个 Controller 方法；HandlerInterceptor 是 Spring MVC 的组件，拦截器链挂在 HandlerExecutionChain 上，preHandle 时已确定 HandlerMethod，能读取目标方法、注解等信息，返回 false 即终止调用并直接返回。完整顺序是「Filter.doFilter → DispatcherServlet → Interceptor.preHandle → Controller → Interceptor.postHandle → 视图/消息转换写出 → Interceptor.afterCompletion → 回到 Filter」。B 错：拦截器本身注册为 Spring Bean，可正常注入依赖；Filter 若由 Spring 管理（FilterRegistrationBean/DelegatingFilterProxy）也能注入 Bean。C 错：顺序恰好相反，Filter 在外层先执行。D 错：postHandle 在 Controller 返回之后、视图渲染/响应体写出之前执行（此时还能改 ModelAndView）；响应完全结束后的收尾回调是 afterCompletion，抛异常时 afterCompletion 仍会被调用。对照前端：Filter 像应用级全局中间件（对所有请求生效），HandlerInterceptor 像带路由元信息的路由守卫（能读到目标 handler 并决定放行）。",
+    "gapCheck": [
+      "易漏点：Filter 属 Servlet 规范在 DispatcherServlet 外、Interceptor 属 MVC 能拿 HandlerMethod",
+      "常见误区：以为拦截器先于过滤器，或把 postHandle（渲染前）与 afterCompletion（渲染后）时机记反",
+      "加分项：能画出完整嵌套顺序，并说明 preHandle 返回 false 如何中断、afterCompletion 仍执行"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.mvc.request-flow"],
+      "related": ["be.spring.mvc.autoconfig", "be.spring.ioc.inject-scan"],
+      "followUps": ["preHandle、postHandle、afterCompletion 三个方法分别在什么时机、异常时哪些还会执行？", "做登录鉴权和做跨域/编码处理，分别更适合放拦截器还是过滤器？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Filter 与 HandlerInterceptor 区别单选题" },
+    "tags": ["Spring MVC", "过滤器", "拦截器", "HandlerInterceptor", "请求链路"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-mvc-0003",
+    "nodeId": "be.spring.mvc.request-flow",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "补全 Spring MVC 统一异常处理：通常用 @RestControllerAdvice（或 @ControllerAdvice）作为全局切面，配合 ______ 注解标注的方法集中捕获 Controller 抛出的异常，并可通过给该注解传入异常类型（如 MethodArgumentNotValidException.class）按异常类型分流；当前端提交的参数经 @Valid 校验失败时会抛 MethodArgumentNotValidException，方法签名中注入 ______ 类型的参数即可读取每个字段的校验错误信息并组装友好提示。",
+    "answer": {
+      "blanks": ["@ExceptionHandler", "BindingResult"],
+      "synonyms": {
+        "@ExceptionHandler": ["ExceptionHandler", "异常处理注解", "异常处理器"],
+        "BindingResult": ["bindingresult", "binding result", "绑定结果对象"]
+      }
+    },
+    "analysis": "两个空对应全局异常体系的核心。① @ControllerAdvice 本质是一个作用于所有 Controller 的切面（@RestControllerAdvice 额外带 @ResponseBody，返回值直接序列化为 JSON），其内用 @ExceptionHandler(异常.class) 标记的方法会在对应异常从 Controller 抛出时被 DispatcherServlet 的 ExceptionHandlerExceptionResolver 分派捕获，从而把散落的 try-catch 收敛成统一的错误返回结构（状态码 + 提示语），不同异常类型写多个 @ExceptionHandler 实现精确分流。② @Valid 校验失败抛 MethodArgumentNotValidException，它继承自 BindException，内部持有 BindingResult；在异常处理方法参数里注入 BindingResult（或直接用异常对象的 getBindingResult()），调用 getFieldErrors() 即可遍历字段级错误（getField() 取字段、getDefaultMessage() 取注解里配置的 message）。若不做全局捕获，默认会走到容器的错误页/默认错误 JSON，难以贴合前端约定。对照前端：这很像在路由层外包一个全局错误边界（Error Boundary）或 axios 响应拦截器，统一把各类后端异常翻译成前端可渲染的提示，而不是每个请求各自 catch。",
+    "gapCheck": [
+      "易漏点：@RestControllerAdvice = @ControllerAdvice + @ResponseBody；@ExceptionHandler 按异常类型分流",
+      "常见误区：在每个 Controller 里手写 try-catch，不会用全局通知统一返回错误结构",
+      "加分项：能从 BindingResult.getFieldErrors 取字段错误，并区分运行时异常与校验异常的处理"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.mvc.request-flow"],
+      "related": ["be.spring.mvc.autoconfig", "be.spring.ioc.inject-scan"],
+      "followUps": ["@ControllerAdvice 的 basePackages 属性可以把全局异常处理限定在哪些包？", "过滤器（Filter）里抛出的异常为什么 @ControllerAdvice 默认捕获不到？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "@ControllerAdvice 全局异常与 BindingResult 填空题" },
+    "tags": ["Spring MVC", "全局异常", "@ExceptionHandler", "@Valid", "填空题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-auto-0002",
+    "nodeId": "be.spring.mvc.autoconfig",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Spring Boot 自动装配机制与自定义 starter，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "@ConditionalOnClass 表示 classpath 上存在指定类时该自动配置才生效；@ConditionalOnMissingBean 表示容器中尚无用户自定义的同类型 Bean 时才注册默认 Bean" },
+      { "key": "B", "text": "用户自己声明的同类型 Bean 会因 @ConditionalOnMissingBean 判定为「已存在」而让默认 Bean 不注册，从而实现用户配置优先、可覆盖默认值" },
+      { "key": "C", "text": "典型 starter 主要做依赖聚合（引入 autoconfigure 模块和相关 jar），真正的自动配置类在 autoconfigure 模块中，并通过 AutoConfiguration.imports 文件登记" },
+      { "key": "D", "text": "自动配置类会无条件强制注册全部 Bean，用户既无法覆盖也无法排除某个自动配置" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：自动配置类不是无脑全装，每个 Bean 都被一系列 @Conditional 门控——@ConditionalOnClass 依赖某类存在（引入对应 jar 才装配）、@ConditionalOnProperty 看配置开关、@ConditionalOnBean 依赖某 Bean 存在、@ConditionalOnMissingBean 则在用户未提供时给默认实现。B 正确：@ConditionalOnMissingBean 是「用户优先」的关键，容器先加载用户配置，发现已有同类型 Bean，自动配置里的默认 Bean 就跳过，因此只需声明一个自己的 Bean 即可覆盖框架默认（如自定义 ObjectMapper）。C 正确：官方风格把 starter（空壳，只聚合依赖）与 autoconfigure（含配置类和默认实现）拆成两个模块；Spring Boot 2.7 起自动配置类登记在 META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports（每行一个类名），旧的 spring.factories 中 EnableAutoConfiguration 写法已废弃。D 错：用户既能用自定义 Bean 覆盖，也能用 @SpringBootApplication(exclude=...) 或 spring.autoconfigure.exclude 配置显式排除某个自动配置类。自定义 starter 的标准动作即：写配置属性类 @ConfigurationProperties + 自动配置类（带条件注解）+ imports 登记 + 打包依赖。对照前端：这很像 Vite/Babel 的插件预设——依赖出现就启用一套默认插件，而你在配置里显式声明同名能力时就覆盖默认项。",
+    "gapCheck": [
+      "易漏点：自动配置受 @Conditional 系列门控；@ConditionalOnMissingBean 保证用户 Bean 覆盖默认",
+      "常见误区：以为自动配置全量强装不可排除，不知道 exclude 与 excludeName 两种排除方式",
+      "加分项：能讲 Boot 2.7 从 spring.factories 迁移到 AutoConfiguration.imports，并能手写自定义 starter"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.mvc.autoconfig"],
+      "related": ["be.spring.ioc.inject-scan", "be.spring.ioc.bean-lifecycle"],
+      "followUps": ["自定义 starter 如何用 @ConfigurationProperties 绑定并校验配置项？", "为什么自动配置类通常要加 @ConditionalOnMissingBean 而不是直接 @Bean？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "条件注解与自定义 starter 机制多选题" },
+    "tags": ["Spring Boot", "自动装配", "starter", "@Conditional", "条件装配"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-spring-auto-0003",
+    "nodeId": "be.spring.mvc.autoconfig",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 Spring Boot 的内嵌 Web 容器与可执行 jar 启动方式，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "内嵌 Tomcat 由 ServletWebServerApplicationContext 在刷新上下文时经 ServletWebServerFactory 创建并在应用进程内启动；可用 server.port 配置端口（设为 0 表示由操作系统分配随机端口，常用于测试），也能排除 Tomcat starter、引入 Jetty/Undertow 的 starter 来替换容器" },
+      { "key": "B", "text": "Spring Boot 只能打成 war 包部署到外部独立 Tomcat，用 main 方法启动的可执行 jar 无法对外提供 Web 服务" },
+      { "key": "C", "text": "server.port 必须显式写成固定端口，一旦配置为 0 容器会因找不到端口而启动失败" },
+      { "key": "D", "text": "只要引入 spring-boot-starter-web 就被永久锁定在 Tomcat，业务代码不变的情况下无法切换到其他 Servlet 容器" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：传统 Spring MVC 依赖外部 Tomcat 部署 war，而 Spring Boot 把 Servlet 容器内嵌——ServletWebServerApplicationContext 刷新时通过 ServletWebServerFactory（如 TomcatServletWebServerFactory）创建 WebServer 并 start()，Tomcat 成为应用进程内的组件，可执行 jar 用 main 方法直接拉起；server.port、server.servlet.context-path、server.tomcat.threads.max 等属性绑定到工厂，端口写 0 时由 OS 分配空闲端口，集成测试可再注入实际端口。替换容器靠条件装配：排除默认 Tomcat 并加入 spring-boot-starter-jetty 或 spring-boot-starter-undertow，classpath 上的工厂类一变，对应自动配置即生效，业务代码无需改动。B 错：可执行 jar 内嵌容器正是 Boot 的默认运行方式，war 部署只是可选兼容形态。C 错：端口 0 是合法且常用的随机端口用法，不会启动失败。D 错：三大容器都实现同一 ServletWebServerFactory 抽象，可平滑替换。对照前端：这很像 Vite/Next 把 dev server 内置进工具链、一条命令拉起，而不是先装独立 Web 服务器再部署；换容器就像换一个实现同一接口的 server 适配插件。",
+    "gapCheck": [
+      "易漏点：内嵌容器是进程内由 ApplicationContext 经 Factory 创建的 Bean，不是外部独立 Tomcat 进程",
+      "常见误区：以为 Boot 只能 war 部署、端口不能随机、Tomcat 不可替换，实际三者都可灵活配置",
+      "加分项：知道 server.port=0 的测试用途，以及 Jetty/Undertow 替换依赖的 starter 与自动装配联动"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.spring.mvc.autoconfig"],
+      "related": ["be.spring.mvc.request-flow", "be.spring.ioc.inject-scan"],
+      "followUps": ["内嵌容器模式和传统 war 部署外部 Tomcat 在类加载与运维上有什么差别？", "集成测试里如何拿到 server.port=0 实际分配到的端口？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "内嵌 Tomcat 与容器替换机制单选题" },
+    "tags": ["Spring Boot", "内嵌容器", "Tomcat", "自动装配", "starter"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  }
+]

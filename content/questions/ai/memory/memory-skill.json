@@ -195,5 +195,113 @@
     "variants": [
       { "angle": "反向问", "stem": "反向砍需求：预算只允许先建一类记忆（episodic/semantic/procedural 三选一）给一个客服 Agent。你选哪个？给出业务收益论证与它单独运行的天花板。", "analysis": "开放题但论证要有据。常见高分选择是 episodic：『上次这客户遇到过/上次这问题怎么解的』直接压低重复工单成本、写入零裁决最快上线、且能为后两类积累原料（先有事例才好抽偏好与规则）。天花板：单条事例不可泛化——没有 semantic 就答不好『这个客户的套餐是什么』、没有 procedural 就做不到『按公司 SOP 退款』，且事例检索随规模噪音上升。选 semantic 的论证走『个性化与合规事实』路线也成立。评分看收益是否绑定具体业务动作、天花板是否诚实。" }
     ]
+  },
+  {
+    "id": "Q-ai-mem-session-0008",
+    "nodeId": "ai.memory.memory-skill.session-state",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：Agent 的短期会话状态（todos、scratchpad、当前工具结果）只存在内存里即可；只要模型上下文窗口够大，进程崩溃或多轮中断后能否恢复并不重要，也无需把关键状态显式持久化。",
+    "answer": { "judge": false },
+    "analysis": "错误。把会话状态完全寄托在模型上下文和进程内存上，是生产级 Agent 的典型脆弱点。原因有三：① 可靠性——进程崩溃、超时、限流重试、用户隔天回来续聊都会丢失现场，纯内存状态无法从故障点恢复，长任务（多步工具调用、人工审批中断）尤其依赖 checkpoint/resume；② 上下文并非可靠存储——上下文窗口有 token 上限且存在中间遗忘，早期 todos、工具输出会被截断或稀释，把『待办、已完成步骤、待确认项』显式写进结构化 scratchpad/todo 并持久化，才能在压缩、截断后仍保留任务主线；③ 可观测与可审计——外部化的状态让人类可以查看进度、系统可以重放和排错，也便于多实例/多 worker 接力。工程上通常把会话状态分层：易失的临时计算留在上下文，关键的任务状态（todo 列表、阶段、工具调用记录、待人工确认项）写入带会话 id 的持久存储（数据库/文件/消息队列），每完成一步做检查点，恢复时按检查点重建上下文。这也是人机协同（human-in-the-loop）能暂停-恢复的前提。",
+    "gapCheck": [
+      "易漏点：窗口有上限且会中间遗忘，上下文不是可靠的状态存储；崩溃恢复依赖显式 checkpoint",
+      "常见误区：以为窗口够大就无需持久化，忽视崩溃、超时、跨会话续聊与多实例接力",
+      "加分项：能讲状态分层（易失临时态 vs 关键结构化态）、按步检查点与 human-in-the-loop 暂停恢复"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.session-state"],
+      "related": ["ai.memory.memory-skill.skill-lib"],
+      "followUps": ["设计会话 checkpoint 时哪些字段必须落盘、哪些可以只留在上下文？", "上下文被压缩后，如何从持久化的 todo/scratchpad 重建任务现场？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Agent 短期会话状态持久化与崩溃恢复的判断题" },
+    "tags": ["会话状态", "scratchpad", "checkpoint", "可恢复性", "判断"]
+  },
+  {
+    "id": "Q-ai-mem-scratch-0009",
+    "nodeId": "ai.memory.memory-skill.session-state",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于用 todos、scratchpad 等结构化短期记忆支撑 Agent 任务执行，下列说法正确的有：（多选）",
+    "options": [
+      { "key": "A", "text": "显式 todo 列表把『还要做什么』外部化，能在长链路中抑制目标漂移、让 Agent 完成一步后知道下一步，并便于向用户展示进度" },
+      { "key": "B", "text": "scratchpad 记录中间推理、工具返回摘要与待确认项，可减少重复调用工具，并在上下文压缩后保留关键事实" },
+      { "key": "C", "text": "把大段原始工具输出原文全量塞进上下文最有利于记忆，不需要摘要或结构化，信息越全越好" },
+      { "key": "D", "text": "结构化状态应标注来源与时间，并区分『已完成/进行中/待确认』，以便恢复时判断哪些步骤可安全重试、哪些有人工依赖" }
+    ],
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A、B、D 正确，C 错。A 是 todo 外部化的核心价值：模型自身不具备可靠的全局计划保持能力，长任务中容易被中间细节带偏（目标漂移），显式、可勾选的 todo 把计划从隐式注意力变成显式数据结构，既引导下一步动作又提供可观测进度。B 讲 scratchpad 的作用：把每步推理、工具结果的关键摘要沉淀下来，避免反复调用同一工具（省 token、省时延），并在上下文被滑动窗口/摘要压缩后仍能据结构化记录重建事实主线。D 是工程纪律：状态条目带来源（哪次工具调用、哪条用户消息）、时间戳和状态机标记（done/doing/blocked/needs-approval），恢复时才能区分幂等可重试的步骤与依赖人工确认、不可盲目重放的副作用操作（如已发起的支付、写库）。C 错：原始工具输出往往巨大且含大量噪声，全量原文会迅速耗尽 token 预算、加剧中间遗忘并稀释注意力，正确做法是先做摘要/抽取结构化字段再入 scratchpad，需要原始细节时凭引用 id 回查外部存储（与 RAG 的『外置+按需检索』思想一致）。",
+    "gapCheck": [
+      "易漏点：todo 抑制目标漂移、scratchpad 减少重复工具调用并抗上下文压缩",
+      "常见误区：把工具原始输出全量塞上下文，忽视 token 预算与中间遗忘",
+      "加分项：能讲状态机标记+来源时间戳支撑安全重试与人工依赖判断、摘要+引用回查模式"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.session-state"],
+      "related": ["ai.memory.memory-skill.skill-lib", "ai.rag.retrieval-pipeline.rerank-compress"],
+      "followUps": ["如何设计 todo 的状态机以支持失败重试与人工审批？", "scratchpad 摘要与原始工具结果之间如何用引用 id 做按需回查？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "todos/scratchpad 结构化短期记忆机制多选题" },
+    "tags": ["短期记忆", "todos", "scratchpad", "目标漂移", "多选"]
+  },
+  {
+    "id": "Q-ai-mem-skilllib-0010",
+    "nodeId": "ai.memory.memory-skill.skill-lib",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：在 Agent 的记忆分类（参考 CoALA 框架）中，保存『如何做某事』的可复用操作流程、技能与工作流的一类称为 ______ 记忆（程序性记忆）；它在工程上常以带前置说明的技能文件（如 ______）形式存在，描述触发条件、步骤与边界，Agent 按需加载而非常驻上下文。与之相对，记住具体发生过的事件/对话的是 ______ 记忆，沉淀稳定事实与概念的是 ______ 记忆。",
+    "answer": {
+      "blanks": ["procedural", "SKILL.md", "episodic", "semantic"],
+      "synonyms": {
+        "procedural": ["程序性", "过程性", "procedural memory", "程序记忆"],
+        "SKILL.md": ["skill.md", "技能文件", "SKILL", "技能说明书"],
+        "episodic": ["情景", "情节", "episodic memory", "情景记忆", "事件记忆"],
+        "semantic": ["语义", "semantic memory", "语义记忆"]
+      }
+    },
+    "analysis": "CoALA（Cognitive Architectures for Language Agents）把 Agent 记忆分为几路：① 程序性记忆（procedural）存『怎么做』的操作知识——技能、工作流、可执行例程，工程落地常是 SKILL.md 这类结构化技能文件，内含触发场景、前置条件、分步指引、边界与示例，采用『按需加载（progressive disclosure）』而非全部塞进系统提示，以节省上下文、降低无关技能干扰；② 情景记忆（episodic）存具体经历——历史对话、过往任务轨迹、单个事件，回答『上次发生了什么』；③ 语义记忆（semantic）存提炼后的稳定事实、概念、实体与偏好，回答『什么是真的/客户的固定信息是什么』，常由情景记忆抽象固化而来。另有工作记忆（working）对应上下文内的短期 scratchpad/todo。区分程序性与其他记忆的关键在于：它是可复用的『方法/动作序列』而非数据或事件，且天然适合版本化、共享与组合。设计上技能库要控制数量与描述质量，靠清晰的 name/description 让 Agent 在路由阶段正确触发，避免技能膨胀导致选择困难。",
+    "gapCheck": [
+      "易漏点：procedural=怎么做的技能/工作流，episodic=具体事件，semantic=稳定事实，working=上下文短期态",
+      "常见误区：把技能（程序性）与知识库事实（语义）混为一谈，或让所有技能常驻上下文",
+      "加分项：能讲 SKILL.md 按需加载、技能版本化与 description 路由触发、由 episodic 抽象出 semantic"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.skill-lib"],
+      "related": ["ai.memory.memory-skill.session-state"],
+      "followUps": ["技能库规模变大后，如何设计 description 与路由避免 Agent 选错技能？", "episodic 记忆通过什么流程固化为可复用的 semantic/procedural 知识？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "CoALA 记忆分类与 SKILL.md 程序性记忆填空题" },
+    "tags": ["程序性记忆", "CoALA", "SKILL.md", "episodic", "semantic", "填空"]
+  },
+  {
+    "id": "Q-ai-mem-skilllib-0011",
+    "nodeId": "ai.memory.memory-skill.skill-lib",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "随着技能库（程序性记忆）规模增长到上百个 SKILL，Agent 每次都把全部技能说明放进系统提示会带来明显副作用。下列工程做法最合理的是：",
+    "options": [
+      { "key": "A", "text": "把所有技能的完整正文常驻系统提示，宁可多耗 token 也要保证 Agent 看得到，路由靠模型自己临场判断" },
+      { "key": "B", "text": "采用渐进式加载：系统提示只保留每个技能的名称与简短描述（轻量目录），Agent 先据描述路由选中技能，再按需加载该 SKILL.md 的完整正文，并靠高质量、边界清晰的 description 控制误触发" },
+      { "key": "C", "text": "为彻底避免选错，干脆只保留一个大而全的技能，把所有工作流都塞进同一个 SKILL 文件" },
+      { "key": "D", "text": "技能一旦写好就固定不变，不需要版本管理，也不必根据真实调用与失败记录持续修订描述" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确，是技能库规模化的标准范式（progressive disclosure，渐进式披露）。完整 SKILL 正文常驻会迅速吃满 token 预算、稀释注意力并加剧技能间干扰与误选；只把 name+description 组成的轻量目录放进上下文，模型用它做意图到技能的路由，命中后才加载对应完整说明，把上下文成本与当前任务需要的信息量对齐。这套机制有效的前提是 description 质量：要写清『何时触发、何时不要用、输入输出与边界』，命名互斥可辨，必要时配合技能检索（按 query 语义召回相关技能子集）或分层命名空间进一步收敛候选。A 错在忽视 token 成本与注意力稀释，技能越多路由准确率反而下降。C 错：单一大文件违背单一职责、难以维护与复用，且正文过大同样撑爆上下文，正确方向是合理拆分而非合并。D 错：技能是需要持续运营的资产，应当版本化（可回滚、可 A/B），并基于实际调用日志、误触发与失败 case 迭代描述与流程，否则技能腐化会让路由准确率随时间劣化。这与工具面设计、记忆分层共享同一套『按需加载、可路由、可演进』的工程原则。",
+    "gapCheck": [
+      "易漏点：渐进式加载=轻量目录常驻+正文按需读取；description 的触发边界质量决定路由准确率",
+      "常见误区：全量正文常驻、把技能合并成大而全文件、技能写完不做版本与迭代运营",
+      "加分项：能提技能检索/命名空间收敛候选、版本化回滚、用调用与失败日志驱动技能持续改进"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["ai.memory.memory-skill.skill-lib"],
+      "related": ["ai.memory.memory-skill.session-state", "ai.tools.tool-calling.tool-design-routing"],
+      "followUps": ["技能上百后，轻量目录本身也变大时如何用检索或分层进一步压缩？", "如何用真实调用与误触发数据评估并改进技能的 description 质量？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "技能库渐进式加载与路由治理单选题" },
+    "tags": ["程序性记忆", "技能库", "渐进式加载", "路由", "单选"]
   }
 ]

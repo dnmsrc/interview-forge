@@ -1,0 +1,46 @@
+[
+  { "id": "fe.perf.metrics", "title": "性能指标与测量定位", "level": 3, "domain": "fe", "stack": "perf", "topic": "metrics", "mustMaster": true, "estMinutes": 45,
+    "summary": "Core Web Vitals 口径、实验室与真实用户数据、DevTools 火焰图定位" },
+
+  { "id": "fe.perf.metrics.core", "title": "Core Web Vitals：LCP、CLS、INP 的口径与测量体系", "level": 4, "domain": "fe", "stack": "perf", "topic": "metrics",
+    "prerequisites": ["fe.browser.render.pipeline", "fe.browser.events.event-loop"],
+    "related": ["fe.perf.metrics.profiling", "fe.browser.events.input-frame"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能背准 2026 阈值口径：LCP≤2.5s（最大内容元素渲染时刻，图片/视频/背景图/文本块候选，字体未就绪的文本会推迟 LCP）、CLS≤0.1（累积布局偏移分数，无预期窗口最近输入 500ms+100ms 内不计、载入字体导致的偏移计入、理想接近 0）、INP≤200ms（交互到下一帧绘制，取页面全部交互 P75 桌面/P98 移动，2024-03 正式替换 FID）；TTFB/FCP 辅助定位瓶颈在网络还是渲染；「good 组」按 P75 分位达标而非均值；测量双轨：实验室（Lighthouse CI 合成环境只当回归门槛）与真实字段（web-vitals 库 onLCP/onCLS/onINP 上报、attribute 归因元素与 load state，CrUX/RUM 看板）；调试语义：bfcache 命中时 PerformanceNavigationTiming 缓存态、PerformanceObserver 是字段采集唯一入口、document.visibilitychange 决定上报终值时机（页面隐藏前 flush）" },
+
+  { "id": "fe.perf.metrics.profiling", "title": "DevTools Performance 面板：火焰图、Long Task 与 INP 归因", "level": 4, "domain": "fe", "stack": "perf", "topic": "metrics",
+    "prerequisites": ["fe.perf.metrics.core"],
+    "related": ["fe.browser.events.input-frame", "fe.browser.v8.engine"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能独立跑一次完整剖析：录制参数（4-6x CPU throttle+弱网模拟移动端）、读火焰图（Main 线程紫 Script/黄 Layout/灰 Render/绿 Paint 的时间占比与调用树 self time）、识别 Long Task 红角标与「Top blocked frame」、用 Event Timing/INP track（Interaction to Next Paint trace 行）拆出 delay/input processing/presentation 三段找真凶、LoAF（long-animation-frame）API 归因到脚本归属与 invoker、Network 瀑布看优先级列与关键请求链（critical request chain）、Memory/Layers/Application 面板配合；第三方脚本治理路径：tag 延迟策略（defer/afterInteractive/lazyOnCPUUsage）、Partytown 迁 Worker、web-vitals attribution  build 版上报；输出结论要能落到「哪个函数哪一行」而非泛泛「JS 太长」" },
+
+  { "id": "fe.perf.loading", "title": "加载与首屏优化", "level": 3, "domain": "fe", "stack": "perf", "topic": "loading", "mustMaster": true, "estMinutes": 50,
+    "summary": "关键渲染路径、LCP 攻坚、图片与资源提示体系" },
+
+  { "id": "fe.perf.loading.critical-path", "title": "关键渲染路径与 LCP 攻坚：内联、字体、SSR 与边缘缓存", "level": 4, "domain": "fe", "stack": "perf", "topic": "loading",
+    "prerequisites": ["fe.browser.render.pipeline", "fe.network.transport.cache-strategy"],
+    "related": ["fe.perf.loading.resource-hint", "fe.network.optimize.load-priority"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能以 LCP 为轴心组织优化清单：①HTML 本身最快到位（SSR/SSG 直出首屏 HTML vs CSR 空壳二次取数的结构性差距、流式 SSR/HTML 分块 flush 让 TTFB 后浏览器提前解析、边缘缓存/ISR 缩短回源）；②首屏 CSS 提前可用（关键 CSS 内联 head、其余媒体分段异步、Tailwind 纯 JIT 产物本就不大可直接外链）；③LCP 元素显式提速（hero 图 fetchpriority=high+preload 候选、禁 lazy、宽高属性防偏移、字体 subsetting+font-display:swap/buffer 权衡、必要时改背景图为 img）；④关键请求链瘦身（第三方同步 JS 挪出 head、gzip→brotli/zstd 字典压缩、early hints 103 并行预取）；⑤hydration 不阻塞绘制的边界（岛架构/Selective Hydration、resumable 思路）；答题纪律：先给测量证据再上手段，能按「网络段/资源段/渲染段」分层归因" },
+
+  { "id": "fe.perf.loading.resource-hint", "title": "图片策略、懒加载与资源提示分工", "level": 4, "domain": "fe", "stack": "perf", "topic": "loading",
+    "prerequisites": ["fe.perf.loading.critical-path"],
+    "related": ["fe.network.optimize.load-priority", "fe.browser.storage.local"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能给出图片现代方案：格式协商 AVIF>WebP>JPEG 按 CDN Accept 头动态转换、srcset+sizes 响应式密度选择（错误 sizes 会下载过大图）、aspect-ratio/宽高占位防 CLS、LCP 图禁 loading=lazy 的反例常识、解码 offload（decoding=async 与 OffscreenCanvas）；懒加载双轨：原生 loading=lazy（浏览器按距离启发式、不控过早过晚）vs IntersectionObserver 自管（rootMargin 预热带、骨架/淡入体验、vueuse useIntersectionObserver），视频 poster 化与点击再挂载；资源提示四件套分工复述（dns-prefetch/preconnect/preload/prefetch 各解决哪段延迟，preconnect 名额有限别撒胡椒面、preload 忘 as 双倍下载）；字体专项：fontsource 自托管、unicode-range 子集、next/font 类本地化消除 G 站阻塞" },
+
+  { "id": "fe.perf.longlist", "title": "大数据量渲染与交互流畅", "level": 3, "domain": "fe", "stack": "perf", "topic": "longlist", "mustMaster": true, "estMinutes": 45,
+    "summary": "虚拟列表原理与生态、长任务切分与主线程卸载" },
+
+  { "id": "fe.perf.longlist.virtual", "title": "虚拟列表：窗口化渲染、动态高度与无限滚动陷阱", "level": 4, "domain": "fe", "stack": "perf", "topic": "longlist",
+    "prerequisites": ["fe.js.dom.dom-api", "fe.vue.perf.virtual-list"],
+    "related": ["fe.perf.longlist.offload", "fe.browser.events.input-frame"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能手推核心模型：总高=估算项数×平均高撑出滚动条、可视窗口 start=floor(scrollTop/itemHeight) 上下各加 overscan 缓冲、transform/absolute 把切片钉到正确偏移、scroll 事件 rAF 节流更新窗口；动态高度三难点：测高回流成本（ResizeObserver 逐项测+预估先行）、滚动位置漂移（测高修正总高导致跳动，需锚定补偿）、快速滚动白屏（overscan 不足或渲染追不上，配合 content-visibility:auto+contain-intrinsic-size 兜底）；生态对号入座：vue-virtual-scroller（RecycleScroller 固定高/DynamicScrollerItem 测高）、TanStack Virtual（headless 框架无关、rangeExtractor 自由）、IntersectionObserver sentinel 无限滚动的加载时机与回滚加载 upward 模式；配套细节：key 稳定防整窗 patch 全毁、回收复用组件的内部状态重置（表单/播放器串数据事故）、表格冻结列与虚拟化的组合复杂度" },
+
+  { "id": "fe.perf.longlist.offload", "title": "长任务切分、让出调度与 Web Worker 卸载", "level": 4, "domain": "fe", "stack": "perf", "topic": "longlist",
+    "prerequisites": ["fe.browser.events.event-loop", "fe.browser.worker.thread"],
+    "related": ["fe.perf.longlist.virtual", "fe.browser.events.input-frame"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能把「INP 差/滚动卡」的计算问题拆三层：①能不能不算（memo 派生缓存、增量 diff、Web Worker 预处理数据如虚拟列表测高表预计算）；②必须算就切小：scheduler.yield() 保留优先级的原生让出（Chrome 129+）与 yield* 迭代器写法、对比 setTimeout 粗切（优先级降级、间隙失控）与 MessageChannel 宏任务模拟、INP 视角每片 <50ms 且让出点选在可中断边界（inp-polyfill/inp-observer 与 inp 工具链）；③渲染本身切小：并发特性 useTransition/useDeferredValue（Vue 侧对应 shallowRef 手动降频/watch 节流）、时间切片渲染分批 append、CSS content-visibility 跳过离屏子树 layout/paint 的大杀器；收尾提 Inertia/View Transitions 的观感优化与 measurement 闭环（优化后用 web-vitals 字段验证而非本地体感）" }
+]

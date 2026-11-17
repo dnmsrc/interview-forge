@@ -1,0 +1,85 @@
+[
+  {
+    "id": "be.mq.arch",
+    "title": "Kafka / RabbitMQ 架构与选型",
+    "level": 3,
+    "domain": "be",
+    "stack": "mq",
+    "topic": "arch",
+    "mustMaster": false,
+    "estMinutes": 60,
+    "summary": "两大主流 MQ 的存储模型、吞吐差异与适用场景，是异步解耦与削峰填谷的中间件地基"
+  },
+  {
+    "id": "be.mq.arch.kafka",
+    "title": "Kafka 分区、副本、ISR 与高吞吐原理",
+    "level": 4,
+    "domain": "be",
+    "stack": "mq",
+    "topic": "arch",
+    "prerequisites": ["cs.os.io.zero-copy"],
+    "related": ["be.mq.arch.rabbitmq", "cs.design.mq-dedup.peak-shaving"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲 Topic-Partition 分段日志与 offset、生产者分区路由、消费者组 rebalance、leader/follower 副本与 ISR、HW/LEO、顺序写盘 + 页缓存 + sendfile 零拷贝为何带来高吞吐、acks=0/1/all 的可靠性取舍，以及为什么 Kafka 适合日志/大数据流而不适合复杂路由"
+  },
+  {
+    "id": "be.mq.arch.rabbitmq",
+    "title": "RabbitMQ 交换机路由、AMQP 模型与 Kafka 选型对比",
+    "level": 4,
+    "domain": "be",
+    "stack": "mq",
+    "topic": "arch",
+    "prerequisites": [],
+    "related": ["be.mq.arch.kafka"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲 AMQP 的 Exchange/Queue/Binding 模型、direct/fanout/topic/headers 四种交换机路由、消息确认 ack 与拒绝 requeue/死信队列 DLX、RabbitMQ 与 Kafka 在吞吐量、延迟、消息顺序、是否可回溯消费、运维复杂度上的对比，以及业务消息选 RabbitMQ、埋点日志流选 Kafka 的典型决策"
+  },
+
+  {
+    "id": "be.mq.reliability",
+    "title": "可靠投递、顺序、幂等与积压",
+    "level": 3,
+    "domain": "be",
+    "stack": "mq",
+    "topic": "reliability",
+    "mustMaster": true,
+    "estMinutes": 60,
+    "summary": "消息不丢、不重、有序与积压治理，是 MQ 落地生产最容易出事故的四个方向"
+  },
+  {
+    "id": "be.mq.reliability.delivery",
+    "title": "消息不丢：生产确认、持久化与消费确认三段保障",
+    "level": 4,
+    "domain": "be",
+    "stack": "mq",
+    "topic": "reliability",
+    "prerequisites": ["be.mq.arch.kafka", "be.mq.arch.rabbitmq"],
+    "related": ["be.mq.reliability.idempotent", "eng.warstory.be.threadpool-sizing"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲消息丢失可能发生在生产端、Broker、消费端三段，分别用生产者 confirm/回调重试、Broker 持久化 + 多副本、消费端手动 ack（处理成功再确认）堵住，结合本地消息表/事务消息实现『DB 操作与发消息』的一致性，以及 at-most-once/at-least-once/exactly-once 三种投递语义的真实含义"
+  },
+  {
+    "id": "be.mq.reliability.idempotent",
+    "title": "重复消费幂等、分区有序与消息积压治理",
+    "level": 4,
+    "domain": "be",
+    "stack": "mq",
+    "topic": "reliability",
+    "prerequisites": ["be.mq.reliability.delivery"],
+    "related": ["cs.design.mq-dedup.idempotent", "cs.design.mq-dedup.delay"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲 at-least-once 下消费端为何必须幂等（唯一键去重表、状态机、Redis SET NX、乐观锁）、全局有序代价高而分区/队列内有序如何用相同业务 key 路由到同一分区实现、消息积压的应急排查（消费慢/挂了/突增流量）与扩容消费者、临时转储等治理手段，以及死信队列兜底失败消息"
+  }
+]

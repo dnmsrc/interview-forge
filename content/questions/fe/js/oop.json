@@ -1,0 +1,339 @@
+[
+  {
+    "id": "Q-fe-js-prototype-0001",
+    "nodeId": "fe.js.oop.prototype",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "关于原型与原型链，下列说法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "每个函数都有 prototype 属性（原型对象），实例的 `__proto__` 指向构造函数的 prototype"
+      },
+      {
+        "key": "B",
+        "text": "访问对象属性时，若自身没有，会沿 `__proto__` 一路向上查找，直到 Object.prototype，再往上是 null"
+      },
+      {
+        "key": "C",
+        "text": "`hasOwnProperty()` 只判断属性是否为对象自身所有，原型链上的属性返回 false"
+      },
+      {
+        "key": "D",
+        "text": "`class`/`extends` 是全新的基于类的继承模型，底层不再使用原型链"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确。A 描述了构造函数、prototype、实例 `__proto__` 三者的关系：`实例.__proto__ === 构造函数.prototype`，原型对象上还有 constructor 指回构造函数。B 描述原型链查找机制：属性查找沿 `[[Prototype]]` 链上行，Object.prototype 是链的顶端，其 `__proto__` 为 null，找不到就返回 undefined。C 正确，for...in 会枚举到继承属性，而 hasOwnProperty 能区分自有属性与继承属性，这是过滤原型属性的标准做法。D 错：ES6 class 只是原型继承的语法糖，`class Child extends Parent` 底层仍然靠原型链（Child.prototype 的 `__proto__` 指向 Parent.prototype），JavaScript 至今没有类-based 的静态继承模型。",
+    "gapCheck": [
+      "易漏点：prototype 是函数的属性，`__proto__`（即内部 [[Prototype]]）是每个对象都有的内部链接，二者不是一回事",
+      "常见误区：以为 class 让 JS 变成了类继承语言——它只是原型继承的包装糖",
+      "加分项：能讲 new 的四个步骤，并说明 constructor 被重写后为什么要手动指回原构造函数"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.oop.prototype"
+      ],
+      "related": [
+        "fe.js.oop.this"
+      ],
+      "followUps": [
+        "手写一个 new 操作符的实现？",
+        "Object.create(null) 创建的对象原型链顶端是什么，有什么用途？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "原型链机制多选题"
+    },
+    "tags": [
+      "JS基础",
+      "原型链",
+      "继承",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-prototype-0002",
+    "nodeId": "fe.js.oop.prototype",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "补全 `new Foo()` 执行过程的关键步骤：①创建一个空对象；②把新对象的原型链接（`__proto__`）指向构造函数的 ______ 属性；③以新对象作为 ______ 的指向来执行构造函数（给实例挂属性）；④若构造函数显式返回对象则用该返回值，否则返回这个新对象。",
+    "answer": {
+      "blanks": [
+        "prototype",
+        "this"
+      ],
+      "synonyms": {
+        "prototype": [
+          "原型",
+          "原型对象",
+          "Foo.prototype"
+        ],
+        "this": [
+          "this指向",
+          "this 指向",
+          "上下文"
+        ]
+      }
+    },
+    "analysis": "new 的标准四步：1) 以构造函数的 prototype 为原型创建一个新对象（等价于 Object.create(Foo.prototype)）；2) 将新对象的 `__proto__` 链到 Foo.prototype，这一步决定了实例能访问原型上的方法；3) 把构造函数内部的 this 绑定到该新对象并执行，构造函数里 this.xxx = ... 就是在给实例加自有属性；4) 构造函数若返回一个对象则整体返回该对象，否则默认返回新创建的实例（返回原始值不影响，仍返回实例）。理解这四步就能手写 new，也能解释实例方法为什么在原型上共享而属性各自独立。",
+    "gapCheck": [
+      "易漏点：第②步挂的是构造函数的 prototype，不是构造函数本身；第③步 this 指向新实例",
+      "常见误区：以为 new 只是「新建个对象」，忽略原型链接和 this 绑定两步",
+      "加分项：能说清构造函数显式 return 对象与 return 原始值时结果的差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.oop.prototype"
+      ],
+      "related": [
+        "fe.js.oop.this"
+      ],
+      "followUps": [
+        "手写 function myNew(Fn, ...args) 并解释每一行？",
+        "箭头函数可以当构造函数 new 吗？为什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "new 执行过程填空题"
+    },
+    "tags": [
+      "JS基础",
+      "new",
+      "原型链",
+      "填空题"
+    ]
+  },
+  {
+    "id": "Q-fe-js-this-0001",
+    "nodeId": "fe.js.oop.this",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "下列关于 `this` 绑定的说法，**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "普通函数里的 this 在函数定义时就确定了，永远指向函数自身"
+      },
+      {
+        "key": "B",
+        "text": "对象方法 `obj.fn()` 调用时，fn 内的 this 指向 obj（隐式绑定）；但把方法取出 `const f = obj.fn; f()` 单独调用时，this 丢失，非严格模式下指向全局对象"
+      },
+      {
+        "key": "C",
+        "text": "箭头函数有自己的 this，可以用 call/apply/bind 改变它"
+      },
+      {
+        "key": "D",
+        "text": "`bind` 会立即执行函数，而 `call`/`apply` 只是返回新函数"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确描述了隐式绑定与 this 丢失：谁调用方法，this 就绑定谁（obj.fn() → obj）；一旦把方法赋值给变量再裸调用，就退化为默认绑定，非严格模式下 this 是全局对象（浏览器 window），严格模式下是 undefined——这正是定时器/回调里 this 丢失的根源，解法是 bind 或箭头函数。A 错：普通函数的 this 在调用时动态决定，不是定义时。C 错：箭头函数没有自己的 this，它捕获定义处外层作用域的 this，且 call/apply/bind 对箭头函数无效（传了也被忽略）。D 完全说反：bind 返回一个绑定好 this 的新函数、不立即执行；call/apply 才是立即执行，区别在 call 逐个传参、apply 收数组。",
+    "gapCheck": [
+      "易漏点：this 是调用时绑定而非定义时；裸调用在严格模式下是 undefined 而不是 window",
+      "常见误区：以为箭头函数也能用 call/bind 改 this——它只继承外层词法 this",
+      "加分项：能排出 new > 显式(call/apply/bind) > 隐式(对象调用) > 默认绑定 的优先级"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.oop.this"
+      ],
+      "related": [
+        "fe.js.scope.closure",
+        "fe.js.oop.prototype"
+      ],
+      "followUps": [
+        "React class 组件事件里为什么要写 this.onClick = this.onClick.bind(this)？",
+        "call、apply、bind 的参数形式和执行时机分别是什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "this 绑定规则与丢失单选题"
+    },
+    "tags": [
+      "JS基础",
+      "this",
+      "call-apply-bind",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-this-0002",
+    "nodeId": "fe.js.oop.this",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请回答：JavaScript 中普通函数的 this 有哪几种绑定规则？箭头函数的 this 又有什么特殊之处？实际开发中回调函数 this 丢失该怎么解决？",
+    "answer": {
+      "ref": "参考骨架：①四种绑定规则——默认绑定（独立裸调用，非严格模式指向全局对象、严格模式 undefined）、隐式绑定（obj.fn() 形式，this 为调用者 obj）、显式绑定（fn.call(thisArg,参数...) / fn.apply(thisArg,[参数数组]) 立即执行，fn.bind(thisArg) 返回永久绑定 this 的新函数）、new 绑定（构造调用时 this 指向新建实例）。②优先级——new > 显式 > 隐式 > 默认；bind 后的函数再 call 也改不动 this（new 例外，new 可盖过 bind）。③箭头函数——没有自己的 this/arguments，词法捕获定义处外层作用域的 this，因此适合回调且不能作为构造函数（new 报错），call/apply/bind 对其无效。④this 丢失场景与解法——把对象方法当回调传入（setTimeout、事件监听、Promise.then）时脱离了调用者，解法：用 bind 预设 this、外层 `const self = this` 后闭包引用、直接用箭头函数继承外层 this（React/Vue 组件中最常见）。"
+    },
+    "scoringPoints": [
+      {
+        "point": "列全四种绑定并各给一个调用形式的例子",
+        "weight": 2
+      },
+      {
+        "point": "说出优先级 new > 显式 > 隐式 > 默认",
+        "weight": 1
+      },
+      {
+        "point": "讲对箭头函数词法 this、不可被 call/bind 改变、不能 new",
+        "weight": 2
+      },
+      {
+        "point": "给出回调 this 丢失的至少两种解法（bind/箭头函数/self 变量）",
+        "weight": 1
+      }
+    ],
+    "analysis": "this 是前端面试区分度最高的基础题之一。3 分档要求规则成体系、能结合场景。常见失分：只记得「谁调用指向谁」却漏掉严格模式默认绑定是 undefined、分不清 bind 与 call 的执行时机、误以为箭头函数的 this 也能被显式绑定修改。回答时建议先抛「this 在调用时确定」这个总纲，再按四种规则 + 箭头函数特例 + 工程解法展开。",
+    "gapCheck": [
+      "易漏点：严格模式下裸调用的 this 是 undefined；bind 是柯里化思路，返回新函数且 this 不可再改（new 除外）",
+      "常见误区：把箭头函数的 this 说成「调用时决定」——它在定义时按词法作用域固定",
+      "加分项：能解释 class 字段箭头方法为何能稳住事件回调里的 this，及其与原型方法在内存上的差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.oop.this"
+      ],
+      "related": [
+        "fe.js.scope.closure",
+        "fe.js.oop.prototype"
+      ],
+      "followUps": [
+        "bind 之后再用 call 调用，this 听谁的？再 new 呢？",
+        "为什么 setTimeout(fn, 0) 里的 this 常不符合预期？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "this 四种绑定与箭头函数主观题"
+    },
+    "tags": [
+      "JS基础",
+      "this",
+      "箭头函数",
+      "高频主观题"
+    ]
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.js.oop.prototype",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "关于原型链与 ES6 class 继承的底层行为，下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "class B extends A 同时建立了两条原型链：静态成员沿 B.__proto__ === A 继承，实例方法沿 B.prototype.__proto__ === A.prototype 继承。"
+      },
+      {
+        "key": "B",
+        "text": "Object.create(null) 创建的对象没有自有原型，但仍能调用 toString()，因为链顶端总会回退到 Object.prototype。"
+      },
+      {
+        "key": "C",
+        "text": "instanceof 只比较对象的隐式原型是否严格等于构造函数的 prototype 一次，不会继续沿原型链向上查找。"
+      },
+      {
+        "key": "D",
+        "text": "把实例的 __proto__ 重新指向另一个对象后，该实例上已有的自有属性（own properties）会被引擎自动清空。"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：ES6 extends 是一套双链路继承——子类构造函数本身的 [[Prototype]] 指向父类构造函数（继承静态属性/方法），子类 prototype 的 [[Prototype]] 指向父类 prototype（继承实例方法），这也是 super 能同时访问静态与实例成员的基础。B 错误：Object.create(null) 的原型就是 null，链条在第一环就终止，根本到不了 Object.prototype，因此 obj.toString() 会抛 TypeError，这类对象常被用作纯净字典。C 错误：instanceof 会沿原型链逐级检查 constructor.prototype 是否出现在 obj 的原型链上，而非只比较一次，所以子类实例对父类也返回 true。D 错误：改 [[Prototype]] 只影响后续的属性查找链路，对象已有的自有属性原样保留，不会被清空。",
+    "gapCheck": [
+      "易漏点：class extends 同时维护「构造函数链」和「prototype 链」两条原型链，静态与实例成员走的不是同一条。",
+      "常见误区：想当然认为所有对象最终都能到 Object.prototype，忽略了 Object.create(null) 这种无原型对象。",
+      "排查线索：排查继承关系时同时打印 Child.__proto__、Child.prototype.__proto__ 与实例的 __proto__，三条链路分开验证。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.oop.prototype"
+      ],
+      "related": [
+        "fe.js.oop.this",
+        "fe.js.scope.closure",
+        "fe.js.es6.modern"
+      ],
+      "followUps": [
+        "super 在构造函数和普通方法里分别是如何沿原型链解析的？",
+        "Object.create(null) 相比普通 {} 作为字典有哪些安全与性能上的好处？",
+        "手写 ES5 寄生组合式继承如何等价实现 class extends 的两条链？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 ES 规范的原型链与 class 继承语义编写"
+    },
+    "tags": [
+      "原型链",
+      "class",
+      "高频"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0026"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.js.oop.this",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：在 <script type=\"module\"> 的顶层，this 的值是 undefined；模块内 class 的方法若被解构出来以普通函数形式裸调用，由于 class 体内部始终处于严格模式，该方法里的 this 也是 undefined，而不会回退到全局对象。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。ES module 自动处于严格模式，模块顶层的 this 不是 window/globalThis，而是 undefined（这与普通 <script> 顶层 this 指向全局对象不同）。同时 class 的所有体（构造函数、方法、静态块）都按严格模式解析，严格模式下普通函数若没有显式接收者被裸调用，this 绑定为 undefined 而非全局对象。因此把类方法解构后脱离实例调用，方法内 this 为 undefined，访问 this.xxx 会抛错；要保留绑定应使用箭头函数包裹、bind 或在调用处显式 obj.method()。",
+    "gapCheck": [
+      "易漏点：模块顶层 this 为 undefined，且 class 体天然严格模式，两处 this 都不会回退全局对象。",
+      "常见误区：把类方法当回调传递后以为 this 还指向原实例，忽略了隐式绑定在裸调用时丢失。",
+      "排查线索：出现 Cannot read properties of undefined (reading 'xx') 且定位在类方法内时，先确认该方法是否被解构/当作回调脱离了接收者。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.oop.this"
+      ],
+      "related": [
+        "fe.js.oop.prototype",
+        "fe.js.scope.closure",
+        "fe.js.es6.modern"
+      ],
+      "followUps": [
+        "严格模式与非严格模式下普通函数裸调用的 this 有何不同？",
+        "bind 多次调用时以哪一次绑定为准？为什么？",
+        "箭头函数为什么能在类字段回调里保住 this，它与 bind 的本质差异是什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于严格模式 this 绑定规则与 ES module 语义编写"
+    },
+    "tags": [
+      "this",
+      "严格模式",
+      "易错"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0027"
+  }
+]

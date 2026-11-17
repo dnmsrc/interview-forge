@@ -1,0 +1,109 @@
+[
+  {
+    "id": "fe.js.dsa",
+    "title": "数据结构与算法（前端视角）",
+    "level": 3,
+    "domain": "fe",
+    "stack": "js",
+    "topic": "dsa",
+    "mustMaster": false,
+    "estMinutes": 120,
+    "summary": "线性结构、哈希表、树与堆、经典排序、复杂度分析与双指针/滑动窗口，全部结合虚拟滚动、DOM diff、LRU 缓存、防抖节流等前端真实场景讲解"
+  },
+
+  {
+    "id": "fe.js.dsa.linear",
+    "title": "线性结构：数组/链表/栈/队列的 JS 实现与选型",
+    "level": 4,
+    "domain": "fe",
+    "stack": "js",
+    "topic": "dsa",
+    "prerequisites": ["fe.js.basics.types", "fe.js.es6.modern"],
+    "related": ["fe.js.dsa.hash", "fe.js.dsa.complexity"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 25,
+    "summary": "要能讲数组的连续存储与 O(1) 随机访问、链表的指针跳转与 O(1) 增删、栈 LIFO 与队列 FIFO 的差异，并结合 JS 调用栈、事件循环任务队列与虚拟滚动切片讲清四种线性结构的选型取舍"
+  },
+
+  {
+    "id": "fe.js.dsa.hash",
+    "title": "哈希表与 Map/Set：哈希原理、冲突、Map vs 普通对象",
+    "level": 4,
+    "domain": "fe",
+    "stack": "js",
+    "topic": "dsa",
+    "prerequisites": ["fe.js.es6.modern", "fe.js.basics.types"],
+    "related": ["fe.js.dsa.linear", "fe.js.dsa.complexity"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 25,
+    "summary": "要能讲哈希函数的下标映射原理、链地址与开放寻址两种冲突解法、装填因子与扩容机制，以及 Map/Set 相对普通对象在键类型、遍历顺序、原型污染上的差异，解释 LRU 缓存为何首选 Map"
+  },
+
+  {
+    "id": "fe.js.dsa.tree",
+    "title": "树与二叉树：遍历、BST 与 DOM/虚拟 DOM 树视角",
+    "level": 4,
+    "domain": "fe",
+    "stack": "js",
+    "topic": "dsa",
+    "prerequisites": ["fe.js.dom.dom-api", "fe.js.basics.types"],
+    "related": ["fe.js.dsa.heap", "fe.js.dsa.linear"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲二叉树前中后序与层序遍历的递归/迭代写法、BST 的查找插入删除与平衡性问题，并能站在前端视角把 DOM 树、虚拟 DOM 树、AST 与 DOM diff 的树形复用思路对应起来"
+  },
+
+  {
+    "id": "fe.js.dsa.heap",
+    "title": "堆与优先队列：Top-K、数组模拟堆与调度场景",
+    "level": 4,
+    "domain": "fe",
+    "stack": "js",
+    "topic": "dsa",
+    "prerequisites": ["fe.js.dsa.tree", "fe.js.basics.types"],
+    "related": ["fe.js.dsa.sort", "fe.js.dsa.complexity"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 25,
+    "summary": "要能讲完全二叉树与数组下标（2i+1/2i+2）的映射、堆化的上浮下沉过程、小顶堆与大顶堆的区别，以及 Top-K、定时器优先级调度、消息置顶等前端场景为何用堆而不是全量排序"
+  },
+
+  {
+    "id": "fe.js.dsa.sort",
+    "title": "经典排序与复杂度：快排/归并/冒泡/插入与前端场景",
+    "level": 4,
+    "domain": "fe",
+    "stack": "js",
+    "topic": "dsa",
+    "prerequisites": ["fe.js.basics.types", "fe.js.dsa.linear"],
+    "related": ["fe.js.dsa.complexity", "fe.js.dsa.heap"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 25,
+    "summary": "要能讲冒泡/插入/快排/归并的执行过程、平均与最坏时间复杂度、稳定性含义，并结合表格多列排序、虚拟列表数据预处理说明 V8 TimSort 混合策略与不稳定排序对同 key 元素顺序的影响"
+  },
+
+  {
+    "id": "fe.js.dsa.complexity",
+    "title": "复杂度分析与双指针/滑动窗口：大 O 与前端算法套路",
+    "level": 4,
+    "domain": "fe",
+    "stack": "js",
+    "topic": "dsa",
+    "prerequisites": ["fe.js.basics.types", "fe.js.scope.closure"],
+    "related": ["fe.js.dsa.linear", "fe.js.dsa.hash", "fe.js.dsa.sort"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲大 O 渐近分析口径与最好/最坏/均摊复杂度，能判断常见 JS API 的内置复杂度，并掌握双指针、滑动窗口、空间换时间等套路，能独立推出最长无重复子串等高频题的复杂度"
+  }
+]

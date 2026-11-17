@@ -1,0 +1,171 @@
+[
+  {
+    "id": "Q-be-py-gil-0001",
+    "nodeId": "be.python.core.gil-concurrency",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 CPython 的 GIL（全局解释器锁），下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "GIL 使同一进程内多个线程在任一时刻只有一个能执行 Python 字节码，因此 CPU 密集型多线程无法利用多核并行；但线程在等待 I/O 时会释放 GIL，所以 I/O 密集型多线程仍能提升并发吞吐" },
+      { "key": "B", "text": "GIL 让 Python 多线程在任何场景下都毫无用处，I/O 等待时也不会释放锁" },
+      { "key": "C", "text": "加了 GIL 后 Python 就完全线程安全，多线程操作共享变量不需要任何同步措施" },
+      { "key": "D", "text": "要利用多核跑 CPU 密集任务，只能换成别的语言，Python 自身没有任何办法" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确。GIL 是 CPython 解释器层面的一把互斥锁，保证同一进程同一时刻只有一个线程执行 Python 字节码，这源于 CPython 内存管理（引用计数）的非线程安全设计。后果要分场景：CPU 密集任务里线程轮流抢 GIL，不仅没并行，还有切换开销，多线程≈单核；但 I/O 密集任务（网络、磁盘、sleep）中，线程在等待时会释放 GIL，其他线程得以执行，所以爬虫、Web 服务这类大量等待的场景，多线程/协程仍能显著提高并发。B 错在否认了 I/O 场景的价值。C 是经典误区：GIL 只保证字节码执行的原子性，一句高级语句（如 count += 1）会被编译成多条字节码，线程可能在中间被切换，仍需 threading.Lock 保护共享状态。D 错：CPU 密集可用 multiprocessing 起多进程，每个进程有独立解释器和 GIL，真正占用多核；也可用 C 扩展（NumPy 在 C 层释放 GIL）。Python 3.13 实验性引入 free-threaded（no-GIL）构建，通过 biased reference counting 等技术去掉 GIL。对照 Java：Java 线程是真多核并行，Python 线程受 GIL 约束，这是两者并发模型最根本的差异。",
+    "gapCheck": [
+      "易漏点：GIL 限制的是字节码并行，I/O 等待会释放，所以 I/O 密集多线程仍有效",
+      "常见误区：以为有 GIL 就线程安全不用加锁，或以为多线程对 CPU 密集也能加速",
+      "加分项：知道 multiprocessing 绕 GIL、3.13 no-GIL 构建、引用计数与 GIL 的关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.process.thread-vs-process"],
+      "related": ["cs.os.process.thread-models", "be.node.core.eventloop"],
+      "followUps": ["为什么引用计数会促使 CPython 引入 GIL？", "multiprocessing 的进程间通信用什么机制？代价是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "GIL 原理与并发选型核心题" },
+    "tags": ["Python", "GIL", "多线程", "multiprocessing", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-py-gil-0002",
+    "nodeId": "be.python.core.gil-concurrency",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "Python 中 threading、asyncio、multiprocessing 三种并发方式的选型，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "I/O 密集且希望用简单的同步风格写法、库大多是异步就绪时，asyncio 单线程协程开销小、并发高，是高并发网络服务的首选" },
+      { "key": "B", "text": "CPU 密集型计算（图像处理、数值计算、压缩）应优先 multiprocessing 多进程，绕过 GIL 真正并行" },
+      { "key": "C", "text": "threading 适合少量 I/O 等待、调用的是不支持 async 的阻塞库的场景，但受 GIL 限制不适合 CPU 密集" },
+      { "key": "D", "text": "在 asyncio 协程里直接调用 time.sleep、requests.get 这类阻塞函数不会有任何副作用，事件循环照常调度其他协程" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：asyncio 单线程跑事件循环，协程在 await 处挂起让出控制权，没有线程切换和 GIL 争夺，单机可支撑上万并发连接，配合 aiohttp/asyncpg 等异步库效果最佳，写法接近同步。B 正确：multiprocessing 开独立进程、各自 GIL，能占满多核，是 CPU 密集的正解，代价是进程创建重、内存不共享、通信靠 Queue/Pipe/共享内存、有序列化开销。C 正确：threading 对「偶发 I/O + 阻塞式老库」最省心，一个请求一个线程，靠 I/O 时释放 GIL 获得并发，但线程数上千后内存和切换成本高，且对 CPU 密集无效。D 是致命误区：asyncio 是单线程协作式调度，time.sleep、同步 requests 这类阻塞调用会卡住唯一的事件循环线程，期间所有其他协程都被冻结，必须换成 await asyncio.sleep、aiohttp 等异步实现，或用 loop.run_in_executor 把阻塞调用丢进线程池。三者记忆法：I/O 高并发选协程、I/O+阻塞库选线程、CPU 密集选进程。对照 Node：asyncio 事件循环与 Node 的事件循环在「单线程 + 非阻塞 + 回调/协程调度」上几乎同构。",
+    "gapCheck": [
+      "易漏点：协程里不能有阻塞调用，否则卡死整个事件循环，要用异步库或 run_in_executor",
+      "常见误区：用 threading 加速 CPU 密集任务，或在 asyncio 里混用同步阻塞库",
+      "加分项：能说清三者的开销、通信方式和适用边界，联系 Node 事件循环"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.python.core.gil-concurrency"],
+      "related": ["be.python.web.asyncio", "be.node.core.eventloop"],
+      "followUps": ["协程为什么比线程轻量？一个线程能跑多少协程？", "run_in_executor 底层是怎么把阻塞任务隔离的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "三种并发方式选型多选题" },
+    "tags": ["Python", "asyncio", "threading", "multiprocessing", "并发选型"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-py-lang-0001",
+    "nodeId": "be.python.core.lang-advanced",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：Python 中 `def f(x=[]): x.append(1); return x` 是一个著名陷阱——默认参数在函数定义时只求值一次并被所有调用共享，连续调用 f() 会返回 [1]、[1, 1]、[1, 1, 1]，而不是每次都是新的 [1]；正确写法是默认值用 None，在函数体内再创建列表。",
+    "answer": { "judge": true },
+    "analysis": "正确。Python 的默认参数值在函数定义（def 执行）时求值一次，存进函数对象的 __defaults__ 里，之后所有未显式传该参数的调用复用同一个对象。当默认值是 list/dict/set 这类可变对象时，函数内对它的原地修改会累积，导致跨调用的「状态泄漏」，这是初级后端极容易踩的坑（也常是面试题）。安全范式：def f(x=None): x = [] if x is None else x，把可变对象的创建推迟到每次调用内部。同类知识点：① 装饰器本质是「接收函数返回函数」的高阶函数，functools.wraps 用来保留原函数的 __name__/__doc__，否则被装饰后元信息丢失；② 迭代器实现 __iter__ 和 __next__，生成器用 yield 惰性产出，省内存，yield from 委托子生成器；③ 浅拷贝 copy.copy 只复制外层、内部嵌套对象仍共享，深拷贝 copy.deepcopy 递归复制；④ *args 收位置参数为元组、**kwargs 收关键字参数为字典。对照 JS：JS 的默认参数每次调用都会重新求值表达式，没有 Python 这个共享陷阱，这是跨语言写代码时要特别留意的差异。",
+    "gapCheck": [
+      "易漏点：默认参数定义时求值一次、可变默认值被共享，要用 None 占位规避",
+      "常见误区：以为每次调用都会重新创建默认列表/字典",
+      "加分项：能联想到装饰器 wraps、生成器惰性、深浅拷贝等一串语言机制"
+    ],
+    "knowledgeLinks": {
+      "prereq": [],
+      "related": ["be.java.core.oop"],
+      "followUps": ["__defaults__ 存在函数对象的哪里？如何观察它？", "可变默认参数和闭包 late binding 陷阱有什么区别？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "可变默认参数经典陷阱题" },
+    "tags": ["Python", "可变默认参数", "语言陷阱", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-py-lang-0002",
+    "nodeId": "be.python.core.lang-advanced",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "Python 实现一个对象可被 for 遍历，需要它是可迭代对象：实现 ______ 方法返回一个迭代器，而迭代器要实现 ______ 方法在每次迭代返回下一个元素、耗尽时抛出 ______ 异常；用 yield 关键字写的函数调用后会返回一个生成器，它自动满足上述协议。",
+    "answer": {
+      "blanks": ["__iter__", "__next__", "StopIteration"],
+      "synonyms": {
+        "__iter__": ["iter", "__iter__()"],
+        "__next__": ["next", "__next__()"],
+        "StopIteration": ["stopiteration", "StopIteration()"]
+      }
+    },
+    "analysis": "三个空对应 Python 迭代器协议。① 可迭代对象（iterable）实现 __iter__，返回一个迭代器；list/dict/str/文件对象等内置容器都是可迭代对象。② 迭代器（iterator）本身也要有 __iter__（通常 return self）并实现 __next__，每次调用产出下一个值，没有更多元素时抛 StopIteration，for 循环正是靠捕获这个异常来优雅结束。③ 含 yield 的函数被调用时不会立即执行函数体，而是返回一个 generator 生成器对象，生成器既是可迭代对象又是迭代器，每次 next 执行到 yield 暂停并吐出值、保留局部状态，下次从暂停处继续，从而用很少内存表达无限/超大序列（如逐行读大文件、斐波那契序列）。这与 list 一次性把所有元素放进内存形成对比，是处理大数据流的关键。生成器表达式 (x*2 for x in seq) 是其简写，区别于返回完整列表的列表推导式 [x*2 for x in seq]。对照前端：这和 JS 的 Symbol.iterator 协议、generator function* / yield 几乎一一对应，理解了一个就能迁移到另一个。",
+    "gapCheck": [
+      "易漏点：可迭代对象实现 __iter__，迭代器实现 __next__ 并以 StopIteration 收尾",
+      "常见误区：混淆 iterable 与 iterator，或以为生成器会一次性算完所有值",
+      "加分项：能联系生成器惰性求值处理大文件，以及与 JS Symbol.iterator 的对应"
+    ],
+    "knowledgeLinks": {
+      "prereq": [],
+      "related": ["be.node.core.async-stream"],
+      "followUps": ["生成器表达式和列表推导式在内存占用上有什么差别？", "yield from 的作用是什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "迭代器协议与生成器填空题" },
+    "tags": ["Python", "迭代器", "生成器", "yield", "填空题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-py-gil-0003",
+    "nodeId": "be.python.core.gil-concurrency",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：用 multiprocessing 起多进程能绕过 GIL 真正利用多核，但进程间内存不共享、通信需要序列化，开销明显大于线程；因此对于 CPU 密集度不高、主要是 I/O 等待的任务，用多线程或 asyncio 往往比多进程更划算。",
+    "answer": { "judge": true },
+    "analysis": "正确。这是 Python 并发选型的成本权衡。multiprocessing 每个子进程有独立解释器和独立 GIL，CPU 密集任务可真正并行跑满多核，但代价实打实：① 进程创建和占用内存远高于线程（每个进程一份解释器和内存空间）；② 进程地址空间隔离，不能像线程那样直接共享变量，通信用 multiprocessing.Queue/Pipe/Manager/共享内存，跨进程传递对象要 pickle 序列化/反序列化，有 CPU 和拷贝成本；③ 进程启动在部分平台用 spawn 方式要重新导入模块，启动慢。所以决策路径是：I/O 密集（网络请求、磁盘、数据库等待）优先 asyncio（最轻、单机并发最高）或 threading（兼容阻塞老库），因为等待时 GIL 会释放、本就不需要多核并行；只有纯 CPU 密集（大量计算、压缩、图像处理、数值运算）才值得承担多进程成本，且重数值计算更推荐 NumPy/PyTorch 这类在 C 层释放 GIL 的库，或用进程池。对照 Java：Java 线程本身能多核并行、共享堆，没有这层 GIL 约束，Python 的「CPU 密集被迫上多进程」是它独有的工程包袱。",
+    "gapCheck": [
+      "易漏点：多进程绕 GIL 但有独立内存、序列化通信、启动慢三重成本",
+      "常见误区：不分 I/O 还是 CPU 密集就一律上多进程，反而更慢更重",
+      "加分项：知道 NumPy/C 扩展在 C 层释放 GIL，以及进程池与 spawn/fork 差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.process.thread-vs-process"],
+      "related": ["be.python.web.asyncio", "cs.os.process.thread-models"],
+      "followUps": ["multiprocessing 的 Queue 底层靠什么传递数据？", "fork 和 spawn 两种进程启动方式有什么区别和坑？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "多进程成本与并发选型判断题" },
+    "tags": ["Python", "multiprocessing", "GIL", "进程通信", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-py-lang-0003",
+    "nodeId": "be.python.core.lang-advanced",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 Python 装饰器，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "装饰器本质是一个「接收函数作为参数并返回新函数」的高阶函数，@decorator 语法等价于 f = decorator(f)，在定义时就完成包装" },
+      { "key": "B", "text": "装饰器会改变被装饰函数的函数名和文档字符串，且无法恢复" },
+      { "key": "C", "text": "装饰器只能用来打印日志，不能做参数校验、缓存、重试、权限控制等" },
+      { "key": "D", "text": "带参数的装饰器和普通装饰器完全一样，不需要多嵌套一层函数" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确揭示了装饰器本质：它是语法糖，@deco 写在 def f 上方，解释器执行完 f 定义后立即用 f = deco(f) 替换，是「定义时包装一次」而非每次调用才包装；装饰器内部通常定义一个 wrapper(*args, **kwargs) 做前置/后置增强再调用原函数，从而在不改原函数代码的情况下横切加入逻辑。B 错：默认情况下 wrapper 会遮蔽原函数的 __name__/__doc__，但标准库 functools.wraps 装饰器就是专门解决它的——@functools.wraps(func) 把原函数元信息拷贝到 wrapper，反射和调试时仍显示原名。C 严重低估了装饰器：日志、计时、参数校验、@lru_cache 缓存、重试（tenacity）、登录鉴权、路由注册（Flask/FastAPI 的 @app.get）、事务、限流都靠装饰器实现，是 AOP 思想在 Python 的体现。D 错：带参装饰器如 @deco(level=2) 实际是先调用 deco(level=2) 得到一个真正的装饰器，再用它包装函数，因此要多包一层函数（三层嵌套：外层收参数、中层收函数、内层是 wrapper）。对照前端：这和 JS/TS 的高阶函数、装饰器语法（TS experimentalDecorators）、React HOC「包裹组件返回新组件」是同一套包装增强思想。",
+    "gapCheck": [
+      "易漏点：@deco 等价 f=deco(f) 且在定义时执行一次；带参装饰器要三层嵌套",
+      "常见误区：以为装饰器每次调用才包装，或忽略 functools.wraps 导致元信息丢失",
+      "加分项：能列举缓存/重试/鉴权/路由等真实用途，联系 AOP 与 JS HOC"
+    ],
+    "knowledgeLinks": {
+      "prereq": [],
+      "related": ["be.spring.aop.proxy"],
+      "followUps": ["functools.wraps 具体拷贝了哪些属性？", "类装饰器（实现 __call__）和函数装饰器有什么区别？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "装饰器原理与 functools.wraps 单选题" },
+    "tags": ["Python", "装饰器", "高阶函数", "functools", "AOP"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  }
+]

@@ -1,0 +1,165 @@
+[
+  {
+    "id": "Q-fe-html-form-0001",
+    "nodeId": "fe.html.form.form-basics",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "要让一个 <label> 与某个输入框正确关联（点击标签能聚焦输入框、屏幕阅读器能读出标签），下列写法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "给 label 和 input 设置相同的 class"
+      },
+      {
+        "key": "B",
+        "text": "<label for=\"phone\">手机号</label><input id=\"phone\" name=\"phone\" />，for 与 id 对应"
+      },
+      {
+        "key": "C",
+        "text": "把 label 的 name 属性写成和 input 一样"
+      },
+      {
+        "key": "D",
+        "text": "只要视觉上把文字放在输入框旁边即可，无需任何关联"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：label 的 for 属性值要等于 input 的 id，二者由此建立程序化关联。关联后点击 label 文字等同于点击输入框（自动聚焦/勾选），屏幕阅读器聚焦输入框时会朗读对应 label，是表单可访问性的基础。另一种写法是把 input 直接嵌套在 <label> 内部。A 的 class 只用于样式/选择器，不建立语义关联。C 混淆了 name 与 id：name 决定提交数据时的字段名，for 关联用的是 id。D 视觉相邻对辅助技术无意义。",
+    "gapCheck": [
+      "易漏点：for 对的是 input 的 id，不是 name；name 负责提交字段、id 负责 label 关联，二者职责不同",
+      "常见误区：以为文字摆旁边就有关联，缺少 for/嵌套时屏幕阅读器读不出字段含义",
+      "加分项：能讲 label 包裹 input 的隐式关联写法，以及 required 等属性对辅助技术的提示"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.html.form.form-basics"
+      ],
+      "related": [
+        "fe.js.dom.event"
+      ],
+      "followUps": [
+        "一个 input 可以关联多个 label 吗？",
+        "placeholder 能替代 label 吗，为什么不推荐？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "label 关联与表单可访问性入门题"
+    },
+    "tags": [
+      "HTML基础",
+      "表单",
+      "无障碍",
+      "送分题"
+    ]
+  },
+  {
+    "id": "Q-fe-html-form-0002",
+    "nodeId": "fe.html.form.form-basics",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "关于 HTML 表单的提交与原生校验，下列说法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "input 的 name 属性决定该字段提交到服务器时的键名，没有 name 的控件数据不会被提交"
+      },
+      {
+        "key": "B",
+        "text": "required、pattern、min/max、maxlength 等属性能让浏览器在提交前做原生校验"
+      },
+      {
+        "key": "C",
+        "text": "type=\"email\" 的输入框在原生校验时会检查是否符合邮箱格式"
+      },
+      {
+        "key": "D",
+        "text": "给 form 加 novalidate 属性可以关闭浏览器的原生校验，交给 JS 自定义处理"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ]
+    },
+    "analysis": "四条都正确。A：表单提交的是 name=value 键值对，disabled 或没有 name 的控件不会出现在提交数据里。B：这些是 HTML5 内置约束校验（constraint validation），无需 JS 即可拦截非法提交并提示。C：不同 type 自带对应校验规则，email/url/number 各有格式或范围约束。D：novalidate 关闭原生校验气泡，常见于要用自定义 UI 统一提示、或通过 JS（Validity API）手动控制校验的场景。注意原生校验能被绕过，服务端必须再次校验。",
+    "gapCheck": [
+      "易漏点：前端原生校验只是体验层，绝不能替代服务端校验（可直接发请求绕过）",
+      "常见误区：以为 type=email 就能保证数据安全——它只在表单提交路径上做格式提示",
+      "加分项：能讲 checkValidity()/validity 对象、:invalid 伪类等 JS/CSS 与原生校验的联动"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.html.form.form-basics"
+      ],
+      "related": [
+        "fe.js.dom.event",
+        "fe.css.foundation.selector-cascade"
+      ],
+      "followUps": [
+        "如何用 Validity API 自定义校验提示文案？",
+        "为什么禁用(disabled)的输入框数据提交不了？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "表单提交机制与原生校验多选题"
+    },
+    "tags": [
+      "HTML基础",
+      "表单",
+      "原生校验",
+      "高频"
+    ]
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.html.form.form-basics",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断题：位于 <form> 内的 <button> 如果不显式声明 type，其默认类型是 submit，点击会触发表单提交；显式写 type=\"button\" 的按钮则不会提交表单。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。HTML 规范规定 button 元素的 type 默认值为 submit（另有 reset、button 两个取值）。因此表单里的“裸”按钮点击会触发 form 的 submit 事件并尝试提交/导航，而 type=\"button\" 是纯按钮，只执行绑定的脚本。补充两个高频关联点：当表单内只有一个文本类输入框时，在其中按回车也会隐式提交；要拦截提交应监听 form 的 submit 事件并调用 preventDefault，通过 event.submitter 可识别触发来源，按钮上的 formnovalidate 还可单独跳过校验。",
+    "gapCheck": [
+      "易漏点：单输入框表单中按回车会隐式触发 submit，了解这一点才能解释“没点按钮却发了请求”。",
+      "常见误区：在框架组件里给按钮漏写 type，导致点击普通操作按钮意外提交页面，SPA 中表现为路由刷新。",
+      "排查线索：监听 submit 事件打印 event.submitter 定位是哪个按钮触发的提交，必要时给 form 加 novalidate 调试校验流程。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.html.form.form-basics"
+      ],
+      "related": [
+        "fe.js.dom.event",
+        "fe.js.dom.dom-api"
+      ],
+      "followUps": [
+        "event.submitter 能提供哪些信息，如何区分不同按钮的提交意图？",
+        "formnovalidate 与 novalidate 的作用范围有什么区别？",
+        "在 React/Vue 中阻止表单默认提交的标准写法是什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 HTML 表单与按钮默认行为的规范语义编写"
+    },
+    "tags": [
+      "表单",
+      "语义化",
+      "易错"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0013"
+  }
+]

@@ -1,0 +1,580 @@
+[
+  {
+    "id": "Q-cs-net-httpmsg-0001",
+    "nodeId": "cs.net.http.message",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 HTTP 方法、状态码与连接管理，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "401 表示『未认证』（没有或缺少有效身份凭证，需带 WWW-Authenticate 重新鉴权）；403 表示『已认证但无权限』，服务器理解请求但拒绝执行，重新登录通常也无济于事" },
+      { "key": "B", "text": "301 是永久重定向、302 是临时重定向，二者都让浏览器跳转到 Location；而 304 Not Modified 不是跳转，是协商缓存命中、告知客户端继续用本地缓存副本" },
+      { "key": "C", "text": "POST 是幂等方法：同样的表单提交重复执行多次，服务端只会创建一条资源，结果与执行一次完全相同" },
+      { "key": "D", "text": "HTTP/1.1 默认开启 Keep-Alive 持久连接，多个请求可复用同一条 TCP 连接，避免每个请求都重新三次握手；但管道化（pipelining）的响应仍须按序返回" }
+    ],
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A、B、D 正确。A 精确区分了两个最易混的 4xx：401 是身份层面的『你是谁』没解决（未登录/Token 失效），403 是授权层面的『你没资格』（登录了也不让访问）。B 区分了重定向与缓存语义：301/302 的 Location 引导浏览器重新发起请求，304 则没有响应体、只回头部让客户端复用本地副本。D 说清了持久连接的价值与管道化的局限。C 错：POST **不幂等**——幂等的定义是『同一请求执行一次与执行 N 次对服务端状态的影响相同』，POST 每次通常都新建一条资源（重复下单/重复发帖），所以才需要防重复提交；GET/PUT/DELETE 才是幂等的（PUT 整体替换、DELETE 删除已不存在的资源也视为幂等）。",
+    "gapCheck": [
+      "易漏点：304 属于缓存协商结果而不是页面跳转，它不带响应体；301/302 才靠 Location 触发跳转",
+      "常见误区：把 401 和 403 混为『都是没权限』——一个是未认证、一个是已认证但被授权策略拒绝",
+      "加分项：能再补充 405（方法不被允许，靠 Allow 头告知支持的方法）、502（网关收到上游无效响应）与 503（服务暂不可用/过载维护）的区别"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.message"],
+      "related": ["cs.net.http.cache", "cs.net.tcpip.handshake"],
+      "followUps": [
+        "301 和 308、302 和 307 在『是否允许改方法』上有什么差别？",
+        "幂等和安全（safe）是同一个概念吗？PUT 幂等但为什么不安全？",
+        "Keep-Alive 复用连接时，客户端怎么知道一个响应的报文到哪里结束？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "HTTP 方法/状态码/持久连接综合多选题" },
+    "tags": ["HTTP", "状态码", "幂等性", "高频"]
+  },
+  {
+    "id": "Q-cs-net-httpmsg-0002",
+    "nodeId": "cs.net.http.message",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请系统讲一讲 HTTP：①请求报文与响应报文分别由哪几部分构成；②GET/POST/PUT/DELETE 的方法语义与幂等性；③常见状态码怎么分类，并辨析 301/302/304、401/403、500/502/503；④从短连接到 Keep-Alive 持久连接解决了什么、还剩什么问题。",
+    "answer": {
+      "ref": "参考骨架：【报文结构】请求报文 = 请求行（方法 + 请求目标 URI + HTTP 版本）+ 请求头部（Host、Content-Type、Content-Length 等）+ 空行(CRLF) + 可选消息体（GET 一般无体，POST/PUT 常在体内带表单或 JSON）。响应报文 = 状态行（版本 + 状态码 + 原因短语）+ 响应头部 + 空行 + 可选消息体（如 HTML/JSON）。头部是一行一个 `字段名: 值`，靠空行区分头部与体；体的边界靠 Content-Length 定长或 Transfer-Encoding: chunked 分块传输判定。\n【方法语义与幂等】GET 取资源、安全且幂等；POST 新建/提交资源、不幂等（重复提交产生多条）；PUT 用请求体整体替换目标资源、幂等（替换 N 次结果相同）；DELETE 删除资源、幂等（删第一次后再删状态不变）；PATCH 局部更新、通常不保证幂等。安全方法（safe）指不改变服务端状态，GET/HEAD/OPTIONS 属之；幂等关注的是执行 N 次的副作用是否等同于一次，两者不是一回事。\n【状态码】1xx 信息、2xx 成功（200 OK、201 Created、204 No Content）、3xx 重定向（301 永久、302 临时，均靠 Location 跳转；304 Not Modified 是协商缓存命中、无响应体、让客户端复用本地副本）、4xx 客户端错误（400 请求格式错、401 未认证需 WWW-Authenticate、403 已认证但无权限、404 资源不存在、405 方法不允许并由 Allow 头告知可用方法）、5xx 服务端错误（500 服务内部异常、502 网关/代理从上游收到无效响应、503 服务暂时不可用如过载或维护，常带 Retry-After）。\n【连接演进】HTTP/1.0 默认短连接，每个请求/响应后就断开，下一个请求要重新 TCP 三次握手 + 慢启动，开销大。HTTP/1.1 默认 Keep-Alive，一条 TCP 连接可串行承载多个请求，省掉重复握手；还支持管道化（可连续发多个请求不等响应），但响应必须按请求顺序返回，且中间代理兼容差、基本未被实际部署，因此应用层队头阻塞仍在，真正解决要靠 HTTP/2 的多路复用。"
+    },
+    "scoringPoints": [
+      { "point": "讲清请求/响应报文三段式结构及头部与体的分隔、体长度判定（Content-Length/chunked）", "weight": 2 },
+      { "point": "准确区分四个方法的语义，并说清幂等性（POST 不幂等，GET/PUT/DELETE 幂等）及安全与幂等的区别", "weight": 2 },
+      { "point": "状态码按类梳理并准确辨析 301/302/304、401/403、500/502/503", "weight": 2 },
+      { "point": "讲清短连接到 Keep-Alive 的收益，以及管道化仍有序返回、应用层队头阻塞未根除", "weight": 2 }
+    ],
+    "analysis": "这是 HTTP 模块的体系化主干题，4 个得分块对应节点 summary 要求『讲清』的全部点。3 分档要求不是零散背名词，而是能把『报文怎么承载—方法怎么表达意图—状态码怎么表达结果—连接怎么承载多请求』串成一条线。常见失分：把 304 当跳转、401/403 不分、把幂等等同于『不会出错』，以及只说 Keep-Alive『更快』却讲不出省的是 TCP 握手与慢启动、也答不上管道化为什么没普及。能主动提到 chunked、安全方法 vs 幂等方法、HTTP/2 才真正解决串行问题，属于有深度的信号。",
+    "gapCheck": [
+      "易漏点：头部与消息体之间靠一个空行（CRLF CRLF）分隔；消息体边界靠 Content-Length 或 chunked，不是连接断开",
+      "常见误区：把『安全方法』和『幂等方法』混为一谈——安全强调不改服务端状态，幂等强调多次执行副作用等价",
+      "加分项：能解释 Content-Length 缺失时的分块传输，以及 Keep-Alive + 管道化为何被 HTTP/2 多路复用取代"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.message"],
+      "related": ["cs.net.http.cache", "cs.net.http.http2-3", "cs.net.tcpip.handshake"],
+      "followUps": [
+        "没有 Content-Length 时，接收方怎么判断 body 传完了？",
+        "PUT 和 PATCH 都能更新资源，语义和幂等性差在哪？",
+        "一条 Keep-Alive 连接上能无限发请求吗？什么情况下会被关闭？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "HTTP 报文/方法/状态码/持久连接体系化主观题" },
+    "tags": ["HTTP", "报文结构", "状态码", "体系化"]
+  },
+
+  {
+    "id": "Q-cs-net-cache-0001",
+    "nodeId": "cs.net.http.cache",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "某静态资源响应头为 `Cache-Control: max-age=31536000`，同时带 `ETag` 与 `Last-Modified`。关于浏览器后续请求该资源的缓存行为，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "在 max-age 一年有效期内，浏览器命中强缓存，直接使用本地副本、根本不向服务器发请求（DevTools 里表现为 200 from disk/memory cache）" },
+      { "key": "B", "text": "只要本地还有该资源的副本，无论是否过期，浏览器都不会再向服务器发任何请求" },
+      { "key": "C", "text": "强缓存过期后，浏览器会带上 If-None-Match / If-Modified-Since 走协商缓存；若资源未变，服务器返回 200 并重新下发完整资源体" },
+      { "key": "D", "text": "Cache-Control: no-cache 的含义是浏览器禁止在本地存储该资源，每次都必须重新下载完整内容" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：max-age 未过期即命中强缓存，浏览器不发网络请求、直接用本地副本。B 错：强缓存有寿命，过期后必须重新验证，不是『有副本就永不请求』。C 前半句对（过期后带 If-None-Match/If-Modified-Since 走协商缓存），后半句错——资源未变时服务器返回 **304 Not Modified 且不带响应体**，让浏览器继续复用本地副本；只有资源确实变了才回 200 + 完整新体。D 把 no-cache 和 no-store 搞反了：**no-cache 是允许存储、但每次使用前必须向服务器协商验证**（可命中 304）；真正禁止本地落地存储任何副本的是 **no-store**。",
+    "gapCheck": [
+      "易漏点：强缓存命中是『不发请求』，协商缓存是『发请求但可能只回 304 无体』，二者成本不同",
+      "常见误区：把 no-cache 当成不缓存——它其实是『可存但必验证』；no-store 才是彻底不存",
+      "加分项：知道 ETag/If-None-Match 比 Last-Modified/If-Modified-Since 更精确（秒级时间戳感知不到秒内变化、且难判内容是否真改），且 ETag 优先级更高"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.cache"],
+      "related": ["cs.net.http.message"],
+      "followUps": [
+      "Expires 和 Cache-Control 同时存在时听谁的？为什么现在主推 Cache-Control？",
+      "ETag 强弱验证器（强 ETag 与 W/ 弱 ETag）有什么区别？",
+      "用户按 Ctrl+F5 强制刷新时，缓存相关请求头会发生什么变化？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "强缓存与协商缓存命中流程单选题" },
+    "tags": ["HTTP缓存", "强缓存", "协商缓存", "高频"]
+  },
+  {
+    "id": "Q-cs-net-cache-0002",
+    "nodeId": "cs.net.http.cache",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请完整阐述浏览器 HTTP 缓存体系：①强缓存与协商缓存的判定与命中流程（涉及哪些请求/响应头、304 如何触发）；②max-age、no-cache、no-store、Expires 的区别与优先级；③缓存键与 Vary 的作用；④工程上前端构建产物为什么用文件内容哈希做长效缓存。",
+    "answer": {
+      "ref": "参考骨架：【两级缓存总流程】浏览器发起请求时先看强缓存：响应头 `Cache-Control: max-age=<秒>` 给出相对新鲜期（旧方案是 `Expires` 绝对时间），在新鲜期内直接用本地副本、不发网络请求（200 from memory/disk cache）。强缓存过期或被 no-cache 要求验证时，进入协商缓存：客户端把上次拿到的验证器回传给服务器——`If-None-Match: <ETag>` 和/或 `If-Modified-Since: <Last-Modified 时间>`；服务器比对当前资源，未变则回 **304 Not Modified（无响应体，只更新头部/新鲜期）** 让客户端复用本地副本，变了才回 200 + 完整新体并下发新的 ETag/Last-Modified。ETag 基于内容指纹、精度高且优先；Last-Modified 只精确到秒、秒内多次修改或内容未变而时间被 touch 都会误判。\n【指令区别与优先级】`max-age` 是相对秒数的新鲜期；`Expires` 是 HTTP/1.0 的绝对过期时间，受客户端时钟偏差影响，Cache-Control 与 Expires 并存时 **Cache-Control 优先**。`no-cache` 并非不缓存，而是允许存储但每次使用前必须向服务器协商验证（可能 304）；`no-store` 才是真正禁止本地存储任何副本（用于敏感数据）；`no-transform`、`private/public`、`immutable` 等再细化存储位置与是否允许重新验证。\n【缓存键与 Vary】缓存不只靠 URL 做键，还受请求方法、部分头部影响；`Vary` 头声明该响应依哪些请求头而不同（如 `Vary: Accept-Encoding, Accept-Language`），使同一 URL 能按压缩方式/语言分别存多份副本，避免把 gzip 版本错发给不支持的客户端。\n【哈希长效缓存工程实践】用 webpack/Vite 等给产物文件名加内容哈希（如 app.8f3a2c.js），内容不变则哈希不变、文件名不变，可放心给 `Cache-Control: max-age=31536000, immutable` 走一年强缓存；内容一变哈希即变、URL 即变，天然是新资源、不会命中旧缓存。而 HTML 入口文件设 `no-cache`（或短 max-age）保证每次协商拿到最新的 `<script>/<link>` 哈希引用——由此实现『带哈希的静态资源尽量强缓存、HTML 入口始终验证』的分层缓存策略，兼顾加载速度与发布即时生效。"
+    },
+    "scoringPoints": [
+      { "point": "讲清两级缓存流程：强缓存（max-age/Expires）不发请求，过期走协商缓存（If-None-Match/If-Modified-Since），未变回 304 无体、变了回 200", "weight": 2 },
+      { "point": "准确区分 max-age/no-cache/no-store/Expires 及 Cache-Control 优先于 Expires、ETag 优先于 Last-Modified", "weight": 2 },
+      { "point": "说明缓存键不只看 URL，Vary 让同一 URL 按指定请求头存多份副本", "weight": 2 },
+      { "point": "讲清内容哈希长效缓存 + HTML 入口 no-cache 协商的工程分层策略", "weight": 2 }
+    ],
+    "analysis": "这题把缓存机制与前端工程实践打通，是中高级前后端的高频追问点。3 分档要求能画出『强缓存→协商缓存→304/200』完整决策链，并能精确辨析几个长得像的指令。典型失分：把 no-cache 当 no-store、以为 304 会带响应体、只说『加哈希防缓存』却讲不清为什么 HTML 不能也长效缓存。能讲出 immutable、Vary 的多版本机制、强缓存省的是整个请求往返而协商缓存省的只是响应体，属于区分度高的加分项。",
+    "gapCheck": [
+      "易漏点：强缓存省掉整个网络往返；协商缓存仍发请求，只在未变时省掉响应体（304 无 body）",
+      "常见误区：no-cache ≠ 不缓存（它强制重新验证）；no-store 才是禁止落地存储",
+      "加分项：理解内容哈希让『缓存寿命』与『发布即时性』解耦，以及 Vary 对压缩/语言/移动端多版本的意义"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.cache"],
+      "related": ["cs.net.http.message", "cs.net.http.http2-3"],
+      "followUps": [
+        "发布新版本后，已被强缓存的旧 JS 怎么让用户尽快更新？",
+        "CDN 缓存和浏览器缓存的键、过期策略有什么异同？",
+        "为什么 ETag 通常比 Last-Modified 更可靠？什么场景下 Last-Modified 仍够用？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "HTTP 缓存体系与工程化主观题" },
+    "tags": ["HTTP缓存", "协商缓存", "Vary", "工程化"]
+  },
+
+  {
+    "id": "Q-cs-net-tls-0001",
+    "nodeId": "cs.net.http.tls-handshake",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 HTTPS/TLS 的混合加密、证书与前向保密，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "HTTPS 全程都用非对称加密传输业务数据，因为非对称加密比对称加密更安全、更快" },
+      { "key": "B", "text": "浏览器验证服务器证书时，用内置的对称密钥解密 CA 签名，确认证书没有被篡改" },
+      { "key": "C", "text": "采用 ECDHE 临时密钥交换时，每次握手生成一次性临时公钥参数，协商出的会话密钥仅存于本次连接；即使日后服务器长期私钥泄露，历史流量也无法被解密，这就是前向保密" },
+      { "key": "D", "text": "TLS 1.3 相比 1.2 握手往返更多、强制保留 RSA 静态密钥交换以保证兼容性" }
+    ],
+    "answer": { "keys": ["C"] },
+    "analysis": "C 准确描述了前向保密（PFS）：ECDHE 的临时密钥对用后即弃，会话密钥不依赖服务器长期私钥，长期私钥日后泄露也无法回溯解密历史会话。A 错：HTTPS 是**混合加密**——仅在握手阶段用非对称/密钥交换协商出对称会话密钥，之后传输业务数据用 AES-GCM、ChaCha20 等**对称加密**；非对称运算远比对称慢，不适合大批量数据。B 错在两处：验证书用的是**上级 CA 的公钥（非对称）**对证书上的数字签名验签，而非『对称密钥』；流程是 CA 用自己私钥对证书内容摘要签名，浏览器用预置的 CA 公钥验签并比对摘要。D 方向相反：TLS 1.3 **砍掉了静态 RSA 密钥交换**（它不支持前向保密）、移除老旧算法，把完整握手从 1.2 的 2-RTT 压到 **1-RTT**，会话恢复还支持 0-RTT。",
+    "gapCheck": [
+      "易漏点：混合加密的分工——非对称/ECDHE 只负责安全协商出对称密钥，大批量数据靠对称加密（性能）",
+      "常见误区：以为证书验签用对称密钥；实际是 CA 私钥签名、浏览器内置 CA 公钥验签的非对称机制",
+      "加分项：能解释静态 RSA 交换为何无前向保密（抓包存储 + 私钥泄露即可解密历史），以及 TLS 1.3 为何只留 ECDHE 类套件"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.tls-handshake"],
+      "related": ["cs.net.tcpip.tcp-vs-udp", "cs.net.tcpip.handshake", "cs.net.http.message"],
+      "followUps": [
+        "TLS 1.2 的完整握手大约几个 RTT？ClientHello/ServerHello 之后还交换了什么？",
+        "中间人也能拿到服务器证书，为什么它仍然无法冒充服务器？",
+        "TLS 1.3 的 0-RTT 恢复带来了什么安全隐患（重放攻击）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "TLS 混合加密/证书/前向保密单选题" },
+    "tags": ["HTTPS", "TLS", "前向保密", "证书链"]
+  },
+  {
+    "id": "Q-cs-net-tls-0002",
+    "nodeId": "cs.net.http.tls-handshake",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请系统讲解 HTTPS/TLS：①为什么采用『混合加密』而不是纯对称或纯非对称；②TLS 1.2 握手的主要步骤，以及 TLS 1.3 做了哪些简化；③证书链与 CA 如何防止中间人攻击；④数字签名与摘要（哈希）各自的作用；⑤什么是前向保密；⑥HTTPS 相对 HTTP 的额外开销主要在哪。",
+    "answer": {
+      "ref": "参考骨架：【为什么混合加密】对称加密（AES-GCM、ChaCha20）加解密快、适合大批量数据，但通信双方要先共享同一密钥，密钥如何安全地在不可信网络上分发是难题；非对称加密（RSA、ECDHE）靠公钥/私钥对解决了密钥协商与身份问题，但运算慢、不适合加密大量数据。于是混合：握手阶段用非对称/密钥交换安全协商出一个对称会话密钥，之后全程用对称密钥加密业务数据，兼顾安全与性能。\n【握手流程】TLS 1.2（ECDHE 套件）大致：①ClientHello（带版本、随机数、支持的密码套件、扩展）；②ServerHello（选定套件、服务器随机数）+ 发送证书 +（ECDHE 时）ServerKeyExchange 并用私钥签名 + ServerHelloDone；③客户端验证证书链，发 ClientKeyExchange（ECDHE 公钥参数），双方用两个随机数 + 交换参数各自算出会话密钥；④互发 Finished（对至今所有握手消息的校验值）验证协商一致，之后开始传加密的应用数据，完整握手约 2-RTT。TLS 1.3：删除静态 RSA 密钥交换与老旧算法（RSA 密钥传输、CBC 老旧模式、压缩等），只保留 ECDHE/DHE 这类具备前向保密的套件；把密钥协商材料并入 ClientHello/ServerHello，完整握手压到 **1-RTT**，会话恢复支持 **0-RTT**（但 0-RTT 数据有重放风险），并强制前向保密。\n【证书链与防中间人】服务器证书由 CA 层级签发：服务器证书 ← 中间 CA ← 根 CA，根 CA 公钥预置在操作系统/浏览器信任库。验签时逐级用上级 CA 公钥验证下级证书上的签名，直到信任锚；同时校验证书域名(SAN)、有效期、吊销状态(CRL/OCSP)。中间人虽能拿到服务器的公钥证书，但没有 CA 私钥就无法伪造出能通过信任链验证的证书，也无法在不被发现的情况下替换证书，因此攻击会被浏览器告警拦截。\n【摘要与数字签名】摘要（哈希，如 SHA-256）把任意长内容压成定长指纹，单向、抗碰撞，用于校验完整性；数字签名 = 发送方（如 CA/服务器）用自己私钥对内容摘要加密，接收方用对应公钥验签——既证明内容未被篡改（重新算摘要比对），又证明身份（只有持有私钥者能签出）。TLS 握手中服务器对密钥交换参数签名，正是为了防止中间人篡改参数。\n【前向保密 PFS】ECDHE 每次握手生成临时密钥对（ephemeral），协商出的会话密钥只活在本次连接内存中，握手结束临时私钥即销毁；即便日后服务器长期证书私钥泄露，攻击者录下的历史流量也无法被解密。这正是 TLS 1.3 移除静态 RSA 密钥交换的原因——静态 RSA 下会话密钥由服务器公钥保护，私钥一旦泄露即可回溯解密全部历史流量。\n【额外开销】主要在握手阶段：非对称运算（密钥交换、签名验签）、证书链验证与可能的 OCSP 查询、额外 RTT；后续数据传输用对称加密，CPU 开销相对小。可通过会话复用（Session Ticket/PSK）、TLS 1.3 的 1-RTT/0-RTT、HTTP/2 多路复用复用连接、OCSP stapling 等摊薄握手成本。"
+    },
+    "scoringPoints": [
+      { "point": "讲清混合加密的动因：对称快但密钥分发难、非对称解决协商但慢，故握手协商对称密钥、数据走对称加密", "weight": 2 },
+      { "point": "TLS 1.2 握手主要步骤（ClientHello/ServerHello、证书、密钥交换、Finished、约 2-RTT）及 TLS 1.3 砍静态 RSA、1-RTT/0-RTT 的简化", "weight": 2 },
+      { "point": "证书链逐级验签到根 CA、域名/有效期/吊销校验，解释中间人因无 CA 私钥无法伪造", "weight": 2 },
+      { "point": "摘要管完整性、数字签名管身份+防篡改；前向保密靠 ECDHE 临时密钥，长期私钥泄露也解不了历史流量", "weight": 2 }
+    ],
+    "analysis": "这是 HTTPS 模块最能拉开档次的综合题，6 个问覆盖节点 summary 的全部『要能讲清』。3 分档要求能把『为什么混合—怎么握手—凭什么信任—靠什么保密与完整—历史流量安不安全—代价在哪』讲成闭环。常见失分：以为全程非对称、把数字签名说成『用对称密钥加密』、只说证书『权威机构发的』却讲不出信任链验证和中间人为什么伪造不了、把前向保密误解成『加密算法更强』。能点出 TLS 1.3 强制 PFS、0-RTT 重放风险、OCSP stapling 等，体现 2026 年的现代口径。",
+    "gapCheck": [
+      "易漏点：非对称加密只用于握手阶段的密钥协商与身份认证，应用数据始终走对称加密",
+      "常见误区：把前向保密理解成算法更难破解；本质是临时会话密钥与长期私钥解耦，私钥泄露不波及历史会话",
+      "加分项：能讲 TLS 1.3 移除静态 RSA 的原因、0-RTT 的重放代价，以及会话复用/OCSP stapling 如何降开销"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.tls-handshake"],
+      "related": ["cs.net.http.message", "cs.net.tcpip.tcp-vs-udp", "cs.net.tcpip.handshake"],
+      "followUps": [
+        "证书里的数字签名具体是怎么生成和验证的？摘要在其中起什么作用？",
+        "公司内网装了根证书后为什么能审计 HTTPS 流量？这和中间人攻击的边界在哪？",
+        "TLS 1.3 的 0-RTT 为什么可能被重放，工程上怎么规避？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "HTTPS/TLS 混合加密与握手体系化主观题" },
+    "tags": ["HTTPS", "TLS握手", "证书链", "前向保密"]
+  },
+
+  {
+    "id": "Q-cs-net-h23-0001",
+    "nodeId": "cs.net.http.http2-3",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 HTTP/1.1 队头阻塞与 HTTP/2、HTTP/3 的演进，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "HTTP/1.1 即使开启 Keep-Alive，请求在一条连接上基本仍是请求-响应串行：前一个响应没回来，后续请求只能等待，形成应用层队头阻塞；浏览器常靠对同一域名开多条 TCP 连接来并发" },
+      { "key": "B", "text": "HTTP/2 引入二进制分帧层，把消息拆成带 stream id 的帧在一条 TCP 连接上乱序传输、多路复用，实现流级并发，并用 HPACK 压缩头部减少重复字段开销" },
+      { "key": "C", "text": "HTTP/2 因为有多路复用，已经彻底解决了队头阻塞：TCP 丢包重传只会影响丢失数据所属的那一个流，其他流完全不受影响" },
+      { "key": "D", "text": "HTTP/3 基于 QUIC（跑在 UDP 之上），把流之间的隔离做在传输层，一条流丢包重传不阻塞其他流，从而消除了 HTTP/2 仍残留的 TCP 层队头阻塞" }
+    ],
+    "answer": { "keys": ["A", "B", "D"] },
+    "analysis": "A、B、D 正确。A 点出 HTTP/1.1 的应用层队头阻塞根源与多连接绕行方案。B 准确概括 HTTP/2 的二进制分帧、单连接多路复用（流级并发）与 HPACK 头部压缩。D 说明 HTTP/3 借 QUIC over UDP 在传输层实现独立流，真正解决传输层队头阻塞。C 是本题核心误区：HTTP/2 只消除了**应用层**队头阻塞，它仍跑在**单条 TCP** 之上，而 TCP 保证可靠有序——一个 TCP 段丢失会触发重传，在重传段到达前整条连接的数据（即所有 stream 的帧）都无法向上交付，于是**所有流一起被阻塞**，这就是 HTTP/2 残留的 TCP（传输层）队头阻塞；HTTP/3 的 QUIC 各 stream 独立可靠，单流丢包不牵连其他流才解决它。",
+    "gapCheck": [
+      "易漏点：要区分两层队头阻塞——HTTP/1.1 是应用层请求串行，HTTP/2 解决了应用层但仍受 TCP 传输层队头阻塞",
+      "常见误区：以为 HTTP/2 多路复用=彻底无阻塞；丢包时单条 TCP 上所有 stream 仍被重传拖住",
+      "加分项：知道 QUIC 把 TLS 1.3 内置进握手、靠 Connection ID 支持移动端网络切换的连接迁移"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.http2-3"],
+      "related": ["cs.net.http.message", "cs.net.tcpip.reliable-flow", "cs.net.tcpip.tcp-vs-udp"],
+      "followUps": [
+        "HTTP/2 的多路复用和 HTTP/1.1 的管道化（pipelining）本质差在哪？",
+        "QUIC 跑在 UDP 上，可靠传输和拥塞控制是谁来实现的？",
+        "HTTP/2 的 Server Push 为什么后来被主流浏览器移除？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "HTTP 各版本队头阻塞演进多选题" },
+    "tags": ["HTTP2", "HTTP3", "QUIC", "队头阻塞"]
+  },
+  {
+    "id": "Q-cs-net-h23-0002",
+    "nodeId": "cs.net.http.http2-3",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请沿着『队头阻塞在哪一层、被谁解决』这条主线，对比 HTTP/1.1、HTTP/2、HTTP/3：①HTTP/1.1 的应用层队头阻塞；②HTTP/2 的二进制分帧、多路复用、HPACK 等机制解决了什么、为什么仍受 TCP 队头阻塞；③HTTP/3 为什么换成 QUIC over UDP，如何消除传输层队头阻塞；④各版本的兼容性与收益边界。",
+    "answer": {
+      "ref": "参考骨架：【HTTP/1.1 的应用层队头阻塞】HTTP/1.1 是文本协议、请求-响应严格配对，虽有 Keep-Alive 复用 TCP 连接，但一条连接上响应须按请求顺序返回；即使启用管道化（pipelining，连续发请求不等响应），响应仍须按序返回且代理兼容差、几乎未部署。于是前一个慢响应会阻塞同连接后续所有请求——这是应用层队头阻塞。浏览器的绕行办法是对同一域名开多条 TCP 连接（常见 6 条左右）并发，但每条连接仍串行，且多连接占资源、各自慢启动、竞争拥塞窗口。\n【HTTP/2 解决应用层 HOL】HTTP/2 在应用层与 TCP 之间加入二进制分帧层：消息被拆成带 stream id 的二进制帧，在**同一条 TCP 连接**上乱序交错传输、接收方按 stream id 重组，实现真正的多路复用与流级并发，多个请求互不等待；HPACK 用静态表+动态表+哈夫曼编码压缩大量重复的请求头部，降低头部冗余；还支持流优先级、流量控制与（现已基本被弃用的）Server Push。收益是单连接即可高并发、少握手、头部更省。\n【HTTP/2 残留 TCP 层 HOL】多路复用跑在单条 TCP 上，而 TCP 提供可靠、有序交付：一旦某个 TCP 段丢失，必须等重传到达才能按序向上交付，期间这条连接承载的**所有 stream 的帧都被卡住**，与应用层是否复用无关。高丢包（弱网、移动网络）下这一问题尤其明显——HTTP/2 消除了应用层 HOL，却把多路流的命运绑在同一条 TCP 的重传上。\n【HTTP/3 用 QUIC over UDP 根除传输层 HOL】HTTP/3 把传输能力搬到 QUIC（基于 UDP），在 QUIC 内自行实现可靠传输、拥塞控制与集成的 TLS 1.3。QUIC 的 stream 相互独立、各自维护可靠与有序：某个 stream 的丢包只阻塞该 stream，其他 stream 的数据照常交付，从而消除传输层队头阻塞。QUIC 还把加密握手与传输握手合并、支持 1-RTT 建连，并用 Connection ID 标识连接，移动端在 Wi-Fi/蜂窝间切换 IP 时连接不中断（连接迁移）。选 UDP 是为了绕过中间盒对 TCP 的僵化假设、便于在用户态快速迭代。\n【兼容与收益边界】HTTP 语义（方法、状态码、URI、头部）保持不变，升级主要在传输/分帧层：h2 基于 TCP+TLS，靠 ALPN 在握手时协商；h3 走 UDP/443，常通过 Alt-Svc 头由服务器通告、客户端尝试升级。HTTP/2 在低丢包、高带宽时延积网络收益明显，弱网丢包下受 TCP HOL 限制；HTTP/3 在弱网、移动、高丢包场景收益最大，但 UDP 可能被部分网络/企业防火墙限制或 QoS 降速，部署与调试成本更高。另外 HTTP/2 的 Server Push 因实际命中低、与缓存协作复杂，已被 Chrome 等移除并在 RFC 9113 中被标记废弃，不宜再当作核心收益宣讲。"
+    },
+    "scoringPoints": [
+      { "point": "讲清 HTTP/1.1 应用层队头阻塞的根源（请求-响应按序、管道化未普及）及多连接绕行的局限", "weight": 2 },
+      { "point": "HTTP/2 二进制分帧/单连接多路复用/HPACK 如何实现流级并发、解决应用层 HOL", "weight": 2 },
+      { "point": "指出 HTTP/2 仍跑在单条 TCP 上，丢包重传阻塞所有 stream（TCP 层 HOL）", "weight": 2 },
+      { "point": "HTTP/3 的 QUIC over UDP 用独立流消除传输层 HOL，并说明连接迁移/集成 TLS 及版本兼容与收益边界", "weight": 2 }
+    ],
+    "analysis": "本题主线极清晰：『队头阻塞在应用层还是传输层、被哪一版解决』。3 分档要求能准确分层——HTTP/1.1 应用层串行、HTTP/2 解应用层但继承 TCP 传输层 HOL、HTTP/3 在 QUIC 层用独立流根除它。最常见的失分正是以为 HTTP/2 已经『彻底无阻塞』，忽略单 TCP 丢包的全局影响；其次是把 QUIC 误说成『UDP 所以不可靠』，忽略可靠传输是 QUIC 自己实现的。能补充 HPACK 原理、Connection ID 连接迁移、Server Push 已废弃、h2/h3 的协商方式（ALPN/Alt-Svc），就是 2026 年口径下的高水准回答。",
+    "gapCheck": [
+      "易漏点：两层 HOL 要分开——HTTP/2 解应用层，TCP 层 HOL 要等 HTTP/3 的独立流才解决",
+      "常见误区：以为 QUIC=UDP 就不可靠；可靠性、拥塞控制、TLS 1.3 都是 QUIC 在 UDP 之上自己实现的",
+      "加分项：能讲 Connection ID 连接迁移、1-RTT 建连，以及 Server Push 已被主流浏览器弃用的现状"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.http2-3"],
+      "related": ["cs.net.http.message", "cs.net.tcpip.reliable-flow", "cs.net.tcpip.tcp-vs-udp", "cs.net.http.tls-handshake"],
+      "followUps": [
+        "QUIC 在 UDP 上自己做可靠传输和拥塞控制，相比直接用 TCP 多了哪些自由度？",
+        "弱网环境下 HTTP/2 多路复用为什么反而可能不如多连接？",
+        "浏览器怎么决定一个站点用 h2 还是 h3？Alt-Svc 是怎么工作的？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "HTTP/1.1/2/3 队头阻塞演进体系化主观题" },
+    "tags": ["HTTP2", "HTTP3", "QUIC", "体系化"]
+  },
+
+  {
+    "id": "Q-cs-net-httpmsg-0003",
+    "nodeId": "cs.net.http.message",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 HTTP 报文结构与常见头部字段，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "请求行由方法、请求目标（URI）、HTTP 版本三部分组成，起始行与各头部字段之间、头部与消息体之间都用 CRLF 分隔，头部结束靠一个空行标识" },
+      { "key": "B", "text": "Content-Length 只能出现在请求报文中，响应报文不允许携带该头部" },
+      { "key": "C", "text": "Host 头是可选的：HTTP/1.1 请求即使不携带 Host，服务器也总能正确区分同一 IP 上的多个虚拟主机" },
+      { "key": "D", "text": "Transfer-Encoding: chunked 必须配合 Content-Length 同时使用，否则无法判断报文边界" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确：请求行/状态行是起始行，头部一行一个『字段名: 值』，头部整体以一个空行（CRLF CRLF）结束，之后才是可选消息体。B 错：Content-Length 在带消息体的请求和响应里都会出现，用于声明体长度。C 错：HTTP/1.1 中 Host 是必填请求头，一台服务器靠 Host 区分共享同一 IP 的多个虚拟主机（基于名字的虚拟主机），缺失 Host 的请求通常被拒绝或交给默认站点。D 错：chunked 分块传输正是在没有可靠 Content-Length（如动态生成内容）时使用，靠每块前的长度行和结尾的 0 长度块界定边界，二者属于互斥的定长/分块机制，不应同时声明。",
+    "gapCheck": [
+      "易漏点：头部与消息体之间靠『空行』分隔，而不是靠连接断开；体边界由 Content-Length 或 chunked 决定",
+      "常见误区：以为 Host 可有可无——HTTP/1.1 下它是虚拟主机路由的必填头",
+      "加分项：能说明 chunked 与 Content-Length 互斥，以及分块传输如何支撑流式/动态响应"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.message"],
+      "related": ["cs.net.http.cache", "cs.net.http.http2-3"],
+      "followUps": [
+        "既没有 Content-Length 也不是 chunked 的响应，客户端如何知道 body 结束？",
+        "HTTP/2 里为什么不再需要逐行的文本头部和 Content-Length 的传统分块机制？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "HTTP 报文结构与头部单选题" },
+    "tags": ["HTTP", "报文结构", "请求头", "基础"]
+  },
+  {
+    "id": "Q-cs-net-httpmsg-0004",
+    "nodeId": "cs.net.http.message",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：安全方法（safe methods，如 GET/HEAD/OPTIONS）指不会对服务端资源产生预期副作用的方法；幂等方法（idempotent，如 GET/PUT/DELETE）指同一请求执行一次与执行 N 次的服务端状态效果相同。二者是两个独立概念——PUT 幂等但并不安全，POST 通常既不安全也不幂等。",
+    "answer": { "judge": true },
+    "analysis": "正确。安全与幂等是正交的两个属性：安全强调只读、不改变服务端状态（GET/HEAD/OPTIONS，HEAD 只取头部无体）；幂等强调多次执行的副作用与一次相同。GET 既安全又幂等；PUT 整体替换资源，替换 N 次结果一致，故幂等，但它确实改写了资源状态，所以不安全；DELETE 删除资源，第一次之后资源已不存在、再删状态不变，视为幂等、不安全；POST 每次通常新建资源或触发处理，既不安全也不幂等（重复提交产生多条记录，故需防重）。PATCH 只承诺局部更新、是否幂等取决于实现，不能默认。理解这两个概念对接口设计、重试策略和缓存判定都很关键。",
+    "gapCheck": [
+      "易漏点：安全 ≠ 幂等，一个看『有无副作用』，一个看『多次执行效果是否等价于一次』",
+      "常见误区：把 PUT 当成安全方法——它幂等但会改写资源，因此不安全",
+      "加分项：能联系自动重试——幂等接口可安全重试，非幂等 POST 重试需要幂等键/防重令牌"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.message"],
+      "related": ["cs.net.http.cache"],
+      "followUps": [
+        "为什么 GET 结果可以被缓存而 POST 一般不行？这与安全/幂等有什么关系？",
+        "要让 POST 接口支持安全重试，工程上通常引入什么机制（幂等键）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "安全方法与幂等方法辨析判断题" },
+    "tags": ["HTTP", "幂等性", "安全方法", "判断"]
+  },
+  {
+    "id": "Q-cs-net-httpmsg-0005",
+    "nodeId": "cs.net.http.message",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "一条 Keep-Alive 持久连接上会连续承载多个请求/响应。请回答：①客户端如何准确判断一个响应的消息体到哪里结束（分情况说明）；②如果响应既没有 Content-Length 也没有用 chunked，会发生什么；③持久连接在什么情况下会被关闭，连接复用对消息边界提出了什么要求。",
+    "answer": {
+      "ref": "参考骨架：【①判断 body 结束的方式】分三种：a. 定长：响应头带 Content-Length，客户端读到恰好这么多字节即认为本响应体结束，剩余字节属于下一个响应；b. 分块：Transfer-Encoding: chunked 时，body 由若干块组成，每块以『十六进制长度行 + CRLF + 数据 + CRLF』表示，最后以长度为 0 的块（可选 trailer 后再空行）结束，适合动态生成、开始时不知道总长度的内容；c.  multipart 等多部分媒体类型自带边界分隔。请求体同理。\n【②两者都没有】在持久连接下若既无 Content-Length 又非 chunked，接收方无法知道 body 边界，就不能安全地把后续字节切给下一个响应。按 HTTP/1.1 规则，这种情况下通常只能靠『连接关闭』来界定 body——服务器发完就关闭 TCP，客户端读到 EOF 才认为响应结束，这意味着该连接无法复用、退化为短连接；在严格的持久连接实现中这类响应可能被视为非法或被截断处理。\n【③连接何时关闭】任一端在头部带 Connection: close 即表示本次响应后关闭；空闲超时（keep-alive timeout）由服务端回收；请求/响应出错或协议不一致；代理/中间设备策略；消息体长度声明与实际不符导致解析失败也会断开。\n【对边界的要求】连接复用要求每个消息都能自描述长度——这正是 Content-Length/chunked 必须可靠的原因：一旦边界判错，后续所有响应都会错位（流水线/复用直接乱套）。HTTP/2 进一步用二进制分帧，每帧自带长度与 stream id，从根本上替代了文本协议靠长度头/分块界定的方式。"
+    },
+    "scoringPoints": [
+      { "point": "准确分情况讲清 body 边界：Content-Length 定长、chunked 分块（0 长度块结束）", "weight": 3 },
+      { "point": "说明既无长度又非分块时只能靠连接关闭界定、退化为短连接", "weight": 3 },
+      { "point": "列出持久连接关闭的典型触发（Connection: close、空闲超时、错误、长度不符）", "weight": 2 },
+      { "point": "点出复用要求消息自描述长度，以及 HTTP/2 二进制分帧对边界机制的演进", "weight": 2 }
+    ],
+    "analysis": "这题从『连接复用为什么依赖消息自描述』切入，检验对报文成帧的真实理解。3 分档要能分清定长与分块两条主路径，并解释缺长度信息为何会逼退到短连接。常见失分：以为响应结束靠 TCP 断开（短连接思维）、不知道 chunked 的 0 长度块、解释不了连接复用与消息边界的耦合。能延伸到 HTTP/2 帧长度字段说明理解到位。",
+    "gapCheck": [
+      "易漏点：持久连接上不能靠 EOF 判断 body，必须靠 Content-Length 或 chunked 自描述长度",
+      "常见误区：以为 chunked 也要 Content-Length——二者互斥，分块靠 0 长度块收尾",
+      "加分项：能讲长度声明与实际不符会导致连接级解析失败，以及 HTTP/2 帧自带长度的演进"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.message"],
+      "related": ["cs.net.http.http2-3", "cs.net.tcpip.reliable-flow"],
+      "followUps": [
+        "chunked 传输中某一块的长度行被篡改会有什么后果？",
+        "HTTP/2 的 DATA 帧和 END_STREAM 标志如何取代 chunked 的结束语义？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "持久连接与消息体边界机制简答题" },
+    "tags": ["HTTP", "Keep-Alive", "chunked", "消息边界", "工程题"]
+  },
+
+  {
+    "id": "Q-cs-net-cache-0003",
+    "nodeId": "cs.net.http.cache",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 HTTP 缓存控制指令与浏览器刷新行为，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "Cache-Control: no-store 禁止浏览器和中间代理存储任何副本，适用于含敏感信息的响应；no-cache 则允许存储，但每次使用前必须向服务器重新验证" },
+      { "key": "B", "text": "private 指示响应只能被浏览器这类单个用户的私有缓存存储，不能被共享代理（CDN）缓存；public 则允许共享缓存保存" },
+      { "key": "C", "text": "普通刷新（F5）通常会让浏览器对已缓存资源带上条件请求去协商验证，而强制刷新（Ctrl+F5）会绕过本地缓存、附带 Cache-Control: no-cache 之类指令直接回源" },
+      { "key": "D", "text": "max-age=0 等价于 no-store，浏览器不会在本地保留该资源的任何副本" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 精确区分 no-store（彻底不落盘）与 no-cache（可存但必验证）；B 区分 private/public 对共享缓存的约束，带 Cookie 或用户专属内容默认倾向 private；C 描述两级刷新的真实差异：普通刷新倾向协商（可能 304），强制刷新跳过本地副本直接回源。D 错：max-age=0 表示响应立刻『过期』，但资源仍可被存储，下次使用必须重新协商验证（很像 no-cache 的效果），它并不禁止存储；真正连副本都不许保留的是 no-store。",
+    "gapCheck": [
+      "易漏点：max-age=0 是『立即过期但可存』，不是 no-store；区别在是否允许落地副本",
+      "常见误区：把 no-cache、no-store、max-age=0 三个指令混为一谈，它们在存储与验证策略上各不相同",
+      "加分项：能讲 private/public 对 CDN 共享缓存的影响，以及 immutable、stale-while-revalidate 等进阶指令"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.cache"],
+      "related": ["cs.net.http.message"],
+      "followUps": [
+        "immutable 指令改变了普通刷新时的什么行为？",
+        "CDN 上的 public 缓存和浏览器 private 缓存，缓存键与失效策略有何不同？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "缓存指令与刷新行为多选题" },
+    "tags": ["HTTP缓存", "Cache-Control", "no-cache", "刷新行为"]
+  },
+  {
+    "id": "Q-cs-net-cache-0004",
+    "nodeId": "cs.net.http.cache",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "补全 HTTP 缓存的关键头部与状态码：强缓存可由相对秒数的 Cache-Control: ______ 或旧的绝对时间头 ______ 控制，二者并存时以前者为准；协商缓存中，基于内容指纹的验证器是 ______，回源时通过 If-None-Match 携带；资源未变化时服务器返回状态码 ______ 且不带响应体；声明响应依哪些请求头区分缓存副本的头部是 ______。",
+    "answer": {
+      "blanks": ["max-age", "Expires", "ETag", "304", "Vary"],
+      "synonyms": {
+        "max-age": ["maxage", "max age", "max-age 秒数"],
+        "Expires": ["expires", "Expires 头", "过期时间头"],
+        "ETag": ["etag", "ETag 实体标签", "实体标签"],
+        "304": ["304 Not Modified", "304 未修改", "Not Modified"],
+        "Vary": ["vary", "Vary 头"]
+      }
+    },
+    "analysis": "五空覆盖缓存核心头部：①max-age 给出相对新鲜期（秒），是 Cache-Control 的强缓存指令；②Expires 是 HTTP/1.0 遗留的绝对过期时间，受客户端时钟偏差影响，与 Cache-Control 并存时 Cache-Control 优先；③ETag 是基于资源内容的指纹验证器，配合请求头 If-None-Match 做条件请求，精度高于基于时间的 Last-Modified；④资源未变返回 304 Not Modified、只回头部不带 body，客户端复用本地副本；⑤Vary 声明该响应随哪些请求头（如 Accept-Encoding、Accept-Language）而不同，使同一 URL 可缓存多份副本。",
+    "gapCheck": [
+      "易漏点：Cache-Control 优先于 Expires，ETag/If-None-Match 优先于 Last-Modified/If-Modified-Since",
+      "常见误区：以为 304 会重新返回资源体——它无 body，省的是载荷而非整个请求往返",
+      "加分项：能说明 Vary 配置不当（如 Vary: User-Agent）会降低缓存命中率，以及弱 ETag（W/）的语义"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.cache"],
+      "related": ["cs.net.http.message"],
+      "followUps": [
+        "为什么 ETag 通常比 Last-Modified 更精确？弱 ETag 用在什么场景？",
+        "Vary: Accept-Encoding 具体如何防止把 gzip 副本错发给不支持的客户端？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "HTTP 缓存头部与状态码填空题" },
+    "tags": ["HTTP缓存", "ETag", "304", "Vary", "填空"]
+  },
+  {
+    "id": "Q-cs-net-cache-0005",
+    "nodeId": "cs.net.http.cache",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "发布前端新版本后，部分用户反馈仍加载到旧 JS/CSS，但另一部分用户已是新版本。请结合 HTTP 缓存链路给出系统化的排查思路：①问题可能出在浏览器、CDN/中间代理、源站的哪些环节；②如何逐层验证；③长效强缓存资源要如何设计才能既快又能在发布时及时更新。",
+    "answer": {
+      "ref": "参考骨架：【①可能环节】a. 浏览器层：旧资源被 max-age/Expires 强缓存且未过期，普通访问不回源；HTML 入口若也被错误强缓存，会一直引用旧的哈希文件名；b. CDN/共享代理层：边缘节点缓存了旧副本未到期或未被主动刷新（purge），不同边缘节点刷新进度不同，造成『部分用户新、部分用户旧』；中间代理/企业网关也可能有独立缓存；c. 源站/构建层：新构建产物未全量上传、新旧文件混部、缓存头配置错误（如给带哈希资源设了 no-cache 或给 HTML 设了超长 max-age）、CDN 回源键/Host 配置导致取到旧目录。\n【②逐层验证】先看 DevTools Network：该资源是 200 from disk/memory cache（强缓存未回源）、304（协商命中）还是 200 真回源，并核对响应头 Cache-Control/ETag/Age 与 URL 哈希；再用 curl -I 或不同地区/节点直接请求 CDN URL，比对 Age、X-Cache（命中/未命中）、ETag，确认是否边缘缓存差异；查 CDN 控制台各节点缓存状态并做 purge/刷新；最后回源直连源站（绕过 CDN）确认源站返回的就是新版本，排除构建/发布本身问题。强刷（Ctrl+F5）可临时绕过浏览器缓存以区分是浏览器层还是上游层问题。\n【③长效缓存设计】采用『内容哈希文件名 + 分层缓存策略』：给 JS/CSS/图片等不可变产物加内容哈希（app.8f3a2c.js），内容不变哈希不变，可放心设置 Cache-Control: max-age=31536000, immutable 走超长强缓存；内容一变文件名即变，天然成为新 URL、不会命中旧缓存。HTML 入口则设 no-cache 或短 max-age，每次协商验证，确保它引用的始终是最新哈希资源。发布时配合 CDN 主动 purge（针对入口 HTML 或异常资源）、灰度发布与多版本共存，避免新旧文件错配。这样把『缓存寿命』与『发布即时性』解耦，既享强缓存的速度又保证更新可达。"
+    },
+    "scoringPoints": [
+      { "point": "分层定位：浏览器强缓存、CDN/代理边缘缓存、源站/构建发布三类环节各自的成因", "weight": 3 },
+      { "point": "给出逐层验证手段（DevTools 缓存状态与响应头、curl/多节点对比 Age/X-Cache、CDN purge、绕过 CDN 直连源站）", "weight": 3 },
+      { "point": "讲清内容哈希 + immutable 长效强缓存与 HTML 入口 no-cache 协商的分层策略", "weight": 3 },
+      { "point": "提到多版本共存/灰度/CDN 刷新等发布侧配合，体现工程闭环", "weight": 1 }
+    ],
+    "analysis": "这是缓存考点最贴近真实事故的排查题。3 分档要能沿『浏览器→边缘/代理→源站』分层假设并给出可执行验证，而不是笼统说『清缓存』。常见失分：只盯浏览器忽略 CDN 多节点不一致、分不清强缓存与协商缓存在 Network 面板的表现、讲不出哈希文件名为什么能让强缓存安全。能用到 Age、X-Cache、immutable、purge 等具体抓手，说明有实操经验。",
+    "gapCheck": [
+      "易漏点：『部分用户旧、部分用户新』高度提示 CDN 边缘节点缓存不一致，而非单纯浏览器问题",
+      "常见误区：让用户强刷当作解决方案——根因往往在资源缓存策略或边缘节点，强刷只是绕过",
+      "加分项：能区分 HTML 入口与哈希资源的缓存分工，并用 immutable、CDN purge、灰度发布形成闭环"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.cache"],
+      "related": ["cs.net.http.message", "cs.net.http.http2-3"],
+      "followUps": [
+        "CDN 的 Age 头和浏览器的 max-age 在缓存判定上是什么关系？",
+        "如果 HTML 本身也被错误地强缓存了，有哪些补救手段能让用户尽快恢复？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "缓存不一致线上排查工程简答题" },
+    "tags": ["HTTP缓存", "CDN", "线上排障", "内容哈希", "工程题"]
+  },
+
+  {
+    "id": "Q-cs-net-tls-0003",
+    "nodeId": "cs.net.http.tls-handshake",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 TLS 握手与密钥协商，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "TLS 1.2 采用 ECDHE 套件时，客户端与服务器各自生成临时密钥参数并交换，结合双方随机数独立算出相同的会话密钥，服务器还会对其密钥交换参数用证书私钥签名以防篡改" },
+      { "key": "B", "text": "TLS 1.3 把密钥协商材料提前放进 ClientHello/ServerHello，完整握手缩短为 1-RTT，并移除了不具前向保密的静态 RSA 密钥交换" },
+      { "key": "C", "text": "握手过程中双方各生成一个随机数（client random / server random），与会话密钥计算绑定，确保每次连接的会话密钥都不相同" },
+      { "key": "D", "text": "TLS 1.3 的 0-RTT 恢复数据既免额外往返又绝对安全，不存在任何重放风险" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 描述 ECDHE 的临时参数交换 + 服务器签名防中间人篡改；B 概括 TLS 1.3 的 1-RTT 与砍静态 RSA（静态 RSA 无前向保密）；C 指出两个随机数参与密钥派生，保证会话密钥的新鲜性、避免重放复用。D 错：0-RTT 数据用恢复密钥加密、在第一条消息就能携带应用数据，但这些早期数据不具备前向保密且可能被攻击者重放，协议要求仅用于幂等、安全的请求，并通过在应用层加防重放（nonce/幂等键）来规避，绝非『绝对安全』。",
+    "gapCheck": [
+      "易漏点：ECDHE 中服务器要对密钥交换参数签名，防止中间人篡改临时公钥",
+      "常见误区：以为 0-RTT 没有代价——它以重放风险和弱化的前向保密换取省一个 RTT",
+      "加分项：能讲两个随机数 + 预主密钥如何派生各类会话密钥，以及 1.3 的密钥调度（key schedule）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.tls-handshake"],
+      "related": ["cs.net.tcpip.handshake", "cs.net.tcpip.tcp-vs-udp"],
+      "followUps": [
+        "TLS 1.3 的 0-RTT 在工程上通常限制为哪些请求？如何防重放？",
+        "静态 RSA 密钥交换为什么不具前向保密，ECDHE 是怎么补上的？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "TLS 握手与密钥协商多选题" },
+    "tags": ["HTTPS", "TLS握手", "ECDHE", "0-RTT"]
+  },
+  {
+    "id": "Q-cs-net-tls-0004",
+    "nodeId": "cs.net.http.tls-handshake",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：浏览器验证服务器证书时，会沿着『服务器证书 → 中间 CA → 根 CA』逐级用上级 CA 的公钥验签直到内置信任锚，同时校验域名（SAN）、有效期与吊销状态；自签名证书因为没有可追溯到受信任根 CA 的签名链，默认会触发浏览器安全告警。",
+    "answer": { "judge": true },
+    "analysis": "正确。证书信任建立在链式数字签名上：每个证书由签发它的上级 CA 用私钥签名，验证方用上级 CA 证书里的公钥验签，逐级上溯到操作系统/浏览器预置的根 CA（信任锚，根证书自签但被显式信任）。除签名链外还要核对：证书中的主体可选名 SAN 是否覆盖访问域名、当前时间是否在 notBefore/notAfter 有效期内、是否被吊销（CRL/OCSP，或 OCSP stapling）。自签名证书的签发者就是其自身、无法链到任何受信任根，因此默认不受信任并告警；在内网等可控环境手动导入根证书后才会被信任（这与中间人攻击的边界在于是否由用户/管理员显式授权）。",
+    "gapCheck": [
+      "易漏点：验签之外还要校验 SAN 域名、有效期、吊销状态，签名链合法不等于证书一定可用",
+      "常见误区：以为根 CA 也是靠『被别人签名』获得信任——根是预置在信任库中的信任锚",
+      "加分项：能讲 OCSP stapling 如何把吊销查询转嫁到服务器以保护隐私与性能，以及企业根证书的信任边界"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.tls-handshake"],
+      "related": ["cs.net.http.message"],
+      "followUps": [
+        "证书链里缺少中间 CA 证书时浏览器为什么有时仍能访问（AIA 补取）？",
+        "公司内网安装自建根证书后能审计 HTTPS，这与中间人攻击的本质边界在哪？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "证书链信任与校验判断题" },
+    "tags": ["HTTPS", "证书链", "CA", "数字签名", "判断"]
+  },
+  {
+    "id": "Q-cs-net-tls-0005",
+    "nodeId": "cs.net.http.tls-handshake",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "用户访问某 HTTPS 站点时浏览器弹出『您的连接不是私密连接』告警。请从证书与握手角度：①列出可能触发该告警的几类典型原因；②说明浏览器各自依据什么判定；③在确认不是攻击的内网/测试场景下，有哪些合规的处理方式，以及为什么不能养成『一律忽略告警』的习惯。",
+    "answer": {
+      "ref": "参考骨架：【①典型原因】a. 证书过期或尚未生效（当前时间超出 notAfter / 早于 notBefore）；b. 域名不匹配：证书 SAN/CN 不包含实际访问的主机名（如证书签给 www 却访问裸域、或 IP 直连）；c. 证书链不完整/不受信任：缺少中间 CA 证书、签发根不在浏览器/系统信任库，或使用自签名证书；d. 证书被吊销：CRL/OCSP 显示已作废（私钥泄露、误签发等）；e. 签名算法/密钥过弱或协议版本不被允许（如仅支持已淘汰的旧算法/TLS 版本）；f. 真实的中间人攻击：有人用伪造证书劫持流量，因无法通过受信任根的签名链验证而告警。\n【②判定依据】浏览器内置受信任根 CA 库，逐级验签确认链完整可信；用系统时钟比对有效期；解析 SAN 与访问域名匹配；经 OCSP/CRL（含 stapling）查吊销；协商密码套件时校验算法强度与 TLS 版本。任一项不满足即呈现对应错误码（如证书过期 NET::ERR_CERT_DATE_INVALID、域名不匹配 ERR_CERT_COMMON_NAME_INVALID、颁发者不受信任 ERR_CERT_AUTHORITY_INVALID）。\n【③合规处理与告警严肃性】内网/测试场景：为内部服务建立私有 CA 并把根证书通过正规方式分发、安装到客户端信任库；给测试域名签包含正确 SAN、有效期合理的证书；本地开发可用受信任的本地证书工具；在隔离测试机上临时手动信任仅用于调试。绝不应当在生产用户侧让其『点高级继续访问』。\n【为什么不能一律忽略】证书告警是浏览器能识别中间人篡改/伪造的最后一道强提示：攻击者在公共 Wi-Fi、被入侵网关处可用自签/伪造证书劫持 HTTPS，忽略告警等于放弃身份认证，流量虽加密但对接的是假冒方，凭据与数据可被窃取。养成忽略习惯会让真正的攻击告警与配置问题一同被无视；正确做法是定位并修复证书配置（续期、补 SAN、补全证书链、更换受信 CA），而非绕过。"
+    },
+    "scoringPoints": [
+      { "point": "覆盖多类告警原因：有效期、域名 SAN、信任链/自签、吊销、弱算法/版本、中间人攻击", "weight": 3 },
+      { "point": "对应讲清判定依据：信任库逐级验签、系统时钟、SAN 匹配、OCSP/CRL、套件协商", "weight": 3 },
+      { "point": "给出内网合规方案：私有 CA 分发信任根、正确 SAN/有效期、本地受信证书而非让用户绕过", "weight": 2 },
+      { "point": "阐明忽略告警的风险：放弃服务器身份认证、中间人可冒名，强调修复而非绕过", "weight": 2 }
+    ],
+    "analysis": "这题把 TLS 证书机制落到用户最常见的告警现象，检验能否把链验证、域名、有效期、吊销等知识点反向用于排障。3 分档要能列出多类原因并对应到浏览器判定逻辑，且对内网场景给出建私有 CA 的正解而非『点继续』。常见失分：只会说证书过期、忽略域名不匹配与证书链不完整；把告警当纯提示无视中间人含义。能报出具体错误码、OCSP stapling、私有 CA 分发，属于高分。",
+    "gapCheck": [
+      "易漏点：告警原因不止过期——域名不匹配、链不完整、吊销、弱算法、真实中间人都会触发",
+      "常见误区：把自签名告警当成无害提示直接忽略，它也可能正是中间人攻击的表现",
+      "加分项：能区分常见错误码并提出私有 CA/正规证书生命周期管理，而非依赖用户手动信任"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.tls-handshake"],
+      "related": ["cs.net.http.message", "cs.net.tcpip.handshake"],
+      "followUps": [
+        "证书链不完整时服务器应如何配置（补送中间 CA）？",
+        "OCSP must-staple 能为吊销检测带来什么更强的保证？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "HTTPS 证书告警排查与信任边界简答题" },
+    "tags": ["HTTPS", "证书", "证书告警", "中间人攻击", "工程题"]
+  },
+
+  {
+    "id": "Q-cs-net-h23-0003",
+    "nodeId": "cs.net.http.http2-3",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 HTTP/2 与 HTTP/3 的关键机制，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "HTTP/2 在一条 TCP 连接上以带 stream id 的二进制帧多路复用，并用 HPACK 压缩头部；HTTP/3 基于 QUIC over UDP，各流独立可靠、单流丢包不阻塞其他流，并把 TLS 1.3 内置进传输握手" },
+      { "key": "B", "text": "HTTP/2 因为多路复用，单条 TCP 连接上某个包丢失重传只会影响对应那一个 stream，其他 stream 完全不受影响" },
+      { "key": "C", "text": "HTTP/3 直接把 HTTP/2 的二进制帧原封不动跑在 UDP 上，可靠传输和加密都由 UDP 协议本身保证" },
+      { "key": "D", "text": "HTTP/2 的 Server Push 目前仍是各浏览器主推的核心性能特性，被广泛用于推送关键资源" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确概括两代协议：HTTP/2 单 TCP 连接 + 二进制分帧 + stream 多路复用 + HPACK；HTTP/3 借 QUIC over UDP 实现流级独立可靠与内置 TLS 1.3。B 错在这正是 HTTP/2 的残留 TCP 层队头阻塞——TCP 严格按序，一个段丢失重传期间整条连接上所有 stream 的帧都无法交付。C 错：UDP 本身不保证可靠也不加密，可靠性、拥塞控制、TLS 1.3 都是 QUIC 在 UDP 之上自行实现的，且 HTTP/3 有自己的帧与 QPACK 头部压缩，并非原样搬 HTTP/2。D 错：Server Push 因实际命中率低、与缓存协作复杂，已被 Chrome 等主流浏览器移除并在标准中被废弃，不宜再当作核心收益。",
+    "gapCheck": [
+      "易漏点：HTTP/2 解决应用层队头阻塞但继承 TCP 传输层队头阻塞，要等 QUIC 独立流才根除",
+      "常见误区：以为 QUIC=UDP 就天然可靠/安全——可靠传输与 TLS 都是 QUIC 自己实现的",
+      "加分项：知道 QPACK 取代 HPACK、Connection ID 支持连接迁移、Server Push 已被弃用"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.net.http.http2-3"],
+      "related": ["cs.net.tcpip.reliable-flow", "cs.net.http.tls-handshake", "cs.net.tcpip.tcp-vs-udp"],
+      "followUps": [
+        "QUIC 的 Connection ID 在移动网络切换时如何实现连接不中断？",
+        "HTTP/3 为什么用 QPACK 而不是直接沿用 HTTP/2 的 HPACK？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "HTTP/2 与 HTTP/3 关键机制单选题" },
+    "tags": ["HTTP2", "HTTP3", "QUIC", "多路复用"]
+  }
+]

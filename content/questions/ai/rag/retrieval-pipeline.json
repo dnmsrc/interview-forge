@@ -5,22 +5,87 @@
     "type": "blank",
     "difficulty": 3,
     "stem": "补全 LlamaIndex 官方对切块粒度的口径：chunk size ______ 会让文本嵌入难以捕捉完整语义单元、且增大检索到的片段与 ______ 之间的不匹配风险；chunk size ______ 会把多个不相关段落混进一个向量导致『稀释』。因此官方建议 chunk size 要匹配『被查询典型引用的 ______ 大小』。",
-    "answer": { "blanks": ["过小", "上下文窗口（context window）", "过大", "单元（语义单元/信息单元）"], "synonyms": { "过小": ["太小", "too small"], "上下文窗口（context window）": ["上下文窗口", "context window", "生成上下文预算"], "过大": ["太大", "too large"], "单元（语义单元/信息单元）": ["单元", "语义单元", "信息单元", "chunk/unit", "引用单元"] } },
-    "analysis": "三个空考的是官方 chunking 权衡的两难+结论：块**过小**时完整语义单元被切碎、且检索到的碎片与**上下文窗口**的组装预算错配（碎片塞不满窗口还凑不齐一个论证）；块**过大**则多主题混进同一向量被稀释——两难的另一翼。结论空是全文眼：chunk size 应匹配『典型被引用单元』的大小（步骤/小节/FAQ 条目），这是 LlamaIndex 文档的核心口径，也是把切块从『调参』升为『粒度设计』的依据。常见填错：第二空填『嵌入模型』（因果错位——窗口不匹配是组装层问题不是模型能力）、第四空填『512 token』（数字不是原则）。",
-    "gapCheck": ["易漏点：『chunk size 决定的是检索单元的粒度』这句话要能脱口而出——它同时影响召回、上下文组装和引用展示三处", "常见误区：把 contextual retrieval（每块前置文档级摘要，Anthropic 提出）当成切块策略——它是给小块补全局上下文的补救层，不是替代结构切分", "加分项：说出『先按 query 类型定粒度再定参数』的方法论：事实型短句问答用小 FAQ 块，教程类用步骤级块"],
-    "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.chunking-strategies"],
-      "related": ["ai.rag.retrieval-pipeline.hybrid-retrieval", "ai.context"],
-      "followUps": ["结构感知切分具体怎么实现？Markdown 按标题切断了表格怎么办？", "contextual retrieval 的代价是什么？为什么它能把小块检索准确率抬那么多？", "怎么评估切块策略好坏——直接看端到端答案质量吗？"]
+    "answer": {
+      "blanks": [
+        "过小",
+        "上下文窗口（context window）",
+        "过大",
+        "单元（语义单元/信息单元）"
+      ],
+      "synonyms": {
+        "过小": [
+          "太小",
+          "too small"
+        ],
+        "上下文窗口（context window）": [
+          "上下文窗口",
+          "context window",
+          "生成上下文预算"
+        ],
+        "过大": [
+          "太大",
+          "too large"
+        ],
+        "单元（语义单元/信息单元）": [
+          "单元",
+          "语义单元",
+          "信息单元",
+          "chunk/unit",
+          "引用单元"
+        ]
+      }
     },
-    "resources": [{ "title": "LlamaIndex 文档 · Node Parser / Chunking", "digest": "官方明确 chunk size 过小会丢失完整语义单元、过大引入无关内容稀释嵌入；建议匹配『典型被引用单元』，并提供 SentenceSplitter/SentenceWindowNodeParser/MarkdownNodeParser 等多种策略与父子文档结构。" }],
+    "analysis": "三个空考的是官方 chunking 权衡的两难+结论：块**过小**时完整语义单元被切碎、且检索到的碎片与**上下文窗口**的组装预算错配（碎片塞不满窗口还凑不齐一个论证）；块**过大**则多主题混进同一向量被稀释——两难的另一翼。结论空是全文眼：chunk size 应匹配『典型被引用单元』的大小（步骤/小节/FAQ 条目），这是 LlamaIndex 文档的核心口径，也是把切块从『调参』升为『粒度设计』的依据。常见填错：第二空填『嵌入模型』（因果错位——窗口不匹配是组装层问题不是模型能力）、第四空填『512 token』（数字不是原则）。",
+    "gapCheck": [
+      "易漏点：『chunk size 决定的是检索单元的粒度』这句话要能脱口而出——它同时影响召回、上下文组装和引用展示三处",
+      "常见误区：把 contextual retrieval（每块前置文档级摘要，Anthropic 提出）当成切块策略——它是给小块补全局上下文的补救层，不是替代结构切分",
+      "加分项：说出『先按 query 类型定粒度再定参数』的方法论：事实型短句问答用小 FAQ 块，教程类用步骤级块"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.rag.retrieval-pipeline.chunking-strategies"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval",
+        "ai.context"
+      ],
+      "followUps": [
+        "结构感知切分具体怎么实现？Markdown 按标题切断了表格怎么办？",
+        "contextual retrieval 的代价是什么？为什么它能把小块检索准确率抬那么多？",
+        "怎么评估切块策略好坏——直接看端到端答案质量吗？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "LlamaIndex 文档 · Node Parser / Chunking",
+        "digest": "官方明确 chunk size 过小会丢失完整语义单元、过大引入无关内容稀释嵌入；建议匹配『典型被引用单元』，并提供 SentenceSplitter/SentenceWindowNodeParser/MarkdownNodeParser 等多种策略与父子文档结构。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "official", "url": "https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/", "retrievedAt": "2026-11-09", "note": "Node Parser 模块指南含 chunk size 权衡与语义单元口径" },
-    "tags": ["RAG必考", "工程直觉", "2026高频"],
+    "source": {
+      "kind": "official",
+      "url": "https://docs.llamaindex.ai/en/stable/module_guides/loading/node_parsers/",
+      "retrievedAt": "2026-11-09",
+      "note": "Node Parser 模块指南含 chunk size 权衡与语义单元口径"
+    },
+    "tags": [
+      "RAG必考",
+      "工程直觉",
+      "2026高频"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "反过来：如果你们的客服 FAQ 库每条本来就两三句话，固定 512 切块反而效果差，为什么？这时『切得更小』对不对？", "analysis": "因为 512 会把多条不相干的 FAQ 粘进同一块：嵌入向量是多主题的加权平均，query『退货政策』召回的粘块里既有退货也有开票，相似度被互相稀释，生成侧还多喂了两条无关政策。这时应该按条目切（一条一块，天然语义完整），而不是机械地追求『小』——小块的前提是一块一义，否则越小越碎。" },
-      { "angle": "加约束", "stem": "面试官追加约束：代码仓库 RAG，函数平均 40 行但调用关系跨文件。切块该按什么为单元？给出你的方案并说明嵌入检索在这种数据上的天然短板。", "analysis": "以函数/类为语义单元切（AST 感知，如 tree-sitter 边界），块内保留签名+docstring+函数体，元数据挂文件路径/依赖符号。嵌入检索的短板是『结构性关联』：查『X 被谁调用』本质是符号引用问题，向量相似只能找到长得像的代码，答案要靠 grep/符号索引或 GraphRAG 边遍历补齐——这正是纯向量 RAG 在代码库上必须配混合检索的原因。" }
-    ]
+      {
+        "angle": "反向问",
+        "stem": "反过来：如果你们的客服 FAQ 库每条本来就两三句话，固定 512 切块反而效果差，为什么？这时『切得更小』对不对？",
+        "analysis": "因为 512 会把多条不相干的 FAQ 粘进同一块：嵌入向量是多主题的加权平均，query『退货政策』召回的粘块里既有退货也有开票，相似度被互相稀释，生成侧还多喂了两条无关政策。这时应该按条目切（一条一块，天然语义完整），而不是机械地追求『小』——小块的前提是一块一义，否则越小越碎。"
+      },
+      {
+        "angle": "加约束",
+        "stem": "面试官追加约束：代码仓库 RAG，函数平均 40 行但调用关系跨文件。切块该按什么为单元？给出你的方案并说明嵌入检索在这种数据上的天然短板。",
+        "analysis": "以函数/类为语义单元切（AST 感知，如 tree-sitter 边界），块内保留签名+docstring+函数体，元数据挂文件路径/依赖符号。嵌入检索的短板是『结构性关联』：查『X 被谁调用』本质是符号引用问题，向量相似只能找到长得像的代码，答案要靠 grep/符号索引或 GraphRAG 边遍历补齐——这正是纯向量 RAG 在代码库上必须配混合检索的原因。"
+      }
+    ],
+    "learnFirst": true
   },
   {
     "id": "Q-ai-rag-hybrid-0002",
@@ -29,26 +94,78 @@
     "difficulty": 2,
     "stem": "BM25 与向量检索两路各出了 top-50，要做融合。关于 RRF（Reciprocal Rank Fusion），下列说法**正确**的是：",
     "options": [
-      { "key": "A", "text": "RRF 把两路的余弦相似度归一化后加权求和，权重需要线上调参" },
-      { "key": "B", "text": "RRF 只用各路内的名次算 score = Σ 1/(k+rank)，不需要知道原始分数，因此天然免疫不同检索器的分数不可比问题" },
-      { "key": "C", "text": "RRF 的 k 越大越强调头部结果，生产上必须设 k=1" },
-      { "key": "D", "text": "RRF 要求两路返回的结果数必须相同，否则公式不成立" }]
-    ,
-    "answer": { "keys": ["B"] },
-    "analysis": "RRF 的定义就是对每一路取该文档名次的倒数 1/(k+rank) 再求和——输入只有名次没有分数，这正是它被 Elasticsearch/OpenSearch/Vespa/Milvus 等广泛内置的原因：BM25 分数无上界、余弦在 [-1,1]，量纲根本不可比，加权求和（A）需要先做分数归一化且权重敏感。C 错在方向：k 越大曲线越平、对头部差距越不敏感，论文与主流实现默认 k=60，k=1 反而极端放大头名差异；D 错：各路列表长度可以不同，RRF 只按各自列表内的名次计分。",
-    "gapCheck": ["易漏点：能说出『为什么分数直接加权是错的』比背公式更重要——BM25 无界 vs 余弦有界是两个完全不同的分布", "常见误区：把 min-max 归一化加权和说成 RRF；两者行为差异在离群分数时最明显", "加分项：指出 RRF 丢掉了置信度信息，所以两路质量悬殊或有强特征（点击回传）时，学习排序融合常常优于 RRF"],
-    "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.hybrid-retrieval"],
-      "related": ["ai.rag.retrieval-pipeline.rerank-compress", "cs.design"],
-      "followUps": ["k=60 这个常数是干嘛的？改成 k=1 会发生什么？", "既然 RRF 只用名次，那它怎么处理某一路整体质量差的情况？", "什么时候你会放弃 RRF 改用学习到的融合权重？"]
+      {
+        "key": "A",
+        "text": "RRF 把两路的余弦相似度归一化后加权求和，权重需要线上调参"
+      },
+      {
+        "key": "B",
+        "text": "RRF 只用各路内的名次算 score = Σ 1/(k+rank)，不需要知道原始分数，因此天然免疫不同检索器的分数不可比问题"
+      },
+      {
+        "key": "C",
+        "text": "RRF 的 k 越大越强调头部结果，生产上必须设 k=1"
+      },
+      {
+        "key": "D",
+        "text": "RRF 要求两路返回的结果数必须相同，否则公式不成立"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
     },
-    "resources": [{ "title": "OpenSearch 文档 · Hybrid Search (search_pipeline)", "digest": "normalization-processor 默认用 L2 归一化 + RRF search_retriever，rationale 明确写『RRF 仅基于排名融合、对分数分布差异鲁棒』；Elasticsearch 8.9+ 的 retriever: rrf 同样只吃名次不吃分数。" }],
+    "analysis": "RRF 的定义就是对每一路取该文档名次的倒数 1/(k+rank) 再求和——输入只有名次没有分数，这正是它被 Elasticsearch/OpenSearch/Vespa/Milvus 等广泛内置的原因：BM25 分数无上界、余弦在 [-1,1]，量纲根本不可比，加权求和（A）需要先做分数归一化且权重敏感。C 错在方向：k 越大曲线越平、对头部差距越不敏感，论文与主流实现默认 k=60，k=1 反而极端放大头名差异；D 错：各路列表长度可以不同，RRF 只按各自列表内的名次计分。",
+    "gapCheck": [
+      "易漏点：能说出『为什么分数直接加权是错的』比背公式更重要——BM25 无界 vs 余弦有界是两个完全不同的分布",
+      "常见误区：把 min-max 归一化加权和说成 RRF；两者行为差异在离群分数时最明显",
+      "加分项：指出 RRF 丢掉了置信度信息，所以两路质量悬殊或有强特征（点击回传）时，学习排序融合常常优于 RRF"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.rerank-compress",
+        "cs.design"
+      ],
+      "followUps": [
+        "k=60 这个常数是干嘛的？改成 k=1 会发生什么？",
+        "既然 RRF 只用名次，那它怎么处理某一路整体质量差的情况？",
+        "什么时候你会放弃 RRF 改用学习到的融合权重？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "OpenSearch 文档 · Hybrid Search (search_pipeline)",
+        "digest": "normalization-processor 默认用 L2 归一化 + RRF search_retriever，rationale 明确写『RRF 仅基于排名融合、对分数分布差异鲁棒』；Elasticsearch 8.9+ 的 retriever: rrf 同样只吃名次不吃分数。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "official", "url": "https://opensearch.org/docs/latest/search-plugins/hybrid-search/", "retrievedAt": "2026-11-09", "note": "OpenSearch 混合检索文档 normalization-processor/RRF 章节", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["混合检索", "高频", "概念辨析"],
+    "source": {
+      "kind": "official",
+      "url": "https://opensearch.org/docs/latest/search-plugins/hybrid-search/",
+      "retrievedAt": "2026-11-09",
+      "note": "OpenSearch 混合检索文档 normalization-processor/RRF 章节",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "混合检索",
+      "高频",
+      "概念辨析"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "换成三路融合：BM25、向量、以及『用户点击反馈』Boost 列表。RRF 还能直接用吗？三路权重想体现『点击最重要』，RRF 表达得了吗？怎么办？", "analysis": "公式可以直接推广（三路各自 1/(k+rank) 相加），但 RRF 原版没有权重槽位——名次融合丢掉了『这一路更可信』的先验。解法：weighted RRF（各路乘系数再加）、给点击路更小的 k（头部权重更大）、或者干脆升级为 Learning-to-Rank 融合（LambdaMART 之类）。考点是发现标准公式的表达力边界并给出工程补丁，而不是死记 k=60。" },
-      { "angle": "追问延伸", "stem": "面试官追问：RRF 融合完要不要 rerank？为什么不直接把 RRF 的 top-10 塞给 LLM？", "analysis": "通常要：RRF 是『名次投票』，它保证的是两路都认可的分靠前，不理解 query-文档的深层语义匹配，头部仍可能混入词汇碰巧命中的噪声。cross-encoder rerank 放在 RRF 之后是对延迟成本负责的漏斗设计：RRF 便宜地把候选从全库缩到几十，rerank 贵但只对几十条精排。直接塞 top-10 的问题：一是把融合噪声原样带进上下文（挤占预算还诱导幻觉），二是没法定制『哪个维度优先』（时效/权威性）。" }
+      {
+        "angle": "换场景",
+        "stem": "换成三路融合：BM25、向量、以及『用户点击反馈』Boost 列表。RRF 还能直接用吗？三路权重想体现『点击最重要』，RRF 表达得了吗？怎么办？",
+        "analysis": "公式可以直接推广（三路各自 1/(k+rank) 相加），但 RRF 原版没有权重槽位——名次融合丢掉了『这一路更可信』的先验。解法：weighted RRF（各路乘系数再加）、给点击路更小的 k（头部权重更大）、或者干脆升级为 Learning-to-Rank 融合（LambdaMART 之类）。考点是发现标准公式的表达力边界并给出工程补丁，而不是死记 k=60。"
+      },
+      {
+        "angle": "追问延伸",
+        "stem": "面试官追问：RRF 融合完要不要 rerank？为什么不直接把 RRF 的 top-10 塞给 LLM？",
+        "analysis": "通常要：RRF 是『名次投票』，它保证的是两路都认可的分靠前，不理解 query-文档的深层语义匹配，头部仍可能混入词汇碰巧命中的噪声。cross-encoder rerank 放在 RRF 之后是对延迟成本负责的漏斗设计：RRF 便宜地把候选从全库缩到几十，rerank 贵但只对几十条精排。直接塞 top-10 的问题：一是把融合噪声原样带进上下文（挤占预算还诱导幻觉），二是没法定制『哪个维度优先』（时效/权威性）。"
+      }
     ]
   },
   {
@@ -58,26 +175,78 @@
     "difficulty": 4,
     "stem": "企业知识库要支持两类查询：①『公司差旅报销上限是多少』这类点查；②『Q3 战略调整涉及哪些部门、负责人分别是谁』这类跨文档汇总。关于固定 pipeline RAG、Agentic RAG 与 GraphRAG 的选型，说法**正确**的是：",
     "options": [
-      { "key": "A", "text": "一律升级到 GraphRAG：图谱构建离线完成后在线零额外成本，两类查询都碾压向量检索" },
-      { "key": "B", "text": "点查走一次『检索→生成』的固定 pipeline 即可；跨文档汇总才值得让 Agent 多轮自主检索或配 GraphRAG 社区摘要，但要接受更高的延迟与 token 成本" },
-      { "key": "C", "text": "Agentic RAG 的本质是把嵌入模型换成更强的推理模型，检索质量自然提升" },
-      { "key": "D", "text": "两类查询应该共用同一套 top-k 设置，差别只在 prompt 措辞" }]
-    ,
-    "answer": { "keys": ["B"] },
-    "analysis": "B 是当前工业共识（Anthropic 对搜索/Agent 的成本延迟实测也印证：多轮检索智能体性能换 token 陡增，简单查询用单轮检索就够了）。点查的答案就在少数几篇文档里，一次混合检索+rerank 的固定链路又快又稳；跨文档汇总需要『拆解子问题→多次检索→聚合』，Agent 多轮或 GraphRAG 预计算实体社区摘要才吃得下。A 错：GraphRAG 的索引构建要过一遍 LLM（成本与文档量成正比），在线查询 global search 也要多轮 map-reduce，绝非『零成本碾压』；C 错：Agentic RAG 改的是**控制流**（模型自己决定搜什么、搜几轮、何时停），嵌入模型可以完全不动；D 错：汇总类查询需要大得多的召回面与多次查询变体，一套 top-k 必然两头不讨好。",
-    "gapCheck": ["易漏点：GraphRAG 官方自己给的适用画像就是『对语料的整体性提问（global/making sense of large corpus）』，点查用它纯属浪费——能引这个口径最好", "常见误区：把 Agentic RAG 说成『换了个更聪明的模型』，它其实是 harness 层的循环设计：检索从 pipeline 固定步骤降级为可反复调用的 tool", "加分项：报出成本量级——GraphRAG 索引构建 token ≈ 语料 token 的数倍；多轮 Agent 单次查询 token 可达单轮的 3~8 倍"],
-    "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.rerank-compress"],
-      "related": ["ai.harness.agent-loop.loop-dynamics", "ai.serving.infer-serving.cost-latency"],
-      "followUps": ["GraphRAG 的 local search 和 global search 差别在哪？分别对应什么查询？", "Agentic RAG 的循环里，『什么时候停止检索』怎么判定？", "你们的图谱抽取错了（实体合并错误），下游怎么发现？"]
+      {
+        "key": "A",
+        "text": "一律升级到 GraphRAG：图谱构建离线完成后在线零额外成本，两类查询都碾压向量检索"
+      },
+      {
+        "key": "B",
+        "text": "点查走一次『检索→生成』的固定 pipeline 即可；跨文档汇总才值得让 Agent 多轮自主检索或配 GraphRAG 社区摘要，但要接受更高的延迟与 token 成本"
+      },
+      {
+        "key": "C",
+        "text": "Agentic RAG 的本质是把嵌入模型换成更强的推理模型，检索质量自然提升"
+      },
+      {
+        "key": "D",
+        "text": "两类查询应该共用同一套 top-k 设置，差别只在 prompt 措辞"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
     },
-    "resources": [{ "title": "Microsoft Research · GraphRAG", "digest": "官方定位：面向『与语料整体对话』的结构化方法，LLM 预抽取实体关系并做社区分层摘要；global search 用社区摘要 map-reduce 回答整体性问题，代价是索引期大量 LLM 调用。" }],
+    "analysis": "B 是当前工业共识（Anthropic 对搜索/Agent 的成本延迟实测也印证：多轮检索智能体性能换 token 陡增，简单查询用单轮检索就够了）。点查的答案就在少数几篇文档里，一次混合检索+rerank 的固定链路又快又稳；跨文档汇总需要『拆解子问题→多次检索→聚合』，Agent 多轮或 GraphRAG 预计算实体社区摘要才吃得下。A 错：GraphRAG 的索引构建要过一遍 LLM（成本与文档量成正比），在线查询 global search 也要多轮 map-reduce，绝非『零成本碾压』；C 错：Agentic RAG 改的是**控制流**（模型自己决定搜什么、搜几轮、何时停），嵌入模型可以完全不动；D 错：汇总类查询需要大得多的召回面与多次查询变体，一套 top-k 必然两头不讨好。",
+    "gapCheck": [
+      "易漏点：GraphRAG 官方自己给的适用画像就是『对语料的整体性提问（global/making sense of large corpus）』，点查用它纯属浪费——能引这个口径最好",
+      "常见误区：把 Agentic RAG 说成『换了个更聪明的模型』，它其实是 harness 层的循环设计：检索从 pipeline 固定步骤降级为可反复调用的 tool",
+      "加分项：报出成本量级——GraphRAG 索引构建 token ≈ 语料 token 的数倍；多轮 Agent 单次查询 token 可达单轮的 3~8 倍"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.rag.retrieval-pipeline.rerank-compress"
+      ],
+      "related": [
+        "ai.harness.agent-loop.loop-dynamics",
+        "ai.serving.infer-serving.cost-latency"
+      ],
+      "followUps": [
+        "GraphRAG 的 local search 和 global search 差别在哪？分别对应什么查询？",
+        "Agentic RAG 的循环里，『什么时候停止检索』怎么判定？",
+        "你们的图谱抽取错了（实体合并错误），下游怎么发现？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "Microsoft Research · GraphRAG",
+        "digest": "官方定位：面向『与语料整体对话』的结构化方法，LLM 预抽取实体关系并做社区分层摘要；global search 用社区摘要 map-reduce 回答整体性问题，代价是索引期大量 LLM 调用。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "web", "url": "https://microsoft.github.io/graphrag/", "retrievedAt": "2026-11-09", "note": "GraphRAG 官方文档站；查询模式与索引成本描述另参考 Anthropic『Building effective agents』与 multi-agent research 实测", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["选型题", "架构判断", "2026新趋势"],
+    "source": {
+      "kind": "web",
+      "url": "https://microsoft.github.io/graphrag/",
+      "retrievedAt": "2026-11-09",
+      "note": "GraphRAG 官方文档站；查询模式与索引成本描述另参考 Anthropic『Building effective agents』与 multi-agent research 实测",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "选型题",
+      "架构判断",
+      "2026新趋势"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "加约束重选：客户要求所有答案必须带原文页码引用、且检索必须在 3 秒内返回，两类查询都要。你的 GraphRAG 方案还成立吗？改哪？", "analysis": "GraphRAG 的 global 答案是社区摘要的合成物，溯源要穿『摘要←社区←实体←原文』多层，页码级引用很难做且多轮 map-reduce 与 3s SLA 冲突。修正：点查保持混合检索+rerank（引用天然精确）；汇总类改为『Agentic 多轮混合检索但限定 2~3 轮+并行子查询』，牺牲部分整体性换可控延迟与可引用性。考点：SLA 与可核验性是选型的一等公民，不是事后优化。" },
-      { "angle": "换问法", "stem": "换一种问法：『Agentic RAG 相对固定 pipeline RAG 到底多了什么？』请用控制流的语言回答，并举一个固定 pipeline 永远修不好的真实病例。", "analysis": "控制流视角：pipeline 是有向无环的一次性流程（检索步骤的位置和次数写死），Agentic 把检索变成被策略调度的 tool——多了查询拆解、结果不足时改写重试、多跳串联（先查 A 拿到实体再查 B）与终止判定。病例：『我们部门去年年会场地供应商的合同到期日』——要先定位『我们部门=X、年会=Y』的中间文档才能找到合同，单跳 top-k 无论怎么调都命中不了，因为第二跳依赖第一跳的输出。" }
+      {
+        "angle": "加约束",
+        "stem": "加约束重选：客户要求所有答案必须带原文页码引用、且检索必须在 3 秒内返回，两类查询都要。你的 GraphRAG 方案还成立吗？改哪？",
+        "analysis": "GraphRAG 的 global 答案是社区摘要的合成物，溯源要穿『摘要←社区←实体←原文』多层，页码级引用很难做且多轮 map-reduce 与 3s SLA 冲突。修正：点查保持混合检索+rerank（引用天然精确）；汇总类改为『Agentic 多轮混合检索但限定 2~3 轮+并行子查询』，牺牲部分整体性换可控延迟与可引用性。考点：SLA 与可核验性是选型的一等公民，不是事后优化。"
+      },
+      {
+        "angle": "换问法",
+        "stem": "换一种问法：『Agentic RAG 相对固定 pipeline RAG 到底多了什么？』请用控制流的语言回答，并举一个固定 pipeline 永远修不好的真实病例。",
+        "analysis": "控制流视角：pipeline 是有向无环的一次性流程（检索步骤的位置和次数写死），Agentic 把检索变成被策略调度的 tool——多了查询拆解、结果不足时改写重试、多跳串联（先查 A 拿到实体再查 B）与终止判定。病例：『我们部门去年年会场地供应商的合同到期日』——要先定位『我们部门=X、年会=Y』的中间文档才能找到合同，单跳 top-k 无论怎么调都命中不了，因为第二跳依赖第一跳的输出。"
+      }
     ]
   },
   {
@@ -87,25 +256,75 @@
     "difficulty": 3,
     "stem": "团队纠结『知识总在更新的知识库场景要不要微调』。按 NVIDIA 技术博客《Questions and Answers: Retrieval Augmented Generation or Fine-Tuning?》的口径，下列判断**正确**的有：",
     "options": [
-      { "key": "A", "text": "知识频繁变化（每天甚至更快）时优先 RAG：改索引不改权重，热更新成本低且可溯源" },
-      { "key": "B", "text": "需要改变模型的行为/风格/输出格式（而非注入事实）时，微调比堆 prompt 和 RAG 更对症" },
-      { "key": "C", "text": "RAG 和微调互斥：用了 RAG 的架构就不应该再做微调，否则检索到的知识和权重记忆互相干扰" },
-      { "key": "D", "text": "对延迟极度敏感的场景，微调把知识压进权重、免检索环节，可能是更合理的选择" }]
-    ,
-    "answer": { "keys": ["A", "B", "D"] },
-    "analysis": "该文的决策框架：知识层变化用 RAG（A 对，热更新+引用是其两大王牌）、行为/格式/风格变化用微调（B 对，prompt 调风格边际收益快速衰减）、极低延迟场景 RAG 的检索往返本身就是负担（D 对）。C 错得绝对化：官方口径明确两者可组合——微调定风格与领域语感、RAG 供新鲜事实（典型如领域话术微调+实时文档检索），所谓『互相干扰』只在权重记住了旧版本又检索到新版本时需要靠提示词裁决，并非架构禁忌。",
-    "gapCheck": ["易漏点：答题先给『知识 vs 行为』二分再展开，这是该文标题级结论，散答显得没框架", "常见误区：把微调当成『记住知识』的手段——权重存事实的更新成本高、幻觉率高，正是该文反对的方向", "加分项：给出组合架构的判定信号——『输出格式稳定但内容常新』的组合收益最大"],
-    "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.generation-grounding"],
-      "related": ["ai.train.finetune-vs-rag.finetune-decision", "ai.context"],
-      "followUps": ["如果微调了，旧知识在权重里、新知识在检索里，模型什么时候信哪个？", "知识图谱更新频率低但结构复杂，微调还是 RAG？", "怎么设计实验证明『你这个场景该微调』？"]
+      {
+        "key": "A",
+        "text": "知识频繁变化（每天甚至更快）时优先 RAG：改索引不改权重，热更新成本低且可溯源"
+      },
+      {
+        "key": "B",
+        "text": "需要改变模型的行为/风格/输出格式（而非注入事实）时，微调比堆 prompt 和 RAG 更对症"
+      },
+      {
+        "key": "C",
+        "text": "RAG 和微调互斥：用了 RAG 的架构就不应该再做微调，否则检索到的知识和权重记忆互相干扰"
+      },
+      {
+        "key": "D",
+        "text": "对延迟极度敏感的场景，微调把知识压进权重、免检索环节，可能是更合理的选择"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
     },
-    "resources": [{ "title": "NVIDIA 开发者博客 · RAG or Fine-Tuning?", "digest": "官方决策树：需要最新知识→RAG；需要模型按特定方式行动/固定格式→FT；两者目标正交可叠加；还讨论了延迟与成本的边界条件。" }],
+    "analysis": "该文的决策框架：知识层变化用 RAG（A 对，热更新+引用是其两大王牌）、行为/格式/风格变化用微调（B 对，prompt 调风格边际收益快速衰减）、极低延迟场景 RAG 的检索往返本身就是负担（D 对）。C 错得绝对化：官方口径明确两者可组合——微调定风格与领域语感、RAG 供新鲜事实（典型如领域话术微调+实时文档检索），所谓『互相干扰』只在权重记住了旧版本又检索到新版本时需要靠提示词裁决，并非架构禁忌。",
+    "gapCheck": [
+      "易漏点：答题先给『知识 vs 行为』二分再展开，这是该文标题级结论，散答显得没框架",
+      "常见误区：把微调当成『记住知识』的手段——权重存事实的更新成本高、幻觉率高，正是该文反对的方向",
+      "加分项：给出组合架构的判定信号——『输出格式稳定但内容常新』的组合收益最大"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.rag.retrieval-pipeline.generation-grounding"
+      ],
+      "related": [
+        "ai.train.finetune-vs-rag.finetune-decision",
+        "ai.context"
+      ],
+      "followUps": [
+        "如果微调了，旧知识在权重里、新知识在检索里，模型什么时候信哪个？",
+        "知识图谱更新频率低但结构复杂，微调还是 RAG？",
+        "怎么设计实验证明『你这个场景该微调』？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "NVIDIA 开发者博客 · RAG or Fine-Tuning?",
+        "digest": "官方决策树：需要最新知识→RAG；需要模型按特定方式行动/固定格式→FT；两者目标正交可叠加；还讨论了延迟与成本的边界条件。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "web", "url": "https://developer.nvidia.com/blog/questions-and-answers-retrieval-augmented-generation-or-fine-tuning/", "retrievedAt": "2026-11-09", "note": "NVIDIA 官方博客问答形式的 RAG vs FT 决策指南（2024-05 首发，2026 仍是主流引用源）", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["取舍题", "必考", "框架化答题"],
+    "source": {
+      "kind": "web",
+      "url": "https://developer.nvidia.com/blog/questions-and-answers-retrieval-augmented-generation-or-fine-tuning/",
+      "retrievedAt": "2026-11-09",
+      "note": "NVIDIA 官方博客问答形式的 RAG vs FT 决策指南（2024-05 首发，2026 仍是主流引用源）",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "取舍题",
+      "必考",
+      "框架化答题"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "场景化变体：金融合规问答机器人，监管条文季度更新，但要求『回复必须像资深合规官+必须带条款号』。请按决策框架给出架构方案并说明理由。", "analysis": "拆开三个需求：条文季度更新=知识层→RAG（季度重索引成本远低于再微调，且条款号引用必须由检索层提供——权重背条款号是幻觉高发区）；合规官语气=行为层→few-shot 起步、样式稳定后小 LoRA 固化；格式硬约束→结构化输出兜底。结论『RAG 主干+轻 LoRA』正是组合架构的教科书案例，能讲清『为什么条款号不能靠微调记住』即满分档。" }
+      {
+        "angle": "换场景",
+        "stem": "场景化变体：金融合规问答机器人，监管条文季度更新，但要求『回复必须像资深合规官+必须带条款号』。请按决策框架给出架构方案并说明理由。",
+        "analysis": "拆开三个需求：条文季度更新=知识层→RAG（季度重索引成本远低于再微调，且条款号引用必须由检索层提供——权重背条款号是幻觉高发区）；合规官语气=行为层→few-shot 起步、样式稳定后小 LoRA 固化；格式硬约束→结构化输出兜底。结论『RAG 主干+轻 LoRA』正是组合架构的教科书案例，能讲清『为什么条款号不能靠微调记住』即满分档。"
+      }
     ]
   },
   {
@@ -115,25 +334,74 @@
     "difficulty": 3,
     "stem": "关于生成侧的引用与忠实度（grounding），下列说法**正确**的有：",
     "options": [
-      { "key": "A", "text": "让模型『记得标引用』只需在 prompt 里加一句『请引用来源』就足够，模型不会编造不存在的引用编号" },
-      { "key": "B", "text": "RAGAS 的 faithfulness 度量的是『答案中能被检索上下文支撑的陈述占比』，属于对生成忠实度的自动代理指标" },
-      { "key": "C", "text": "微软 DefineWys/Wu 等人的工作指出：给答案附上文档链接这类 UI 级 grounding 不足以核验正确性，需要把答案拆成声明（claim）逐条对齐证据" },
-      { "key": "D", "text": "检索回来的 top-k 全部为空相关时，拒答率高的系统用户体验一定更差" }]
-    ,
-    "answer": { "keys": ["B", "C"] },
-    "analysis": "B 对：RAGAS 文档对 faithfulness 的定义就是 statements supported by context 的比例（答案陈述与检索上下文的可验证蕴含比例）；C 对：微软那篇 grounding 论文的标志性观点恰是『链接≠grounding』——链接只能证明文档存在，不能证明该句由该文档推出，所以要 claim 级分解+蕴含核验。A 错：引用编号本身会幻觉（模型见过 [2] 的格式就敢输出 [2]，哪怕第 2 条根本没支撑），严肃系统都要做引用后置校验（citation verification）；D 错：『一定更差』太绝对——错答的隐性成本（用户没发现错、拿去执行）远高于诚实拒答，关键是拒答的呈现方式与置信度分级而不是一律硬拒。",
-    "gapCheck": ["易漏点：『引用幻觉』这个词要能举实例：检索块里没有第 3 条来源，模型照样写出 [3]", "常见误区：把 faithfulness 高分等价于『答案正确』——上下文本身检索错了，忠实于错误上下文的回答 faithfulness 依然高（这就是要分段归因的原因）", "加分项：说出 claim 分解的具体做法：答案→原子陈述→逐条 NLI/LLM 蕴含判定→未支撑率作为线上告警指标"],
-    "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.generation-grounding"],
-      "related": ["ai.eval.evaluation-qa.llm-as-judge", "ai.rag.retrieval-pipeline.rerank-compress"],
-      "followUps": ["faithfulness 高但答案是错的，什么时候会发生？怎么定位？", "claim 级核验的延迟成本怎么摊？全量跑还是采样跑？", "拒答的阈值怎么定？误拒率和误答率你保哪个？"]
+      {
+        "key": "A",
+        "text": "让模型『记得标引用』只需在 prompt 里加一句『请引用来源』就足够，模型不会编造不存在的引用编号"
+      },
+      {
+        "key": "B",
+        "text": "RAGAS 的 faithfulness 度量的是『答案中能被检索上下文支撑的陈述占比』，属于对生成忠实度的自动代理指标"
+      },
+      {
+        "key": "C",
+        "text": "微软 DefineWys/Wu 等人的工作指出：给答案附上文档链接这类 UI 级 grounding 不足以核验正确性，需要把答案拆成声明（claim）逐条对齐证据"
+      },
+      {
+        "key": "D",
+        "text": "检索回来的 top-k 全部为空相关时，拒答率高的系统用户体验一定更差"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B",
+        "C"
+      ]
     },
-    "resources": [{ "title": "Microsoft DefineWys · Grounding in Generation", "digest": "论证 UI 引用（文档链接）不构成真 grounding，提出 claim 级证据对齐的评估与产品实践路径；配合 RAGAS faithfulness 文档构成『引用要核验、忠实度要量化』的完整依据。" }],
+    "analysis": "B 对：RAGAS 文档对 faithfulness 的定义就是 statements supported by context 的比例（答案陈述与检索上下文的可验证蕴含比例）；C 对：微软那篇 grounding 论文的标志性观点恰是『链接≠grounding』——链接只能证明文档存在，不能证明该句由该文档推出，所以要 claim 级分解+蕴含核验。A 错：引用编号本身会幻觉（模型见过 [2] 的格式就敢输出 [2]，哪怕第 2 条根本没支撑），严肃系统都要做引用后置校验（citation verification）；D 错：『一定更差』太绝对——错答的隐性成本（用户没发现错、拿去执行）远高于诚实拒答，关键是拒答的呈现方式与置信度分级而不是一律硬拒。",
+    "gapCheck": [
+      "易漏点：『引用幻觉』这个词要能举实例：检索块里没有第 3 条来源，模型照样写出 [3]",
+      "常见误区：把 faithfulness 高分等价于『答案正确』——上下文本身检索错了，忠实于错误上下文的回答 faithfulness 依然高（这就是要分段归因的原因）",
+      "加分项：说出 claim 分解的具体做法：答案→原子陈述→逐条 NLI/LLM 蕴含判定→未支撑率作为线上告警指标"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.rag.retrieval-pipeline.generation-grounding"
+      ],
+      "related": [
+        "ai.eval.evaluation-qa.llm-as-judge",
+        "ai.rag.retrieval-pipeline.rerank-compress"
+      ],
+      "followUps": [
+        "faithfulness 高但答案是错的，什么时候会发生？怎么定位？",
+        "claim 级核验的延迟成本怎么摊？全量跑还是采样跑？",
+        "拒答的阈值怎么定？误拒率和误答率你保哪个？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "Microsoft DefineWys · Grounding in Generation",
+        "digest": "论证 UI 引用（文档链接）不构成真 grounding，提出 claim 级证据对齐的评估与产品实践路径；配合 RAGAS faithfulness 文档构成『引用要核验、忠实度要量化』的完整依据。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "web", "url": "https://medium.com/data-science-at-microsoft/grounding-in-generation-exploring-transparency-and-accountability-5359b306ff7d", "retrievedAt": "2026-11-09", "note": "微软数据科学团队 grounding 专文；RAGAS faithfulness 定义另见 docs.ragas.io", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["幻觉治理", "引用核验", "指标细节"],
+    "source": {
+      "kind": "web",
+      "url": "https://medium.com/data-science-at-microsoft/grounding-in-generation-exploring-transparency-and-accountability-5359b306ff7d",
+      "retrievedAt": "2026-11-09",
+      "note": "微软数据科学团队 grounding 专文；RAGAS faithfulness 定义另见 docs.ragas.io",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "幻觉治理",
+      "引用核验",
+      "指标细节"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "反向思考：有人说『引用核验太贵了，我们直接关掉引用，让用户自己去查原文』。这个方案的隐性代价是什么？什么场景反而是对的？", "analysis": "代价：引用是把『验证责任』从系统转嫁给用户的开关——专业场景（医疗/法务/运维手册）用户本来就会核原文，关掉引用+直接给出处链接反而降低延迟和复杂度；而消费场景（普通客服）用户不会去核，无引用的错答会被直接采信，信任透支后使用率崩。正确答案形态是分层：高风险答案强制 claim 核验、低风险只给来源链接。考察『核验成本要与答案风险成正比』的判断而非一刀切。" }
+      {
+        "angle": "反向问",
+        "stem": "反向思考：有人说『引用核验太贵了，我们直接关掉引用，让用户自己去查原文』。这个方案的隐性代价是什么？什么场景反而是对的？",
+        "analysis": "代价：引用是把『验证责任』从系统转嫁给用户的开关——专业场景（医疗/法务/运维手册）用户本来就会核原文，关掉引用+直接给出处链接反而降低延迟和复杂度；而消费场景（普通客服）用户不会去核，无引用的错答会被直接采信，信任透支后使用率崩。正确答案形态是分层：高风险答案强制 claim 核验、低风险只给来源链接。考察『核验成本要与答案风险成正比』的判断而非一刀切。"
+      }
     ]
   },
   {
@@ -142,19 +410,45 @@
     "type": "judge",
     "difficulty": 2,
     "stem": "判断正误：两个文本的嵌入余弦相似度达到 0.85，就可以认为它们在语义上等价、可以作为同一条知识的重复内容去重。",
-    "answer": { "judge": false },
+    "answer": {
+      "judge": false
+    },
     "analysis": "错。余弦相似度的绝对值高度依赖嵌入模型与归一化空间，同一个 0.85 在不同模型下含义完全不同，不存在跨模型通用的『等价阈值』；更重要的是高相似 ≠ 等价——『退款需在 7 日内申请』与『退款需在 30 日内申请』在通用嵌入下往往 >0.9（主体几乎相同），差异恰恰在关键数字上，这正是 RAG 事故的经典来源（细粒度数值/否定/时间差异被表示层抹平）。严肃的去重要么用规则（哈希/规范化文本比对），要么用小阈值召回候选后交给精确判定（NLI/LLM），把嵌入当粗筛而非终审。",
-    "gapCheck": ["易漏点：『嵌入对细微差异不敏感』要能举例：数字、否定词、专名拼写差异是最常被抹平的三类", "常见误区：把 MTEB 高分模型当成所有任务都合适——检索/聚类/近重复是不同的训练目标", "排查线索：去重误杀率高的团队，先查是不是拿单一相似度阈值做了所有类型的去重"],
+    "gapCheck": [
+      "易漏点：『嵌入对细微差异不敏感』要能举例：数字、否定词、专名拼写差异是最常被抹平的三类",
+      "常见误区：把 MTEB 高分模型当成所有任务都合适——检索/聚类/近重复是不同的训练目标",
+      "排查线索：去重误杀率高的团队，先查是不是拿单一相似度阈值做了所有类型的去重"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.chunking-strategies"],
-      "related": ["ai.rag.retrieval-pipeline.hybrid-retrieval", "ai.memory.memory-skill.long-term-memory"],
-      "followUps": ["那嵌入相似度在生产里还能用来干嘛？（粗筛候选、异常检测、聚类分桶）", "近重复去重的正确工具链是什么？（MinHash/SimHash + 精确判定）", "有没有办法让嵌入对数字更敏感？（领域微调、hybrid 关键词兜底）"]
+      "prereq": [
+        "ai.rag.retrieval-pipeline.chunking-strategies"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval",
+        "ai.memory.memory-skill.long-term-memory"
+      ],
+      "followUps": [
+        "那嵌入相似度在生产里还能用来干嘛？（粗筛候选、异常检测、聚类分桶）",
+        "近重复去重的正确工具链是什么？（MinHash/SimHash + 精确判定）",
+        "有没有办法让嵌入对数字更敏感？（领域微调、hybrid 关键词兜底）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "基于嵌入检索的数值敏感性通病与近重复检测工程实践自创，无单一文档出处" },
-    "tags": ["易错题", "嵌入边界", "概念题"],
+    "source": {
+      "kind": "self-authored",
+      "note": "基于嵌入检索的数值敏感性通病与近重复检测工程实践自创，无单一文档出处"
+    },
+    "tags": [
+      "易错题",
+      "嵌入边界",
+      "概念题"
+    ],
     "variants": [
-      { "angle": "追问延伸", "stem": "接着问：既然绝对阈值不可靠，你们团队要上线一套『知识条目去重』管道，怎么定这个相似度阈值？给出方法论而不是拍一个数。", "analysis": "方法论：抽样构造标注集（真重复/近似不同/无关三类各若干），扫阈值画 precision-recall 曲线，按业务不对称代价选点——误删知识（precision 损失）通常比留重复（recall 损失）贵，所以取高 precision 段阈值；再用线上抽检回流校准。同时强调阈值属于『模型+数据分布』的函数：换嵌入模型或语料漂移必须重扫。能说出『代价不对称决定阈值位置』即为 3 分档。" }
+      {
+        "angle": "追问延伸",
+        "stem": "接着问：既然绝对阈值不可靠，你们团队要上线一套『知识条目去重』管道，怎么定这个相似度阈值？给出方法论而不是拍一个数。",
+        "analysis": "方法论：抽样构造标注集（真重复/近似不同/无关三类各若干），扫阈值画 precision-recall 曲线，按业务不对称代价选点——误删知识（precision 损失）通常比留重复（recall 损失）贵，所以取高 precision 段阈值；再用线上抽检回流校准。同时强调阈值属于『模型+数据分布』的函数：换嵌入模型或语料漂移必须重扫。能说出『代价不对称决定阈值位置』即为 3 分档。"
+      }
     ]
   },
   {
@@ -163,21 +457,74 @@
     "type": "blank",
     "difficulty": 3,
     "stem": "补全 RAG 评估的分段归因说法：评估检索质量的经典指标是 ______@k（前 k 个结果中包含正确文档的比例），RAGAS 的 ______ 度量『答案陈述能被检索上下文支撑的比例』以捕捉幻觉，______ 则评估最终答案与原始问题的相关性——三者分别指向检索、生成忠实度与端到端质量，出问题时先据此定位是哪一段坏了。",
-    "answer": { "blanks": ["recall", "faithfulness", "answer relevancy"], "synonyms": { "recall": ["召回率", "Recall@k"], "faithfulness": ["忠实度", "忠实性"], "answer relevancy": ["答案相关性", "AnswerRelevancy", "答案相关度"] } },
-    "analysis": "三个空对应 RAG 评估的三段位：recall@k 是 IR 传统的检索指标（正确文档在不在前 k 个）；RAGAS 文档明确 faithfulness = 答案中可被上下文蕴含的陈述比例（幻觉探测器）；answer relevancy 用『答案反向生成问题与原问题的嵌入一致性』等代理手段衡量答非所问。填空考的就是『每个指标测链路的哪一段』这张地图：端到端分数低时，先看 recall 判断是不是检索锅，再看 faithfulness 判断是不是生成锅。",
-    "gapCheck": ["易漏点：RAGAS 还有 context precision/context recall 直接评检索段——能对比 recall@k（离线标注）与 context precision（LLM 判定有用比例）的来源差异是加分项", "常见误区：把 faithfulness 当『答案对不对』——它只对『是否忠于上下文』负责，上下文本身错则它失明", "同义兜底：中文『召回率』『忠实度』均应判对"],
-    "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.generation-grounding"],
-      "related": ["ai.eval.evaluation-qa.metrics-dataset", "ai.rag.retrieval-pipeline.hybrid-retrieval"],
-      "followUps": ["没有人工标注的 ground truth 时，context recall 还能算吗？（RAGAS 支持生成式参考答案）", "这三个指标之间会互相矛盾吗？举一个 faithfulness 高但 user 不满意的情形", "线上没有金标准，这些离线指标怎么持续跑？"]
+    "answer": {
+      "blanks": [
+        "recall",
+        "faithfulness",
+        "answer relevancy"
+      ],
+      "synonyms": {
+        "recall": [
+          "召回率",
+          "Recall@k"
+        ],
+        "faithfulness": [
+          "忠实度",
+          "忠实性"
+        ],
+        "answer relevancy": [
+          "答案相关性",
+          "AnswerRelevancy",
+          "答案相关度"
+        ]
+      }
     },
-    "resources": [{ "title": "RAGAS 文档 · Metrics", "digest": "faithfulness：statements derived from context and grounded in it 的比例；answer relevancy：答案与 query 的语义相关（用答案反推问题再比嵌入）；context precision/recall 覆盖检索段。" }],
+    "analysis": "三个空对应 RAG 评估的三段位：recall@k 是 IR 传统的检索指标（正确文档在不在前 k 个）；RAGAS 文档明确 faithfulness = 答案中可被上下文蕴含的陈述比例（幻觉探测器）；answer relevancy 用『答案反向生成问题与原问题的嵌入一致性』等代理手段衡量答非所问。填空考的就是『每个指标测链路的哪一段』这张地图：端到端分数低时，先看 recall 判断是不是检索锅，再看 faithfulness 判断是不是生成锅。",
+    "gapCheck": [
+      "易漏点：RAGAS 还有 context precision/context recall 直接评检索段——能对比 recall@k（离线标注）与 context precision（LLM 判定有用比例）的来源差异是加分项",
+      "常见误区：把 faithfulness 当『答案对不对』——它只对『是否忠于上下文』负责，上下文本身错则它失明",
+      "同义兜底：中文『召回率』『忠实度』均应判对"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.rag.retrieval-pipeline.generation-grounding"
+      ],
+      "related": [
+        "ai.eval.evaluation-qa.metrics-dataset",
+        "ai.rag.retrieval-pipeline.hybrid-retrieval"
+      ],
+      "followUps": [
+        "没有人工标注的 ground truth 时，context recall 还能算吗？（RAGAS 支持生成式参考答案）",
+        "这三个指标之间会互相矛盾吗？举一个 faithfulness 高但 user 不满意的情形",
+        "线上没有金标准，这些离线指标怎么持续跑？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "RAGAS 文档 · Metrics",
+        "digest": "faithfulness：statements derived from context and grounded in it 的比例；answer relevancy：答案与 query 的语义相关（用答案反推问题再比嵌入）；context precision/recall 覆盖检索段。"
+      }
+    ],
     "openBookAllowed": false,
-    "source": { "kind": "official", "url": "https://docs.ragas.io/en/stable/concepts/metrics/", "retrievedAt": "2026-11-09", "note": "RAGAS 官方 metrics 概念文档（faithfulness/answer relevancy 定义章节）" },
-    "tags": ["评估体系", "指标地图", "必背"],
+    "source": {
+      "kind": "official",
+      "url": "https://docs.ragas.io/en/stable/concepts/metrics/",
+      "retrievedAt": "2026-11-09",
+      "note": "RAGAS 官方 metrics 概念文档（faithfulness/answer relevancy 定义章节）"
+    },
+    "tags": [
+      "评估体系",
+      "指标地图",
+      "必背"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "场景变体：你们的 RAG 客服离线 recall@k 从 0.7 提到 0.9，但线上赞踩比纹丝不动。列出至少三个可能的断点并用三段指标思路设计排查顺序。", "analysis": "断点候选：①检索好了但生成层烂（faithfulness 低/答案模板差）→ 先抽 20 条 bad case 看 faithfulness；②答案对了但体验维度没覆盖（响应慢、语气、多轮）→ 查延迟与放弃率；③评估集与线上分布错位（recall 提升发生在低频意图上）→ 按意图切片重算 recall@k；④赞踩本身噪声大（样本少、沉默大多数）→ 换任务级指标（转人工率）交叉验证。标准排查顺序就是『bad case 定性 → 分段指标定量 → 分布切片』。" }
-    ]
+      {
+        "angle": "换场景",
+        "stem": "场景变体：你们的 RAG 客服离线 recall@k 从 0.7 提到 0.9，但线上赞踩比纹丝不动。列出至少三个可能的断点并用三段指标思路设计排查顺序。",
+        "analysis": "断点候选：①检索好了但生成层烂（faithfulness 低/答案模板差）→ 先抽 20 条 bad case 看 faithfulness；②答案对了但体验维度没覆盖（响应慢、语气、多轮）→ 查延迟与放弃率；③评估集与线上分布错位（recall 提升发生在低频意图上）→ 按意图切片重算 recall@k；④赞踩本身噪声大（样本少、沉默大多数）→ 换任务级指标（转人工率）交叉验证。标准排查顺序就是『bad case 定性 → 分段指标定量 → 分布切片』。"
+      }
+    ],
+    "learnFirst": true
   },
   {
     "id": "Q-ai-rag-whychunk-0008",
@@ -185,26 +532,67 @@
     "type": "short",
     "difficulty": 2,
     "stem": "面试官问：『为什么 RAG 一定要切块？整篇文档直接向量化不行吗？』请给出包含嵌入机制层面的解释，并说明切块尺寸同时影响下游哪些环节。",
-    "answer": { "ref": "参考骨架：①机制层：主流嵌入模型把整段文本压成**单个**固定维度向量，且输入有窗口上限（512~8k token 不等）；整篇文档塞不进，硬塞（截断或长文本模型）得到的是一整篇的『平均语义』。②后果：多主题文档的向量是各主题的加权混合，query 只命中其中一主题时相似度被稀释，排名输给恰好单主题的短文档；即便召回了整篇，喂给 LLM 的还是全文，无关内容占预算并诱发幻觉。③切块的本质是把『检索单元』对齐『语义单元』，让相似度计算发生在同一粒度上。④下游耦合：块大小同时决定 (a) 召回粒度与排名质量 (b) 组装进 prompt 的信息密度与 token 成本 (c) 引用展示的可用性 (d) rerank 的输入长度——所以调 chunk 是全链路调优不是预处理细节。⑤补救谱系：small-to-big 父块、contextual retrieval 补全局语境、句子窗检索，都是『检索用小粒度、生成用大粒度』的解耦尝试。" },
+    "answer": {
+      "ref": "参考骨架：①机制层：主流嵌入模型把整段文本压成**单个**固定维度向量，且输入有窗口上限（512~8k token 不等）；整篇文档塞不进，硬塞（截断或长文本模型）得到的是一整篇的『平均语义』。②后果：多主题文档的向量是各主题的加权混合，query 只命中其中一主题时相似度被稀释，排名输给恰好单主题的短文档；即便召回了整篇，喂给 LLM 的还是全文，无关内容占预算并诱发幻觉。③切块的本质是把『检索单元』对齐『语义单元』，让相似度计算发生在同一粒度上。④下游耦合：块大小同时决定 (a) 召回粒度与排名质量 (b) 组装进 prompt 的信息密度与 token 成本 (c) 引用展示的可用性 (d) rerank 的输入长度——所以调 chunk 是全链路调优不是预处理细节。⑤补救谱系：small-to-big 父块、contextual retrieval 补全局语境、句子窗检索，都是『检索用小粒度、生成用大粒度』的解耦尝试。"
+    },
     "scoringPoints": [
-      { "point": "讲出嵌入是『一段文本一个向量』且有输入窗口上限这一机制约束", "weight": 2 },
-      { "point": "解释多主题混叠导致相似度稀释（加权平均语义）", "weight": 2 },
-      { "point": "指出检索单元应对齐语义单元，切块是粒度对齐手段", "weight": 2 },
-      { "point": "说出块尺寸对下游（上下文组装/引用/rerank 成本）的至少两处连带影响", "weight": 1 },
-      { "point": "提到 small-to-big / contextual retrieval 之一作为粒度解耦的证据", "weight": 1 }
+      {
+        "point": "讲出嵌入是『一段文本一个向量』且有输入窗口上限这一机制约束",
+        "weight": 2
+      },
+      {
+        "point": "解释多主题混叠导致相似度稀释（加权平均语义）",
+        "weight": 2
+      },
+      {
+        "point": "指出检索单元应对齐语义单元，切块是粒度对齐手段",
+        "weight": 2
+      },
+      {
+        "point": "说出块尺寸对下游（上下文组装/引用/rerank 成本）的至少两处连带影响",
+        "weight": 1
+      },
+      {
+        "point": "提到 small-to-big / contextual retrieval 之一作为粒度解耦的证据",
+        "weight": 1
+      }
     ],
     "analysis": "这题表面简单，分水岭在『有没有机制层语言』：只会说『文档太长塞不下』是 1 分档；能说『一个向量承载不了多个主题的语义、相似度被稀释』才到 2 分；能连到下游三处耦合与解耦方案是 3 分档。常见失分是把切块讲成纯预处理技巧，暴露对『检索单元=嵌入比较单元』这层关系的无知。",
-    "gapCheck": ["易漏点：截断丢失（长文档只取前 8k）这种朴素失败模式要先提，再讲混叠这种隐蔽失败模式", "常见误区：认为『长上下文嵌入模型（8k+）出现后就不用切块了』——塞得下不等于比得准，长文本嵌入的多向量方案（如 ColPali/late chunking）本身就是新的切块形态", "组织建议：机制→后果→本质→下游耦合四段式，30 秒内讲完"],
+    "gapCheck": [
+      "易漏点：截断丢失（长文档只取前 8k）这种朴素失败模式要先提，再讲混叠这种隐蔽失败模式",
+      "常见误区：认为『长上下文嵌入模型（8k+）出现后就不用切块了』——塞得下不等于比得准，长文本嵌入的多向量方案（如 ColPali/late chunking）本身就是新的切块形态",
+      "组织建议：机制→后果→本质→下游耦合四段式，30 秒内讲完"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.chunking-strategies"],
-      "related": ["ai.rag.retrieval-pipeline.hybrid-retrieval", "ai.context"],
-      "followUps": ["长上下文嵌入模型普及后，切块会消失吗？", "切块粒度和 rerank 模型输入长度怎么配套定？", "如果让你为播客转写稿设计切块，你会怎么做？（说话人段落+话题分段）"]
+      "prereq": [
+        "ai.rag.retrieval-pipeline.chunking-strategies"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval",
+        "ai.context"
+      ],
+      "followUps": [
+        "长上下文嵌入模型普及后，切块会消失吗？",
+        "切块粒度和 rerank 模型输入长度怎么配套定？",
+        "如果让你为播客转写稿设计切块，你会怎么做？（说话人段落+话题分段）"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "综合 LlamaIndex chunking 权衡论述与嵌入模型单向量机制自创的机制解释题" },
-    "tags": ["基础题", "机制解释", "高频开场"],
+    "source": {
+      "kind": "self-authored",
+      "note": "综合 LlamaIndex chunking 权衡论述与嵌入模型单向量机制自创的机制解释题"
+    },
+    "tags": [
+      "基础题",
+      "机制解释",
+      "高频开场"
+    ],
     "variants": [
-      { "angle": "追问延伸", "stem": "面试官追问：『那多向量检索（每个 chunk 多个向量，如 late interaction / ColBERT 风格）是不是就不需要纠结切块了？』你怎么答？", "analysis": "答『缓解了但不是豁免』：多向量把『一段一义』的压力变成 token 级细粒度匹配，块内多主题不再互相稀释排名，但块仍受嵌入窗口约束、存储与算力成本随向量数倍增、且块太大时精排后的上下文仍然臃肿。正确表述：多向量改变的是『比较粒度』，切块决定的是『交付粒度』（召回后给下游的东西），两者正交，后者永远需要设计。能分清这两层即为满分。" }
+      {
+        "angle": "追问延伸",
+        "stem": "面试官追问：『那多向量检索（每个 chunk 多个向量，如 late interaction / ColBERT 风格）是不是就不需要纠结切块了？』你怎么答？",
+        "analysis": "答『缓解了但不是豁免』：多向量把『一段一义』的压力变成 token 级细粒度匹配，块内多主题不再互相稀释排名，但块仍受嵌入窗口约束、存储与算力成本随向量数倍增、且块太大时精排后的上下文仍然臃肿。正确表述：多向量改变的是『比较粒度』，切块决定的是『交付粒度』（召回后给下游的东西），两者正交，后者永远需要设计。能分清这两层即为满分。"
+      }
     ]
   },
   {
@@ -213,27 +601,75 @@
     "type": "short",
     "difficulty": 3,
     "stem": "用 cross-encoder 给 RAG 加重排层：请讲清它与 bi-encoder 的结构差异、为什么强、为什么慢，以及它在生产里的典型部署位置和一次完整的漏斗参数设计。",
-    "answer": { "ref": "参考骨架：【结构】bi-encoder：query 与 doc 各自过模型出向量，相似度是两次独立编码的点积/余弦——doc 向量可离线预计算，检索是 ANN 近似最近邻，毫秒级但交互只发生在最后一步。cross-encoder：query 与 doc **拼接**后共同过一遍 Transformer，注意力让两者 token 级互相看见，输出相关性 logit——判别力强得多，但每对 (q,d) 都要现场前向，无法预计算。【为什么强】词序/否定/细粒度匹配的建模能力来自 full attention 交互；弱在吞吐：对 1000 个候选打分 = 1000 次前向。【漏斗位置】ANN/BM25 混合召回 top-50~100（便宜、高召回）→ rerank 精排出 top-5~10（贵、精准）→ 组装上下文。典型参数：候选 100 → rerank 输入截断 ~4k token/对 → 输出 top5 进 prompt；rerank 延迟预算 100~300ms（GPU）可接受，>1s 就要蒸馏小 rerank 模型或换轻量层。【收益度量】nDCG@5/MRR 离线对比 + 端到端 faithfulness 变化，rerank 的价值 = 头部相关性提升换算的答案质量增益减延迟成本。" },
+    "answer": {
+      "ref": "参考骨架：【结构】bi-encoder：query 与 doc 各自过模型出向量，相似度是两次独立编码的点积/余弦——doc 向量可离线预计算，检索是 ANN 近似最近邻，毫秒级但交互只发生在最后一步。cross-encoder：query 与 doc **拼接**后共同过一遍 Transformer，注意力让两者 token 级互相看见，输出相关性 logit——判别力强得多，但每对 (q,d) 都要现场前向，无法预计算。【为什么强】词序/否定/细粒度匹配的建模能力来自 full attention 交互；弱在吞吐：对 1000 个候选打分 = 1000 次前向。【漏斗位置】ANN/BM25 混合召回 top-50~100（便宜、高召回）→ rerank 精排出 top-5~10（贵、精准）→ 组装上下文。典型参数：候选 100 → rerank 输入截断 ~4k token/对 → 输出 top5 进 prompt；rerank 延迟预算 100~300ms（GPU）可接受，>1s 就要蒸馏小 rerank 模型或换轻量层。【收益度量】nDCG@5/MRR 离线对比 + 端到端 faithfulness 变化，rerank 的价值 = 头部相关性提升换算的答案质量增益减延迟成本。"
+    },
     "scoringPoints": [
-      { "point": "讲出 bi-encoder 可预计算 vs cross-encoder 需逐对在线前向的核心差异", "weight": 2 },
-      { "point": "解释 full attention 交互为什么带来判别力（token 级互相看见）", "weight": 2 },
-      { "point": "给出漏斗具体位置与数量级参数（百级候选精排到个位数）", "weight": 2 },
-      { "point": "提到 rerank 自身的延迟预算意识或蒸馏/截断对策", "weight": 1 },
-      { "point": "说出 rerank 收益的量化方式（nDCG/MRR 或端到端指标）", "weight": 1 }
+      {
+        "point": "讲出 bi-encoder 可预计算 vs cross-encoder 需逐对在线前向的核心差异",
+        "weight": 2
+      },
+      {
+        "point": "解释 full attention 交互为什么带来判别力（token 级互相看见）",
+        "weight": 2
+      },
+      {
+        "point": "给出漏斗具体位置与数量级参数（百级候选精排到个位数）",
+        "weight": 2
+      },
+      {
+        "point": "提到 rerank 自身的延迟预算意识或蒸馏/截断对策",
+        "weight": 1
+      },
+      {
+        "point": "说出 rerank 收益的量化方式（nDCG/MRR 或端到端指标）",
+        "weight": 1
+      }
     ],
     "analysis": "Sentence Transformers 官方对两代架构的对比是本题骨架：cross-encoder 用于『重排已有候选列表』正因为它慢但准。答题最容易丢的是『位置与参数』：只讲概念不给漏斗数字（100→top5、几百毫秒预算）说明没上过线。加分点是知道 rerank 也有工程退化路线（distil 版 reranker、ColBERT 式中间地带、LLM rerank 的 listwise 方式及其成本）。",
-    "gapCheck": ["易漏点：『doc 向量可离线预计算』是 bi-encoder 能撑亿级库的根本原因，这句必须有", "常见误区：说 cross-encoder『换个更大的模型』——它的定义特征是输入结构（拼接共编码），不是参数量", "延伸弹药：ColBERT/late interaction 是介于两者之间的第三条路（token 级多向量延迟交互），提一句即显功力"],
+    "gapCheck": [
+      "易漏点：『doc 向量可离线预计算』是 bi-encoder 能撑亿级库的根本原因，这句必须有",
+      "常见误区：说 cross-encoder『换个更大的模型』——它的定义特征是输入结构（拼接共编码），不是参数量",
+      "延伸弹药：ColBERT/late interaction 是介于两者之间的第三条路（token 级多向量延迟交互），提一句即显功力"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.rerank-compress"],
-      "related": ["ai.rag.retrieval-pipeline.hybrid-retrieval", "ai.serving.infer-serving.cost-latency"],
-      "followUps": ["LLM-as-reranker（listwise 让 GPT 排序）和 cross-encoder 怎么选？", "rerank 输入要不要截断？截断了会不会把关键句切掉？", "怎么证明 rerank 层值得它的 P95 延迟？做怎样的 A/B？"]
+      "prereq": [
+        "ai.rag.retrieval-pipeline.rerank-compress"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval",
+        "ai.serving.infer-serving.cost-latency"
+      ],
+      "followUps": [
+        "LLM-as-reranker（listwise 让 GPT 排序）和 cross-encoder 怎么选？",
+        "rerank 输入要不要截断？截断了会不会把关键句切掉？",
+        "怎么证明 rerank 层值得它的 P95 延迟？做怎样的 A/B？"
+      ]
     },
-    "resources": [{ "title": "SBERT 官方 · Cross-Encoder", "digest": "官方原文：bi-encoder 独立编码可算相似度、快但无深度交互；cross-encoder 联合编码判别力显著更强，适合对 top-k 候选重排，官方建议『检索用 bi-encoder、重排用 cross-encoder』的两级架构。" }],
+    "resources": [
+      {
+        "title": "SBERT 官方 · Cross-Encoder",
+        "digest": "官方原文：bi-encoder 独立编码可算相似度、快但无深度交互；cross-encoder 联合编码判别力显著更强，适合对 top-k 候选重排，官方建议『检索用 bi-encoder、重排用 cross-encoder』的两级架构。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "official", "url": "https://sbert.net/docs/pretrained_models/crossencoders/", "retrievedAt": "2026-11-09", "note": "SBERT 官网 cross-encoder 用途说明与 bi/cross 两级架构建议" },
-    "tags": ["检索核心", "必考", "工程参数"],
+    "source": {
+      "kind": "official",
+      "url": "https://sbert.net/docs/pretrained_models/crossencoders/",
+      "retrievedAt": "2026-11-09",
+      "note": "SBERT 官网 cross-encoder 用途说明与 bi/cross 两级架构建议"
+    },
+    "tags": [
+      "检索核心",
+      "必考",
+      "工程参数"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "加约束：你们的 rerank 服务在高峰期把检索 P95 拖到 1.2s，而产品要求检索全程 <500ms。给出三层优化手段（不改模型效果档位的前提下），并说明先动哪层。", "analysis": "三层：①削量——漏斗上游收紧（候选 100→30，用元数据 pre-filter 先把明显不相关的挡掉），这是性价比最高的第一刀；②削单次成本——rerank 输入截断到关键句拼接（query-aware 抽取）或用蒸馏小 reranker 替换大模型；③削调度——批处理请求、GPU 常驻实例预热、对缓存命中 query 直接跳过 rerank。顺序先①后②再③：上游少候选是所有下游成本的乘数项。考点：延迟治理是漏斗工程，不是单点换模型。" }
+      {
+        "angle": "加约束",
+        "stem": "加约束：你们的 rerank 服务在高峰期把检索 P95 拖到 1.2s，而产品要求检索全程 <500ms。给出三层优化手段（不改模型效果档位的前提下），并说明先动哪层。",
+        "analysis": "三层：①削量——漏斗上游收紧（候选 100→30，用元数据 pre-filter 先把明显不相关的挡掉），这是性价比最高的第一刀；②削单次成本——rerank 输入截断到关键句拼接（query-aware 抽取）或用蒸馏小 reranker 替换大模型；③削调度——批处理请求、GPU 常驻实例预热、对缓存命中 query 直接跳过 rerank。顺序先①后②再③：上游少候选是所有下游成本的乘数项。考点：延迟治理是漏斗工程，不是单点换模型。"
+      }
     ]
   },
   {
@@ -242,27 +678,76 @@
     "type": "short",
     "difficulty": 3,
     "stem": "按 Galileo 技术文档对幻觉分类的口径，说出主要幻觉类型及其分类轴心，并针对每种类型给出对应的检测思路。",
-    "answer": { "ref": "参考骨架（对齐 Galileo『幻觉分类』文档的二分框架）：总轴心是**事实性幻觉**（输出与世界事实矛盾：模型编造了现实中不存在/错误的信息，即使没有上下文也会错）与**忠实度幻觉**（输出与给定上下文矛盾或无据：RAG 场景的主战场——答案里的陈述无法从检索块推出、或与块内容冲突）。细分常见叫法：指令幻觉（没遵守格式/约束）、数据幻觉（数字/日期/专名错）分别落在上述两类里。检测思路配对：忠实度幻觉→claim 分解+对上下文的 NLI/LLM 蕴含判定（RAGAS faithfulness 是自动化版本）、引用后置校验；事实性幻觉→对照权威知识库核验、用另一模型做 fact-check、或对『无检索也敢答』的高危实体词表拦截；指令幻觉→规则解析器（schema/正则）最便宜先跑；数据幻觉→数值抽取比对，重点盯否定/单位/时间。检测的共同纪律：分类先行，不同类的修复杠杆完全不同（忠实度靠检索与提示、事实性靠知识源与拒答）。" },
+    "answer": {
+      "ref": "参考骨架（对齐 Galileo『幻觉分类』文档的二分框架）：总轴心是**事实性幻觉**（输出与世界事实矛盾：模型编造了现实中不存在/错误的信息，即使没有上下文也会错）与**忠实度幻觉**（输出与给定上下文矛盾或无据：RAG 场景的主战场——答案里的陈述无法从检索块推出、或与块内容冲突）。细分常见叫法：指令幻觉（没遵守格式/约束）、数据幻觉（数字/日期/专名错）分别落在上述两类里。检测思路配对：忠实度幻觉→claim 分解+对上下文的 NLI/LLM 蕴含判定（RAGAS faithfulness 是自动化版本）、引用后置校验；事实性幻觉→对照权威知识库核验、用另一模型做 fact-check、或对『无检索也敢答』的高危实体词表拦截；指令幻觉→规则解析器（schema/正则）最便宜先跑；数据幻觉→数值抽取比对，重点盯否定/单位/时间。检测的共同纪律：分类先行，不同类的修复杠杆完全不同（忠实度靠检索与提示、事实性靠知识源与拒答）。"
+    },
     "scoringPoints": [
-      { "point": "给出 factuality vs faithfulness 二分及各自定义（对照世界事实 / 对照给定上下文）", "weight": 2 },
-      { "point": "点明 RAG 场景的主矛盾是 faithfulness 类", "weight": 1 },
-      { "point": "至少两种类型给出可落地的检测手段（蕴含判定/schema 校验/数值比对）", "weight": 2 },
-      { "point": "指出检测分类与修复手段的映射关系（分类不是为了贴标签）", "weight": 1 },
-      { "point": "提到检测的成本分层（规则先行、LLM 判定殿后、线上抽检）", "weight": 1 }
+      {
+        "point": "给出 factuality vs faithfulness 二分及各自定义（对照世界事实 / 对照给定上下文）",
+        "weight": 2
+      },
+      {
+        "point": "点明 RAG 场景的主矛盾是 faithfulness 类",
+        "weight": 1
+      },
+      {
+        "point": "至少两种类型给出可落地的检测手段（蕴含判定/schema 校验/数值比对）",
+        "weight": 2
+      },
+      {
+        "point": "指出检测分类与修复手段的映射关系（分类不是为了贴标签）",
+        "weight": 1
+      },
+      {
+        "point": "提到检测的成本分层（规则先行、LLM 判定殿后、线上抽检）",
+        "weight": 1
+      }
     ],
     "analysis": "Galileo 文档的主分类轴就是 factuality/faithfulness 两大类（其下再分指令、数据等子型）。这题的隐藏考点是『分类轴心』四个字：散答五种名词不如一条轴画清楚。检测思路要可落地：claim-level 蕴含、结构化校验、数值比对各配一类。丢分集中在两点：把两类混成一锅粥；检测手段只说『用 LLM 检查』没有成本分层意识。",
-    "gapCheck": ["易漏点：『忠实度幻觉』这个词本身要能说英文原词（faithfulness hallucination），它是 2026 年论文与工程的通用语", "常见误区：认为 RAG 天然消灭幻觉——检索错了它会『忠实地复述错误』，还多一层『上下文冲突时模型坚持参数知识』的对抗失败", "加分项：引用 Latency-Bench（NeurIPS 2025）这类工作：RAG 幻觉并非更少而是更隐蔽、更难检"],
+    "gapCheck": [
+      "易漏点：『忠实度幻觉』这个词本身要能说英文原词（faithfulness hallucination），它是 2026 年论文与工程的通用语",
+      "常见误区：认为 RAG 天然消灭幻觉——检索错了它会『忠实地复述错误』，还多一层『上下文冲突时模型坚持参数知识』的对抗失败",
+      "加分项：引用 Latency-Bench（NeurIPS 2025）这类工作：RAG 幻觉并非更少而是更隐蔽、更难检"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.generation-grounding"],
-      "related": ["ai.eval.evaluation-qa.llm-as-judge", "ai.rag.retrieval-pipeline.rerank-compress"],
-      "followUps": ["RAG 到底有没有降低幻觉？给你证据链回答", "faithfulness 检测在线上全量跑还是抽检？怎么定抽检率？", "发现一批『上下文冲突』类幻觉，你先查检索还是先查提示词？"]
+      "prereq": [
+        "ai.rag.retrieval-pipeline.generation-grounding"
+      ],
+      "related": [
+        "ai.eval.evaluation-qa.llm-as-judge",
+        "ai.rag.retrieval-pipeline.rerank-compress"
+      ],
+      "followUps": [
+        "RAG 到底有没有降低幻觉？给你证据链回答",
+        "faithfulness 检测在线上全量跑还是抽检？怎么定抽检率？",
+        "发现一批『上下文冲突』类幻觉，你先查检索还是先查提示词？"
+      ]
     },
-    "resources": [{ "title": "Galileo AI · 幻觉分类指南", "digest": "把幻觉分为事实性（与世界事实不符）与忠实度（与提供上下文不符）两大类并细分数据/指令等子型，给出各自的评估器思路（NLI、LLM-judge、规则校验）与成本讨论。" }],
+    "resources": [
+      {
+        "title": "Galileo AI · 幻觉分类指南",
+        "digest": "把幻觉分为事实性（与世界事实不符）与忠实度（与提供上下文不符）两大类并细分数据/指令等子型，给出各自的评估器思路（NLI、LLM-judge、规则校验）与成本讨论。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "web", "url": "https://galileo.ai/blog/hallucination-types", "retrievedAt": "2026-11-09", "note": "Galileo 幻觉类型专文；Latency-Bench 论文见 arxiv.org/abs/2504.10507（NeurIPS 2025 D&B）", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["幻觉治理", "分类框架", "必背"],
+    "source": {
+      "kind": "web",
+      "url": "https://galileo.ai/blog/hallucination-types",
+      "retrievedAt": "2026-11-09",
+      "note": "Galileo 幻觉类型专文；Latency-Bench 论文见 arxiv.org/abs/2504.10507（NeurIPS 2025 D&B）",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "幻觉治理",
+      "分类框架",
+      "必背"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "场景化：医疗报告解读助手，幻觉代价极高。请把幻觉分类映射成风险分级，并为每级选择检测策略与产品兜底。", "analysis": "风险轴：剂量/数值/禁忌类错误=事实性高危→必须外部知识库核验+不确定时强制拒答或降置信标注；术语解释与报告原文不一致=忠实度高危→claim 对原文蕴含校验，不过则回退『以原文为准』；排版/语气问题=低风险→规则校验即可。产品兜底分级展示（高危答案带『建议医生确认』不是万能话术而是风险分级的出口）。考点：分类学的意义在于把『检测+兜底』的投入与答案风险对齐。" }
+      {
+        "angle": "换场景",
+        "stem": "场景化：医疗报告解读助手，幻觉代价极高。请把幻觉分类映射成风险分级，并为每级选择检测策略与产品兜底。",
+        "analysis": "风险轴：剂量/数值/禁忌类错误=事实性高危→必须外部知识库核验+不确定时强制拒答或降置信标注；术语解释与报告原文不一致=忠实度高危→claim 对原文蕴含校验，不过则回退『以原文为准』；排版/语气问题=低风险→规则校验即可。产品兜底分级展示（高危答案带『建议医生确认』不是万能话术而是风险分级的出口）。考点：分类学的意义在于把『检测+兜底』的投入与答案风险对齐。"
+      }
     ]
   },
   {
@@ -271,27 +756,75 @@
     "type": "short",
     "difficulty": 3,
     "stem": "解释 parent-child（small-to-big）检索与 contextual retrieval 两种『解耦检索粒度与生成粒度』的方案：各自怎么工作、代价是什么、各适合什么场景。",
-    "answer": { "ref": "【small-to-big / parent-child】LlamaIndex 代表实现（SentenceWindowNodeParser/SelfRetrieving）：用小叶子块（句子/小段）做嵌入检索——命中准、噪音少；返回时沿父子指针把所在的大块（窗口/父段/整节）交给 LLM——上下文完整。代价：索引要维护父子映射、返回大块重新引入无关内容与 token 成本，窗口选大了等于白做。【contextual retrieval】Anthropic 2024 方案：索引期对每个 chunk 前置一段『该块在整篇文档中的定位说明』（由 LLM 生成），嵌入的是 chunk+说明——小块保留了全局语境，检索精度大幅提升（官方报 RAG 失败率降约 49%/67% 组合值）且不需要父子指针。代价：索引期一遍 LLM 调用（钱和时间）、文档更新要重算、生成的定位说明本身可能出错。【选型】文档结构规整层级清晰→parent-child 够用便宜；结构松散或跨段依赖强→contextual retrieval；两者可叠加（前置说明的小块+命中后回溯父块）。" },
+    "answer": {
+      "ref": "【small-to-big / parent-child】LlamaIndex 代表实现（SentenceWindowNodeParser/SelfRetrieving）：用小叶子块（句子/小段）做嵌入检索——命中准、噪音少；返回时沿父子指针把所在的大块（窗口/父段/整节）交给 LLM——上下文完整。代价：索引要维护父子映射、返回大块重新引入无关内容与 token 成本，窗口选大了等于白做。【contextual retrieval】Anthropic 2024 方案：索引期对每个 chunk 前置一段『该块在整篇文档中的定位说明』（由 LLM 生成），嵌入的是 chunk+说明——小块保留了全局语境，检索精度大幅提升（官方报 RAG 失败率降约 49%/67% 组合值）且不需要父子指针。代价：索引期一遍 LLM 调用（钱和时间）、文档更新要重算、生成的定位说明本身可能出错。【选型】文档结构规整层级清晰→parent-child 够用便宜；结构松散或跨段依赖强→contextual retrieval；两者可叠加（前置说明的小块+命中后回溯父块）。"
+    },
     "scoringPoints": [
-      { "point": "准确描述 small-to-big 的两级结构（小块检索、大块喂生成）与父子指针机制", "weight": 2 },
-      { "point": "准确描述 contextual retrieval 的索引期改写（chunk+文档级语境说明再嵌入）", "weight": 2 },
-      { "point": "各自至少一个真实代价（映射维护/索引期 LLM 成本）", "weight": 2 },
-      { "point": "给出选型信号或叠加用法", "weight": 1 },
-      { "point": "报出 contextual retrieval 的效果量级或出处（Anthropic, 2024）", "weight": 1 }
+      {
+        "point": "准确描述 small-to-big 的两级结构（小块检索、大块喂生成）与父子指针机制",
+        "weight": 2
+      },
+      {
+        "point": "准确描述 contextual retrieval 的索引期改写（chunk+文档级语境说明再嵌入）",
+        "weight": 2
+      },
+      {
+        "point": "各自至少一个真实代价（映射维护/索引期 LLM 成本）",
+        "weight": 2
+      },
+      {
+        "point": "给出选型信号或叠加用法",
+        "weight": 1
+      },
+      {
+        "point": "报出 contextual retrieval 的效果量级或出处（Anthropic, 2024）",
+        "weight": 1
+      }
     ],
     "analysis": "两者的共同洞察必须先立住：『最优检索粒度 ≠ 最优生成粒度』，解耦方式不同——parent-child 靠**结构指针**在返回时放大，contextual retrieval 靠**索引期信息注入**让小粒度自己携带全局语境。丢分点：把 sentence window 的『窗口』讲歪成滑窗切块；不知道 contextual retrieval 的 LLM 说明是索引期一次性产物而非查询期。能报 Anthropic 的数字（组合后失败率降近 67%）属超纲加分。",
-    "gapCheck": ["易漏点：parent-child 的关键失败模式——父块过大时『检索准、生成又回到噪音』的退化", "常见误区：把 contextual retrieval 的说明当成摘要——它的目标是『定位这块在全文中的角色』不是压缩内容", "成本视角：contextual retrieval 的索引成本 ≈ 每 chunk 一次 LLM 调用，百万级语料要算钱"],
+    "gapCheck": [
+      "易漏点：parent-child 的关键失败模式——父块过大时『检索准、生成又回到噪音』的退化",
+      "常见误区：把 contextual retrieval 的说明当成摘要——它的目标是『定位这块在全文中的角色』不是压缩内容",
+      "成本视角：contextual retrieval 的索引成本 ≈ 每 chunk 一次 LLM 调用，百万级语料要算钱"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.chunking-strategies"],
-      "related": ["ai.rag.retrieval-pipeline.hybrid-retrieval", "ai.rag.retrieval-pipeline.rerank-compress"],
-      "followUps": ["contextual retrieval 的定位说明生成错了怎么办？谁兜底？", "文档增量更新时这两种方案的索引各要怎么重建？", "还有第三种解耦方式吗？（句子窗/聚合摘要树/多粒度索引）"]
+      "prereq": [
+        "ai.rag.retrieval-pipeline.chunking-strategies"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval",
+        "ai.rag.retrieval-pipeline.rerank-compress"
+      ],
+      "followUps": [
+        "contextual retrieval 的定位说明生成错了怎么办？谁兜底？",
+        "文档增量更新时这两种方案的索引各要怎么重建？",
+        "还有第三种解耦方式吗？（句子窗/聚合摘要树/多粒度索引）"
+      ]
     },
-    "resources": [{ "title": "Anthropic · Contextual Retrieval", "digest": "2024-09 工程博客：索引期为每个 chunk 生成文档级上下文说明后一起嵌入；报告 embedding 失败率 -49%、叠加 rerank 后整体失败率 -67%，并给出 prompt caching 摊薄索引成本的实现。" }],
+    "resources": [
+      {
+        "title": "Anthropic · Contextual Retrieval",
+        "digest": "2024-09 工程博客：索引期为每个 chunk 生成文档级上下文说明后一起嵌入；报告 embedding 失败率 -49%、叠加 rerank 后整体失败率 -67%，并给出 prompt caching 摊薄索引成本的实现。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "official", "url": "https://www.anthropic.com/news/contextual-retrieval", "retrievedAt": "2026-11-09", "note": "Anthropic 官方工程博客（含数字与实现细节），LlamaIndex SelfRetrieving 文档为 parent-child 侧佐证" },
-    "tags": ["检索进阶", "2026主流", "细节控"],
+    "source": {
+      "kind": "official",
+      "url": "https://www.anthropic.com/news/contextual-retrieval",
+      "retrievedAt": "2026-11-09",
+      "note": "Anthropic 官方工程博客（含数字与实现细节），LlamaIndex SelfRetrieving 文档为 parent-child 侧佐证"
+    },
+    "tags": [
+      "检索进阶",
+      "2026主流",
+      "细节控"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "反向质疑：同事说『contextual retrieval 索引期要过一遍 LLM，太贵了，我们语料 800 万 chunk 用不起』。你如何反驳或认同？给一笔成本账的判断方法。", "analysis": "算法：索引成本 = chunk 数 × (说明生成输入+输出) token × 单价，配合 prompt caching（文档前缀共享，Anthropic 原文即用此把 per-chunk 生成成本降到 ~$1.02/百万文档 token 量级）后通常是『一次性建设成本』，摊到每次查询几乎为零；真正要权衡的是查询频次与语料变更频率——高频查询+低频更新的语料最划算，天天全量变更的语料才真贵。所以先算『800 万 chunk × 平均 token × 缓存命中率』再下结论，而不是 reflexive 说贵。" }
+      {
+        "angle": "反向问",
+        "stem": "反向质疑：同事说『contextual retrieval 索引期要过一遍 LLM，太贵了，我们语料 800 万 chunk 用不起』。你如何反驳或认同？给一笔成本账的判断方法。",
+        "analysis": "算法：索引成本 = chunk 数 × (说明生成输入+输出) token × 单价，配合 prompt caching（文档前缀共享，Anthropic 原文即用此把 per-chunk 生成成本降到 ~$1.02/百万文档 token 量级）后通常是『一次性建设成本』，摊到每次查询几乎为零；真正要权衡的是查询频次与语料变更频率——高频查询+低频更新的语料最划算，天天全量变更的语料才真贵。所以先算『800 万 chunk × 平均 token × 缓存命中率』再下结论，而不是 reflexive 说贵。"
+      }
     ]
   },
   {
@@ -300,29 +833,83 @@
     "type": "essay",
     "difficulty": 5,
     "stem": "架构论述题：为一家 500 人软件公司设计『内部技术问答 RAG』（覆盖 Wiki、代码文档、工单历史，日活 200，要求答案带引用、上线三个月内可度量地变好）。请完整论述：语料接入与切块策略、检索架构（稀疏/稠密/混合与融合）、重排与上下文组装、生成与引用核验、评估体系与迭代闭环、成本与延迟预算六部分。要求每部分给出具体参数或取舍理由，不许罗列名词。",
-    "answer": { "ref": "参考骨架（考官期待的结构化论述）：【1 语料与切块】三类语料分治：Wiki 按标题层级结构切+挂元数据（空间/更新时间/作者权重）；代码文档按函数/类切+符号索引；工单按『问题+采纳答案』配对成条（天然检索单元）。统一元数据 schema（来源、时效、权限 ACL）是后面一切的地基。【2 检索】BM25+向量双路：内部术语/错误码/函数名靠词法精确命中，语义改述靠向量；融合用 RRF（k=60 起步，免调分数归一）；pre-filter 权限 ACL（过滤必须在 ANN 之前否则漏+越权双输）；query 侧做轻量改写（同义词表+历史点击扩展），HyDE 视效果 A/B。【3 重排组装】混合召回 top-60 → cross-encoder rerank 出 top-6；组装按『问题相关段落优先+来源去重+时效加权』拼到 4k token 预算；预留 2k 给输出；system 前缀冻结吃满 provider 缓存。【4 生成引用】要求句级 [n] 引用；输出后跑引用校验（引用的 n 是否真的支撑该句，不支撑则剥掉引用或降级措辞）；无相关材料时走拒答模板+建议搜索词。【5 评估闭环】冷启动 100 条金标（从真实提问抽样+标注出处）：recall@10 / context precision / faithfulness 三段指标；bad case 三分类归因（检索缺失→补切块与词表；排序差→rerank 特征；生成差→提示与组装）；每周从点踩流量增补评估集（防评估集过拟合）。【6 成本延迟】检索链路预算 500ms（ANN 50ms+rerank 200ms+网络），生成 TTFT<1.5s 流式；月成本大头是嵌入重建（增量更新而非全量）与生成 token（缓存命中设计可省 50%+）；日活 200 无需自建 GPU，API+rerank 小模型托管即可。加分：谈 ACL 在检索层的强制性、谈三个月的『每周指标例会』节奏、给出评估集规模随流量的增长曲线。" },
+    "answer": {
+      "ref": "参考骨架（考官期待的结构化论述）：【1 语料与切块】三类语料分治：Wiki 按标题层级结构切+挂元数据（空间/更新时间/作者权重）；代码文档按函数/类切+符号索引；工单按『问题+采纳答案』配对成条（天然检索单元）。统一元数据 schema（来源、时效、权限 ACL）是后面一切的地基。【2 检索】BM25+向量双路：内部术语/错误码/函数名靠词法精确命中，语义改述靠向量；融合用 RRF（k=60 起步，免调分数归一）；pre-filter 权限 ACL（过滤必须在 ANN 之前否则漏+越权双输）；query 侧做轻量改写（同义词表+历史点击扩展），HyDE 视效果 A/B。【3 重排组装】混合召回 top-60 → cross-encoder rerank 出 top-6；组装按『问题相关段落优先+来源去重+时效加权』拼到 4k token 预算；预留 2k 给输出；system 前缀冻结吃满 provider 缓存。【4 生成引用】要求句级 [n] 引用；输出后跑引用校验（引用的 n 是否真的支撑该句，不支撑则剥掉引用或降级措辞）；无相关材料时走拒答模板+建议搜索词。【5 评估闭环】冷启动 100 条金标（从真实提问抽样+标注出处）：recall@10 / context precision / faithfulness 三段指标；bad case 三分类归因（检索缺失→补切块与词表；排序差→rerank 特征；生成差→提示与组装）；每周从点踩流量增补评估集（防评估集过拟合）。【6 成本延迟】检索链路预算 500ms（ANN 50ms+rerank 200ms+网络），生成 TTFT<1.5s 流式；月成本大头是嵌入重建（增量更新而非全量）与生成 token（缓存命中设计可省 50%+）；日活 200 无需自建 GPU，API+rerank 小模型托管即可。加分：谈 ACL 在检索层的强制性、谈三个月的『每周指标例会』节奏、给出评估集规模随流量的增长曲线。"
+    },
     "scoringPoints": [
-      { "point": "语料分治：至少区分两类语料的不同切块策略并带元数据设计", "weight": 2 },
-      { "point": "检索架构选型有理由（词法与语义互补、RRF 免归一）且 ACL pre-filter 被提及", "weight": 2 },
-      { "point": "给出带数量级的漏斗参数（几十候选→个位数进 prompt）", "weight": 2 },
-      { "point": "引用核验有具体机制（句级引用+后置校验+拒答路径）", "weight": 2 },
-      { "point": "评估是分段归因+bad case 回流增补的闭环而非一次性验收", "weight": 2 },
-      { "point": "成本与延迟各有一条可执行的预算控制（缓存命中/增量索引/延迟拆分）", "weight": 2 },
-      { "point": "整体论述有主线与优先级判断（哪些先做收益最大），而非平铺六段", "weight": 2 }
+      {
+        "point": "语料分治：至少区分两类语料的不同切块策略并带元数据设计",
+        "weight": 2
+      },
+      {
+        "point": "检索架构选型有理由（词法与语义互补、RRF 免归一）且 ACL pre-filter 被提及",
+        "weight": 2
+      },
+      {
+        "point": "给出带数量级的漏斗参数（几十候选→个位数进 prompt）",
+        "weight": 2
+      },
+      {
+        "point": "引用核验有具体机制（句级引用+后置校验+拒答路径）",
+        "weight": 2
+      },
+      {
+        "point": "评估是分段归因+bad case 回流增补的闭环而非一次性验收",
+        "weight": 2
+      },
+      {
+        "point": "成本与延迟各有一条可执行的预算控制（缓存命中/增量索引/延迟拆分）",
+        "weight": 2
+      },
+      {
+        "point": "整体论述有主线与优先级判断（哪些先做收益最大），而非平铺六段",
+        "weight": 2
+      }
     ],
     "analysis": "d5 压轴考的是『参数化的取舍叙事』：每一段都要有数字或明确的 why-not（为什么不用纯向量、为什么不 post-filter、为什么引用要后置校验）。常见失分：名词接龙（说了 RRF/rerank/RAGAS 却没有任何参数与位置）；评估段写成『上线后看反馈』（没有离线金标就没有回归能力）；漏 ACL（内部知识库的第一红线其实是权限过滤）。及格线：六段齐且有数字；满分线：主线清晰+优先级判断+承认不确定性（先做哪个实验验证）。",
-    "gapCheck": ["易漏点：权限！企业 RAG 的检索必须带用户 ACL 过滤，漏这一条基本告别大厂终面", "常见误区：把『三个月可度量变好』答成玄学——要有评估集增长与周例会的运营机制", "结构自救：时间不够时砍段落深度不砍段落数，最后留 2 分钟讲优先级排序"],
+    "gapCheck": [
+      "易漏点：权限！企业 RAG 的检索必须带用户 ACL 过滤，漏这一条基本告别大厂终面",
+      "常见误区：把『三个月可度量变好』答成玄学——要有评估集增长与周例会的运营机制",
+      "结构自救：时间不够时砍段落深度不砍段落数，最后留 2 分钟讲优先级排序"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.generation-grounding", "ai.rag.retrieval-pipeline.hybrid-retrieval"],
-      "related": ["ai.eval.evaluation-qa.metrics-dataset", "ai.serving.infer-serving.cost-latency", "ai.context"],
-      "followUps": ["这套架构哪个环节最先坏？坏了你怎么第一时间知道？", "如果半年后要把『被动问答』升级成『工单代办 Agent』，这套基建哪些能复用？", "为什么不微调？给出你这个场景的否决理由。"]
+      "prereq": [
+        "ai.rag.retrieval-pipeline.generation-grounding",
+        "ai.rag.retrieval-pipeline.hybrid-retrieval"
+      ],
+      "related": [
+        "ai.eval.evaluation-qa.metrics-dataset",
+        "ai.serving.infer-serving.cost-latency",
+        "ai.context"
+      ],
+      "followUps": [
+        "这套架构哪个环节最先坏？坏了你怎么第一时间知道？",
+        "如果半年后要把『被动问答』升级成『工单代办 Agent』，这套基建哪些能复用？",
+        "为什么不微调？给出你这个场景的否决理由。"
+      ]
     },
-    "resources": [{ "title": "综合参考", "digest": "答题可引的权威锚点：RRF 融合口径（OpenSearch/Elasticsearch 文档）、cross-encoder 两级架构（SBERT 官方）、contextual retrieval 数字（Anthropic 2024）、分段评估指标（RAGAS docs）、prompt caching 计费折扣（OpenAI/Anthropic 定价页）。" }],
+    "resources": [
+      {
+        "title": "综合参考",
+        "digest": "答题可引的权威锚点：RRF 融合口径（OpenSearch/Elasticsearch 文档）、cross-encoder 两级架构（SBERT 官方）、contextual retrieval 数字（Anthropic 2024）、分段评估指标（RAGAS docs）、prompt caching 计费折扣（OpenAI/Anthropic 定价页）。"
+      }
+    ],
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "自创综合场景题；评分锚点分散于各官方文档（见 resources 所列），无单一出处" },
-    "tags": ["大厂终面", "系统设计", "压轴"],
+    "source": {
+      "kind": "self-authored",
+      "note": "自创综合场景题；评分锚点分散于各官方文档（见 resources 所列），无单一出处"
+    },
+    "tags": [
+      "大厂终面",
+      "系统设计",
+      "压轴"
+    ],
     "variants": [
-      { "angle": "加约束", "stem": "同一题面追加三条硬约束重答卷：①语料含机密项目文档，不同部门可见范围不同；②所有回答必须支持『答案+依据』导出给审计；③月预算 $2000 封顶。指出原设计中哪些决策会被推翻或收紧？", "analysis": "冲击点：①ACL 从『应该做』升级为『架构前提』——索引按密级分区或文档级权限元数据+强制 pre-filter，机密语料可能需要独立索引/独立密钥，泄露成本使『宁可漏答不可越权』成为默认排序目标；②审计导出要求引用可回链原文快照（版本化存储，防止原文事后被改导致引用失效），生成日志留存周期与合规挂钩；③预算封顶迫使重排模型选自托管小模型或蒸馏版、嵌入走批量 API 低价通道、砍 HyDE 这类多花钱少收益的实验。答题形态：逐条给『被推翻的原决策+替代方案+残余风险』，考架构的可约束性。" }
+      {
+        "angle": "加约束",
+        "stem": "同一题面追加三条硬约束重答卷：①语料含机密项目文档，不同部门可见范围不同；②所有回答必须支持『答案+依据』导出给审计；③月预算 $2000 封顶。指出原设计中哪些决策会被推翻或收紧？",
+        "analysis": "冲击点：①ACL 从『应该做』升级为『架构前提』——索引按密级分区或文档级权限元数据+强制 pre-filter，机密语料可能需要独立索引/独立密钥，泄露成本使『宁可漏答不可越权』成为默认排序目标；②审计导出要求引用可回链原文快照（版本化存储，防止原文事后被改导致引用失效），生成日志留存周期与合规挂钩；③预算封顶迫使重排模型选自托管小模型或蒸馏版、嵌入走批量 API 低价通道、砍 HyDE 这类多花钱少收益的实验。答题形态：逐条给『被推翻的原决策+替代方案+残余风险』，考架构的可约束性。"
+      }
     ]
   },
   {
@@ -336,24 +923,63 @@
       "code": "function rrfFuse(lists, k = 60, topN = Infinity) {\n  const scores = new Map() // docId -> rrf score\n  for (const list of lists) {\n    for (let rank = 0; rank < list.length; rank++) {\n      const id = list[rank]\n      const add = 1 / (k + rank + 1) // 名次第1位 => 1/(k+1)\n      scores.set(id, (scores.get(id) ?? 0) + add)\n    }\n  }\n  return [...scores.entries()]\n    .sort((a, b) =>\n      b[1] - a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)) // 并列按 id 稳定\n    .slice(0, topN)\n    .map(([id]) => id)\n}\n// 例：rrfFuse([['d3','d1','d2'], ['d2','d3','d9']], 60)\n// d3: 1/61 + 1/62, d2: 1/63 + 1/61, d1: 1/62, d9: 1/63\n// => ['d3', 'd2', 'd1', 'd9']"
     },
     "scoringPoints": [
-      { "point": "Map 累加结构正确，单遍遍历各路，复杂度 O(总候选数)", "weight": 3 },
-      { "point": "公式实现无 off-by-one：第一名得 1/(k+1)（说明 rank 起点的约定）", "weight": 2 },
-      { "point": "并列分数有确定性的处理（按 id 或首次出现序），并口述为何需要稳定", "weight": 1 },
-      { "point": "主动处理边界：空列表、重复 doc 在同一路出现多次、topN 截断", "weight": 1 },
-      { "point": "现场延伸：说出生产版还要做的事（各路加权、k 的敏感性测试、fp 精度）", "weight": 1 }
+      {
+        "point": "Map 累加结构正确，单遍遍历各路，复杂度 O(总候选数)",
+        "weight": 3
+      },
+      {
+        "point": "公式实现无 off-by-one：第一名得 1/(k+1)（说明 rank 起点的约定）",
+        "weight": 2
+      },
+      {
+        "point": "并列分数有确定性的处理（按 id 或首次出现序），并口述为何需要稳定",
+        "weight": 1
+      },
+      {
+        "point": "主动处理边界：空列表、重复 doc 在同一路出现多次、topN 截断",
+        "weight": 1
+      },
+      {
+        "point": "现场延伸：说出生产版还要做的事（各路加权、k 的敏感性测试、fp 精度）",
+        "weight": 1
+      }
     ],
     "analysis": "三个分水岭：①是不是只用名次（有人顺手把 score 也加进去，直接掉档——那违背 RRF 的初衷）；②rank 起点与公式的对应关系能不能讲穿（k+rank 还是 k+rank+1 取决于 rank 从 0 还是 1 起，面试官必抠）；③并列要不要确定性（线上系统并列乱序会导致同 query 结果抖动、评估不可复现）。加分项：提到同路重复 doc 应先去重（否则名次累加虚高）、以及 k 很小时融合退化为只认头名。",
-    "gapCheck": ["易漏点：同一路里同一 doc 出现两次要去重取最好名次——不同引擎的分页重叠会踩这个坑", "常见误区：最后 sort 用浮点相等判并列——用比较器短路（b-a===0）时要 tie-breaker，否则 JS V8 稳定排序也不保证业务想要的序", "白板纪律：先写注释版公式再写代码，rank 起点写在注释里避免现场争议"],
+    "gapCheck": [
+      "易漏点：同一路里同一 doc 出现两次要去重取最好名次——不同引擎的分页重叠会踩这个坑",
+      "常见误区：最后 sort 用浮点相等判并列——用比较器短路（b-a===0）时要 tie-breaker，否则 JS V8 稳定排序也不保证业务想要的序",
+      "白板纪律：先写注释版公式再写代码，rank 起点写在注释里避免现场争议"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.hybrid-retrieval"],
-      "related": ["ai.rag.retrieval-pipeline.rerank-compress", "cs.algo"],
-      "followUps": ["如果要支持十亿级库的流式融合（每路上万条），topN 很小，你的实现怎么优化？（堆/多路归并）", "weighted RRF 怎么改一行就加上？权重和 k 谁的效果更敏感？", "为什么 Elasticsearch 实现里 RRF 的 rank_window_size 默认只有 100？"]
+      "prereq": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.rerank-compress",
+        "cs.algo"
+      ],
+      "followUps": [
+        "如果要支持十亿级库的流式融合（每路上万条），topN 很小，你的实现怎么优化？（堆/多路归并）",
+        "weighted RRF 怎么改一行就加上？权重和 k 谁的效果更敏感？",
+        "为什么 Elasticsearch 实现里 RRF 的 rank_window_size 默认只有 100？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "自创手写题；RRF 公式语义以 OpenSearch/Elasticsearch 官方文档为判分基准（rank 从 1 起算 contribution=1/(k+rank)）" },
-    "tags": ["手写题", "检索核心", "细节抠细节"],
+    "source": {
+      "kind": "self-authored",
+      "note": "自创手写题；RRF 公式语义以 OpenSearch/Elasticsearch 官方文档为判分基准（rank 从 1 起算 contribution=1/(k+rank)）"
+    },
+    "tags": [
+      "手写题",
+      "检索核心",
+      "细节抠细节"
+    ],
     "variants": [
-      { "angle": "追问延伸", "stem": "面试官现场加码：把函数改成支持『每路带权重』的 weighted RRF，并回答——给某路权重 0.5、另一路 1.5，和把低权重那路的候选数砍半，效果等价吗？", "analysis": "代码改动极小：contribution *= weight_i。但概念追问锋利：不等价。权重缩放的是该路每个名次的贡献值，砍候选数是删掉该路尾部的名次投票——头部影响方式完全不同；且当某路权重×多个名次累加仍可能让『两路都认可』输给『单路头名』，这正是 weighted RRF 需要敏感性测试的原因。加分回答会给具体反例：k=1 时权重 1.5 的路头名单挑赢双路二三名。" }
+      {
+        "angle": "追问延伸",
+        "stem": "面试官现场加码：把函数改成支持『每路带权重』的 weighted RRF，并回答——给某路权重 0.5、另一路 1.5，和把低权重那路的候选数砍半，效果等价吗？",
+        "analysis": "代码改动极小：contribution *= weight_i。但概念追问锋利：不等价。权重缩放的是该路每个名次的贡献值，砍候选数是删掉该路尾部的名次投票——头部影响方式完全不同；且当某路权重×多个名次累加仍可能让『两路都认可』输给『单路头名』，这正是 weighted RRF 需要敏感性测试的原因。加分回答会给具体反例：k=1 时权重 1.5 的路头名单挑赢双路二三名。"
+      }
     ]
   },
   {
@@ -367,24 +993,166 @@
       "code": "function chunk(doc) {\n  const cutSentences = (t, size = 1200, over = 100) => {\n    if (t.length <= size) return [t]\n    const out = []; let start = 0\n    while (start < t.length) {\n      let end = Math.min(start + size, t.length)\n      if (end < t.length) { // 退回最近的句子边界\n        const m = t.slice(start, end).match(/[^。！？.]*[。！？.](?=[^。！？.]*$)/)\n        if (m && m.index > size * 0.5) end = start + m.index + m[0].length\n      }\n      out.push(t.slice(start, end).trim())\n      if (end >= t.length) break\n      start = Math.max(end - over, start + 1) // overlap 但保证前进\n    }\n    return out.filter(Boolean)\n  }\n  switch (doc.type) {\n    case 'markdown': {\n      const heads = [...doc.text.matchAll(/^#{2,} .*$/gm)]\n      const bounds = [0, ...heads.map(m => m.index), doc.text.length]\n      const blocks = []\n      for (let i = 0; i < bounds.length - 1; i++) {\n        const sec = doc.text.slice(bounds[i], bounds[i + 1])\n        const head = heads[i - 1]?.[0] ?? ''\n        for (const piece of cutSentences(sec))\n          blocks.push({ text: piece, meta: { type: 'md', section: head.trim() } })\n      }\n      return blocks\n    }\n    case 'html': {\n      const page = doc.text.match(/data-page=\"?(\\d+)\"?/)?.[1] ?? null\n      const text = doc.text.replace(/<script[\\s\\S]*?<\\/script>|<style[\\s\\S]*?<\\/style>/gi, '')\n        .replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim()\n      return cutSentences(text).map(t => ({ text: t, meta: { type: 'html', page } }))\n    }\n    case 'faq':\n      return doc.text.map((qa, i) => ({ text: `Q: ${qa.q}\\nA: ${qa.a}`, meta: { type: 'faq', id: i } }))\n  }\n}"
     },
     "scoringPoints": [
-      { "point": "三路由结构清楚，faq 分支正确执行『一条一块不切』", "weight": 2 },
-      { "point": "markdown 先按标题切 section、超长再句界二次切，overlap 有防死锁保护（start 至少前进）", "weight": 3 },
-      { "point": "html 剥标签顺带清 script/style，data-page 进 meta", "weight": 2 },
-      { "point": "meta 贯穿三路且口述出『切块期挂元数据是最后的机会窗口』", "weight": 2 },
-      { "point": "口述段给出『检索粒度对齐内容天然单元』的原则", "weight": 2 }
+      {
+        "point": "三路由结构清楚，faq 分支正确执行『一条一块不切』",
+        "weight": 2
+      },
+      {
+        "point": "markdown 先按标题切 section、超长再句界二次切，overlap 有防死锁保护（start 至少前进）",
+        "weight": 3
+      },
+      {
+        "point": "html 剥标签顺带清 script/style，data-page 进 meta",
+        "weight": 2
+      },
+      {
+        "point": "meta 贯穿三路且口述出『切块期挂元数据是最后的机会窗口』",
+        "weight": 2
+      },
+      {
+        "point": "口述段给出『检索粒度对齐内容天然单元』的原则",
+        "weight": 2
+      }
     ],
     "analysis": "d2 的手写题不抠算法抠**工程判断**：三处路由各自的坑都是真实事故源——markdown 只按标题切会漏超长章节（爆嵌入窗口），html 不剥 script/style 会把 JS 代码混进嵌入向量（客服页面召回过期的埋点代码段），faq 被二次切会把 Q 和 A 切到不同块（检索命中 Q 却吐不出答案）。overlap 的『保证前进』细节（重叠不小于窗口时 start 仍须递增否则死循环）是这题唯一的算法雷区，写出来即满分。口述段的『语义单元对齐』呼应同节点的概念题，形成双考点。",
-    "gapCheck": ["易漏点：faq 分支的输入是数组不是字符串——类型驱动的接口设计要在开头讲明白", "常见误区：markdown 标题正则用单 #，结果一级目录把全文切碎（应按 ## 及以上）", "白板纪律：先口述路由表再写码，meta schema 提前定死（type/page/section 三字段）"],
+    "gapCheck": [
+      "易漏点：faq 分支的输入是数组不是字符串——类型驱动的接口设计要在开头讲明白",
+      "常见误区：markdown 标题正则用单 #，结果一级目录把全文切碎（应按 ## 及以上）",
+      "白板纪律：先口述路由表再写码，meta schema 提前定死（type/page/section 三字段）"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.rag.retrieval-pipeline.chunking-strategies"],
-      "related": ["ai.rag.retrieval-pipeline.hybrid-retrieval", "fe.build"],
-      "followUps": ["pdf 文档进这个路由表怎么加？（版面分析/pyMuPDF 布局模式）", "切完发现某类文档平均块长 8000 字符，你的监控指标叫什么？", "要让这块代码可回归测试，测试夹具怎么造？"]
+      "prereq": [
+        "ai.rag.retrieval-pipeline.chunking-strategies"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval",
+        "fe.build"
+      ],
+      "followUps": [
+        "pdf 文档进这个路由表怎么加？（版面分析/pyMuPDF 布局模式）",
+        "切完发现某类文档平均块长 8000 字符，你的监控指标叫什么？",
+        "要让这块代码可回归测试，测试夹具怎么造？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "自创场景手写题；路由思想参考各家 loader/node parser 的分型处理常识" },
-    "tags": ["手写题", "d2友好", "工程判断"],
+    "source": {
+      "kind": "self-authored",
+      "note": "自创场景手写题；路由思想参考各家 loader/node parser 的分型处理常识"
+    },
+    "tags": [
+      "手写题",
+      "d2友好",
+      "工程判断"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "反向质疑：同事嫌麻烦，主张全部丢给『语义切块器』（embedding 相似度找断点）。请站在成本与失效面两侧评价这个提议，什么语料上它才真的值。", "analysis": "成本账：语义切块要对每句算嵌入找断点，索引期算力 ≈ 每文档 token 数级的额外嵌入调用，规模化后是常数倍开销；结构路由几乎零成本。失效面：语义切块的断点是『主题漂移』而非『内容完整性』——它可能把一个完整步骤从中间劈开（步骤内语言连贯），反而不如按标题切可靠；且断点不可解释，坏 case 无法归因调参。值得的场景：无结构长文（会议记录、访谈转写、叙事文本），没有标题/条目可依时语义断点才是唯一选择。结论：结构路由为主、语义切块兜底无结构语料，二者是分工不是替代。" }
+      {
+        "angle": "反向问",
+        "stem": "反向质疑：同事嫌麻烦，主张全部丢给『语义切块器』（embedding 相似度找断点）。请站在成本与失效面两侧评价这个提议，什么语料上它才真的值。",
+        "analysis": "成本账：语义切块要对每句算嵌入找断点，索引期算力 ≈ 每文档 token 数级的额外嵌入调用，规模化后是常数倍开销；结构路由几乎零成本。失效面：语义切块的断点是『主题漂移』而非『内容完整性』——它可能把一个完整步骤从中间劈开（步骤内语言连贯），反而不如按标题切可靠；且断点不可解释，坏 case 无法归因调参。值得的场景：无结构长文（会议记录、访谈转写、叙事文本），没有标题/条目可依时语义断点才是唯一选择。结论：结构路由为主、语义切块兜底无结构语料，二者是分工不是替代。"
+      }
+    ]
+  },
+  {
+    "id": "Q-ai-rag-hybrid-0015",
+    "nodeId": "ai.rag.retrieval-pipeline.hybrid-retrieval",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：混合检索同时使用稀疏检索（如 BM25，擅长关键词、专有名词、代码符号的精确匹配）与稠密向量检索（擅长语义近似、同义改写），再用 RRF 等方法融合两路结果，通常比单独使用任意一路的召回质量更稳健。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确，这是当前 RAG 检索的主流共识。两路检索的能力互补：BM25 基于词项匹配与 IDF 权重，对精确 token 高度敏感，命中实体名、错误码、型号、函数名、罕见缩写等『字面要对得上』的查询很强，但无法理解语义改写（『手机变慢』匹配不到写『设备性能下降』的文档）；稠密向量检索把文本编码为嵌入、按语义相似度召回，能跨越同义与表述差异，却可能在需要精确专有名词时因语义相近而召回不相关内容，且对低频实体、数字、代码标识符不敏感。二者并行召回后需要融合，RRF（Reciprocal Rank Fusion）是常用的免调参方法：只依据每路结果的排名 r 计算 1/(k+r) 求和再排序，不依赖两路分数量纲对齐（BM25 分与余弦相似度不可直接比较），鲁棒且实现简单；也可用加权分数归一化融合。再配合元数据过滤（按时间、来源、权限、文档类型先收窄候选域）提升精度与可解释性。需要注意混合检索增加了索引与查询成本，是否值得取决于语料与查询特征：纯语义 FAQ 可能单路就够，而技术文档、企业知识库这类关键词与语义需求并存的场景收益明显，应通过离线召回评测（Recall@k、MRR、nDCG）用数据决定。",
+    "gapCheck": [
+      "易漏点：BM25 强在精确词/专名/代码、向量强在语义改写，两路互补而非互相替代",
+      "常见误区：想直接相加两路原始分数（量纲不同），忽视 RRF 按排名融合的免调参优势",
+      "加分项：能讲 RRF 公式 1/(k+r)、元数据过滤前置收窄，以及用 Recall@k/nDCG 评测决定是否值得混合"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.rerank-compress"
+      ],
+      "followUps": [
+        "RRF 为什么不需要对齐两路分数的量纲，k 参数起什么作用？",
+        "什么类型的语料/查询下单一向量检索可能已经足够，混合检索反而不划算？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "BM25+向量混合检索与 RRF 融合的判断题"
+    },
+    "tags": [
+      "混合检索",
+      "BM25",
+      "向量检索",
+      "RRF",
+      "判断"
+    ]
+  },
+  {
+    "id": "Q-ai-rag-rerank-0016",
+    "nodeId": "ai.rag.retrieval-pipeline.rerank-compress",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 RAG 中的重排（rerank）、上下文压缩与 Agentic RAG，下列说法正确的有：（多选）",
+    "options": [
+      {
+        "key": "A",
+        "text": "第一阶段召回（retrieve）追求高召回、可放宽到取较多候选，第二阶段用 cross-encoder 重排器对 query 与每个候选做联合精排，用少量算力换取 top-k 的高精度"
+      },
+      {
+        "key": "B",
+        "text": "cross-encoder 重排把 query 和文档拼接后一起编码、能捕获细粒度交互，精度通常高于双塔向量的余弦相似度，但计算更贵，因此只对召回后的有限候选使用"
+      },
+      {
+        "key": "C",
+        "text": "上下文压缩只保留与当前问题相关的片段、剔除噪声，能在有限 token 预算下提升信噪比、缓解中间遗忘，但过度压缩可能丢失关键证据"
+      },
+      {
+        "key": "D",
+        "text": "Agentic RAG 让 Agent 依据初步检索结果自主决定是否再次检索、改写查询或切换工具，属于固定单次检索，不需要任何循环与终止判断"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确，D 错。A 描述的是经典两阶段架构：召回阶段用便宜的双塔向量/BM25 宁可多取（如 top-50/100）保证不漏，重排阶段再精算排序取最终 top-k，兼顾召回率与精度，是『先广后精』的算力分配。B 解释了重排为何更准：双塔模型把 query、doc 分别编码成向量再算相似度，编码时彼此不可见、交互弱但可预建索引、查询快；cross-encoder 把两者拼接过同一网络做注意力交互，能捕捉细粒度语义关系，精度高但每对都要实时计算、无法预计算，成本随候选数线性上升，所以只对召回后的小候选集使用。C 是上下文压缩的取舍：LLM 窗口有限且存在中间遗忘与注意力稀释，压缩器/抽取器去掉无关句子、只留相关证据能提高信噪比并省 token，但激进压缩可能误删答案所需的限定条件或数字，需要评测平衡保留率与准确率。D 错：Agentic RAG 的本质恰恰是把『一次性静态检索』升级为『检索-判断-再行动』的循环——Agent 评估当前证据是否足够，不足则改写 query（multi-query、HyDE）、调整过滤条件、调用不同检索工具或多轮检索，直到证据充分或触发终止条件（最大轮数、置信阈值），并需防止无限循环与成本失控，这与『固定单次、无需循环』的描述正相反。",
+    "gapCheck": [
+      "易漏点：两阶段『高召回召回 + cross-encoder 精排』的算力分层；双塔可预计算 vs cross-encoder 实时交互",
+      "常见误区：以为重排器能替代召回、或对全库直接 cross-encode（成本不可行）；把 Agentic RAG 当成单次检索",
+      "加分项：能讲压缩的信噪比收益与误删风险、query 改写/HyDE、Agentic 的终止条件与循环成本控制"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.rag.retrieval-pipeline.rerank-compress"
+      ],
+      "related": [
+        "ai.rag.retrieval-pipeline.hybrid-retrieval",
+        "ai.tools.tool-calling.tool-design-routing"
+      ],
+      "followUps": [
+        "cross-encoder 为什么不能像双塔那样提前建好向量索引？",
+        "Agentic RAG 如何设计检索终止条件并防止多轮检索的成本与循环失控？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "重排/上下文压缩/Agentic RAG 综合多选题"
+    },
+    "tags": [
+      "重排",
+      "cross-encoder",
+      "上下文压缩",
+      "Agentic RAG",
+      "多选"
     ]
   }
 ]

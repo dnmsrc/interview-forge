@@ -1,0 +1,697 @@
+[
+  {
+    "id": "Q-fe-eco-0001",
+    "nodeId": "fe.eco.react.mechanism",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 React 与 Vue 的更新模型差异，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "Vue 组件状态变更后默认只重跑该组件函数，React 则精确到字段级依赖只更新对应文本节点"
+      },
+      {
+        "key": "B",
+        "text": "React 状态不可变、更新触发组件函数重执行且子树默认跟随重渲染，边界需 memo 手工划定；Vue 经编译+effect 把依赖追踪到字段，变更只重跑受影响组件的 render effect"
+      },
+      {
+        "key": "C",
+        "text": "两者都靠 Virtual DOM 全量 diff，性能特征已无实质差别"
+      },
+      {
+        "key": "D",
+        "text": "React 的 Fiber 是一种 CSS 布局引擎，用于加速 flex 排布"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。React 的心智是「UI = f(state)」：setState 后组件及其子树（未 memo 的 children 元素引用也会变）重新执行，性能边界靠 React.memo/useMemo/useCallback 显式切；Vue 编译模板时已知绑定位置，effect 收集精确到响应式字段，更新粒度天然是「哪个组件的哪些绑定」。A 把两边说反了一半（前半像 React 后半像 Vue），C 忽略了「组件级要不要重渲染」这一根本分歧在 diff 之前就已决定，D 荒谬（Fiber 是协调器数据结构/调度单元）。",
+    "gapCheck": [
+      "易漏点：React 元素是 JS 对象快照，父重渲染必然重建 children 对象——这是「默认全重渲」的实现根源",
+      "常见误区：以为 memo 是纯赚优化——它自身有浅比较成本且 props 引用管理（useCallback 地狱）是复杂度来源",
+      "加分项：能提 React Compiler 编译期自动 memo 正在消解这条对比线的当下意义"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.react.mechanism"
+      ],
+      "related": [
+        "fe.vue.ecosystem.vue-vs-react",
+        "fe.vue.runtime.update-flow"
+      ],
+      "followUps": [
+        "为什么 React hooks 不能写在 if 里？",
+        "Signals 与 Vue ref 的关系怎么表述才准确？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "React vs Vue 更新模型单选题"
+    },
+    "tags": [
+      "周边生态",
+      "React",
+      "Vue",
+      "机制对比",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-eco-0002",
+    "nodeId": "fe.eco.react.mechanism",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "你是 Vue 背景候选人，面试官问：「为了让你快速上手我们的 React 项目，请说说你理解的 React 与 Vue 在响应式/渲染上的机制差异、由此产生的 React 特有日常负担，以及 2024 以后范式转移对这两条线的影响。」请完整作答。",
+    "answer": {
+      "ref": "参考骨架：(1) 机制差异：React 无响应式订阅——状态是不可变值，更新=创建新引用+调度组件重执行；渲染边界靠开发者用 memo/useMemo/useCallback 画，依赖数组与闭包陷阱（stale closure）是需要肌肉记忆的新语法税；Vue 反过来把边界交给编译器+Proxy 依赖收集，开发者几乎不思考重渲染范围（shallowRef/v-memo 才需要）。代价互换：React 灵活但心智负担在「引用稳定性」，Vue 省心但要理解响应式魔法边界（ref/reactive 解包规则）。(2) React 特有负担清单：受控表单与对象 state 展开合并、useEffect 双调用与严格模式竞态（AbortController 清理）、setState 批处理语义演进（18 起自动批处理含 Promise 场景）、列表 key 与不可变更新习惯、context 穿透 memo 的重渲染放大。(3) 调度对照：Fiber 把 render 拆可中断单元按 lane 优先级抢占（输入高优打断过渡更新），与浏览器 scheduler.yield 同哲学；Vue 更新走微任务 job 队列不分级——useTransition/useDeferredValue 在 Vue 里的近似物是 shallowRef 手动降频。(4) 2024+ 融合风向：React Compiler 编译期自动 memo（消灭手写依赖数组，等于 Vue 早就有的自动化方向）、RSC 把「组件在哪跑」变成架构维度（Vue 阵营对应 Nuxt server components 跟进）；Signals 生态合流（TC39 Stage1、Preact/Solid/Angular 采纳）而 Vue ref 本质是同族实现的先行版——答题亮点是点出「细粒度响应式成为共识，但框架边界仍在：Vue 靠编译模板+effect，Solid/Signals 靠显式订阅，React 靠编译器收敛重渲」的行业全景而非二站队。收尾：上手策略——先把 hooks 规则与引用稳定练成条件反射，再享受 Compiler 红利。"
+    },
+    "scoringPoints": [
+      {
+        "point": "两条边界策略（手动 memo vs 编译+effect 自动化）讲清且给出代价互换视角",
+        "weight": 2
+      },
+      {
+        "point": "React 日常负担具体可感（闭包陷阱/严格模式双调用/自动批处理）",
+        "weight": 2
+      },
+      {
+        "point": "Fiber 可中断调度与 Vue job 队列的对照，映射到 useTransition",
+        "weight": 2
+      },
+      {
+        "point": "Compiler/RSC/Signals 三趋势各一句话且能回扣 Vue 生态对应物",
+        "weight": 2
+      },
+      {
+        "point": "以 Vue 经验迁移的「上手策略」收束，体现学习敏锐度",
+        "weight": 1
+      }
+    ],
+    "analysis": "这题的真实功能是考察跨框架迁移的自我认知与行业视野。高分线：不贬任一方、能说出 React 负担清单这种「用过才懂」的细节、把 Signals 风向往框架边界上引。失分：背「React 虚拟 DOM 慢 Vue 快」的过时结论（两边都有编译优化，差异在组件级重渲模型）；把 RSC 说成 SSR 换皮；不知道 React Compiler 已 GA 级别可用。追问方向：让你设计一个跨框架信号库会怎么做（TC39 Signals API）。",
+    "gapCheck": [
+      "易漏点：React 18 自动批处理的覆盖范围（含 promise/setTimeout）是版本敏感考点",
+      "常见误区：把 Fiber 说成虚拟 DOM 的升级——两者是协调流程与数据结构的不同层",
+      "加分项：提到 useEffectEvent（实验）对依赖数组痛点的官方回应"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.react.mechanism"
+      ],
+      "related": [
+        "fe.vue.ecosystem.vapor-signals",
+        "fe.browser.events.event-loop"
+      ],
+      "followUps": [
+        "TC39 Signals 提案与 Vue ref 的差异？",
+        "React Server Components 下 memo 还有意义吗？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "跨框架机制与趋势主观题"
+    },
+    "tags": [
+      "周边生态",
+      "React",
+      "Signals",
+      "React Compiler",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-eco-0003",
+    "nodeId": "fe.eco.ssr.frameworks",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "为「商品详情页（SKU 级信息分钟级时效、亿级 PV、SEO 要求高、偶发价格改动要尽快生效）」选最合适的 Next.js 渲染策略：",
+    "options": [
+      {
+        "key": "A",
+        "text": "纯 CSR，客户端 fetch 后渲染"
+      },
+      {
+        "key": "B",
+        "text": "SSG + ISR（revalidate 短周期）配合按需 revalidatePath/revalidateTag 失效"
+      },
+      {
+        "key": "C",
+        "text": "每个请求实时 SSR 且不缓存，保证绝对新鲜"
+      },
+      {
+        "key": "D",
+        "text": "纯 SSG 构建期固化，发布时才更新"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 命中矩阵最优格：ISR 让页面以 CDN 静态分发承担亿级 PV（构建/再生成异步化不压源站），短 revalidate 窗口满足分钟级时效，tag/path 定向失效处理「偶发改价立即生效」——电商详情页的教科书方案。A 丢 SEO 与首屏 LCP；C 新鲜但源站扛全量渲染成本，长尾页可接受头部页不行；D 时效完全不达标。答题加分：区分 time-based（revalidate:60）与 data-based（tag 失效）组合，并提 stale-with-revalidate 后台再生的用户无感特性。",
+    "gapCheck": [
+      "易漏点：ISR 的「陈旧窗口」语义——首个用户可能仍拿旧页，价格强一致场景要局部动态化（Suspense 边缘块/Dynamic）",
+      "常见误区：把 SSR 当万能解忽略缓存层级与源站成本",
+      "加分项：Next 15 中 fetch 默认缓存语义改为 no-store、Full Route Cache 与 Data Cache 分层的关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.ssr.frameworks"
+      ],
+      "related": [
+        "fe.perf.loading.critical-path",
+        "cs.devops"
+      ],
+      "followUps": [
+        "revalidateTag 的粒度怎么设计？",
+        "详情页个性化推荐区块如何与 ISR 共存？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "ISR 选型单选题"
+    },
+    "tags": [
+      "周边生态",
+      "Next.js",
+      "ISR",
+      "SSR",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-eco-0004",
+    "nodeId": "fe.eco.ssr.frameworks",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：Next.js App Router 中组件默认是 Server Component，加 'use client' 后整个文件及其 import 依赖都被打入客户端 bundle；Server Component 可以把对象与 Promise 作为 props 传给 Client Component，但不能传函数。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "全句正确，这正是 App Router 的核心心智：默认服务端执行（代码与密钥不出境、直连 DB/FS），'use client' 是「边界声明」而非单行标记——边界以下整棵子树进客户端 bundle；跨边界通信走序列化协议，props 允许可序列化值与 thenable（服务端把 Promise 串流给 Suspense 消费），函数不可序列化故不能传（回传交互改用 Server Actions 或 client 侧定义回调）。Nuxt 的 <Content> / server component 跟进时踩的兼容性坑也源于这套约束。",
+    "gapCheck": [
+      "易漏点：client 组件 import 的 server-only 模块会构建立即报错，边界混放是新手最常见事故",
+      "常见误区：以为 'use client' 组件就不在服务端跑——它仍参与服务端流式渲染，只是额外 hydrate",
+      "加分项：能讲 Server Actions 的 POST 编码格式（Next-Server-Action header/multipart）与渐进增强表单体验"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.ssr.frameworks"
+      ],
+      "related": [
+        "fe.network.realtime.sse",
+        "fe.eco.react.mechanism"
+      ],
+      "followUps": [
+        "RSC payload 的传输格式是什么？",
+        "use server 与 use client 能在同一文件混用吗？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "RSC 边界规则判断题"
+    },
+    "tags": [
+      "周边生态",
+      "Next.js",
+      "RSC",
+      "Server Actions"
+    ]
+  },
+  {
+    "id": "Q-fe-eco-0005",
+    "nodeId": "fe.eco.desktop.tauri",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "与 Electron 对比，关于 Tauri（含 2.x）的说法**正确的**有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "渲染层复用系统 WebView，安装包通常只有几 MB，但不同系统的 WebView 内核差异需要纳入测试矩阵"
+      },
+      {
+        "key": "B",
+        "text": "前端调用 Rust 能力走 #[tauri::command] 进程内分发，权限由 capability 清单声明式收口，比 Electron 全靠代码自律更成体系"
+      },
+      {
+        "key": "C",
+        "text": "因为不带 Chromium，Tauri 在任何 Windows 机器上的渲染行为都与最新版 Chrome 完全一致"
+      },
+      {
+        "key": "D",
+        "text": "Tauri 2 支持 iOS/Android 移动目标，sidecar 机制可捆绑原生二进制处理重计算任务"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "ABD 正确。A 是 Tauri 的第一设计线：wry 封装 WKWebView/WebView2/WebKitGTK，体积内存双降，代价是「渲染一致性随系统」——WebView2 在 Win7/8 无预装需引导、Safari 系与 Chromium 系的 CSS/JS 行为差要靠测试覆盖；B 是安全线：IPC command serde 类型化、fs/shell/http 皆插件+按窗口的 capability JSON 白名单；D 是 2.x 的移动延伸与 sidecar 逃生舱。C 错得典型：Windows 上 WebView2 基于 Edge Chromium 但版本随系统更新节奏，并非锁定最新 Chrome，「完全一致」违背了它省体积的代价逻辑。",
+    "gapCheck": [
+      "易漏点：迁移评估三查（WebView 覆盖表、Node 生态依赖如 puppeteer/pdf 生成的 Rust 替代、capability 映射）是选型题的得分结构",
+      "常见误区：以为 Rust command 零开销——跨语言边界仍是 serde 序列化，超大数据要 channel/共享内存",
+      "加分项：知道 tauri-plugin-updater 可不依赖厂商商店做签名校验自动更新、updater 公钥签名机制"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.desktop.tauri"
+      ],
+      "related": [
+        "fe.electron.ship.package",
+        "fe.electron.security.csp"
+      ],
+      "followUps": [
+        "Tauri 的 CSP 该怎么配？",
+        "什么场景下 Electron 依然是正确答案？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Tauri 对比要点多选题"
+    },
+    "tags": [
+      "周边生态",
+      "Tauri",
+      "Electron",
+      "桌面端",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-eco-0006",
+    "nodeId": "fe.eco.styles.tailwind",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：Tailwind JIT 模式下，像 class=\"p-{{ size }}\" 这样运行期拼接的类名不会被扫描收录，正确做法是使用完整字面量映射或 safelist；v4 已将配置迁移为 CSS-first 的 @theme/@utility 写法并由 Rust 引擎驱动。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。JIT 的本质是构建期对源文件做文本扫描「见到什么类产什么 CSS」，运行期变量拼接的类名在源码里没有完整 token，扫描器无从得知——三种正解：完整字面量写死映射表、safelist 显式收录、或 @apply/自定义工具类消化；动态主题色同理（CSS 变量接管是 v4 的正道）。v4 的破坏性演进：oxc 系 Rust 重写引擎（@tailwindcss/vite 插件取代 PostCSS 链）、js/tailwind.config 退役改 @theme 令牌与 @custom-utility 写在 CSS、默认 OKLCH 感知均匀色板、依赖 Baseline 原生嵌套/:where 等特性。这题也是「原子化产物大不大」旧论断的分水岭：JIT 后产物只含用到的类，通常几十 KB。",
+    "gapCheck": [
+      "易漏点：扫描范围要覆盖 vue sfc 的 template 与动态 :class 数组——content 漏配目录导致「样式莫名失效」是头号排障点",
+      "常见误区：把 v3 时代 purge 配置经验套 v4（v4 自动探测源文件无需 content 数组）",
+      "加分项：能谈 cva+twMerge 解决条件类名冲突合并、UnoCSS 零预设与 attributify 的取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.styles.tailwind"
+      ],
+      "related": [
+        "fe.css.foundation.selector-cascade",
+        "fe.build.bundle.optimization"
+      ],
+      "followUps": [
+        "为什么 CSS-in-JS 在 2024 后被 React 社区降温？",
+        "Tailwind 与组件库设计 token 如何共治一套主题？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Tailwind JIT 与 v4 判断题"
+    },
+    "tags": [
+      "周边生态",
+      "Tailwind",
+      "JIT",
+      "CSS"
+    ]
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.eco.desktop.tauri",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "在 Tauri 2.x 应用中，前端通过 invoke 调用一个 Rust 命令并获取返回值。下列关于其底层通信与安全模型的描述，正确的是哪一项？",
+    "options": [
+      {
+        "key": "A",
+        "text": "Tauri 会把整个 Node.js 运行时打包进安装包，命令实际运行在与前端同进程的 Node 环境中"
+      },
+      {
+        "key": "B",
+        "text": "命令运行在独立的 Rust 核心进程，WebView 与核心之间通过 IPC 传递经序列化的消息，且受 capabilities/权限清单约束"
+      },
+      {
+        "key": "C",
+        "text": "invoke 本质是向 file:// 本地文件发起同步 XHR，因此调用期间会阻塞 WebView 主线程"
+      },
+      {
+        "key": "D",
+        "text": "只要前端能拿到命令名字符串，就可以调用任意 Rust 函数，权限系统只作用于 HTTP 网络请求"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "Tauri 2.x 的架构是「系统内置 WebView + 独立 Rust 核心进程」：界面由操作系统提供的 WebView（Windows 上 WebView2、macOS 上 WKWebView、Linux 上 WebKitGTK）渲染，业务能力由 Rust 核心进程提供，二者通过 IPC 传递经过序列化的消息，invoke 是其异步封装，因此 B 正确。A 错误，Tauri 不捆绑 Node.js，也不把后端放进渲染进程，这正是它相比 Electron 体积更小、攻击面更窄的原因。C 错误，invoke 是异步的 Promise 风格 IPC，不是同步 XHR，不会阻塞主线程。D 错误，Tauri 2.0 引入了 capabilities/权限模型，命令、插件与作用域（scope）都需在权限清单中显式授权，未授权的命令即便知道名字也会被拒绝。",
+    "gapCheck": [
+      "易漏点：Tauri 2.0 用 capabilities 细粒度权限清单取代了 1.x 的 allowlist，命令与插件作用域都要显式声明。",
+      "常见误区：把 Tauri 当成「另一个 Electron」，误以为内置 Node 且前后端同进程；实际上后端是 Rust 独立进程，WebView 复用系统组件。",
+      "排查线索：命令调用被拒时优先检查 capabilities 配置与命令名注册（#[tauri::command] + invoke_handler），而不是怀疑 IPC 通道。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.desktop.tauri"
+      ],
+      "related": [
+        "fe.eco.react.mechanism",
+        "fe.eco.ssr.frameworks"
+      ],
+      "followUps": [
+        "Tauri 2.0 的 capabilities 与 1.x 的 allowlist 有什么本质区别？",
+        "为什么复用系统 WebView 能显著减小安装包体积，代价是什么？",
+        "invoke 的 IPC 消息为什么需要序列化，这对传参类型有什么限制？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Tauri 2.x 架构与权限模型原理编写"
+    },
+    "tags": [
+      "Tauri",
+      "IPC",
+      "权限模型"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0097"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.eco.desktop.tauri",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "团队要从 Electron 迁移到 Tauri 2.x 开发桌面端。请从进程模型、安装包/内存占用、原生能力接入与安全边界四个维度，说明迁移时需要重点评估的差异与改造成本。",
+    "analysis": "本题考查对 Tauri 与 Electron 架构级差异的系统理解。核心区别在于：Electron 自带 Chromium 与 Node.js，主进程/渲染进程模型，渲染进程可通过预加载脚本获得 Node 能力；Tauri 复用系统 WebView、后端是 Rust 核心进程，能力通过 IPC 命令暴露并受 capabilities 约束。迁移成本主要来自语言切换（JS/TS 后端 → Rust）、生态成熟度差异以及权限模型重构，而体积与内存通常显著下降。",
+    "scoringPoints": [
+      {
+        "point": "进程模型：Electron 多 Chromium 进程+Node 主进程；Tauri 单系统 WebView+Rust 核心进程，经 IPC 通信",
+        "weight": 3
+      },
+      {
+        "point": "体积/内存：Tauri 复用系统 WebView、不捆绑运行时，安装包与常驻内存明显更小；代价是不同平台 WebView 渲染一致性需额外验证",
+        "weight": 2
+      },
+      {
+        "point": "原生能力：Electron 用 Node 生态/主进程模块；Tauri 需用 Rust 写 #[tauri::command] 或插件，npm 原生包不能直接在后端用",
+        "weight": 3
+      },
+      {
+        "point": "安全边界：Tauri 2.0 capabilities/scope 最小授权，默认收紧；需把原有不受限的系统调用改造为显式授权的命令",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "参考要点：①进程模型——Electron 捆绑 Chromium+Node.js，主进程/渲染进程架构；Tauri 复用系统 WebView，Rust 核心进程独立运行，前端经 IPC(invoke) 调用命令。②体积与内存——Tauri 不打包浏览器运行时，安装包通常仅数 MB、内存占用更低；代价是依赖各平台系统 WebView，需跨平台验证渲染与兼容性。③原生能力——Electron 可直接用 Node.js 生态与主进程模块；Tauri 后端逻辑要用 Rust 实现命令或插件，原有大量 npm 原生包无法直接复用，存在语言与生态迁移成本。④安全边界——Tauri 2.0 采用 capabilities 与 scope 的最小授权模型，命令、插件、文件/网络访问均需显式授权，需把 Electron 中相对开放的系统调用重构为受权限清单约束的 IPC 命令。综合评估：资源敏感、安全要求高的应用收益大；重度依赖 Node 原生生态、团队无 Rust 储备时改造成本较高。"
+    },
+    "gapCheck": [
+      "易漏点：迁移不仅是换壳，后端语言从 Node/JS 切到 Rust，原生 npm 包在核心进程侧不可直接使用。",
+      "常见误区：只看到体积变小，忽略系统 WebView 差异带来的跨浏览器兼容性与回归测试成本。",
+      "加分线索：能结合 Tauri 2.0 插件体系与移动端（iOS/Android）支持说明能力复用路径者更优。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.desktop.tauri"
+      ],
+      "related": [
+        "fe.eco.styles.tailwind",
+        "fe.eco.ssr.frameworks"
+      ],
+      "followUps": [
+        "哪些既有 Electron 能力在 Tauri 中必须用 Rust 重写？",
+        "系统 WebView 的碎片化会给样式和 API 兼容带来哪些具体风险？",
+        "Tauri 2.0 的插件机制如何帮助复用一套核心到移动端？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Tauri 2.x 与 Electron 架构对比原理编写"
+    },
+    "tags": [
+      "Tauri",
+      "架构对比",
+      "工程权衡"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0098"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.eco.react.mechanism",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 React 19 及 React Compiler（React  Forget）落地后对渲染与记忆化机制的影响，下列说法正确的有哪几项？",
+    "options": [
+      {
+        "key": "A",
+        "text": "React Compiler 在编译期自动分析组件依赖并插入等价的记忆化，使多数场景不再需要手写 useMemo/useCallback/memo"
+      },
+      {
+        "key": "B",
+        "text": "useMemo/useCallback 仍可保留用于语义保证（如稳定引用对接外部库），并非被编译器彻底删除"
+      },
+      {
+        "key": "C",
+        "text": "启用编译器后，组件每次渲染都必然产生全新的虚拟 DOM 树且不再做任何 bailout，性能一定更差"
+      },
+      {
+        "key": "D",
+        "text": "React 19 中 ref 可作为普通 prop 传递（函数组件无需 forwardRef 包裹），use() 可在渲染中读取 Promise/Context"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A 正确，React Compiler 通过编译期依赖分析自动生成记忆化代码，目标是让开发者从手动 useMemo/useCallback/memo 中解放出来。B 正确，编译器并不删除这些 Hook，当需要向外部系统保证引用稳定、或表达刻意的语义约束时，手动记忆化依然合理。D 正确，React 19 起函数组件可直接把 ref 当普通 prop 接收（forwardRef 不再必需），并引入 use() 在渲染阶段读取 Promise（配合 Suspense）或 Context。C 错误，编译器的目的正是自动应用 bailout 与记忆化以减少无效重渲染，「必然产生全新树、性能一定更差」与事实相反；是否重渲染仍由状态变更与编译器插入的缓存判定共同决定。",
+    "gapCheck": [
+      "易漏点：React Compiler 是编译期自动记忆化，不改变 React 单向数据流与调度模型，useState/useReducer 心智模型不变。",
+      "常见误区：以为启用编译器后 useMemo/useCallback 立刻非法或必须全部删除；实际上它们仍合法，只是多数场景变得非必需。",
+      "加分线索：能区分「编译器自动缓存」与「手动语义保证引用稳定」两类需求，并说明 ref-as-prop、use() 等 19 新特性者更优。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.react.mechanism"
+      ],
+      "related": [
+        "fe.eco.ssr.frameworks",
+        "fe.perf.metrics.profiling"
+      ],
+      "followUps": [
+        "React Compiler 插入的记忆化与手写 useMemo 在依赖判定上有何差异？",
+        "ref 作为普通 prop 后，forwardRef 还有哪些残留使用场景？",
+        "use() 读取 Promise 与传统 useEffect 拉数据在渲染时序上有什么不同？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 React 19 与 React Compiler 官方机制语义编写"
+    },
+    "tags": [
+      "React19",
+      "ReactCompiler",
+      "记忆化"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0099"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.eco.ssr.frameworks",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "在 Next.js App Router（React Server Components 体系）中：默认导出的组件在服务端渲染，称为 ______ 组件；只有在文件顶部声明 \"______\" 指令后，该模块才会作为客户端组件打包并可使用 useState 等交互能力；服务端组件通过 ______ 把异步数据请求与 UI 渲染整合到同一套渲染管线中，配合 Suspense 实现流式渲染。",
+    "answer": {
+      "blanks": [
+        "Server（服务端）",
+        "use client",
+        "async/await（异步组件）"
+      ],
+      "synonyms": {
+        "Server（服务端）": [
+          "服务端组件",
+          "RSC",
+          "Server Component"
+        ],
+        "use client": [
+          "\"use client\"",
+          "use-client"
+        ],
+        "async/await（异步组件）": [
+          "async",
+          "await",
+          "异步组件",
+          "async 组件"
+        ]
+      }
+    },
+    "analysis": "第一空：App Router 下组件默认就是 Server Component（RSC），在服务端执行、不发送到客户端 bundle。第二空：需要交互能力（useState、事件监听、浏览器 API）时，必须在模块顶部写 \"use client\" 指令，将其边界标记为客户端组件，但其下层服务端组件仍可作为 children 传入。第三空：服务端组件原生支持 async/await，可在渲染中直接 await 数据源，React 结合 Suspense 边界把 HTML 分块流式发送（streaming SSR），避免一次性阻塞。注意 \"use client\" 是模块边界而非「整个应用变 SPA」的开关，客户端组件仍会先在服务端预渲染。",
+    "gapCheck": [
+      "易漏点：组件默认是服务端组件，\"use client\" 标记的是模块边界，客户端组件仍会经历服务端预渲染（SSR）而非纯 CSR。",
+      "常见误区：以为写了 \"use client\" 整个路由就变成单页应用；实际上边界之下仍可嵌套服务端组件并复用 RSC 数据获取。",
+      "排查线索：服务端组件里误用 useState/window 报错时，先确认是否缺少 \"use client\"；流式渲染异常先检查 Suspense 边界与 await 位置。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.ssr.frameworks"
+      ],
+      "related": [
+        "fe.eco.react.mechanism",
+        "fe.perf.loading.critical-path"
+      ],
+      "followUps": [
+        "服务端组件与客户端组件如何通过 children 组合而不丢失 RSC 优势？",
+        "流式 SSR 中 Suspense 边界如何决定 HTML 分块发送时机？",
+        "Nuxt/Nitro 体系下与 RSC 对应的服务端渲染能力有哪些异同？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Next.js App Router 与 RSC 官方机制语义编写"
+    },
+    "tags": [
+      "RSC",
+      "Next.js",
+      "流式渲染"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0100"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.eco.styles.tailwind",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Tailwind CSS v4（基于 Oxide 的新一代引擎）相对 v3 的工程变化，下列说法正确的有哪几项？",
+    "options": [
+      {
+        "key": "A",
+        "text": "v4 优先使用 CSS 原生 @import \"tailwindcss\" 与 @theme 定义设计令牌，配置重心从 tailwind.config.js 迁移到 CSS"
+      },
+      {
+        "key": "B",
+        "text": "v4 采用 Rust 编写的 Oxide 引擎，全量构建与增量扫描速度显著提升，并默认基于现代浏览器特性"
+      },
+      {
+        "key": "C",
+        "text": "v4 彻底移除了工具类（utility-first）写法，开发者只能写传统语义化 class 与自定义 CSS"
+      },
+      {
+        "key": "D",
+        "text": "v4 原生支持级联层（cascade layers）、现代颜色函数（如 oklch）与容器查询等更现代的 CSS 能力"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A 正确，Tailwind v4 推行「CSS-first 配置」：用 @import 引入、用 @theme 在 CSS 里声明设计令牌，JS 配置文件不再是唯一中心。B 正确，v4 底层换成 Rust 实现的 Oxide 引擎，构建与内容扫描更快，并面向现代浏览器生成更现代的产物。D 正确，v4 内建 cascade layers、默认使用 oklch 等现代色彩空间，并原生支持容器查询等特性。C 错误，v4 仍是 utility-first 框架，原子工具类是其核心，并未被移除，变化主要在引擎、配置方式与产物现代化。",
+    "gapCheck": [
+      "易漏点：v4 的 CSS-first 配置让 @theme 成为设计令牌单一来源，tailwind.config.js 的角色被弱化而非完全消失（兼容场景仍可用）。",
+      "常见误区：把引擎升级误解为编程范式改变，以为不再写工具类；实际上 utility-first 类名体系保留并扩展。",
+      "加分线索：能说明 Oxide 带来的构建提速、oklch 色彩与 cascade layers 对主题化和样式优先级治理的价值者更优。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.styles.tailwind"
+      ],
+      "related": [
+        "fe.eco.desktop.tauri",
+        "fe.perf.metrics.core"
+      ],
+      "followUps": [
+        "CSS-first 的 @theme 与传统 tailwind.config.js 在令牌复用上有什么差异？",
+        "Oxide 引擎主要优化了构建链路的哪些环节？",
+        "从 v3 升级到 v4 时，自定义插件与配置最容易踩哪些兼容坑？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Tailwind CSS v4/Oxide 官方机制语义编写"
+    },
+    "tags": [
+      "Tailwind",
+      "CSS-first",
+      "构建工具"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0101"
+  },
+  {
+    "g": 5,
+    "nodeId": "fe.eco.styles.tailwind",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "在同一个设计系统落地中，Tailwind CSS（v4）与 UnoCSS 都提供原子化 CSS 能力。请从引擎实现、预设/规则组织方式、按需生成与产物控制、以及与现有工程的集成成本四个角度，比较二者的选型权衡。",
+    "analysis": "本题考查原子化 CSS 两大方案的工程取舍。Tailwind v4 借 Oxide（Rust）提升性能、走 CSS-first 配置与成熟稳定的约定式工具类；UnoCSS 主打即时（instant）按需生成、高度可组合的 preset/rule 体系与更强的可定制性，但生态与团队熟悉度通常弱于 Tailwind。选型应结合团队既有约定、定制强度与构建工具链综合判断。",
+    "scoringPoints": [
+      {
+        "point": "引擎实现：Tailwind v4 用 Rust/Oxide 扫描生成；UnoCSS 为即时按需引擎，强调冷启动/热更新速度",
+        "weight": 2
+      },
+      {
+        "point": "规则组织：Tailwind 以约定式工具类+@theme 令牌为主；UnoCSS 以 preset/rule/shortcut 组合，可编程定制更强",
+        "weight": 3
+      },
+      {
+        "point": "按需与产物：二者都只生成用到的样式；UnoCSS 可细粒度自定义规则与 attributify 等，Tailwind 产物更标准化可控",
+        "weight": 2
+      },
+      {
+        "point": "集成成本：Tailwind 生态成熟、文档与组件库丰富、上手成本低；UnoCSS 灵活但团队约定与排障经验相对少，迁移需评估规则兼容",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "参考要点：①引擎——Tailwind v4 采用 Rust 编写的 Oxide 引擎做内容扫描与产物生成，性能大幅提升；UnoCSS 采用即时（on-demand）引擎，不预生成、按用到的类即时产出，冷启动与 HMR 很快。②规则组织——Tailwind 以约定式原子类为核心，配合 CSS-first 的 @theme 管理设计令牌，规范统一；UnoCSS 通过 preset、rules、shortcuts、variants 高度可编程，支持 attributify、icons 等多种预设，定制自由度更高。③按需生成与产物——两者都只打包实际使用的样式，体积可控；UnoCSS 在自定义规则与变体上更灵活，Tailwind 的产物与命名更标准化、跨项目一致性更好。④集成成本——Tailwind 生态、文档、UI 组件模板与团队熟悉度占优，接入与招聘成本低；UnoCSS 灵活但团队约定、调试经验与第三方组件兼容需要额外评估。结论：重规范与生态选 Tailwind v4；重极致按需、深度定制或需在多框架统一原子层时 UnoCSS 更具弹性。"
+    },
+    "gapCheck": [
+      "易漏点：二者都按需生成，差异不只在「快」，更在规则可编程性与设计令牌治理方式。",
+      "常见误区：把 UnoCSS 简单等同于「更快的 Tailwind」，忽略 preset 体系带来的范式差异与兼容成本。",
+      "加分线索：能结合具体构建工具（Vite 插件、postcss 插件）说明接入差异与 HMR 表现者更优。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.eco.styles.tailwind"
+      ],
+      "related": [
+        "fe.eco.desktop.tauri",
+        "fe.perf.loading.resource-hint"
+      ],
+      "followUps": [
+        "UnoCSS 的 preset 机制与 Tailwind 的插件体系在扩展模型上有何不同？",
+        "CSS-first 令牌如何在两者中分别实现主题切换？",
+        "同一套设计令牌如何避免原子类泛滥导致的模板可读性下降？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Tailwind v4 与 UnoCSS 官方机制及工程实践编写"
+    },
+    "tags": [
+      "原子化CSS",
+      "选型对比",
+      "工程权衡"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0102"
+  }
+]

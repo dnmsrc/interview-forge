@@ -1,0 +1,489 @@
+[
+  {
+    "id": "Q-cs-algo-tree-0001",
+    "nodeId": "cs.algo.tree.traversal-bst",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "对一棵二叉搜索树（BST）做哪种遍历，可以得到一个严格递增的有序序列？",
+    "options": [
+      { "key": "A", "text": "前序遍历（根-左-右）" },
+      { "key": "B", "text": "中序遍历（左-根-右）" },
+      { "key": "C", "text": "后序遍历（左-右-根）" },
+      { "key": "D", "text": "层序遍历（从上到下按层）" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确。BST 的定义是任意节点的左子树所有值小于它、右子树所有值大于它，中序遍历『左-根-右』恰好按从小到大的顺序访问，这是 BST 最核心的性质，也是验证一棵树是否为 BST 的常用方法（中序结果单调递增）。前序反映根优先的结构（可用于序列化重建 BST），后序适合先处理子节点再处理根的场景（如释放树、计算高度），层序是 BFS 视角，均不保证有序输出。",
+    "gapCheck": [
+      "易漏点：中序有序只是 BST 的必要条件之一，严格验证还要保证每个节点落在合法取值区间（避免只比父子节点的错误写法）",
+      "常见误区：以为任意二叉树的中序都有序——只有满足 BST 性质的树才成立",
+      "加分项：能讲中序遍历的迭代栈写法，以及 Morris 中序遍历可把空间降到 O(1)"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.traversal-bst"],
+      "related": ["cs.algo.tree.balanced-tree"],
+      "followUps": [
+        "如何不用递归、不用中序数组，在 O(h) 空间内验证 BST？",
+        "给定 BST 的前序遍历序列，如何重建这棵树？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "BST 中序有序单选题" },
+    "tags": ["BST", "中序遍历", "基础", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0002",
+    "nodeId": "cs.algo.tree.traversal-bst",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于二叉树的递归与迭代遍历，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "前/中/后序遍历本质都是深度优先（DFS），区别只在处理根节点的时机；递归写法隐式使用了函数调用栈" },
+      { "key": "B", "text": "中序遍历的迭代写法用显式栈：一路把左孩子压栈，弹栈时访问节点再转向其右子树" },
+      { "key": "C", "text": "层序遍历借助队列实现，每个节点入队出队各一次，时间 O(n)，空间最坏 O(n)（完全二叉树最后一层约 n/2 个节点同时在队）" },
+      { "key": "D", "text": "后序遍历无法用迭代实现，只能递归" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 点明三种 DFS 序的命名规则与递归的栈本质。B 是中序迭代的标准模板。C 给出 BFS 的复杂度，队列峰值等于最宽层的节点数。D 错：后序同样可迭代，常见两种写法——双栈法（根右左的前序变体结果再反转），或用标记/空指针占位区分『首次压栈』与『子树已处理完』。所有遍历时间都是 O(n)，递归/显式栈空间 O(h)，层序空间 O(w)。",
+    "gapCheck": [
+      "易漏点：递归遍历的空间复杂度是树高 O(h)，不是 O(1)；退化成链时为 O(n)",
+      "常见误区：认为后序只能递归——显式栈加访问标记即可迭代实现",
+      "加分项：知道 Morris 遍历利用叶子空闲指针做线索化，三种 DFS 都能 O(1) 额外空间实现"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.traversal-bst"],
+      "related": ["cs.algo.linear.stack-queue-monotonic", "cs.algo.graph.bfs-dfs"],
+      "followUps": [
+        "Morris 遍历的线索化具体怎么建立和还原？",
+        "层序遍历如何按层分组返回二维数组？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "二叉树遍历方式多选题" },
+    "tags": ["二叉树", "遍历", "DFS", "BFS"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0003",
+    "nodeId": "cs.algo.tree.traversal-bst",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：验证一棵二叉树是否为 BST，不能只比较每个节点与其左右孩子的大小，必须保证节点值落在其祖先约束出的整个取值区间内（左子树所有节点 < 根 < 右子树所有节点）；例如根为 10、右孩子为 15、而该右孩子的左孩子为 6 时，只比父子会误判为合法。",
+    "answer": { "judge": true },
+    "analysis": "正确。只比父子的写法会放过『6 比父亲 15 小、却比祖先根 10 小，不该出现在根的右子树』这类违例。正确做法是递归携带上下界：左子树上界收紧为当前节点值、右子树下界收紧为当前节点值，每个节点必须满足 lower < val < upper；或者中序遍历检查序列严格递增。这也是 BST 题目最常见的边界类 bug 来源。",
+    "gapCheck": [
+      "易漏点：边界要随递归路径传递并收紧，初始界通常用正负无穷（或语言的极值常量并小心相等情形）",
+      "常见误区：用 `node.left.val < node.val` 的局部检查替代全局区间约束",
+      "加分项：能指出节点值有重复时 BST 的约定（左小右大还是允许相等放一侧）需提前明确"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.traversal-bst"],
+      "related": ["cs.algo.tree.balanced-tree"],
+      "followUps": [
+        "BST 中删除一个有两个孩子的节点，后继怎么找？",
+        "中序递增检查和区间递归检查在空间复杂度上有什么差别？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "BST 验证区间约束判断题" },
+    "tags": ["BST", "验证", "递归", "易错点"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0004",
+    "nodeId": "cs.algo.tree.traversal-bst",
+    "type": "code",
+    "difficulty": 3,
+    "stem": "手写题：给定二叉树根节点 `root`，写出层序遍历（BFS），要求按层分组返回二维数组（每个内层数组是同一层从左到右的节点值）。要求：①说明用什么数据结构、每层如何切分；②给出时间与空间复杂度；③如果改成『之』字形层序（奇数层从左到右、偶数层从右到左）怎么改。",
+    "answer": {
+      "ref": "用队列做 BFS：根入队后循环，每轮开始先记录当前队列长度 levelSize，它恰好等于该层节点数；在这个固定次数内逐个出队、收集值、把非空左右孩子入队。levelSize 是按层分组的关键——不能用『队列空了』判断一层结束，因为下一层节点在处理过程中会持续入队。复杂度：每个节点入出队各一次，时间 O(n)；队列峰值为最宽层节点数，完全二叉树最后一层约 n/2，空间 O(n)。之字形只需维护一个层号标志，偶数层把该层结果反转（或用双端队列选择头插/尾插）即可。",
+      "code": "function TreeNode(val, left, right) {\n  this.val = (val===undefined ? 0 : val);\n  this.left = (left===undefined ? null : left);\n  this.right = (right===undefined ? null : right);\n}\n\n// 按层分组的层序遍历\nfunction levelOrder(root) {\n  const ans = [];\n  if (!root) return ans;\n  const q = [root];\n  while (q.length) {\n    const levelSize = q.length;   // 关键：固定本层节点数\n    const level = [];\n    for (let i = 0; i < levelSize; i++) {\n      const node = q.shift();      // 生产代码建议用真正的队列结构\n      level.push(node.val);\n      if (node.left) q.push(node.left);\n      if (node.right) q.push(node.right);\n    }\n    ans.push(level);\n  }\n  return ans;\n}\n\n// 之字形：加层号，偶数层反转\nfunction zigzagLevelOrder(root) {\n  const ans = [];\n  if (!root) return ans;\n  const q = [root];\n  let leftToRight = true;\n  while (q.length) {\n    const levelSize = q.length, level = [];\n    for (let i = 0; i < levelSize; i++) {\n      const node = q.shift();\n      if (leftToRight) level.push(node.val);\n      else level.unshift(node.val);          // 反向层头插\n      if (node.left) q.push(node.left);\n      if (node.right) q.push(node.right);\n    }\n    ans.push(level);\n    leftToRight = !leftToRight;\n  }\n  return ans;\n}"
+    },
+    "scoringPoints": [
+      { "point": "队列 BFS 骨架正确，用进入循环时的固定 levelSize 切分层", "weight": 3 },
+      { "point": "孩子入队前做非空判断，根为空的边界处理正确", "weight": 2 },
+      { "point": "复杂度正确：时间 O(n)、空间 O(n)（队列峰值=最宽层）", "weight": 2 },
+      { "point": "之字形改法合理（层标志+反转/头插），不破坏 BFS 主流程", "weight": 1 }
+    ],
+    "analysis": "层序遍历是 BFS 模板题，面试官常顺手考按层分组。典型失分：①不知道用 levelSize 固定本层数量，边出边入导致分层错乱；②用数组 shift() 却讲不清它在 JS 里是 O(n)，工程实现应换环形队列或双指针；③之字形靠改变入队顺序实现导致逻辑混乱，正解是只改输出方向。能补充右视图（每层取最后一个）、平均值、最大宽度等同一模板的变体，说明真正掌握了框架。",
+    "gapCheck": [
+      "易漏点：每层处理前先快照队列长度，处理中入队的孩子属于下一层",
+      "常见误区：为了之字形去反转入队顺序——入队始终保持左到右，只在输出层做方向处理",
+      "加分项：能把同一模板迁移到右视图、层平均值、树最大宽度等题目"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.traversal-bst"],
+      "related": ["cs.algo.graph.bfs-dfs", "cs.algo.linear.stack-queue-monotonic"],
+      "followUps": [
+        "二叉树的右视图用层序遍历怎么取？DFS 能不能做？",
+        "求二叉树最大宽度时空节点也要占位编号，下标怎么推？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "二叉树层序遍历手写代码题" },
+    "tags": ["手写题", "层序遍历", "BFS", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0005",
+    "nodeId": "cs.algo.tree.traversal-bst",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请回答：①写出二叉树前/中/后序遍历的迭代（显式栈）实现思路，说明中序与后序各自的难点；②BST 上查找、插入、删除的流程与复杂度；③删除一个同时有左右子树的节点时怎么处理，为什么这样能保持 BST 性质？",
+    "answer": {
+      "ref": "参考骨架：【迭代遍历】前序：访问根→右孩子压栈→左孩子压栈（栈 LIFO 保证左先出），或边访问边压栈一路向左。中序：cur 从根开始，外层循环 cur 非空或栈非空；内层把 cur 及其整条左链压栈，cur=cur.left；到底后弹栈访问该节点，再 cur=node.right 转右子树。难点是『访问时机』在弹栈而非压栈。后序：方法一，按根-右-左做变体前序，结果反转即左-右-根；方法二，栈中存 (node, visited) 标记，首次压栈标记 false 并依次压右、左、自己（标记 true），弹出标记 true 时才访问，模拟『子树处理完再处理根』。难点是区分节点是第一次路过还是子树已完成。\n【BST 操作】查找：从根比较，小则向左、大则向右，命中或遇空结束；插入：沿同样路径找到空位置挂新叶；删除分三种——叶子直接删；只有一个孩子用孩子顶替；有两个孩子则找右子树最小节点（中序后继，或左子树最大的前驱），把它的值复制到被删节点，再递归删除那个后继（后继至多只有一个孩子，落到简单情形）。复杂度均与树高 h 成正比，平衡 BST 为 O(log n)，退化成链表时最坏 O(n)。\n【双子删除的正确性】中序后继是右子树中最小的值，它大于被删节点左子树全部值、又小于右子树其余值，复制其值顶替被删节点后，整棵树的中序序列仍然递增，BST 性质保持；后继自身没有左孩子（否则它不是最小），删除它只需用其右孩子顶替，不会再遇到双子问题。"
+    },
+    "scoringPoints": [
+      { "point": "三种迭代遍历思路清晰，中序弹栈访问、后序标记/反转难点讲透", "weight": 3 },
+      { "point": "BST 查插删流程正确，复杂度与树高 h 挂钩并指出退化风险", "weight": 2 },
+      { "point": "双子删除用中序后继（或前驱）顶替并解释保序原理", "weight": 2 },
+      { "point": "能说明后继至多一个孩子、删除递归落到简单情形", "weight": 1 }
+    ],
+    "analysis": "这题覆盖 BST 章节的主干。常见失分：迭代后序只会递归；删除只讲叶子和单子，双子情形答不出后继顶替；复杂度笼统写 O(log n) 而不说前提是平衡。能指出普通 BST 退化问题并自然引出 AVL/红黑树的平衡动机，回答就有完整的知识链条。",
+    "gapCheck": [
+      "易漏点：BST 操作复杂度是 O(h) 而非恒为 O(log n)，h 在退化时等于 n",
+      "常见误区：删除双子节点时直接把右孩子提上来，破坏左子树与后继值的大小关系",
+      "加分项：能对比前驱/后继两种顶替方案，并联系平衡树说明工程实现为何需要旋转"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.traversal-bst"],
+      "related": ["cs.algo.tree.balanced-tree", "cs.algo.linear.stack-queue-monotonic"],
+      "followUps": [
+        "为什么 TreeMap 不直接用普通 BST 而要用红黑树？",
+        "迭代后序的标记法中，压栈顺序为什么是右、左、自己？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "迭代遍历与 BST 删除主观题" },
+    "tags": ["BST", "迭代遍历", "删除节点", "体系化"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0006",
+    "nodeId": "cs.algo.tree.balanced-tree",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于红黑树，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "红黑树是严格平衡树，任意节点左右子树高度差不超过 1" },
+      { "key": "B", "text": "红黑树通过五条着色性质（根与叶为黑、红节点的孩子必为黑、任一节点到叶的路径黑节点数相同等）保证最长路径不超过最短路径的 2 倍，是一种近似平衡；插入删除最多常数次旋转加变色即可恢复性质" },
+      { "key": "C", "text": "红黑树查找的最坏复杂度是 O(n)" },
+      { "key": "D", "text": "红黑树不允许有连续的黑色节点，黑节点的孩子必须是红色" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确概括了红黑树的工程哲学：不追求 AVL 式严格平衡，而用『黑高相同+红不相邻』把高度约束在 2log(n+1) 以内，保证 O(log n) 操作，同时把插入/删除的旋转次数压到最多 3 次（配合变色），修改代价低、适合读写混合场景。A 描述的是 AVL 的平衡因子约束。C 错：高度有对数保证，查找最坏 O(log n)。D 把颜色规则说反——受限的是红节点不能连续（红节点的孩子必须黑），黑节点连续完全正常。",
+    "gapCheck": [
+      "易漏点：红黑树保证的是黑高一致与近似平衡，不是严格高度差 ≤1",
+      "常见误区：把 AVL 的严格平衡规则套到红黑树上，或记错红黑颜色约束方向",
+      "加分项：能列举真实应用（Java TreeMap/TreeSet、Linux CFS 调度、epoll 事件块、Nginx 定时器）说明其工程地位"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.balanced-tree"],
+      "related": ["cs.algo.tree.traversal-bst", "cs.algo.tree.heap-topk"],
+      "followUps": [
+        "红黑树插入一个红节点后可能违反哪几条性质？修复流程是什么？",
+        "为什么工程上红黑树比 AVL 更常用作通用有序容器？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "红黑树性质单选题" },
+    "tags": ["红黑树", "平衡树", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0007",
+    "nodeId": "cs.algo.tree.balanced-tree",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：AVL 树要求每个节点左右子树高度差（平衡因子）绝对值不超过 1；插入导致失衡时，根据失衡节点与其孩子、孙子的方向组合分为 LL、RR、LR、RL 四种情况，分别用一次右旋转、一次左旋转、先左后右双旋转、先右后左双旋转修复。",
+    "answer": { "judge": true },
+    "analysis": "正确。平衡因子 = 左子树高 - 右子树高，合法取值 -1、0、1。LL（左孩子的左子树插入致左重）一次右旋；RR 镜像一次左旋；LR（左孩子的右子树插入）先对左孩子左旋把结构转成 LL，再对失衡点右旋；RL 镜像处理。AVL 因此严格平衡、查找路径最短，但插入/删除可能触发沿祖先链的多次旋转，维护成本高于红黑树，适合查询远多于修改的场景。",
+    "gapCheck": [
+      "易漏点：LR/RL 是双旋转，第一次旋转的对象是孩子节点而非失衡节点本身",
+      "常见误区：以为任何失衡一次旋转就能修好——双旋转情形必须先『掰直』再旋转",
+      "加分项：能对比 AVL 与红黑树在旋转频率、高度上限、适用负载上的差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.balanced-tree"],
+      "related": ["cs.algo.tree.traversal-bst"],
+      "followUps": [
+        "旋转操作为什么不会破坏 BST 的中序有序性？",
+        "AVL 删除节点后为什么可能需要多次旋转而插入只需一次？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "AVL 平衡因子与旋转判断题" },
+    "tags": ["AVL", "旋转", "平衡因子"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0008",
+    "nodeId": "cs.algo.tree.balanced-tree",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 AVL 树与红黑树的对比，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "AVL 平衡更严格、树高更低，纯查找场景下 AVL 的查找次数通常略少；红黑树近似平衡，高度上限约为 AVL 的两倍以内但仍为 O(log n)" },
+      { "key": "B", "text": "红黑树插入/删除的调整代价更低：插入最多两次旋转、删除最多三次旋转，配合变色完成；AVL 在删除时可能沿路径多次旋转，写放大更高" },
+      { "key": "C", "text": "两者查找、插入、删除的最坏时间复杂度都是 O(log n)" },
+      { "key": "D", "text": "红黑树因为带颜色，已经不需要满足 BST 的大小关系性质" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 说清严格平衡与近似平衡的取舍：AVL 高度约 1.44log n，红黑树上限 2log(n+1)，查找都为对数级但 AVL 常数略优。B 解释了通用容器偏爱红黑树的原因——写操作旋转有常数上界。C 是两者共同的复杂度结论。D 错：红黑树首先是一棵 BST，颜色与旋转机制是在 BST 之上叠加的平衡约束，中序有序等 BST 性质一条不少。",
+    "gapCheck": [
+      "易漏点：红黑树的颜色机制是 BST 之上的附加约束，不是替代关系",
+      "常见误区：以为红黑树查找比 AVL 差一个数量级——两者同为 O(log n)，只差常数",
+      "加分项：能结合读写比给选型建议（查多改少 AVL，读写均衡或写多红黑树）并举标准库实例"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.balanced-tree"],
+      "related": ["cs.algo.tree.traversal-bst"],
+      "followUps": [
+        "数据库索引为什么更多用 B+ 树而不是红黑树/AVL？",
+        "跳表（skip list）也能提供 O(log n) 有序操作，它和红黑树相比优劣在哪？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "AVL 与红黑树对比多选题" },
+    "tags": ["AVL", "红黑树", "平衡树", "选型"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0009",
+    "nodeId": "cs.algo.tree.heap-topk",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "一个用数组存储的大顶堆（下标从 0 开始），下标为 i 的节点，其左右孩子的下标分别是：",
+    "options": [
+      { "key": "A", "text": "左孩子 2i，右孩子 2i+1" },
+      { "key": "B", "text": "左孩子 2i+1，右孩子 2i+2；父节点下标为 Math.floor((i-1)/2)" },
+      { "key": "C", "text": "左孩子 i+1，右孩子 i+2" },
+      { "key": "D", "text": "堆是链表结构，没有下标关系" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 是 0 基数组堆的标准映射：left=2i+1、right=2i+2、parent=⌊(i-1)/2⌋。A 是下标从 1 开始时的公式（left=2i、right=2i+1），两套公式差一个偏移，面试手写前必须先声明下标约定。C 描述的是普通相邻元素，与树结构无关。D 错：堆的标准实现恰恰是利用完全二叉树『无空洞』的性质用数组紧凑存储，不需要指针，这也是它比链式树省内存的原因。",
+    "gapCheck": [
+      "易漏点：0 基与 1 基下标公式差 1，手写时先声明约定再写代码",
+      "常见误区：把堆和 BST 混淆——堆只保证父子间的堆序，不保证左右子树之间全局有序，不能直接中序出有序序列",
+      "加分项：能讲完全二叉树数组存储为何无空间浪费，以及最后一个非叶子节点下标 ⌊n/2⌋-1"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.heap-topk"],
+      "related": ["cs.algo.sort.quick-merge-heap"],
+      "followUps": [
+        "为什么堆不适合做普通的按 key 查找？它和 BST 的职责分工是什么？",
+        "堆的插入和取堆顶分别靠上浮还是下沉维持堆序？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "堆数组下标映射单选题" },
+    "tags": ["堆", "数组堆", "基础"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0010",
+    "nodeId": "cs.algo.tree.heap-topk",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：在海量整数中求最大的 K 个数（Top K）。要求：①用大小为 K 的小顶堆实现流式解法，写出完整 JS 代码并说明维护逻辑；②分析时间与空间复杂度，与『全量排序后取前 K』方案对比；③说明如果数据量极大、单机内存放不下，思路上怎么扩展。",
+    "answer": {
+      "ref": "维护一个容量 K 的小顶堆，堆顶是当前 K 个候选里最小的。逐个扫描元素：堆没满直接入堆；堆满后，只有当新元素大于堆顶时才弹出堆顶、插入新元素——小于堆顶的元素连候选资格都没有。扫描结束堆中即最大的 K 个数（堆顶是其中第 K 大）。时间 O(n log K)：每个元素至多一次堆操作，每次 O(log K)；空间 O(K)，与总量 n 无关，这正是相对全排序 O(n log n)、空间 O(n) 的核心优势，K 远小于 n 时差距显著。内存放不下时可分片：数据切分到多台机器/多个文件，各分片求局部 Top K，再汇总 K×分片数 个候选做一次总 Top K（归并或再建堆），即 MapReduce 式两阶段聚合。",
+      "code": "// 小顶堆：用数组存储，0 基下标\nclass MinHeap {\n  constructor() { this.a = []; }\n  size() { return this.a.length; }\n  top() { return this.a[0]; }\n  push(x) {\n    this.a.push(x);\n    let i = this.a.length - 1;\n    while (i > 0) { // 上浮\n      const p = (i - 1) >> 1;\n      if (this.a[p] <= this.a[i]) break;\n      [this.a[p], this.a[i]] = [this.a[i], this.a[p]];\n      i = p;\n    }\n  }\n  pop() {\n    const top = this.a[0], last = this.a.pop();\n    if (this.a.length) {\n      this.a[0] = last;\n      let i = 0, n = this.a.length;\n      while (true) { // 下沉\n        let l = 2 * i + 1, r = l + 1, smallest = i;\n        if (l < n && this.a[l] < this.a[smallest]) smallest = l;\n        if (r < n && this.a[r] < this.a[smallest]) smallest = r;\n        if (smallest === i) break;\n        [this.a[smallest], this.a[i]] = [this.a[i], this.a[smallest]];\n        i = smallest;\n      }\n    }\n    return top;\n  }\n}\n\nfunction topK(nums, k) {\n  if (k <= 0) return [];\n  const heap = new MinHeap();\n  for (const x of nums) {\n    if (heap.size() < k) heap.push(x);\n    else if (x > heap.top()) { heap.pop(); heap.push(x); }\n  }\n  return heap.a; // 堆内即最大的 k 个，顺序不保证\n}"
+    },
+    "scoringPoints": [
+      { "point": "小顶堆上浮/下沉实现正确，下标映射与循环终止条件无误", "weight": 3 },
+      { "point": "Top K 维护逻辑对：堆满后仅当新元素大于堆顶才替换", "weight": 2 },
+      { "point": "复杂度正确 O(n log K)/O(K)，并与全排序 O(n log n)/O(n) 对比", "weight": 2 },
+      { "point": "能给出分片-局部 TopK-汇总的分布式扩展思路", "weight": 1 }
+    ],
+    "analysis": "Top K 是堆的招牌应用题。常见失分：①用大顶堆存全部元素再弹 K 次，没体现小顶堆控内存的价值；②上浮下沉的父子下标写错或交换后忘记更新 i 死循环；③复杂度写成 O(n log n)，没注意堆大小始终是 K；④分布式场景没有思路。能补充快速选择（quickselect，平均 O(n) 求第 K 大但不适合流式）与堆方案的适用边界，属于加分。",
+    "gapCheck": [
+      "易漏点：求最大 K 个用『小顶堆』、求最小 K 个用『大顶堆』，堆顶永远是候选集的淘汰线",
+      "常见误区：上来就 sort 全量数据——流式与超内存场景下全排序不可行",
+      "加分项：能对比 quickselect O(n) 一次性求解与堆 O(n log K) 流式求解的选型条件"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.heap-topk"],
+      "related": ["cs.algo.sort.quick-merge-heap", "cs.algo.sort.binary-search"],
+      "followUps": [
+        "求流式数据的第 K 大与求 Top K 在处理上有什么异同？",
+        "如果 K 本身也很大（接近 n），堆方案还是最优吗？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "堆实现 TopK 手写代码题" },
+    "tags": ["手写题", "堆", "TopK", "高频", "海量数据"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0011",
+    "nodeId": "cs.algo.tree.heap-topk",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：把一个无序数组原地堆化（建堆）的时间复杂度是 O(n) 而不是 O(n log n)；理由是从最后一个非叶子节点向前逐个下沉，越靠近根的节点越少，而大部分节点位于底层、下沉距离很短，按层求和的总代价是等比级数，收敛于 O(n)。",
+    "answer": { "judge": true },
+    "analysis": "正确。自底向下建堆：下标 ⌊n/2⌋-1 到 0 的节点逐个下沉。严格推导：设高 h 的堆共约 n 个节点，第 k 层（自底向上数）节点数约 n/2^(k+1)、每个最多下沉 k 次，总代价 Σ (n/2^(k+1))·k = (n/2)Σ k/2^k，而 Σ k/2^k 收敛于常数 2，故总代价 O(n)。对比『逐个插入建堆』每次 O(log n)、共 O(n log n)，堆化更优。注意建堆 O(n) 但随后的堆排序要做 n 次取顶+下沉，整体仍是 O(n log n)。",
+    "gapCheck": [
+      "易漏点：O(n) 建堆只针对自底向下下沉法；逐元素上浮插入建堆是 O(n log n)",
+      "常见误区：想当然认为 n 个节点每个 O(log n) 就是 O(n log n)，忽略低层节点占绝大多数且下沉距离短",
+      "加分项：能写出等比级数求和过程，并解释堆排序 O(n log n) 的时间花在反复取顶而非建堆"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.heap-topk"],
+      "related": ["cs.algo.sort.quick-merge-heap"],
+      "followUps": [
+        "堆排序的不稳定性能否通过修改比较器解决？为什么？",
+        "优先队列的 increaseKey 操作怎么用上浮实现，复杂度多少？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "建堆 O(n) 复杂度判断题" },
+    "tags": ["堆", "建堆", "复杂度推导", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0012",
+    "nodeId": "cs.algo.tree.heap-topk",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "填空：维护数据流的运行中位数，经典做法用两个堆：一个 ______ 堆存较小的一半数据，一个 ______ 堆存较大的一半；插入后调整使两堆元素数之差不超过 1，中位数在两堆大小相等时取两个堆顶的 ______，不等时取元素较多那堆的堆顶。每次插入的复杂度为 O(______)。",
+    "answer": {
+      "blanks": ["大顶", "小顶", "平均值", "log n"],
+      "synonyms": {
+        "大顶": ["最大", "大根", "大顶堆"],
+        "小顶": ["最小", "小根", "小顶堆"],
+        "平均值": ["均值", "算术平均值", "平均数"],
+        "log n": ["logn", "对数"]
+      }
+    },
+    "analysis": "大顶堆 low 存较小一半、堆顶是左半最大值；小顶堆 high 存较大一半、堆顶是右半最小值，两个堆顶夹住中位数。平衡规则：low 大小等于 high 或恰好多 1；新元素先与 low 堆顶比较决定入哪堆，再通过互倒元素恢复平衡。查询：等大取两堆顶平均，否则取 low 堆顶（约定 low 多一个时）。每次插入涉及常数次堆操作，O(log n)；查询中位数 O(1)。这是双堆设计的代表题，也体现堆『只关心极值』的特性。",
+    "gapCheck": [
+      "易漏点：新元素入哪堆要先和堆顶比较，不能机械地固定进某一堆，否则堆序被破坏",
+      "常见误区：试图用一个堆维护中位数——单个堆只能取一个极值，中位数需要左右两个边界夹逼",
+      "加分项：能讲数据分布极度倾斜时的数值精度问题，或扩展到滑动窗口中位数的删除难题"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.heap-topk"],
+      "related": ["cs.algo.sort.quick-merge-heap"],
+      "followUps": [
+        "滑动窗口中位数为什么比流式中位数难？懒删除怎么配合堆实现？",
+        "如果要同时支持任意分位数（p99）而不只是中位数，结构上怎么扩展？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "双堆中位数填空题" },
+    "tags": ["堆", "中位数", "双堆", "填空题"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0013",
+    "nodeId": "cs.algo.tree.heap-topk",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请回答：①堆的堆序性质是什么，大顶堆和小顶堆有何区别；②堆插入、取堆顶、建堆、堆排序各自的复杂度；③为什么堆排序是不稳定排序，什么场景下稳定性重要；④Top K 问题中堆方案与快速选择（quickselect）方案怎么选？",
+    "answer": {
+      "ref": "参考骨架：【堆序】完全二叉树+数组存储；大顶堆每个节点值 ≥ 其孩子（堆顶全局最大），小顶堆反之（堆顶全局最小）。注意堆只约束父子，不约束兄弟与左右子树整体顺序，所以堆不是 BST，中序遍历不有序。\n【复杂度】插入：放末尾再上浮 O(log n)；取堆顶：堆顶与末元素交换后下沉 O(log n)；建堆（自底向下下沉）O(n)；堆排序：建堆 O(n) 后反复取顶 n 次，总 O(n log n)，原地、空间 O(1)；查询堆顶 O(1)。\n【稳定性】稳定排序要求相等元素保持原相对顺序。堆排序在交换堆顶与数组末尾时，可能让相等元素跨越彼此换位（例如两个相等 key 的元素一个在堆顶被换到尾部、另一个留在前部），交换路径不保留相等元素次序，因此不稳定。稳定性在『先按字段 A 排序、再按字段 B 排序且希望 B 相等时保留 A 的次序』这类多关键字场景重要，如订单先按金额再按下单时间的报表需求。\n【Top K 选型】堆方案 O(n log K)、空间 O(K)，适合流式数据、超内存、K 较小且只需维护候选集的场景，一遍扫描即可。快速选择基于 partition，平均 O(n)、最坏 O(n²)（随机化后概率极低），适合数据可全部放入内存、一次性求第 K 大/前 K 的场景，常数也更小；但它破坏输入顺序且不支持增量到达。需要有序输出时 quickselect 后还需对 K 个结果排序。"
+    },
+    "scoringPoints": [
+      { "point": "堆序性质与大小顶堆区别讲清，明确堆不是 BST", "weight": 2 },
+      { "point": "四个复杂度全部正确，建堆 O(n) 与堆排序 O(n log n) 区分开", "weight": 2 },
+      { "point": "不稳定原因落到具体交换行为，稳定性场景举多关键字排序实例", "weight": 2 },
+      { "point": "堆与 quickselect 按流式/内存/K 大小给出选型条件", "weight": 2 }
+    ],
+    "analysis": "这是堆章节的收口题。常见失分：建堆与堆排序复杂度混淆；稳定性只会背结论讲不出交换机制；quickselect 不知道或者声称它最坏也是 O(n)。能联系优先队列、定时器、Top K 等真实用途，并指出工程库（JS 无内置堆、Java PriorityQueue 默认小顶堆）的实现事实，回答更扎实。",
+    "gapCheck": [
+      "易漏点：堆排序不稳定的根因是远距离交换相等元素，与比较器写法无关",
+      "常见误区：把 quickselect 平均 O(n) 当成保证 O(n)——它的最坏情况仍是 O(n²)",
+      "加分项：能讲 introselect（quickselect 退化时切换中位数策略）等工程化改进"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.heap-topk"],
+      "related": ["cs.algo.sort.quick-merge-heap", "cs.algo.sort.binary-search"],
+      "followUps": [
+        "PriorityQueue 为什么不支持随机获取第 K 个元素？",
+        "外排序中堆是怎么参与 k 路归并的？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "堆性质与选型体系化主观题" },
+    "tags": ["堆", "堆排序", "稳定性", "TopK", "体系化"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0014",
+    "nodeId": "cs.algo.tree.trie",
+    "type": "code",
+    "difficulty": 3,
+    "stem": "手写题：实现一个仅含小写字母的 Trie（前缀树），包含 `insert(word)`、`search(word)`（判断完整单词是否存在）、`startsWith(prefix)`（判断是否有以 prefix 开头的单词）三个方法。要求：①说明节点结构；②分析三个方法的复杂度；③对比哈希表说明 Trie 做前缀检索的优势。",
+    "answer": {
+      "ref": "节点结构：children 数组（26 个槽，或用 Map 支持任意字符）加一个布尔 end 标记表示是否有单词在此结束。insert 从根逐字符下钻，孩子不存在就新建，走完标记 end=true。search 同样逐字符下钻，中途断链返回 false，走到末尾还要检查 end 标记（区分完整单词与只是前缀）。startsWith 只要求能沿前缀走通，不查 end。复杂度：三者都是 O(L)，L 为单词/前缀长度，与词典词条总数 N 无关；空间 O(所有单词字符总数 × 字母表常数)，公共前缀越长越省。对比哈希表：哈希表能 O(1) 判断完整 key，但『有没有以 prefix 开头的 key』需要枚举全部 key 或额外索引，Trie 沿前缀走一次即可，且天然支持按字典序枚举、自动补全；代价是节点指针的空间开销大于紧凑哈希存储。",
+      "code": "class TrieNode {\n  constructor() { this.children = new Array(26).fill(null); this.end = false; }\n}\nclass Trie {\n  constructor() { this.root = new TrieNode(); }\n  insert(word) {\n    let node = this.root;\n    for (const ch of word) {\n      const idx = ch.charCodeAt(0) - 97;\n      if (!node.children[idx]) node.children[idx] = new TrieNode();\n      node = node.children[idx];\n    }\n    node.end = true;                       // 标记单词结尾\n  }\n  _walk(prefix) {                          // 公共下钻逻辑\n    let node = this.root;\n    for (const ch of prefix) {\n      const idx = ch.charCodeAt(0) - 97;\n      if (!node.children[idx]) return null;\n      node = node.children[idx];\n    }\n    return node;\n  }\n  search(word) {\n    const node = this._walk(word);\n    return node !== null && node.end;      // 必须是完整单词\n  }\n  startsWith(prefix) {\n    return this._walk(prefix) !== null;    // 前缀走通即可\n  }\n}"
+    },
+    "scoringPoints": [
+      { "point": "节点含 children 与 end 标记，insert 逐字符建链并正确标记结尾", "weight": 3 },
+      { "point": "search 与 startsWith 的区别处理对（前者查 end、后者不查）", "weight": 2 },
+      { "point": "复杂度 O(L) 与空间分析正确，指出与词条数 N 无关", "weight": 2 },
+      { "point": "对比哈希表讲清前缀检索、字典序枚举的优势与空间代价", "weight": 1 }
+    ],
+    "analysis": "Trie 手写题难度不高但细节定成败。典型失分：①漏掉 end 标记，导致 search 把前缀误判成单词；②复杂度写成 O(N) 或 O(NL)；③用对象存孩子却不处理字符映射。能延伸到搜索提示枚举（DFS 收集子树所有 end）、敏感词 AC 自动机（Trie+失配指针）、路由表最长前缀匹配，属于明显加分。",
+    "gapCheck": [
+      "易漏点：end 结尾标记是区分『单词存在』与『前缀存在』的关键",
+      "常见误区：认为 Trie 查询复杂度与词条数有关——它只取决于词长 L",
+      "加分项：能讲 AC 自动机如何在 Trie 上加 fail 指针实现多模式串一次扫描匹配"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.trie"],
+      "related": ["cs.algo.linear.hash-table"],
+      "followUps": [
+        "如何实现输入前缀后返回按字典序的前 10 个自动补全建议？",
+        "AC 自动机的失配指针和 KMP 的前缀函数有什么共通思想？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "Trie 三方法手写代码题" },
+    "tags": ["手写题", "Trie", "前缀树", "高频"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0015",
+    "nodeId": "cs.algo.tree.trie",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 Trie（前缀树）的查询复杂度，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "查找一个长度为 L 的单词需要 O(L log N)，N 是词典中单词总数" },
+      { "key": "B", "text": "插入、完整查找、前缀查找都是 O(L)，L 是单词/前缀长度，与词典规模 N 无关；空间复杂度约为 O(字符总数)" },
+      { "key": "C", "text": "Trie 的查找必须先排序，复杂度 O(N log N)" },
+      { "key": "D", "text": "Trie 不支持前缀查询，只能判断完整单词" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确：Trie 每层消耗一个字符，路径长度就是词长 L，词典再大也不影响单条查询的步数；空间上所有节点数受限于全部单词的字符总数（公共前缀共享节点，实际更少）。A 把树查找的 log N 套错了对象——那是 BST/平衡树的结论，Trie 的层数由词长而非数据量决定。C 错：Trie 插入即建结构，无需预排序。D 恰好说反，前缀检索正是 Trie 相对哈希表的核心优势。",
+    "gapCheck": [
+      "易漏点：O(L) 中的 L 是词长，中文按字符/编码单元计数时要先明确切分方式",
+      "常见误区：把平衡树 O(log N) 的直觉错误迁移到 Trie",
+      "加分项：能指出空间常是 Trie 的短板，压缩 Trie（radix tree，如 Linux radix tree、Redis rax）通过合并单链节点省空间"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.trie"],
+      "related": ["cs.algo.linear.hash-table", "cs.algo.tree.balanced-tree"],
+      "followUps": [
+        "radix tree（基数树）相比普通 Trie 压缩了什么？",
+        "IP 路由表的最长前缀匹配为什么适合用 Trie 类结构？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Trie 复杂度单选题" },
+    "tags": ["Trie", "复杂度", "前缀检索"]
+  },
+  {
+    "id": "Q-cs-algo-tree-0016",
+    "nodeId": "cs.algo.tree.trie",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：搜索引擎的输入自动补全、IDE 的代码提示、敏感词过滤和路由表的最长前缀匹配都适合用 Trie 类结构；但如果只需要判断完整 key 是否存在且没有前缀类查询，哈希表通常比 Trie 更省空间、常数更小。",
+    "answer": { "judge": true },
+    "analysis": "正确。Trie 的价值集中在『前缀』与『共享结构』：自动补全沿前缀下钻后枚举子树，敏感词匹配用 AC 自动机（Trie 的多模式扩展），路由最长前缀匹配天然是逐层下钻取最深匹配。但在纯精确查询场景，Trie 每个字符一个节点、指针元数据多，空间与缓存表现都不如紧凑的哈希表，后者平均 O(1) 且工程实现高度优化。选型的核心问题是：有没有前缀/枚举需求——有则 Trie，无则哈希表。",
+    "gapCheck": [
+      "易漏点：Trie 是为前缀场景而生，精确匹配场景它的空间开销反而是劣势",
+      "常见误区：觉得 Trie『高级』就到处用，忽略哈希表在纯查找下的工程优势",
+      "加分项：能讲 AC 自动机、radix tree、双数组 Trie 等工程变体解决的具体痛点"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.algo.tree.trie"],
+      "related": ["cs.algo.linear.hash-table"],
+      "followUps": [
+        "双数组 Trie 是怎么用两个数组压缩存储的？",
+        "自动补全要求按热度而非字典序返回，Trie 节点上需要额外存什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Trie 应用场景与选型判断题" },
+    "tags": ["Trie", "应用场景", "选型", "自动补全"]
+  }
+]

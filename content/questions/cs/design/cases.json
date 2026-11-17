@@ -1,0 +1,752 @@
+[
+  {
+    "id": "Q-cs-design-cases-0001",
+    "nodeId": "cs.design.cases.seckill",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "秒杀系统把库存扣减放在 Redis 中用 Lua 脚本执行『判断库存>0 则扣减并记录用户购买标记』，而不是让每个请求直接 UPDATE 数据库库存。这一设计的**主要目的**是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "用 Redis 的单线程执行+Lua 原子性在内存层挡住绝大多数并发请求，避免超卖并把数据库从十万级并发写中保护下来，真正落库通过 MQ 异步削峰"
+      },
+      {
+        "key": "B",
+        "text": "Redis 里的库存是最终数据，扣完就结束，数据库库存不再需要维护"
+      },
+      {
+        "key": "C",
+        "text": "Lua 脚本可以让多个 Redis 节点并行执行同一笔扣减，吞吐随节点数线性增长"
+      },
+      {
+        "key": "D",
+        "text": "主要是为了减少 Redis 的内存占用"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 准确描述了秒杀的核心设计：Redis 单线程顺序执行命令，Lua 把『查库存→判断→扣减→写购买标记』合成一个不可分割的原子操作，内存操作可扛极高并发且天然防超卖；数据库只承接经 MQ 削峰后的有限订单写入。B 错：Redis 是前置预扣层，数据库库存仍是事实来源，还要做最终对账与回补。C 错：单 key 的 Lua 在单分片串行执行，不会跨节点并行，热点 key 反而要靠 key 分桶/本地标记缓解。D 与事实相反，预扣库存会增加内存开销。",
+    "gapCheck": [
+      "易漏点：Redis 预扣成功不等于订单成功，后续 MQ 异步落库失败要有补偿与库存回滚机制",
+      "常见误区：以为数据库乐观锁能直接扛秒杀峰值——它防得住超卖但扛不住并发量级，会先被连接数和行锁打垮",
+      "加分项：能讲库存分桶（总库存拆成多个 key）打散热点、扣完后异步合并的工程技巧"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.seckill"
+      ],
+      "related": [
+        "cs.design.limit.algorithm",
+        "cs.design.mq-dedup.peak-shaving"
+      ],
+      "followUps": [
+        "Redis 预扣成功但 MQ 丢消息，库存怎么保证最终一致？",
+        "库存分桶后某个桶先卖空而其他桶还有货，用户侧怎么处理？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "秒杀 Redis 预扣库存单选题"
+    },
+    "tags": [
+      "秒杀",
+      "Redis",
+      "Lua",
+      "防超卖",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0002",
+    "nodeId": "cs.design.cases.seckill",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 JavaScript 实现一个并发安全的秒杀库存组件 `SeckillStock`，要求：①用 Lua 风格的原子逻辑思路（本题用 JS 单线程事件循环模拟，写出 `deduct(userId)`：校验库存>0、同一用户只能买一次，成功返回 true，库存不足或重复购买返回 false）；②再给出数据库层面防超卖的乐观锁 SQL 与重试思路；③写并发测试验证 1000 个用户抢 100 件库存时不超卖、且每人最多一单。",
+    "answer": {
+      "ref": "机理：防超卖的本质是把『读库存→判断→扣减』变成原子操作。Redis 方案用 Lua 脚本——Redis 单线程执行脚本期间不会插入其他命令，脚本内同时检查库存数与用户购买集合（SET 类型），一次完成库存判断、扣减和一人一单标记。数据库方案用乐观锁：UPDATE stock SET count=count-1, version=version+1 WHERE sku_id=? AND count>0 AND version=?，靠行锁+条件更新保证不会扣成负数，影响行数为 0 即库存不足；一人一单靠订单表对 (user_id, activity_id) 加唯一约束兜底，冲突即重复下单。生产中 Redis 预扣挡流量、MQ 异步落库、DB 唯一约束与乐观锁做最后防线，再用对账保证少卖/回补。",
+      "code": "// ① JS 模拟版：单线程事件循环下，函数体即原子单元（对应 Redis Lua 的执行语义）\nclass SeckillStock {\n  constructor(total) {\n    this.stock = total;\n    this.boughtUsers = new Set(); // 一人一单标记\n  }\n\n  deduct(userId) {\n    if (this.boughtUsers.has(userId)) return false; // 重复购买\n    if (this.stock <= 0) return false;              // 库存不足\n    this.stock -= 1;\n    this.boughtUsers.add(userId);\n    return true;\n  }\n}\n\n// 对应的 Redis Lua 脚本（生产可用，KEYS[1]=库存key，KEYS[2]=已购用户集合）\nconst luaScript = `\nif redis.call('sismember', KEYS[2], ARGV[1]) == 1 then\n  return 0  -- 重复购买\nend\nlocal stock = tonumber(redis.call('get', KEYS[1]))\nif stock == nil or stock <= 0 then\n  return 0  -- 库存不足\nend\nredis.call('decr', KEYS[1])\nredis.call('sadd', KEYS[2], ARGV[1])\nreturn 1      -- 成功\n`;\n\n// ② 数据库乐观锁（防超卖最后防线）\n// UPDATE stock SET count = count - 1, version = version + 1\n// WHERE sku_id = ? AND version = ? AND count > 0;\n// 影响行数 0 → 版本冲突或无库存，有限次重试；一人一单靠订单表唯一约束：\n// UNIQUE KEY uk_user_activity (user_id, activity_id)\n\n// ③ 并发测试：1000 用户抢 100 件\nasync function runTest() {\n  const seckill = new SeckillStock(100);\n  const users = Array.from({ length: 1000 }, (_, i) => 'u' + i);\n  const results = await Promise.all(\n    users.map((u) => new Promise((resolve) => {\n      setImmediate(() => resolve({ user: u, ok: seckill.deduct(u) }));\n    }))\n  );\n  const success = results.filter((r) => r.ok);\n  console.log('成功单数:', success.length);            // 100，不超卖\n  console.log('剩余库存:', seckill.stock);             // 0\n  console.log('成功用户去重后:', new Set(success.map((r) => r.user)).size); // 100，无重复\n  // 同一用户重复尝试\n  console.log('同用户二次抢购:', seckill.deduct(success[0].user)); // false\n}\nrunTest();"
+    },
+    "scoringPoints": [
+      {
+        "point": "deduct 原子逻辑正确：先判一人一单、再判库存>0，扣减与标记一次完成",
+        "weight": 3
+      },
+      {
+        "point": "能写出 Redis Lua 脚本或等价原子方案，理解单线程执行语义",
+        "weight": 2
+      },
+      {
+        "point": "DB 乐观锁 SQL 带 count>0/version 条件，唯一约束防一人一单，重试思路清晰",
+        "weight": 3
+      },
+      {
+        "point": "并发测试验证不超卖、不重复，代码可运行并输出预期结果",
+        "weight": 2
+      }
+    ],
+    "analysis": "秒杀最高频手写题。常见失分：先 GET 再 DECR 写成两条命令丢掉原子性；只防超卖不防一人一单；以为乐观锁靠先查后更新实现（实际靠条件 UPDATE 的原子性）；测试只跑顺序请求不模拟并发。高分回答能分层表述：Redis Lua 挡并发、MQ 削峰、DB 约束兜底、对账收口，并指出 Redis 方案要配合库存预热与超时回补。",
+    "gapCheck": [
+      "易漏点：扣库存和一人一单标记必须在同一原子单元内，否则两步之间仍有并发漏洞",
+      "常见误区：把『查一下库存够不够再扣』当成安全写法，读-判-写分离必然超卖",
+      "加分项：能讲库存回补（超时未支付）、库存分桶热点打散、Redis 与 DB 的对账机制"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.seckill"
+      ],
+      "related": [
+        "cs.design.cache.consistency",
+        "cs.design.mq-dedup.idempotent",
+        "cs.os.sync.cas-lockfree"
+      ],
+      "followUps": [
+        "支付超时回补库存和用户再次抢购之间怎么防并发漏洞？",
+        "Redis 集群下热点库存 key 打满单分片，分桶方案具体怎么设计？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "秒杀防超卖手写代码题"
+    },
+    "tags": [
+      "手写题",
+      "秒杀",
+      "防超卖",
+      "Lua",
+      "乐观锁"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0003",
+    "nodeId": "cs.design.cases.seckill",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "设计题：请按『容量估算→整体架构→组件选型→瓶颈与权衡』的链路，完整设计一个支撑单场 10 万人同时在线、1 万件商品的秒杀系统，要求覆盖活动前预热、请求全链路拦截、库存与下单、失败兜底。",
+    "answer": {
+      "ref": "参考骨架：\n【容量估算】10 万在线，假设开场 10 秒内 80% 用户发起请求，峰值约 8 万请求/10 秒，瞬时 QPS 约 8000~1 万（含重试可按 2 万预案）；商品仅 1 万件，意味着 90% 以上请求注定失败，核心目标是让失败尽量在靠前的层快速结束。带宽以商品详情静态化后走 CDN 估算，动态接口按平均报文 1KB 估约几十 Mbps 量级；Redis 预扣库存、MQ 峰值积压按（生产-消费）×峰期时长估算磁盘。\n【整体架构与全链路拦截】①客户端/CDN 层：商品详情、活动页全静态化上 CDN；按钮置灰防重复点击、答题/验证码/随机开门时间打散瞬时峰值。②网关层：黑名单与风控校验、全局限流（令牌桶，按预案 QPS 兜底）、按用户/IP 维度限流。③服务层：活动信息与库存预热到 Redis；内存标记（本地缓存卖完标志）先挡一层，未卖完才请求 Redis；Redis+Lua 原子预扣库存并做一人一单（SET 标记）；预扣成功才发 MQ，立即返回『排队中』。④异步下单层：消费者按 DB 承载能力匀速消费，创建订单（唯一约束 uk_user_activity 兜底一人一单、乐观锁条件 UPDATE 兜底库存），落库结果通过轮询/推送通知用户。⑤支付超时关单走延迟消息，关单后回补 Redis 与 DB 库存。\n【组件选型】网关用成熟 API 网关/限流组件；缓存 Redis 集群（库存 key 分桶防热点）；MQ 选高可靠带死信与延迟消息的产品；DB 按用户分片+订单唯一约束；服务无状态化便于水平扩容。\n【瓶颈与权衡】最大瓶颈是热点库存 key 与 DB 写入——分桶+本地标记+MQ 削峰逐层减压；Redis 宕机预案：限流降级+只读或快速失败，绝不能让流量直打 DB；Redis 预扣与 DB 之间靠消息可靠性+对账保证最终一致，接受秒级延迟；答题/验证码牺牲一点体验换削峰；库存卖完后的少量在途订单可能导致『少卖』，用对账和库存回补收口。整体主线：把流量一层层挡在数据库之前，让只有注定成功的万级请求进入写库链路。"
+    },
+    "scoringPoints": [
+      {
+        "point": "容量估算有量化过程（峰值 QPS、失败比例、积压与带宽量级）",
+        "weight": 2
+      },
+      {
+        "point": "全链路拦截分层完整：CDN/静态化→网关限流→内存标记→Redis Lua 预扣→MQ 异步落库",
+        "weight": 4
+      },
+      {
+        "point": "防超卖与一人一单有原子方案与 DB 兜底，超时回补与对账闭环",
+        "weight": 2
+      },
+      {
+        "point": "明确指出瓶颈（热点 key、DB 写）与故障兜底（Redis 宕机、少卖处理），体现权衡",
+        "weight": 2
+      }
+    ],
+    "analysis": "这是系统设计面试的标杆大题，考的是体系化串联能力。常见失分：一上来就写扣库存 SQL，没有分层拦截；容量只字不提；Redis 与 DB 的一致性和回补缺失；没有故障预案。高分回答始终围绕『让 90% 的失败请求在最外层快速结束』这条主线，并对每个组件给出被选中的理由和失效后的兜底。",
+    "gapCheck": [
+      "易漏点：活动开始前的库存预热与结束后的对账回补，是闭环两端，最容易被漏掉",
+      "常见误区：只设计成功路径，不讲 Redis 宕机、MQ 积压、重复下单等异常路径",
+      "加分项：能提风控（黄牛/脚本识别）、库存分桶、排队页与异步结果通知等工程细节"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.seckill"
+      ],
+      "related": [
+        "cs.design.limit.algorithm",
+        "cs.design.mq-dedup.peak-shaving",
+        "cs.design.cache.problems"
+      ],
+      "followUps": [
+        "如果 Redis 集群在秒杀中途宕机，降级方案怎么保证不超卖？",
+        "10 万人改成 1000 万人，架构中哪几层要重新设计？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "秒杀系统全链路设计简答题"
+    },
+    "tags": [
+      "秒杀",
+      "系统设计",
+      "削峰",
+      "防超卖",
+      "全链路"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0004",
+    "nodeId": "cs.design.cases.seckill",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：秒杀场景中『一人一单』不能只靠前端按钮置灰来保证，必须在服务端做强校验——Redis 预扣时用用户购买集合（如 SET）做原子标记，落库时再用订单表 (user_id, activity_id) 唯一约束兜底，因为前端限制可以被脚本或重放请求轻易绕过。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。前端按钮置灰只是体验优化、减少误触和无效请求，完全不可信：抓包重放、脚本直接调接口、多端同时下单都能绕过。服务端要两层强约束：Redis 层在 Lua 脚本内用 SISMEMBER/SADD 把购买标记与库存扣减做成原子操作，挡住绝大部分并发重复请求；数据库层用 (user_id, activity_id) 唯一索引做最终防线，即使 Redis 标记丢失或消息重投，重复插入也会因唯一冲突失败，冲突异常按幂等处理。这体现了『不信任客户端、约束逐层下沉到数据层』的安全设计原则。",
+    "gapCheck": [
+      "易漏点：唯一约束冲突要被捕获并转成幂等成功语义，否则用户看到报错但订单其实已存在",
+      "常见误区：把前端防重当安全措施，服务端不做任何校验",
+      "加分项：能讲活动维度的购买标记 TTL 设计、以及支付失败后是否允许再次抢购的业务规则"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.seckill"
+      ],
+      "related": [
+        "cs.design.mq-dedup.idempotent"
+      ],
+      "followUps": [
+        "分库分表后唯一约束怎么建才能在分片下仍然生效？",
+        "用户下单后超时未支付，购买标记什么时候释放、怎么防并发抢回？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "一人一单服务端强校验判断题"
+    },
+    "tags": [
+      "秒杀",
+      "一人一单",
+      "唯一约束",
+      "判断"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0005",
+    "nodeId": "cs.design.cases.seckill",
+    "type": "essay",
+    "difficulty": 5,
+    "stem": "拔高论述：秒杀系统在大促零点出现『数据库 CPU 被打满、订单创建大量超时』，但监控显示 Redis 预扣成功量远大于最终订单量。请系统分析可能的根因（至少 4 个），给出排查路径，并论述从架构层面如何避免『少卖』与『超卖』两类相反的库存事故。",
+    "answer": {
+      "ref": "参考骨架：\n【可能根因】①MQ 消费能力不足：消费者并行度受分区数限制或消费者实例数不够，预扣消息积压，订单创建超时。②下游 DB 瓶颈：单行库存/订单热点行锁竞争激烈、慢 SQL、连接池打满、磁盘 IO 饱和，消费重试又放大写入。③消费者本身故障：GC 停顿、线程池配置过小、依赖的用户/风控接口拖慢消费线程。④消息失败进死信：消费抛异常（唯一约束冲突未按幂等处理、参数缺失）反复重试后进 DLQ，预扣了库存却没订单。⑤Redis 与 DB 容量不匹配：预扣放行了 DB 实际承载不了的量。⑥发布/配置事故：消费者版本 bug、限流阈值误配。\n【排查路径】先看 MQ 的 lag 曲线与生产/消费速率，确认是消费变慢还是生产突增；再看消费者实例指标（CPU/GC/线程栈/重启）与消费失败日志、死信队列内容；然后查 DB（慢查询日志、行锁等待、连接数、TPS 上限）；核对 Redis 预扣计数、MQ 入队计数、DB 订单计数三个数字的差值定位丢失环节；最后查近期变更与配置。\n【少卖的机理与防御】预扣成功但订单未落库（消息丢失/死信/消费失败）就会少卖。防御：可靠消息（生产端本地消息表/事务消息、手动 ack、死信告警与重放）；支付超时关单与库存回补通过延迟消息保证；离线/准实时对账比对 Redis 预扣、MQ、订单库、支付库四方数据，差异自动补偿或人工介入；活动结束后对死信和在途消息做终态清算。\n【超卖的机理与防御】并发下读-判-写非原子、Redis 与 DB 库存口径不一致、回补与抢购并发。防御：库存扣减全部原子化（Redis Lua、DB 条件 UPDATE ... WHERE count>0）；DB 唯一约束兜底一人一单；库存以 DB 为最终事实源，Redis 只是预扣缓存，初始化与回补走受控通道；任何库存变动留流水（入库、预扣、落库、回补），使库存可审计、可重放。\n【架构层面总结】把『会不会超卖』交给原子操作与数据库约束保证（正确性优先），把『能卖多快』交给分层拦截与异步削峰控制（吞吐优先），把『最终对不对』交给消息可靠性与对账体系收口——三者职责分离，任何单点抖动都能被约束层或对账层发现并纠正。"
+    },
+    "scoringPoints": [
+      {
+        "point": "根因覆盖消费并行度、DB 热点行锁、消费者故障、死信、容量错配等至少 4 个且方向正确",
+        "weight": 3
+      },
+      {
+        "point": "排查路径有指标顺序（lag→消费者→DB→三方计数对账→变更）",
+        "weight": 2
+      },
+      {
+        "point": "少卖与超卖的机理分别讲透，防御措施落到可靠消息、原子扣减、唯一约束、库存流水",
+        "weight": 3
+      },
+      {
+        "point": "能上升到正确性/吞吐/对账三职责分离的架构观点",
+        "weight": 2
+      }
+    ],
+    "analysis": "这是区分度很高的拔高题。普通回答只会说『加机器、优化 SQL』；高分回答能沿着数据流（Redis→MQ→DB）逐段定位计数差异，把少卖（消息可靠性问题）与超卖（并发原子性问题）作为两类独立事故分别论证，并给出库存流水+对账的终局设计。能提到死信重放、热点行拆分、三方计数核对等实战细节更佳。",
+    "gapCheck": [
+      "易漏点：预扣量、入队量、订单量三个计数的差值是定位丢失环节的关键证据",
+      "常见误区：把少卖和超卖混为一谈，二者根因（可靠性 vs 原子性）与解法完全不同",
+      "加分项：能讲库存流水表设计（幂等、可重放、可审计）与自动化对账补偿的触发规则"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.seckill"
+      ],
+      "related": [
+        "cs.design.mq-dedup.delay",
+        "cs.design.sharding.readwrite",
+        "cs.design.limit.circuit-breaker"
+      ],
+      "followUps": [
+        "库存流水表怎么设计才能支持幂等重放？",
+        "热点商品单行更新打满 DB，除了 Redis 预扣还有哪些行级优化？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "秒杀库存事故拔高论述题"
+    },
+    "tags": [
+      "秒杀",
+      "少卖超卖",
+      "对账",
+      "线上排障",
+      "拔高"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0006",
+    "nodeId": "cs.design.cases.feed-timeline",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Feed 流的推模式（写扩散）与拉模式（读扩散），下列说法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "推模式在博主发帖时把内容扇出（fan-out）写入所有粉丝的收件箱，读 timeline 时直接拉自己的收件箱，读性能好但大 V 发帖写放大严重"
+      },
+      {
+        "key": "B",
+        "text": "拉模式在读 timeline 时实时拉取关注列表所有人的最新内容再聚合排序，写入省（只写自己的发件箱），但读放大严重、延迟随关注数增长"
+      },
+      {
+        "key": "C",
+        "text": "推拉结合：普通用户发帖走推模式，大 V 的内容不做全量扇出，粉丝读时再单独拉取大 V 发件箱与自己的收件箱合并"
+      },
+      {
+        "key": "D",
+        "text": "推模式下一个千万粉丝大 V 每发一帖只需要写一次，没有任何写放大成本"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确，构成 Feed 架构的标准认知。A 说明推模式（fanout-on-write）：写时扩散、读时廉价，代价是粉丝量越大单次发帖写入越多。B 说明拉模式（fanout-on-read）：写只进发件箱，读时实时聚合，关注上千人时延明显。C 是工业界主流折中：按粉丝量分级，普通用户推、大 V 拉，规避大 V 写爆炸。D 与 A 直接矛盾：千万粉丝大 V 推模式下一帖就是千万次级别的扇出写入，这正是推模式最大的痛点。",
+    "gapCheck": [
+      "易漏点：推拉结合的分界指标（粉丝阈值）要结合写入成本与读延迟压测确定，不是拍脑袋",
+      "常见误区：以为推模式没有缺点—— inactive 用户的收件箱也被写入，存储浪费严重",
+      "加分项：能讲在线推（发帖即时扇出）与离线推（闲时批量推）的取舍及 Timelin e 存储选型（有序集合/长列表）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.feed-timeline"
+      ],
+      "related": [
+        "cs.design.capacity.estimation",
+        "cs.design.sharding.readwrite"
+      ],
+      "followUps": [
+        "新用户关注一个大 V 后，历史帖子怎么补进他的 timeline？",
+        "推模式下取关/拉黑操作如何让已扇出的内容失效？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Feed 推拉模式对比多选题"
+    },
+    "tags": [
+      "Feed流",
+      "写扩散",
+      "读扩散",
+      "推拉结合"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0007",
+    "nodeId": "cs.design.cases.feed-timeline",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：一个拥有 3000 万粉丝的明星每发一条动态，纯推模式就要向 3000 万个粉丝的收件箱各写一条，写放大达到 3000 万倍，且其中大量粉丝长期不活跃、写入纯属浪费；因此大 V 场景通常改为推拉结合——大 V 只写自己的发件箱，粉丝读取时再实时拉取并与收件箱合并。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确，这是推模式最经典的短板。写扩散的成本与粉丝数成正比，大 V 一条动态触发千万级扇出写入，瞬时压垮存储与消息管道，而僵尸/沉默粉丝的收件箱写入永远不会被读到，存储和算力双重浪费。推拉结合的做法是：普通用户（粉丝少）发帖仍走写扩散保证读路径简单；大 V 发帖只进发件箱（写扩散降级为一次写），粉丝刷 timeline 时拉取自己的收件箱（普通用户的推送）+ 主动拉取关注的大 V 发件箱，在服务层做归并排序。代价是读路径变复杂、大 V 读压力集中，需要给大 V 发件箱配强缓存。",
+    "gapCheck": [
+      "易漏点：大 V 发件箱成为读热点，要用缓存/多副本扛粉丝的聚合读取",
+      "常见误区：以为推拉结合是一套静态规则——粉丝阈值要随容量演进动态调整",
+      "加分项：能讲新关注大 V 时的历史回溯、以及智能排序时代推模式只负责候选集召回"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.feed-timeline"
+      ],
+      "related": [
+        "cs.design.cache.consistency",
+        "cs.design.capacity.estimation"
+      ],
+      "followUps": [
+        "大 V 发帖瞬间粉丝读取暴增，发件箱缓存怎么设计？",
+        "从时间线排序升级到推荐排序后，推/拉模式的角色发生什么变化？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "大 V 写放大与推拉结合判断题"
+    },
+    "tags": [
+      "Feed流",
+      "写放大",
+      "大V",
+      "推拉结合",
+      "判断"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0008",
+    "nodeId": "cs.design.cases.feed-timeline",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "设计题：设计一个支撑亿级用户的微博类 Feed 系统，按『容量估算→整体架构→组件选型→瓶颈与权衡』回答，重点说明：①timeline 的数据模型与存储；②推/拉/推拉结合的决策；③发帖与刷 timeline 两条主链路。",
+    "answer": {
+      "ref": "参考骨架：\n【容量估算】假设 DAU 1 亿、人均日刷 20 次→日读 20 亿次，峰值读 QPS 按平峰×3~5 估算在十万量级；发帖率按 DAU 的 10%、人均 1 条→日发帖 1000 万，写 QPS 峰值万级；读写比约 200:1，是典型读多写少。存储上分两类：发件箱（用户自己发的微博，按 user_id 分片+时间排序）与收件箱（timeline，按 user_id 分片存推荐/推送的微博 ID 列表，只存 ID 不存正文以控体积）；正文、图片、视频分别放 KV/对象存储/CDN。\n【整体架构与数据模型】发件箱：微博 ID 列表，分片键 user_id。收件箱：有序结构（如 Redis 有序集合/长列表）存微博 ID 与时间戳，设容量上限（如只保最近 1000 条）超长截断。微博正文存 KV 存储/缓存，读 timeline 拿到 ID 列表后批量回表（multi-get）取正文，再拼装用户信息与计数。\n【推拉决策】按粉丝量分级：普通用户（如粉丝 <1 万）发帖走写扩散，异步扇出到活跃粉丝收件箱（在线推+离线推结合，沉默粉丝不推以省存储）；大 V 只写发件箱；粉丝读时合并『收件箱推送 + 关注大 V 的发件箱实时拉取』，服务层按时间归并（智能推荐阶段则把两路结果作为候选集交给排序服务）。\n【两条主链路】发帖：写库（发件箱+正文）→发 MQ→扇出 worker 按粉丝表异步写活跃粉丝收件箱（大 V 跳过扇出）→失效/更新相关缓存。刷 timeline：网关鉴权限流→先读收件箱（缓存命中直接返回 ID 列表）→并行拉大 V 发件箱→归并去重排序→批量 multi-get 正文与用户信息→拼装返回；全程分页用游标（since_id/max_id）避免深分页。\n【瓶颈与权衡】瓶颈一：大 V 发帖扇出——靠分级推拉+异步 worker+只推活跃粉丝解决；瓶颈二：timeline 读热点——多级缓存+收件箱只存 ID；瓶颈三：聚合读取的扇出延迟——并行拉取+超时兜底+候选集预计算。权衡：推模式换读取速度但牺牲写成本与存储，拉模式省写但读延迟高，推拉结合增加架构复杂度但适配粉丝长尾分布；智能排序时代，时间线引擎逐步演进为『召回（推/拉候选）→粗排→精排→重排』的推荐架构。"
+    },
+    "scoringPoints": [
+      {
+        "point": "容量估算给出读写 QPS 量级与读写比结论",
+        "weight": 2
+      },
+      {
+        "point": "发件箱/收件箱数据模型清晰，只存 ID、分片键与容量截断设计合理",
+        "weight": 3
+      },
+      {
+        "point": "推拉结合的分级决策与两条主链路（发帖扇出、读时合并）完整",
+        "weight": 3
+      },
+      {
+        "point": "瓶颈（扇出、读热点、聚合延迟）与权衡论述到位，提及游标分页与推荐演进",
+        "weight": 2
+      }
+    ],
+    "analysis": "Feed 设计是系统设计面试的高频大题。常见失分：不区分发件箱与收件箱、正文直接塞进 timeline 导致体积失控；纯推或纯拉一条路走到黑，答不出大 V 问题；读链路没有 multi-get 与归并步骤；忽视分页方案。高分回答会用量级说话，并解释每个选型背后的读写比与粉丝分布依据。",
+    "gapCheck": [
+      "易漏点：收件箱只存微博 ID、正文独立存储，是控制 timeline 体积的关键设计",
+      "常见误区：给沉默用户也做全量扇出，写放大与存储浪费被低估",
+      "加分项：能讲游标分页、在线/离线推、以及推荐排序架构对推拉模式的改造"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.feed-timeline"
+      ],
+      "related": [
+        "cs.design.capacity.estimation",
+        "cs.design.cache.consistency",
+        "cs.design.sharding.strategy"
+      ],
+      "followUps": [
+        "收件箱超长截断后，用户翻很早的微博怎么实现？",
+        " Feed 排序从时间线切到推荐算法，系统哪些组件要重建？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "亿级 Feed 系统设计简答题"
+    },
+    "tags": [
+      "Feed流",
+      "系统设计",
+      "写扩散",
+      "推拉结合",
+      "Timeline"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0009",
+    "nodeId": "cs.design.cases.feed-timeline",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：Feed 系统中，发帖时把消息写入所有粉丝收件箱的模式叫 ______（写扩散）；刷 Feed 时实时拉取所有关注对象内容再聚合的模式叫 ______（读扩散）；工业界通常对普通用户推、对大 V 拉，称为 ______；timeline 列表一般只存微博 ______ 而非正文，以控制存储体积并便于缓存。",
+    "answer": {
+      "blanks": [
+        "推模式",
+        "拉模式",
+        "推拉结合",
+        "ID"
+      ],
+      "synonyms": {
+        "推模式": [
+          "推",
+          "fanout-on-write",
+          "写扩散模式"
+        ],
+        "拉模式": [
+          "拉",
+          "fanout-on-read",
+          "读扩散模式"
+        ],
+        "推拉结合": [
+          "推拉混合",
+          "推拉结合模式"
+        ],
+        "ID": [
+          "id",
+          "ID列表",
+          "微博id",
+          "消息ID"
+        ]
+      }
+    },
+    "analysis": "写扩散（推模式 fanout-on-write）：写时扇出到粉丝收件箱，读廉价但写放大；读扩散（拉模式 fanout-on-read）：只写发件箱、读时聚合，省写但读放大；推拉结合按粉丝量级分流，是大 V 生态下的主流折中。timeline 只存微博 ID（有序 ID 列表），正文独立存 KV/对象存储，读取时批量回表，这样收件箱体积小、可放内存缓存、分页与截断都轻量。",
+    "gapCheck": [
+      "易漏点：写扩散的写成本与粉丝数成正比，读扩散的读成本与关注数成正比",
+      "常见误区：把推拉结合理解成随机选择，它实际是按粉丝量级的确定性分流策略",
+      "加分项：能补一句智能推荐架构下推/拉结果都降级为召回候选"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.feed-timeline"
+      ],
+      "related": [
+        "cs.design.cache.consistency"
+      ],
+      "followUps": [
+        "为什么 timeline 存正文是糟糕设计？体积膨胀会带来哪些连锁问题？",
+        "粉丝阈值定为多少合适，依据什么数据决定？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "Feed 推拉模式概念填空题"
+    },
+    "tags": [
+      "Feed流",
+      "写扩散",
+      "读扩散",
+      "填空"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0010",
+    "nodeId": "cs.design.cases.shortlink",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "设计一个日均生成亿级短链、跳转读远多于写的短链系统，下列方案中**最合理**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "分布式发号器生成全局唯一、趋势递增的长整型 ID，再 Base62 编码成 6~7 位短码（可逆推 ID 做分片路由）；映射按 ID 分片存储，跳转前置本地缓存+Redis 多级缓存，用 302 重定向并以布隆过滤器拦截不存在的短码"
+      },
+      {
+        "key": "B",
+        "text": "直接用随机 UUID 做短码，随机性最好且无需任何映射表与分片设计，靠哈希天然均匀分布"
+      },
+      {
+        "key": "C",
+        "text": "跳转一律返回 301 永久重定向，因为 302 不是合法的 HTTP 重定向状态码"
+      },
+      {
+        "key": "D",
+        "text": "布隆过滤器判断短码『存在』时结论 100% 可靠，可以跳过缓存和数据库直接返回目标链接"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确，它把短链系统的关键设计串成一条合理链路：发号 ID 全局唯一且趋势递增（索引友好），Base62 是可逆进制编码、可反推 ID 做分片路由；读多写少所以映射分片+多级缓存扛 QPS；302 保留点击统计与动态切换能力；布隆过滤器用『判不存在必不存在』拦截恶意扫描。B 错：UUID 无序且长，作为分片键无法反推路由、还会造成索引页分裂，随机串必须额外维护映射表并处理碰撞。C 错：301、302 都是合法状态码，301 强缓存会让服务端失去后续点击可见性，需要统计的业务短链主流用 302。D 错：布隆过滤器只有『判不存在一定不存在』是可靠的，判存在可能假阳性，仍需正常查缓存/DB 回源。",
+    "gapCheck": [
+      "易漏点：301 会让服务端彻底失去后续点击的可见性，需要统计的营销短链不能用",
+      "常见误区：用随机字符串做短码导致无法从短码反推路由、分片定位困难且有碰撞处理成本",
+      "加分项：能讲自定义短码的冲突处理、短链 TTL 过期策略与布隆过滤器的扩容重建"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.shortlink"
+      ],
+      "related": [
+        "cs.design.sharding.id-gen",
+        "cs.design.cache.problems"
+      ],
+      "followUps": [
+        "用户自定义短码和发号器短码冲突了怎么处理？",
+        "布隆过滤器误判率随短链增长上升，怎么在线扩容重建？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "短链系统综合设计单选题"
+    },
+    "tags": [
+      "短链",
+      "Base62",
+      "302重定向",
+      "布隆过滤器"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0011",
+    "nodeId": "cs.design.cases.shortlink",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "用发号器生成的自增 ID 经 Base62 编码得到短码。关于 Base62 编码与短链跳转，下列说法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "Base62 用 0-9、a-z、A-Z 共 62 个字符做进制表示，自增 ID 编码后通常只有 6~7 位短码，且可以解码回原 ID 用于分片路由"
+      },
+      {
+        "key": "B",
+        "text": "Base62 属于确定的进制转换、编解码互为逆运算，这与不可逆的哈希算法有本质区别"
+      },
+      {
+        "key": "C",
+        "text": "301 与 302 都是 HTTP 规范内的重定向状态码；302 临时重定向便于服务端统计点击，301 会被浏览器强缓存而丢失后续点击可见性"
+      },
+      {
+        "key": "D",
+        "text": "短码越长越安全，必须做到 16 位以上才能避免冲突，6 位 Base62 的组合空间完全不够用"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确。A 说明 Base62 是 62 进制的确定映射，自增 ID（如 100000）转 62 进制仅约 4 位、工程常用 6~7 位，解码可逆，能用还原出的 ID 直接做分片路由。B 点明进制转换与哈希的本质差别：前者可逆、后者不可逆，随机串短码才需要额外的碰撞处理与映射表。C 准确区分 301/302：二者都合规，302 每次经过服务端可统计、可动态换目标，是营销短链主流；301 被浏览器/CDN 强缓存后后续请求不再到源站。D 错：6 位 Base62 已有 62^6≈568 亿组合，短码设计目标恰恰是尽量短，长度按 ID 空间取最小值而非越长越好。",
+    "gapCheck": [
+      "易漏点：Base62 是进制编码不是哈希，可逆性正是它能用于路由的前提",
+      "常见误区：混淆 301 与 302 的缓存语义与统计能力差异",
+      "加分项：能手算 Base62 编解码，并说明发号 ID 趋势递增对索引友好"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.shortlink"
+      ],
+      "related": [
+        "cs.design.sharding.id-gen"
+      ],
+      "followUps": [
+        "如果要让短码不可被枚举猜测，发号方案要怎么改造？",
+        "6 位 Base62 用完后，扩容到 7 位的过渡期怎么兼容？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Base62 编码与重定向多选题"
+    },
+    "tags": [
+      "短链",
+      "Base62",
+      "发号器",
+      "302"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0012",
+    "nodeId": "cs.design.cases.shortlink",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "设计题：为内容社区设计『点赞数、浏览数、粉丝榜 TopN』三类高频能力，请分别给出存储与计数选型，并说明：①高并发热点计数如何不直打数据库；②实时排行榜的底层数据结构原理；③计数的最终持久化与容错。按『容量估算→整体架构→组件选型→瓶颈与权衡』组织。",
+    "answer": {
+      "ref": "参考骨架：\n【容量估算】假设日活 5000 万、人均 30 次互动，写计数 QPS 峰值数万~十万；浏览量更大可按数十万 QPS 预案；排行榜读 QPS 远高于写。三类数据特征不同：点赞要求准确且防重复、浏览可容忍少量误差、粉丝榜要求实时排序。\n【整体架构与选型】①点赞数：Redis 有序结构/哈希存计数，用 SET 存点赞用户关系做一人一点（SISMEMBER 判断、SADD+INCR 原子化或 Lua）；写请求先到 Redis，再通过 MQ 异步批量落库（累计 N 次或 T 秒合并一次 UPDATE），DB 保留持久计数与用户点赞表唯一约束兜底。②浏览数：容忍误差，用 Redis 计数器或本地内存批量累加后定时上报，甚至用概率/流式聚合降成本；热点内容单独 key 分桶，读时求和。③粉丝榜 TopN：Redis ZSET（有序集合），member=用户 ID、score=粉丝数/分值，ZADD 更新、ZREVRANGE 取 TopN；底层是跳表（skiplist）+哈希表，插入/更新/范围查询均 O(log n)，天然支持实时排序；超大榜可按维度分多个 ZSET 再归并。\n【热点计数不直打 DB 的手段】计数全部先写内存（Redis/本地），写合并（批量、Pipeline）+异步 MQ 削峰后落库；本地缓存吸收单机读热点；key 分桶打散单分片热写；DB 只承接聚合后的低频持久写。\n【排行榜原理】ZSET 的跳表是多层有序链表，每层是下层的稀疏索引，定位与插入 O(log n)，配合 dict 哈希表让按 member 查分 O(1)；ZREVRANGE 沿顶层链表顺序取 N 个即 O(log n + N)，因此实时 TopN 不需要全表排序。\n【持久化与容错】Redis 开持久化（AOF/RDB）+副本，计数类接受重启后用 MQ/DB 流水重放补齐；异步落库链路做幂等（按内容 ID+时间窗）与对账，定时校准 Redis 与 DB 差异；Redis 故障时限流降级到 DB 直读或返回缓存的旧榜，绝不让计数写流量裸奔到数据库；浏览类可接受最终一致甚至小幅误差，点赞类以 DB 唯一约束为准做周期对账。\n【权衡】准确性 vs 成本：点赞强准确、浏览可近似；实时性 vs 持久化开销：内存实时+异步落库是标准折中；ZSET 内存成本高，超长尾榜单可只缓存 TopN+离线全量榜放数仓/ES。"
+    },
+    "scoringPoints": [
+      {
+        "point": "三类场景选型差异化（点赞防重、浏览可近似、榜单用 ZSET），容量有量级估算",
+        "weight": 3
+      },
+      {
+        "point": "热点计数的内存化、写合并、MQ 异步落库、分桶方案完整",
+        "weight": 3
+      },
+      {
+        "point": "讲清 ZSET 跳表+哈希的 O(log n) 排序原理与 TopN 取数",
+        "weight": 2
+      },
+      {
+        "point": "持久化、容错降级与对账闭环，权衡准确/成本/实时性",
+        "weight": 2
+      }
+    ],
+    "analysis": "这是高频读写场景的综合题。常见失分：三类计数用同一套方案、不区分准确性要求；排行榜只说用 Redis 讲不出跳表原理；异步落库没有幂等与对账；Redis 故障无降级。高分回答会按数据特征分层选型，并明确内存计数只是实时层、DB/数仓才是事实源。",
+    "gapCheck": [
+      "易漏点：计数写合并落库必须幂等，否则重试会导致计数翻倍",
+      "常见误区：把所有计数都做成强一致实时落库，DB 被高频写打垮",
+      "加分项：能讲 ZSET 与跳表结构、超长尾榜单的冷热分层、流式聚合（如计数窗口）方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.cases.shortlink"
+      ],
+      "related": [
+        "cs.design.algo.tree.heap-topk",
+        "cs.design.cache.consistency",
+        "cs.design.mq-dedup.peak-shaving"
+      ],
+      "followUps": [
+        "ZSET 在千万 member 时内存占用过大，怎么冷热分层？",
+        "点赞数 Redis 与 DB 出现偏差，对账任务怎么设计自动修复？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "计数与排行榜综合设计简答题"
+    },
+    "tags": [
+      "计数",
+      "排行榜",
+      "ZSET",
+      "跳表",
+      "写合并"
+    ]
+  },
+  {
+    "id": "Q-cs-design-cases-0013",
+    "nodeId": "cs.design.cases.feed-timeline",
+    "type": "short",
+    "difficulty": 5,
+    "stem": "设计信息流（Feed/Timeline）时核心是推模式、拉模式、推拉结合的选型。请回答：①三种模式各自的写入扇出、读取路径和存储成本；②结合大 V（粉丝千万级）与普通用户两种极端，说明为什么纯推或纯拉都有硬伤，推拉结合怎么按粉丝量分级；③如何处理新关注、取关、删帖、冷热数据这些工程细节。",
+    "answer": {
+      "ref": "参考骨架：\n【三种模式】推模式（fanout-on-write）：发帖时把内容 ID 扇出写进每个粉丝的收件箱（timeline 缓存/列表），读时直接拉自己的收件箱，读极快（一次查询）；代价是写放大严重——大 V 一条帖要写千万次，存储冗余高，明星发帖会引发\"写风暴\"。拉模式（fanout-on-read）：不预扇出，读时实时拉取所有关注人的发帖列表再归并排序；写很轻（只写自己的发件箱一次），无写放大、无冗余；代价是读放大——关注上千人时读路径要聚合上千个列表，延迟高、缓存命中率低，大 V 反而友好（不需要扇出）。推拉结合：按用户分级。\n【按粉丝量分级】普通用户（粉丝低于阈值，如几万）走推：发帖即扇出到粉丝收件箱，享受快读。大 V/明星（超阈值）不做实时全量扇出，其内容留在发件箱；粉丝读 timeline 时 = 拉自己的普通关注推收件箱 + 单独实时拉取\"大 V 列表\"再归并（大 V 数量少、可单独缓存），把千万级写扇出转换成少量读聚合，规避写风暴。新用户首次读可对大 V 内容做懒加载。\n【工程细节】新关注：立即触发一次被关注人近期 N 条内容回填进收件箱（或读时拉取补全）；取关：读时过滤 + 收件箱惰性清理，不必立即删（写多读少时延迟清理）；删帖：发件箱打墓碑标记（tombstone），读时统一过滤，避免遍历所有粉丝收件箱删除；冷热数据：timeline 只缓存近期（如最近几百条/几天）在 Redis（List/ZSet），历史长尾落库或对象存储，冷用户首次访问按需回源重建；用 ZSet 按时间/权重排序、分页用游标而非大 offset。写风暴还可用 MQ 削峰 + 批量 pipeline 扇出。"
+    },
+    "scoringPoints": [
+      {
+        "point": "准确对比三模式的写扇出/读路径/存储成本（推=写放大读快，拉=写轻读放大）",
+        "weight": 3
+      },
+      {
+        "point": "指出纯推的大 V 写风暴与纯拉的读放大硬伤，推拉结合按粉丝阈值分级讲清",
+        "weight": 3
+      },
+      {
+        "point": "新关注回填、取关惰性清理、删帖墓碑、冷热分层、ZSet/游标等工程细节覆盖到位",
+        "weight": 3
+      },
+      {
+        "point": "提到 MQ 削峰、批量 pipeline 扇出等写风暴治理手段",
+        "weight": 1
+      }
+    ],
+    "analysis": "Feed 流是系统设计面试的旗舰题，分水岭在能否用\"读写放大\"框架做选型而不是背名词。常见失分：只说推/拉定义却算不清扇出成本；意识不到大 V 是推模式的灾难场景；工程细节空白（删帖怎么处理、冷数据放哪）。高分回答能用粉丝阈值把两种模式缝合，并对关注/取关/删帖/冷热逐一给方案，点出墓碑标记、惰性清理、游标分页、MQ 削峰这些真实微博/Twitter 架构的做法。",
+    "gapCheck": [
+      "易漏点：推模式的本质是写放大（大 V 一条帖千万次写），拉模式的本质是读放大（关注多时聚合上千列表）",
+      "常见误区：以为选一种模式就能通吃，实际生产系统几乎都是按粉丝量分级的推拉结合",
+      "加分项：删帖用墓碑标记而非遍历删除、timeline 用 ZSet + 游标分页、MQ 削峰治理写风暴"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "cs.design.mq-dedup.peak-shaving"
+      ],
+      "related": [
+        "cs.design.capacity.estimation",
+        "cs.design.cache.consistency"
+      ],
+      "followUps": [
+        "阈值怎么定，粉丝量处于阈值附近的用户发帖时如何平滑切换推/拉？",
+        "如何保证 Feed 排序的实时性与个性化（时间序 vs 推荐序）共存？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Feed 推拉模式选型与工程细节拔高论述题"
+    },
+    "tags": [
+      "Feed流",
+      "推拉模式",
+      "扇出",
+      "写风暴",
+      "系统设计"
+    ]
+  }
+]

@@ -1,0 +1,220 @@
+[
+  {
+    "id": "Q-cs-devops-observ-0001",
+    "nodeId": "cs.devops.observ.three-pillars",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "面试官：可观测性常说『三大支柱』。用户反馈一次请求『偶发很慢』，要先在几十个微服务中定位请求经过了哪些服务、各段耗时多少，最应该依赖的支柱是：",
+    "options": [
+      { "key": "A", "text": "链路追踪（tracing）：用 traceId 把跨服务的 span 串成完整调用链，直观看出每跳耗时与错误落点" },
+      { "key": "B", "text": "指标（metrics）：聚合数值只能看整体趋势，无法还原单个请求的调用路径" },
+      { "key": "C", "text": "日志（logging）：单服务日志有细节，但没有统一 traceId 时很难跨服务拼出一条请求的全貌" },
+      { "key": "D", "text": "告警（alerting）：告警只负责通知异常发生，不提供定位数据" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：分布式追踪的核心模型是 trace（一条请求一个 traceId）由多个 span（一次方法/服务调用）组成，span 带父子关系、耗时、状态与标签，能直接回答『请求去了哪、卡在哪一跳』。B 说的是指标的固有局限——它是可聚合的数值度量，擅长趋势与告警但丢失单请求上下文。C 指出日志的边界：日志记录离散事件细节，靠统一 traceId 注入后才能与追踪关联，人工跨服务 grep 拼链路既慢又易漏。D 中告警是可观测数据的消费方式而非数据支柱。三支柱不是互相替代而是通过 traceId 等关联 ID 互相跳转：追踪定位到问题 span→跳该服务日志看细节→用指标确认影响面。",
+    "gapCheck": [
+      "易漏点：三大支柱的边界——日志重事件细节、指标重聚合趋势、追踪重请求路径与因果关系",
+      "常见误区：以为日志量大就等于可观测性好，没有结构化字段与 traceId 关联的日志检索成本极高",
+      "加分项：能讲 OpenTelemetry 把日志/指标/追踪三类数据的采集 API 统一、厂商中立的演进"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.observ.three-pillars"],
+      "related": ["cs.devops.k8s.arch-object"],
+      "followUps": [
+        "异步消息（MQ）场景下 traceId 怎么跨生产和消费两端传递？",
+        "span 里除了耗时，通常还应该带哪些标签来支撑排障？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "可观测性三支柱分工单选题" },
+    "tags": ["可观测性", "链路追踪", "traceId", "三支柱"]
+  },
+  {
+    "id": "Q-cs-devops-observ-0002",
+    "nodeId": "cs.devops.observ.three-pillars",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "面试官：关于 Prometheus 的四种指标类型与指标模型，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "counter 只增不减（重启除外），适合统计请求总数、错误总数；想得到速率要靠 rate/ increase 函数计算" },
+      { "key": "B", "text": "gauge 可增可减，适合表示当前温度、内存占用、队列长度这类瞬时值" },
+      { "key": "C", "text": "histogram 在客户端把观测值分桶计数，服务端可用 histogram_quantile 计算分位数；分位误差取决于桶边界设计" },
+      { "key": "D", "text": "summary 也能算分位数但在客户端计算，无法跨实例聚合；因此多实例服务的全局 P99 通常优先用 histogram" }
+    ],
+    "answer": { "keys": ["A", "B", "C", "D"] },
+    "analysis": "四项全部正确，这道题系统考察指标类型。A：counter 语义是单调递增，直接看绝对值没意义，rate(counter[5m]) 求每秒速率、increase 求区间增量才是正确用法，counter 重置由 PromQL 函数自动处理。B：gauge 是快照值，可上下波动，资源占用类指标都用它。C：histogram 预先配置桶边界（le），每个桶累计落入的样本数，分位数在查询端估算，代价是估算精度受桶粒度影响——桶边界要按业务延迟分布设计，否则 P99 失真。D 是 summary 与 histogram 的关键差异：summary 的分位在客户端算好上报，多个 Pod 的 P99 无法数学合并（分位数不可加），histogram 的桶计数可以跨实例 sum 后再算全局分位，云原生环境因此优先 histogram。",
+    "gapCheck": [
+      "易漏点：counter 不能用 gauge 代替，否则 rate 函数无法正确处理重置与增速",
+      "常见误区：以为 summary 的 P99 能直接相加平均——分位数不可聚合是选型的分水岭",
+      "加分项：能讲 histogram 桶边界设计（指数桶/业务桶）、基数爆炸（label 组合过多）对时序库的压力"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.observ.three-pillars"],
+      "related": ["cs.devops.observ.alert-slo"],
+      "followUps": [
+        "为什么不建议把 user_id 这类高基数字段做成 Prometheus label？",
+        "histogram_quantile 算出来的 P99 和真实 P99 为什么可能有偏差？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Prometheus 指标类型多选题" },
+    "tags": ["Prometheus", "指标类型", "histogram", "counter", "gauge"]
+  },
+  {
+    "id": "Q-cs-devops-observ-0003",
+    "nodeId": "cs.devops.observ.three-pillars",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：高并发链路给每个请求都全量上报链路追踪数据，成本和存储压力会难以承受；工程上常用采样（如概率采样、尾部采样）降低上报量，其中尾部采样优先保留出错或慢请求的完整 trace，代价是采样决策需要在 trace 结束时做出、采集端要缓存更多数据。",
+    "answer": { "judge": true },
+    "analysis": "正确。采样是可观测性成本控制的核心手段。头部概率采样（head-based）在 trace 开始时按固定概率决定是否保留，实现简单、采集端无缓存压力，但错误请求也会被同比例丢弃，低频故障可能采不到。尾部采样（tail-based）等整条 trace 结束后再根据状态码、延迟、是否异常决定保留，能把预算集中在有诊断价值的请求上，代价是采集器要暂存未决 trace、内存与实现复杂度上升，且需要集中式采集器协同。还要注意：采样率要和 SLO 口径对齐，基于采样数据计算的错误率/延迟要做统计修正；关键事务可采用『错误全采+正常按比例采』的混合策略。结构化日志（JSON 字段、级别、traceId）则让日志可被机器检索并与追踪互跳，是另一条基础实践。",
+    "gapCheck": [
+      "易漏点：采样后指标统计口径变化，SLO 报表与告警阈值要基于采样策略重新校准",
+      "常见误区：以为采样就是简单按比例丢数据，忽略头部/尾部采样在故障可见性上的巨大差异",
+      "加分项：能讲自适应采样（按流量动态调整比例）与日志侧的分级采样（debug 日志默认不落盘）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.observ.three-pillars"],
+      "related": ["cs.devops.observ.alert-slo"],
+      "followUps": [
+        "尾部采样需要汇聚所有 span 才能决策，这对采集器架构提出什么要求？",
+        "采样率 10% 时，一个每天只发生几次的罕见故障会不会完全看不到？怎么补救？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "追踪采样策略判断题" },
+    "tags": ["采样", "尾部采样", "链路追踪", "可观测性成本", "判断"]
+  },
+  {
+    "id": "Q-cs-devops-observ-0004",
+    "nodeId": "cs.devops.observ.three-pillars",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 JavaScript 实现一个基于时间桶（time bucket）的滚动窗口错误率统计器 `RollingErrorRate`：①构造参数为窗口大小 windowMs 与桶数 bucketCount，record(success, ts) 按时间戳把请求计入对应桶并自动轮转覆盖过期桶；②errorRate(now) 先丢弃滑出窗口的旧桶再聚合，返回当前窗口错误率；③shouldTrip({minSamples, threshold}, now) 实现熔断判定——样本数达到 minSamples 门槛且错误率 ≥ threshold 才返回 true（防止小样本误判）。要求可直接运行并打印测试，再说明它与 SLO/熔断器的关系。",
+    "answer": {
+      "ref": "机理：把滚动窗口均匀切成固定数量的时间桶，每个桶记录该时段的总请求数与错误数，用时间戳对桶数取模定位桶、发现桶起始时间不匹配就轮转重置，天然完成过期清理；查询时只聚合仍落在窗口内的桶，错误率=错误数/总数。minSamples 门槛对应熔断器的小样本保护（窗口里只有两三个请求时错误率没有统计置信度），threshold 对应 SLO 允许的错误预算边界——错误率持续超阈意味着预算在快速耗尽，应熔断快速失败并告警。时间桶相比全量请求日志，内存开销固定（只存桶不存单请求），是生产端轻量统计的常用结构。",
+      "code": "class RollingErrorRate {\n  constructor(windowMs, bucketCount = 10) {\n    this.windowMs = windowMs;\n    this.bucketCount = bucketCount;\n    this.bucketMs = windowMs / bucketCount;\n    this.buckets = Array.from({ length: bucketCount }, () => ({ start: -1, total: 0, errors: 0 }));\n  }\n\n  _locate(ts) {\n    const slot = Math.floor(ts / this.bucketMs);\n    const idx = slot % this.bucketCount;\n    const start = slot * this.bucketMs;\n    const b = this.buckets[idx];\n    if (b.start !== start) { // 轮转：该槽位属于新时间段，旧数据已过期\n      b.start = start;\n      b.total = 0;\n      b.errors = 0;\n    }\n    return b;\n  }\n\n  record(success, ts = Date.now()) {\n    const b = this._locate(ts);\n    b.total++;\n    if (!success) b.errors++;\n  }\n\n  _snapshot(now = Date.now()) {\n    const minStart = now - this.windowMs;\n    let total = 0, errors = 0;\n    for (const b of this.buckets) {\n      if (b.start >= 0 && b.start + this.bucketMs > minStart) {\n        total += b.total;\n        errors += b.errors;\n      }\n    }\n    return { total, errors };\n  }\n\n  errorRate(now = Date.now()) {\n    const { total, errors } = this._snapshot(now);\n    return total === 0 ? 0 : errors / total;\n  }\n\n  shouldTrip({ minSamples = 20, threshold = 0.5 } = {}, now = Date.now()) {\n    const { total, errors } = this._snapshot(now);\n    if (total < minSamples) return false; // 小样本不熔断\n    return errors / total >= threshold;\n  }\n}\n\n// ---- 测试 ----\nconst t0 = 100000;\nconst r = new RollingErrorRate(1000, 10); // 1 秒窗口、10 个 100ms 桶\nfor (let i = 0; i < 20; i++) r.record(true, t0 + i * 20);       // 20 成功\nfor (let i = 0; i < 5; i++) r.record(true, t0 + 600 + i * 10); // 5 成功\nfor (let i = 0; i < 25; i++) r.record(false, t0 + 700 + i * 5); // 25 失败\nconsole.log('窗口内错误率:', r.errorRate(t0 + 850).toFixed(2)); // 0.50\nconsole.log('熔断判定:', r.shouldTrip({ minSamples: 20, threshold: 0.5 }, t0 + 850)); // true\n\nconst r2 = new RollingErrorRate(1000, 10); // 小样本保护验证\nr2.record(false, t0); r2.record(false, t0 + 10); r2.record(true, t0 + 20);\nconsole.log('小样本错误率:', r2.errorRate(t0 + 50).toFixed(2), '熔断:', r2.shouldTrip({ minSamples: 20, threshold: 0.5 }, t0 + 50)); // 0.67 false\n\nconsole.log('窗口滑动后错误率:', r.errorRate(t0 + 2500)); // 0\nconsole.log('滑动后熔断:', r.shouldTrip({}, t0 + 2500));  // false"
+    },
+    "scoringPoints": [
+      { "point": "时间桶轮转与过期清理正确（取模定位+起始时间判断重置），内存不随请求数增长", "weight": 3 },
+      { "point": "errorRate 聚合时正确排除窗口外旧桶，空窗口返回 0 不产生除零", "weight": 3 },
+      { "point": "shouldTrip 含 minSamples 小样本门槛与 threshold 双重判定，测试覆盖三种场景", "weight": 2 },
+      { "point": "能关联熔断器三态与 SLO 错误预算解释设计意图", "weight": 2 }
+    ],
+    "analysis": "这是 SLO/熔断章节的核心手写题。常见失分：用数组保存每个请求时间戳（内存随 QPS 线性增长、不会自动清理）；桶轮转只按取模不校验起始时间，导致新旧周期数据串桶；忘记除零保护；熔断判定没有最小样本门槛，两个请求失败一次就误熔断。能进一步讲滑动窗口与 tumbling window 的区别、Prometheus client 内置的滑动窗口思路，属于加分。",
+    "gapCheck": [
+      "易漏点：取模得到的桶可能属于上一个轮转周期，必须比较桶起始时间才能判断是否过期",
+      "常见误区：把错误率统计和熔断状态机混为一谈——统计器只提供度量，熔断还需 open/half-open 状态与冷却计时",
+      "加分项：能讲桶数量决定时间精度与内存的权衡，以及分布式下限流/熔断状态的本地与集中式取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.observ.three-pillars"],
+      "related": ["cs.design.limit.circuit-breaker", "cs.design.limit.algorithm", "cs.devops.observ.alert-slo"],
+      "followUps": [
+        "把这个统计器接到熔断器上，half-open 状态下统计口径应该怎么调整？",
+        "多实例部署时各自本地统计，全局错误率怎么汇总才不失真？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "时间桶错误率统计 JS 手写题" },
+    "tags": ["手写题", "时间桶", "错误率", "熔断器", "SLO"]
+  },
+  {
+    "id": "Q-cs-devops-observ-0005",
+    "nodeId": "cs.devops.observ.alert-slo",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：可靠性治理中，实际测量出来的服务质量量化指标叫 ______（如可用率、P99 延迟）；团队内部设定的质量目标值叫 ______；对外承诺、达不到要赔付的合同条款叫 ______；某服务 SLO 定为 99.9%，则其 ______（预算名）占总请求量的比例是 0.1%，预算耗尽时工程团队通常应冻结新功能发布、优先保稳定。",
+    "answer": {
+      "blanks": ["SLI", "SLO", "SLA", "错误预算"],
+      "synonyms": {
+        "SLI": ["sli", "服务等级指标", "服务水平指标"],
+        "SLO": ["slo", "服务等级目标", "服务水平目标"],
+        "SLA": ["sla", "服务等级协议", "服务水平协议"],
+        "错误预算": ["error budget", "错误预算（error budget）"]
+      }
+    },
+    "analysis": "三个概念层层递进：SLI（Indicator）是测量值，必须可从监控系统客观取数；SLO（Objective）是内部目标，通常严于对外 SLA 以留出缓冲；SLA（Agreement）是商务承诺，违约涉及赔付或信用。错误预算=1-SLO 对应的不可用/失败额度，如 99.9% SLO 意味着每 1000 个请求允许 1 个失败（或每 1000 分钟允许 1 分钟不可用）。它的管理价值是把『稳定性』和『迭代速度』放进同一套语言：预算充足时大胆发布，预算耗尽则暂停变更、集中还债，避免可靠性团队与业务团队无休止扯皮。",
+    "gapCheck": [
+      "易漏点：SLO 一般比 SLA 严，给事故响应留缓冲，二者数字相同等于没有内部余量",
+      "常见误区：把 SLI 定成无法自动测量的主观指标，导致 SLO 无法持续考核",
+      "加分项：能讲多窗口多阈值告警（如短窗口+长窗口同时超阈才报警）抑制抖动误报"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.observ.alert-slo"],
+      "related": ["cs.design.limit.ha", "cs.devops.observ.three-pillars"],
+      "followUps": [
+        "延迟类 SLI 为什么常用 P99 而不是平均值？P99 达标但 P999 很差说明什么？",
+        "错误预算按请求数算和按时间算，两种口径各适合什么类型的服务？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "SLI/SLO/SLA 与错误预算填空题" },
+    "tags": ["SLI", "SLO", "SLA", "错误预算", "填空"]
+  },
+  {
+    "id": "Q-cs-devops-observ-0006",
+    "nodeId": "cs.devops.observ.alert-slo",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "面试官：某团队告警泛滥，工程师半夜经常被『CPU 使用率高』之类的告警叫醒，排查却发现服务正常，久而久之没人认真看告警。请分析告警疲劳的成因，并基于 SLO/错误预算设计一套分级告警与 on-call 治理方案，说明每条告警为什么应该是『可执行』的。",
+    "answer": {
+      "ref": "参考骨架：\n【成因分析】①告警基于资源症状（CPU、内存）而非用户影响，资源波动不一定影响 SLO，大量是噪声；②阈值过敏、无持续时间判断，瞬时毛刺即报警；③没有分级，所有告警同级通知，页面级与工单级混在一起；④告警内容缺少上下文与处置指引，值班人收到也不知道做什么；⑤无人治理，告警规则只增不减，误报长期不清理。结果是『狼来了』效应，真实事故被淹没。\n【分级与基于 SLO 的方案】①先定义 SLI/SLO：把告警锚定在用户可感知的服务质量指标上（成功率、P99 延迟、可用性），资源指标降级为诊断看板而非页面告警。②错误预算燃尽告警：多窗口多阈值策略——短窗口（5 分钟）错误率高速燃尽且长窗口（1 小时）也超阈，说明预算正在快速耗尽，才触发页面级告警；只有长窗口慢燃尽则开工单白天处理；预算消耗速度可换算成『按当前速度预算还能撑几小时』。③告警分级：页面级（page，立即叫醒，影响 SLO 且无人干预会恶化）、工单级（ticket，工作时间处理）、信息级（仅记录）；配合 Alertmanager 的分组（同类告警聚合一条）、抑制（高级别告警触发时屏蔽衍生告警）、静默（维护窗口）。④可执行性纪律：每条页面告警必须附 runbook 链接（影响面、排查步骤、止损动作如回滚/降级/切流）、仪表盘与 trace 入口；无法写出处置动作的告警降级或删除；定期复盘误报与漏报，调整阈值。\n【on-call 机制】轮值表与升级链（一线 N 分钟无响应自动升级二线）、值班补偿、告警量纳入团队度量（目标是低噪声高召回）；每次页面告警原则上对应一次事后复盘（blameless postmortem），产出根因、时间线、行动项并跟踪闭环；用混沌演练验证告警是否真能在故障时触发。"
+    },
+    "scoringPoints": [
+      { "point": "告警疲劳成因分析到位（症状化、无分级、缺持续时间、无处置指引、只增不减）", "weight": 3 },
+      { "point": "方案锚定 SLO/错误预算，讲清燃尽速率与多窗口多阈值思路", "weight": 3 },
+      { "point": "三级告警与分组/抑制/静默、runbook 可执行性纪律完整", "weight": 2 },
+      { "point": "on-call 轮值升级链与无责复盘闭环形成治理体系", "weight": 2 }
+    ],
+    "analysis": "告警治理是 SRE 实践的高频开放题。常见失分：只说『优化阈值』讲不出 SLO 锚定与燃尽模型；把 CPU 类资源告警一删了之而不是降级为看板；没有 runbook 与可执行性概念；on-call 只答『轮流值班』，缺升级链与复盘。高分回答会抓住『告警是给人做决策的信号，不是指标越界的自动转发』这条主线，把错误预算从概念落到燃尽速率计算与分级策略上。",
+    "gapCheck": [
+      "易漏点：资源类指标不是不能告警，而是应作为诊断信号与容量规划依据，页面告警要让位于用户影响指标",
+      "常见误区：用单窗口瞬时阈值告警，毛刺与真实故障无法区分，多窗口策略正是为此设计",
+      "加分项：能讲告警召回率/精确率度量、SLO 报表驱动告警规则定期评审与退役"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.observ.alert-slo"],
+      "related": ["cs.devops.observ.three-pillars", "cs.design.limit.ha", "cs.design.limit.circuit-breaker"],
+      "followUps": [
+        "错误预算燃尽率的具体公式怎么写？燃尽率大于 1 意味着什么？",
+        "跨团队的公共基础服务告警，怎么和业务团队的 on-call 职责划分边界？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "告警疲劳与 SLO 告警治理简答题" },
+    "tags": ["告警分级", "错误预算", "on-call", "告警疲劳", "SRE"]
+  },
+  {
+    "id": "Q-cs-devops-observ-0007",
+    "nodeId": "cs.devops.observ.alert-slo",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "面试官：关于 Prometheus 的指标采集方式与 Alertmanager 的职责，下列说法**最准确**的是：",
+    "options": [
+      { "key": "A", "text": "Prometheus 采用拉模型，由 Server 经服务发现周期性抓取各服务暴露的 /metrics；告警规则在 Server 侧用 PromQL 求值，触发后推给 Alertmanager 做分组、抑制与静默降噪" },
+      { "key": "B", "text": "Prometheus 采用推模型，所有服务必须主动推送指标；Alertmanager 负责长期存储指标并替代 Grafana 做可视化" },
+      { "key": "C", "text": "Prometheus 只能静态配置监控目标，无法对接 Kubernetes 服务发现，目标下线无法被自动感知" },
+      { "key": "D", "text": "告警规则在 Grafana 里配置求值，Prometheus 只负责存数据，Alertmanager 只是一个邮件发送器" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确：拉模型下被监控方只需被动暴露文本格式 /metrics 端点，Server 靠静态配置或服务发现（如 K8s Endpoint 发现）自动纳入目标，目标下线表现为抓取失败并生成 up 指标告警；短生命周期任务来不及被抓取时才用 pushgateway 作推送补充。告警规则在 Server 侧周期求值，Alertmanager 负责分组（同源告警合并）、抑制（高级别告警存在时静音衍生告警）、静默（维护窗口）。B 错在采集方向与组件职责，长期存储与画图分别是时序库/远端存储和 Grafana 的职责。C 错：服务发现是 Prometheus 的核心能力，目标上下线可自动感知。D 错：Grafana 主要做可视化，告警求值在 Prometheus，Alertmanager 承担路由、降噪与通知编排，远不止发邮件。",
+    "gapCheck": [
+      "易漏点：拉模型下监控目标的『存活』本身就是一个指标（up），目标失联会被自动发现，不需要目标主动心跳",
+      "常见误区：把 Prometheus 当成推送式监控，或以为 Grafana 负责告警——Grafana 主要做可视化与展示，告警求值在 Prometheus/Alertmanager",
+      "加分项：能讲 Alertmanager 高可用部署（多实例 gossip 同步静默状态）与远程写入长期存储（如 Thanos/Mimir）的扩展思路"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.devops.observ.alert-slo"],
+      "related": ["cs.devops.observ.three-pillars", "cs.devops.k8s.arch-object"],
+      "followUps": [
+        "抓取间隔设 15 秒或 60 秒，对告警时效与时序库成本分别有什么影响？",
+        "一个几千 Pod 的集群，Prometheus 单机会遇到什么瓶颈？联邦或分片怎么解？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Prometheus 拉模型与 Alertmanager 降噪判断题" },
+    "tags": ["Prometheus", "Alertmanager", "拉模型", "告警降噪", "判断"]
+  }
+]

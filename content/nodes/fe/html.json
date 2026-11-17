@@ -1,0 +1,27 @@
+[
+  { "id": "fe.html", "title": "HTML 与页面结构", "level": 2, "domain": "fe", "stack": "html", "topic": null, "mustMaster": true, "estMinutes": 90,
+    "summary": "HTML 是网页骨架：标签语义、表单、SEO 与可访问性、meta 与文档结构，是前端三件套的第一站" },
+
+  { "id": "fe.html.foundation", "title": "HTML 文档结构与常用标签", "level": 3, "domain": "fe", "stack": "html", "topic": "foundation", "mustMaster": true, "estMinutes": 40,
+    "summary": "DOCTYPE、html/head/body、块级与行内元素、常用标签、meta 与字符编码、HTML 文档的基本骨架" },
+
+  { "id": "fe.html.foundation.semantic-tags", "title": "语义化标签与文档骨架（DOCTYPE/meta/常用标签）", "level": 4, "domain": "fe", "stack": "html", "topic": "foundation",
+    "related": ["fe.html.form.form-basics"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 DOCTYPE 的作用、html/head/body 结构、meta charset/viewport、div/span 与 header/main/section/article/nav/footer 等语义标签的区别，以及语义化对 SEO、可访问性和可读性的意义。这是整条前端学习路线的零前置起点" },
+
+  { "id": "fe.html.foundation.block-inline", "title": "块级元素 vs 行内元素与标签嵌套规则", "level": 4, "domain": "fe", "stack": "html", "topic": "foundation",
+    "prerequisites": ["fe.html.foundation.semantic-tags"],
+    "related": ["fe.css.box.box-model"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能区分块级元素（独占一行、可设宽高）与行内元素（不换行、宽高由内容决定）、行内块 inline-block，讲清合法嵌套规则（如 a 不能嵌套交互元素、p 里不能放块级）以及替换元素与非替换元素" },
+
+  { "id": "fe.html.form", "title": "表单与输入", "level": 3, "domain": "fe", "stack": "html", "topic": "form", "mustMaster": true, "estMinutes": 40,
+    "summary": "form/input/select/textarea/label、input 类型与校验属性、提交机制、可访问性关联" },
+
+  { "id": "fe.html.form.form-basics", "title": "表单元素、label 关联与原生校验", "level": 4, "domain": "fe", "stack": "html", "topic": "form",
+    "prerequisites": ["fe.html.foundation.semantic-tags"],
+    "related": ["fe.js.dom.event"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 form 的 action/method、input 常用 type（text/password/email/number/checkbox/radio 等）、label for 与输入框的可访问性关联、required/pattern/minmax 等原生校验属性，以及 name 属性在提交数据中的作用" }
+]

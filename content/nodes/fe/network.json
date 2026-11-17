@@ -1,0 +1,61 @@
+[
+  { "id": "fe.network.transport", "title": "HTTP 应用层与跨域机制", "level": 3, "domain": "fe", "stack": "network", "topic": "transport", "mustMaster": true, "estMinutes": 50,
+    "summary": "前端视角的 HTTP 报文与状态码应用、缓存策略落地（hash+强缓存）、同源策略与 CORS 完整规则" },
+
+  { "id": "fe.network.transport.http-basics", "title": "HTTP 报文、状态码与前端错误处理", "level": 4, "domain": "fe", "stack": "network", "topic": "transport",
+    "prerequisites": ["cs.net.http.message"],
+    "related": ["fe.js.async.promise"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能按前端场景使用状态码语义：2xx/3xx/4xx/5xx 分类、fetch 对 4xx/5xx 不 reject 只拦网络错误这一坑、axios validateStatus 与统一拦截器设计、301/302 与 304 的区别（304 不给 body 由本地缓存拼装）、HEAD/OPTIONS 方法用途；并能说清 fetch ReadableStream 流式响应与 event-stream content-type 的关系（大模型 SSE 输出前端逐块读取）" },
+
+  { "id": "fe.network.transport.cache-strategy", "title": "前端缓存策略：ETag、Last-Modified 与 hash 强缓存", "level": 4, "domain": "fe", "stack": "network", "topic": "transport",
+    "prerequisites": ["cs.net.http.cache"],
+    "related": ["fe.build.bundle.caching"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 Last-Modified/If-Modified-Since（秒级精度、改内容不改时间误判）与 ETag/If-None-Match（内容指纹更准、优先级高于 LM）两条协商链路，区分 200(from disk/memory cache)、304、no-cache、no-store 在 DevTools 的呈现；并给出工程标准方案：HTML no-cache、带内容 hash 的 js/css 一年 immutable 强缓存、index.html 里的旧 chunk 引用如何被自然替换、发布瞬间「新 HTML + 旧缓存 js」错配的处理思路" },
+
+  { "id": "fe.network.transport.cors-cookie", "title": "同源策略、CORS 请求模式与 Cookie 携带", "level": 4, "domain": "fe", "stack": "network", "topic": "transport",
+    "prerequisites": ["cs.net.http.message"],
+    "related": ["fe.browser.storage.local", "fe.electron.security.csp"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能判定简单请求（方法为 GET/HEAD/POST 且头与 Content-Type 受限：application/x-www-form-urlencoded/multipart/form-data/text/plain）与非简单请求触发预检的条件、Access-Control-Max-Age 缓存预检；凭证场景三件套必须同时满足：fetch credentials:include/withCredentials、Access-Control-Allow-Credentials:true、Allow-Origin 不得为 *；自定义头如 Authorization/X-Token 触发预检；Content-Type:application/json 是简单请求例外会直接预检；SameSite=Lax 默认值下跨站 XHR/fetch 根本不发 Cookie、iframe 内嵌请求属 SameSite=None 需 Secure；OPTIONS 无 Fetch Metadata 头但 Sec-Fetch-Mode=cors 可识别预检、Sec-Fetch-Site 四值 same-origin/cross-site/same-site/none 可做服务端同源治理；开发期 vite dev proxy 转发后浏览器认为是同源请求、生产用 nginx 反代或网关统一加 CORS 头二选一" },
+
+  { "id": "fe.network.realtime", "title": "实时通信：WebSocket、SSE 与轮询选型", "level": 3, "domain": "fe", "stack": "network", "topic": "realtime", "mustMaster": true, "estMinutes": 45,
+    "summary": "全双工/单向推送/轮询三代方案的协议细节、心跳重连工程、移动端后台断连治理" },
+
+  { "id": "fe.network.realtime.websocket", "title": "WebSocket：升级握手与心跳重连工程", "level": 4, "domain": "fe", "stack": "network", "topic": "realtime",
+    "prerequisites": ["cs.net.tcpip.tcp-vs-udp", "fe.network.transport.http-basics"],
+    "related": ["fe.network.realtime.sse"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 Upgrade:websocket/Sec-WebSocket-Key 与 101 Switching Protocols 握手、ws://与 wss://、同源策略下 WebSocket 不受 CORS 限制（服务端自行校验 Origin）；工程四件套：ping/pong 心跳与超时判定、指数退避+jitter+最大次数重连、页面 visibilitychange 时主动断开省电与回前台补发 lastSeq 拉增量、多标签页 SharedWorker/WebSocket 单连接共享；并知道 WS 握手不带 Authorization 头时 subprotocol 传 token 或首帧鉴权的替代方案" },
+
+  { "id": "fe.network.realtime.sse", "title": "SSE vs WebSocket vs 轮询：选型与断线续传", "level": 4, "domain": "fe", "stack": "network", "topic": "realtime",
+    "prerequisites": ["fe.network.transport.http-basics"],
+    "related": ["fe.network.realtime.websocket"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲 SSE 即 text/event-stream 长响应的 data:/event:/id:/retry: 字段格式、EventSource 自动重连与 Last-Event-ID 续传、HTTP/1.1 同域 6 连接被长连接占死的配额问题、GET 限制与 POST-SSE（fetch 流读取）绕法、代理缓冲导致收不到分片需 X-Accel-Buffering:no 关闭 nginx 缓冲；对比 WS 的带宽成本（帧头约 2-14 字节，对比 SSE 纯文本无帧开销）、二进制支持、双向性；高频场景：LLM 流式输出用 SSE、协同编辑与在线交易用 WS、纯降级兜底用轮询（visibilitychange 停轮询）" },
+
+  { "id": "fe.network.transfer", "title": "大文件传输与上传", "level": 3, "domain": "fe", "stack": "network", "topic": "transfer", "mustMaster": false, "estMinutes": 35,
+    "summary": "大文件分片上传、秒传与断点续传、对象存储直传与表单签名" },
+
+  { "id": "fe.network.transfer.upload", "title": "大文件分片上传、秒传与对象存储直传", "level": 4, "domain": "fe", "stack": "network", "topic": "transfer",
+    "prerequisites": ["fe.js.async.promise", "fe.browser.worker.thread"],
+    "related": ["fe.build.toolchain.package-manager"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲 slice 按固定大小切片并发上传（并发池限流、失败分片单独重试）与 upload.onprogress 进度聚合、SparkMD5 哈希放 Web Worker 避免主线程卡顿、秒传=先传指纹查服务端是否已存在、断点续传=服务端记录已收分片清单下次只补缺口（或 Range 头续传单文件）、form-data 的 multipart boundary 与 Content-Type:multipart/form-data 属简单请求不触发预检而 PUT 直传需预检；对象存储直传方案：STS 临时凭证/presigned URL/服务端签发 policy+signature 的 PostObject 表单、localStorage 暂存任务队列实现刷新续传、大视频预览用 createImageBitmap/Canvas 抽帧" },
+
+  { "id": "fe.network.optimize", "title": "连接建立与资源加载加速", "level": 3, "domain": "fe", "stack": "network", "topic": "optimize", "mustMaster": false, "estMinutes": 30,
+    "summary": "DNS 解析与预解析、preconnect、资源提示优先级与 fetchpriority" },
+
+  { "id": "fe.network.optimize.conn-reuse", "title": "DNS 解析、preconnect 与 HTTP/2 复用实践", "level": 4, "domain": "fe", "stack": "network", "topic": "optimize",
+    "prerequisites": ["cs.net.dns.resolve", "cs.net.http.http2-3"],
+    "related": ["fe.perf.loading.resource-hint", "fe.browser.render.pipeline"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲浏览器 DNS 缓存层级与解析耗时在关键路径上的位置、dns-prefetch 只省 DNS 而 preconnect 提前完成 DNS+TCP+TLS whole handshake 及二者适用差异（第三方域名用 prefetch、即将大量请求的域名用 preconnect）、preconnect 单域名名额有限不宜滥用、http-equiv=refresh 与 meta viewport 对解析的影响；HTTP/2 多路复用下域名分片反而变差（新建连接的 TLS 慢启动成本）、但 HTTP/1 时代分片仍有效需按协议版本决策；Server-Timing 响应头暴露服务端分段耗时供前端汇总" },
+
+  { "id": "fe.network.optimize.load-priority", "title": "资源提示、preload 家族与 fetchpriority", "level": 4, "domain": "fe", "stack": "network", "topic": "optimize",
+    "prerequisites": ["fe.network.optimize.conn-reuse", "fe.browser.render.pipeline"],
+    "related": ["fe.perf.loading.critical-path"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能区分 preload（当前页高优先取回即用，as/crossorigin 必填否则重复下载）、prefetch（下一页预测，低优先级）、modulepreload（预载含依赖图的 ES module，免瀑布流）、prerender/prerendering 与 Speculation Rules API（Chrome 悬停即渲染下一页、2024 年起稳定，取代老 prender）四种资源提示的时机与代价；script async/defer 区别（async 抢到就执行打断解析、defer 保持顺序 DOMContentLoaded 前）；fetchpriority=high 给 LCP 图片提权且 Chrome 的 Load 优先级最高到 High、importance 属性与 requestInit 的传输层优先级映射（HTTP/2 urgency）；preload 滥用会抢占带宽反而拖慢 LCP" }
+]

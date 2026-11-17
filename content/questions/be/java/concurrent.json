@@ -1,0 +1,162 @@
+[
+  {
+    "id": "Q-be-java-thread-0001",
+    "nodeId": "be.java.concurrent.thread-basics",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 Java 创建线程的方式与线程状态，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "实现 Runnable 接口只是定义了任务，最终仍要把它交给 Thread 对象调用 start() 才会真正启动新线程" },
+      { "key": "B", "text": "直接调用 Thread 的 run() 方法和调用 start() 一样，都会开启一条新线程" },
+      { "key": "C", "text": "Java 线程只有新建、运行、结束三种状态" },
+      { "key": "D", "text": "Callable 和 Runnable 完全一样，都不能返回结果、都不能抛受检异常" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：Runnable 本身只是个带 void run() 的任务接口，不含线程能力；必须 new Thread(runnable).start()，由 JVM 注册本地线程、在新线程里回调 run()。B 错：直接调 run() 只是在当前线程普通地执行一次方法，不会创建新线程；start() 才会向 JVM 申请新线程并由它执行 run()，且一个 Thread 对象的 start() 只能调用一次。C 错：Thread.State 明确定义了 6 种状态——NEW、RUNNABLE（含就绪与运行）、BLOCKED、WAITING、TIMED_WAITING、TERMINATED。D 错：Runnable 的 run() 无返回值且不能声明受检异常；Callable 的 call() 有泛型返回值 V、允许抛 Exception，通常配合 FutureTask/线程池使用，再用 Future.get() 取结果（get 会阻塞并可捕获 ExecutionException）。",
+    "gapCheck": [
+      "易漏点：RUNNABLE 把「就绪等 CPU」和「正在运行」合并为一个状态；BLOCKED 只针对 synchronized 抢锁，等 Lock 时线程状态是 WAITING",
+      "常见误区：以为调 run() 能开线程，或反复对同一 Thread 对象 start()",
+      "加分项：能讲清 start() 后线程经历 NEW→RUNNABLE→（BLOCKED/WAITING）→TERMINATED 的完整转换路径"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.concurrent.thread-basics"],
+      "related": ["be.java.concurrent.threadpool-lock"],
+      "followUps": ["一个线程能 start 两次吗？会发生什么？", "Callable + FutureTask 是怎么把返回值带回来的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "线程创建方式与六种状态单选题" },
+    "tags": ["并发", "线程创建", "线程状态", "Runnable/Callable"]
+  },
+  {
+    "id": "Q-be-java-thread-0002",
+    "nodeId": "be.java.concurrent.thread-basics",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：synchronized 修饰实例方法时锁的是当前对象 this，修饰静态方法时锁的是该类的 Class 对象；而 Object 的 wait()/notify() 必须在持有对应对象监视器锁（synchronized 块内）时调用，否则抛 IllegalMonitorStateException。",
+    "answer": { "judge": true },
+    "analysis": "正确。synchronized 实例方法等价于 synchronized(this) 代码块，锁当前实例；静态方法锁的是 Class 对象（类级别，同类所有实例共用一把锁）；synchronized(obj) 代码块则锁括号里的对象。wait()/notify()/notifyAll() 是 Object 上的监视器方法：调用 wait() 会让当前线程释放锁并进入该对象的等待集，被 notify 唤醒后还要重新竞争到锁才能继续执行；正因如此它们必须在 synchronized（持有该对象 monitor）的上下文中调用，否则 JVM 直接抛 IllegalMonitorStateException。锁升级层面，JDK 6 之后 synchronized 经历「无锁→偏向锁→轻量级锁（CAS 自旋）→重量级锁（操作系统互斥量）」的自适应升级，锁只能升不能降（注：JDK 15 起偏向锁已被废弃并默认禁用，回答时注明版本更严谨）。",
+    "gapCheck": [
+      "易漏点：wait() 会释放锁而 Thread.sleep() 不释放任何锁；wait/notify 属于 Object 而非 Thread",
+      "常见误区：在 synchronized 块外调 wait/notify，或混淆实例锁 this 与类锁 Class 对象",
+      "加分项：能区分 notify 与 notifyAll 的唤醒范围，并解释为什么实践中推荐 notifyAll 防止信号丢失"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.concurrent.thread-basics"],
+      "related": ["be.java.concurrent.threadpool-lock"],
+      "followUps": ["wait() 和 sleep() 在释放锁、唤醒方式、所属类上有什么区别？", "为什么推荐用 ReentrantLock + Condition 替代裸 wait/notify？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "synchronized 锁对象与 wait/notify 前提判断题" },
+    "tags": ["并发", "synchronized", "wait/notify", "锁升级"]
+  },
+  {
+    "id": "Q-be-java-pool-0001",
+    "nodeId": "be.java.concurrent.threadpool-lock",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "用 `new ThreadPoolExecutor(...)` 手动建线程池，核心线程数 corePoolSize=2、最大线程数 maximumPoolSize=5、队列 workQueue 用容量为 4 的 ArrayBlockingQueue。前 2 个任务占满核心线程后，又连续提交第 3～第 8 共 6 个任务（队列放满后继续来任务）。关于任务的接纳顺序，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "第 3～6 个任务先进队列排队（4 个位置放满），第 7、8 个任务才触发新建非核心线程，线程数最多扩到 5，再来任务才走拒绝策略" },
+      { "key": "B", "text": "线程池会先把线程数扩到 maximumPoolSize=5，再把多出来的任务放进队列" },
+      { "key": "C", "text": "队列一放满就立即触发拒绝策略，绝不会创建非核心线程" },
+      { "key": "D", "text": "核心线程数会随着任务量自动调整为 5，corePoolSize 只是初始值没有约束作用" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确描述了 ThreadPoolExecutor 的标准流程：提交任务时，① 运行线程数 < corePoolSize，新建核心线程执行（前 2 个任务）；② 核心线程满了，任务进 workQueue 排队（第 3～6 个，恰好放满容量 4 的队列）；③ 队列也满了，才在 maximumPoolSize 之内新建非核心线程（第 7、8 个，线程数由 2 升到 4，上限 5）；④ 线程数已达 maximumPoolSize 且队列仍满，新任务才交给 RejectedExecutionHandler。B 把顺序说反了——先排队、队列满才扩线程，这也是为什么用无界队列（如 LinkedBlockingQueue 不指定容量）时 maximumPoolSize 永远用不上、任务可能无限堆积导致 OOM。C 错：队列满后还有「扩容到最大线程数」这一层缓冲，不是立刻拒绝。D 错：corePoolSize 是硬参数，不会自动变大；线程数在 core 与 max 之间按上述规则弹性变化。四种拒绝策略：AbortPolicy（默认，抛异常）、CallerRunsPolicy（调用者线程执行，天然限流）、DiscardPolicy（静默丢弃）、DiscardOldestPolicy（丢队头再试）。",
+    "gapCheck": [
+      "易漏点：提交顺序是「核心线程→队列→非核心线程到 max→拒绝」，队列在扩容之前",
+      "常见误区：以为先扩到最大线程再入队；或不知道无界队列会让 maxPoolSize 失效",
+      "加分项：能说出阿里规范为何禁止 Executors.newFixedThreadPool/newCachedThreadPool（无界队列或无限线程数引发 OOM）并给出推荐的有界配置"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.concurrent.threadpool-lock"],
+      "related": ["be.java.jvm.memory-gc"],
+      "followUps": ["keepAliveTime 对核心线程是否生效？allowCoreThreadTimeOut 有什么用？", "四种拒绝策略分别适合什么业务场景？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "线程池核心参数与任务接纳流程单选题" },
+    "tags": ["并发", "线程池", "ThreadPoolExecutor", "拒绝策略", "高频必考"]
+  },
+  {
+    "id": "Q-be-java-pool-0002",
+    "nodeId": "be.java.concurrent.threadpool-lock",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 volatile、JMM（Java 内存模型）与 Lock，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "volatile 保证被修饰变量的可见性：一个线程写入后，其他线程能立即读到最新值（会强制刷回主内存并使本地缓存失效）" },
+      { "key": "B", "text": "volatile 通过插入内存屏障禁止特定的指令重排序，能保证有序性，但不能保证复合操作（如 i++）的原子性" },
+      { "key": "C", "text": "ReentrantLock 支持可中断获取（lockInterruptibly）、可设超时（tryLock）以及公平锁，灵活性高于 synchronized" },
+      { "key": "D", "text": "给变量加了 volatile 就等于加了锁，多线程执行 count++ 也一定是线程安全的" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：JMM 中每个线程有工作内存（CPU 缓存/寄存器抽象），普通变量的修改不一定及时刷回主内存；volatile 的写会插入 store/load 屏障强制刷主内存，读会强制从主内存加载并失效本地副本，从而保证可见性。B 正确：volatile 通过内存屏障约束编译器和 CPU 的重排序（典型应用是双重检查单例里的 volatile 防指令重排），保证 happens-before 语义下的有序性；但它不含互斥语义，i++ 是「读-改-写」三步复合操作，volatile 无法保证整体原子性，这种计数要用 AtomicInteger（CAS）或加锁。C 正确：ReentrantLock 基于 AQS 实现，相比 synchronized 提供可中断等待、超时尝试、多 Condition 等待队列、公平/非公平可选等能力；但 synchronized 是语言内置、JVM 会自动释放锁并做了大量性能优化，简单场景优先 synchronized。D 错：volatile 不是锁，不保证原子性、不阻塞线程，count++ 在高并发下仍会丢更新，这是最常见的认知误区。",
+    "gapCheck": [
+      "易漏点：volatile 两大保证是可见性 + 有序性，明确不保证原子性；i++ 必须用 Atomic 类或锁",
+      "常见误区：把 volatile 当轻量级锁万能用，或不知道 DCL 单例为什么必须 volatile（new 对象的分配-初始化-引用赋值可能重排）",
+      "加分项：能讲清 happens-before 八条规则、CAS 的 ABA 问题与 AtomicStampedReference，以及 AQS 的 state + CLH 队列骨架"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.concurrent.threadpool-lock"],
+      "related": ["be.java.jvm.memory-gc"],
+      "followUps": ["双重检查单例（DCL）为什么实例字段必须加 volatile？", "CAS 有什么缺点？ABA 问题怎么解决？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "volatile/JMM 语义与 ReentrantLock 能力多选题" },
+    "tags": ["并发", "volatile", "JMM", "ReentrantLock", "高频必考"]
+  },
+  {
+    "id": "Q-be-java-thread-0003",
+    "nodeId": "be.java.concurrent.thread-basics",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：Java 线程从创建到销毁共经历 6 种 Thread.State，其中已 start 但等待获取 synchronized 监视器锁的线程处于 ______ 状态；调用 Object.wait() 或 LockSupport.park() 无限等待、需被唤醒才能继续的处于 ______ 状态；调用 Thread.sleep(ms)、wait(超时) 等带时限方法的处于 ______ 状态。synchronized 实例方法锁定的是 ______，静态同步方法锁定的是 ______；而执行 wait() 的前提是当前线程必须持有该对象的 ______，且 wait 会立即释放它。",
+    "answer": {
+      "blanks": ["BLOCKED", "WAITING", "TIMED_WAITING", "this（当前实例对象）", "Class 对象", "监视器锁"],
+      "synonyms": {
+        "BLOCKED": ["blocked", "阻塞", "阻塞状态"],
+        "WAITING": ["waiting", "等待", "无限等待状态"],
+        "TIMED_WAITING": ["timed_waiting", "限时等待", "计时等待"],
+        "this（当前实例对象）": ["this", "当前对象", "实例对象", "当前实例"],
+        "Class 对象": ["class对象", "类对象", "该类的Class对象", "字节码对象"],
+        "监视器锁": ["monitor", "对象锁", "监视器", "monitor锁"]
+      }
+    },
+    "analysis": "Thread.State 是六态枚举：NEW（已 new 未 start）、RUNNABLE（可运行，含就绪与运行，JVM 把 OS 的就绪/运行合并）、BLOCKED、WAITING、TIMED_WAITING、TERMINATED。区分三个『卡住』态是高频考点：BLOCKED 专指被动等待 synchronized 监视器锁（抢锁失败被挂在入口队列）；WAITING 是主动无限期等待，典型为无参 wait()、join()、LockSupport.park()，要靠 notify/notifyAll/unpark 唤醒；TIMED_WAITING 是带超时的等待，sleep(ms)、wait(ms)、join(ms)、parkNanos 都归此类，超时或被唤醒都会离开。锁对象方面：实例同步方法等价于 synchronized(this)，锁当前实例；静态同步方法锁的是类的 Class 对象（全局唯一，等价于 synchronized(X.class)），二者锁的不是同一把锁，不互斥。wait/notify 属于 Object 而非 Thread，调用 wait() 必须先持有该对象监视器（否则抛 IllegalMonitorStateException），且 wait 会立刻释放锁进入等待集，notify 唤醒后线程还要重新竞争到锁才能从 wait 返回——这正是它与 sleep（不释放锁、是 Thread 的静态方法）的本质区别。",
+    "gapCheck": [
+      "易漏点：BLOCKED 是等 synchronized 锁，WAITING 是 wait/park 主动等唤醒，二者成因不同",
+      "常见误区：以为 sleep 会释放锁（不释放），或混淆实例锁 this 与静态锁 Class 对象",
+      "加分项：能讲清 wait 释放锁、被 notify 后仍需重新抢锁，以及 RUNNABLE 合并了 OS 就绪/运行两态"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.concurrent.thread-basics"],
+      "related": ["be.java.concurrent.threadpool-lock"],
+      "followUps": ["wait() 与 sleep() 在锁释放、所属类、唤醒方式上有哪些系统差异？", "为什么 wait/notify 必须放在 synchronized 块里，否则会发生什么异常？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "线程六态与 synchronized/wait 监视器机制填空题" },
+    "tags": ["并发", "线程生命周期", "synchronized", "wait/notify", "填空题"]
+  },
+  {
+    "id": "Q-be-java-pool-0003",
+    "nodeId": "be.java.concurrent.threadpool-lock",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：volatile 变量既能保证多线程间的可见性和禁止指令重排，也能保证 i++ 这类『读-改-写』复合操作的原子性，因此计数器自增直接用 volatile int 就线程安全，无需 AtomicInteger 或加锁。",
+    "answer": { "judge": false },
+    "analysis": "错误。这是对 volatile 最典型的过度解读。volatile 只提供两条保证：① 可见性——写一个 volatile 变量会立即刷回主存、读时强制从主存加载，线程不会读到工作内存的旧副本；② 有序性——通过内存屏障禁止特定方向的指令重排（DCL 单例里 new 对象的『分配内存→初始化→引用赋值』可能重排，volatile 阻止它从而避免拿到未初始化对象）。但 volatile 明确不保证原子性。i++ 在字节码层面是 getfield→iadd→putfield 三步的复合操作，两个线程可同时读到相同旧值、各自加一后写回，结果只加了一次，经典的丢更新。要让计数器线程安全，应使用 AtomicInteger（底层 CAS + volatile value，compareAndSwap 保证读改写整体原子）、LongAdder（高并发分桶、最后求和，竞争更优），或直接 synchronized/ReentrantLock 包住临界区。记忆边界：单次的读写赋值（如 boolean flag 的设置/读取）volatile 够用；凡是涉及先读后写、check-then-act 的复合逻辑，都必须靠 CAS 或锁来补原子性。",
+    "gapCheck": [
+      "易漏点：volatile 保证可见性+有序性，唯独不保证复合操作原子性",
+      "常见误区：把 volatile 当轻量锁，用它保护 i++、自增、状态翻转等读改写逻辑",
+      "加分项：能从字节码三步拆 i++，并给出 AtomicInteger 的 CAS 与 LongAdder 分桶方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.concurrent.threadpool-lock"],
+      "related": ["be.java.concurrent.thread-basics", "be.java.jvm.memory-gc"],
+      "followUps": ["AtomicInteger 的 CAS 在高并发下有什么缺陷，LongAdder 如何用分桶缓解？", "DCL 单例的实例字段为什么必须加 volatile，去掉会出现什么问题？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "volatile 不保证原子性的经典误区判断题" },
+    "tags": ["并发", "volatile", "原子性", "AtomicInteger", "CAS", "判断"]
+  }
+]

@@ -1,0 +1,52 @@
+[
+  { "id": "fe.build.toolchain", "title": "构建工具链与依赖管理", "level": 3, "domain": "fe", "stack": "build", "topic": "toolchain", "mustMaster": true, "estMinutes": 60,
+    "summary": "Vite/Webpack 双栈原理与选型、pnpm 包管理与 monorepo" },
+
+  { "id": "fe.build.toolchain.vite", "title": "Vite 原理：按需 ESM、预构建与 HMR 边界", "level": 4, "domain": "fe", "stack": "build", "topic": "toolchain",
+    "prerequisites": ["fe.js.es6.modern"],
+    "related": ["fe.build.module.esm-cjs", "fe.build.bundle.caching"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲 dev 阶段两大支柱：浏览器原生 ESM 按需编译（请求到达才 transform 该模块，冷启动 O(入口) 而非 O(项目)）+ esbuild 预构建依赖（CJS/ESM 统一转 ESM、把上千小文件合成单文件避免连接风暴、结果落 node_modules/.vite 深缓存按 lockfile hash 失效）；中间件模型（connect 派）与 WS 热更新；HMR 边界规则：accept 自处理否则沿依赖图冒泡到最近 acceptor、无 acceptor 整页 reload，Vue SFC 天然自带 fast refresh 边界所以组件状态保留、普通 tsx 需 react-refresh preamble 注入；Vite 6 起 Environment API 统一 client/ssr 双环境、Rolldown（Rust、Rollup 兼容）作为 rolldown-vite 可选替身并在 Vite 7 成为主线方向，统一 dev/build 消除插件双标问题；工程坑：optimizeDeps include/exclude 与 linked 包 HMR（monorepo 源码直link 需 allowSync、二次预构建触发 restart）、fs.allow 工作区外源码访问、环境变量前缀白名单 VITE_ 的安全设计" },
+
+  { "id": "fe.build.toolchain.webpack", "title": "Webpack 体系：loader/plugin、持久缓存与 Module Federation", "level": 4, "domain": "fe", "stack": "build", "topic": "toolchain",
+    "prerequisites": ["fe.build.toolchain.vite"],
+    "related": ["fe.build.module.transform", "fe.build.module.esm-cjs"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 webpack 以编译事件链驱动：正常编译 hook（NormalModuleFactory→resolve→loadModule→createModule→buildModules→seal→emit），loader 是模块级翻译器（从右到左执行、pitch 阶段可短路）、plugin 是订阅 tapable 钩子改整体编译产物；tree-shaking 成立条件：ESM 静态结构 + sideEffects 标注 + terser 二次清除死代码，类静态副作用需 /*#__PURE__*/ 注释；webpack5 增量红利：module graph hash 持久化缓存（filesystem cache 重启秒级）、experiments.futureTypes 顶掉 CommonJS 互操作猜测、Module Federation 2.0 运行时共享单例与版本仲裁（微前端 remote 动态加载、shared 冲突 singleton 策略）；迁移叙事：存量 webpack 项目提速路径 cache+swc-loader+thread-loader→直接换 vite 需评估 loader 资产清单（css modules/图片/HTML 模板类插件是否 vite 原生覆盖）" },
+
+  { "id": "fe.build.toolchain.package-manager", "title": "npm/pnpm/bun 安装原理与 monorepo 依赖治理", "level": 4, "domain": "fe", "stack": "build", "topic": "toolchain",
+    "prerequisites": ["fe.js.es6.modern"],
+    "related": ["fe.build.module.esm-cjs", "fe.network.transfer.upload"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 npm 扁平化提升（dedupe 上提+嵌套兜底）带来的幽灵依赖根源、npm v7+ peer 默认强装与 --legacy-peer-deps 的由来；pnpm 的 content-addressable store（全局硬链接去重省盘）+ node_modules 只放直接依赖的 symlink 隔离结构根治幽灵依赖、only-Child-Of 目录名让 webpack 解析仍能命中、shamefully-hoist 妥协开关与 .npmrc public-hoist-pattern；lockfile 差异（npm package-lock v3 / pnpm-lock v9 / yarn v3 berry）与 CI 用 frozen-lockfile 防漂移；monorepo 形态：workspace protocol（workspace:* 本地软链与发布替换）、pnpm catalog 统一多包版本区间、turborepo/Nx 任务图缓存（输入 hash 决定复用）；bun install 的全局缓存硬链接+workspaces+catalog 兼容姿态；双 React 实例事故的定位法：npm ls react / pnpm why 看解析链、dedupe 或 overrides 收敛" },
+
+  { "id": "fe.build.module", "title": "模块规范与代码转换", "level": 3, "domain": "fe", "stack": "build", "topic": "module", "mustMaster": true, "estMinutes": 45,
+    "summary": "ESM/CJS 互操作与 exports 映射、转译与 polyfill 策略" },
+
+  { "id": "fe.build.module.esm-cjs", "title": "ESM vs CJS：exports 映射、双包陷阱与互操作", "level": 4, "domain": "fe", "stack": "build", "topic": "module",
+    "prerequisites": ["fe.js.es6.modern"],
+    "related": ["fe.build.toolchain.package-manager", "fe.build.toolchain.vite"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能从语义层对比：CJS 运行时值拷贝可动态路径、this/顶层可变、循环引用拿到半成品；ESM 编译期静态分析+live binding 链接、top-level await 仅 ESM、import() 动态引入两边都有但语义不同；package.json exports/imports 条件映射（import/require/types/node/browser 顺序敏感、pattern 通配）、types 必须放 import/require 分支内否则 TS 走错、sideEffects 与 tree-shaking 联动；双包陷阱（dual package hazard）：同一库被 ESM/CJS 各载一份导致 instanceof 失败与状态分裂，对策 single package（ESM-only 或 require condition 指回同文件）；interop 细节：__esModule 标记与默认导入形状、node --experimental 时代后 ESM 加载 CJS 的 default=module.exports 规则、Node16/NodeNext tsconfig 模块解析对扩展名 .js 写 .mjs 的强制要求" },
+
+  { "id": "fe.build.module.transform", "title": "Babel/SWC/esbuild 转译分工与 browserslist 策略", "level": 4, "domain": "fe", "stack": "build", "topic": "module",
+    "prerequisites": ["fe.build.module.esm-cjs"],
+    "related": ["fe.build.toolchain.vite", "fe.build.toolchain.webpack"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能画出现代分工图：语法降级（esbuild/swc 快但降级面有限 vs babel 插件生态全）、类型剥离（esbuild transform 只删类型不做类型检查，tsc --noEmit/vue-tsc 单独跑校验）、压缩（esbuild minify vs terser 的 mangle 保守度、lightningcss 顶替 cssnano）；browserslist 决定 targets：Vite build.target baseline-widely-available（Chrome107/Safari16 等 Baseline widely available 口径）与 legacy 场景 @vitejs/plugin-legacy 的 System.js 双产物+nomodule 方案，2026 年 Baseline 已含 :has()/container queries 故现代浏览器 target 可直接享受；polyfill 演进：core-js 全量注入→polyfill.io 供应链投毒事故后回归自建 core-js+browserslist 或使用官方 CDN 锁定版本；TS 装饰器标准版 vs legacy 实验版的破坏性切换（TS5 tsconfig experimentalDecorators 差异、Angular/TypeORM 迁移阵痛）" },
+
+  { "id": "fe.build.bundle", "title": "打包产物与构建性能", "level": 3, "domain": "fe", "stack": "build", "topic": "bundle", "mustMaster": true, "estMinutes": 45,
+    "summary": "分包策略与长效缓存、tree-shaking 与构建提速" },
+
+  { "id": "fe.build.bundle.caching", "title": "分包策略：manualChunks、vendor 拆分与产物缓存", "level": 4, "domain": "fe", "stack": "build", "topic": "bundle",
+    "prerequisites": ["fe.network.transport.cache-strategy", "fe.build.toolchain.vite"],
+    "related": ["fe.browser.worker.thread", "fe.build.bundle.optimization"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 Rollup 默认按「入口+动态 import 边界」出 chunk、公共依赖自动抽 shared chunk 的规则，manualChunks 函数/对象两种形态的用法与反模式（把 vendor 全塞一块导致首屏吃满框架+全家桶、应按访问频率与稳定性分层：react 核心/vite preload helper 一类稳定层一年不动，业务组件随版本高频变动）；contenthash 来源=chunk 内容 hash，改一行代码只炸对应 chunk、runtime 独立拆出避免 hash 连锁污染；Vite 对 modulePreload 自动注入 <link rel=modulepreload> 保依赖图并发、rollupOptions.output.experimentalMinChunkSize 合并碎片小 chunk 治请求瀑布、import.meta.glob 懒加载页面集；排查工具 rollup-plugin-visualizer/source-map-explorer 定位体积元凶（moment locale、lodash 全载、重复的 dayjs+date-fns 双份日期库）；产物体积预算 CI 门槛（size-limit/bundlemon）" },
+
+  { "id": "fe.build.bundle.optimization", "title": "Tree-shaking 生效条件与构建提速手段", "level": 4, "domain": "fe", "stack": "build", "topic": "bundle",
+    "prerequisites": ["fe.build.bundle.caching"],
+    "related": ["fe.build.module.transform", "fe.build.toolchain.webpack"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲摇树三前提：ESM 静态声明、依赖可声明无副作用（package.json sideEffects:false 或 glob 数组，css 要豁免）、未引用导出在 seal 阶段删除且 PURE 注释救类方法死代码；失效场景：顶层副作用（axios 实例配置、RxJS patch）、具名再导出链条断裂、require 混入导致整体保活、CommonJS 库不可摇；构建提速清单按 ROI 排序：dev 冷启换 Vite/Rspack、生产构建并行（esbuild 转译替 babel、Vite7 rolldown/Rspack Rust 化）、持久缓存复用、机器规格与 sourcemap 策略（hidden-source-map+上传 sentry 代替生产 inline）、tailwind/UnoCSS 纯 JIT 样式扫描成本、增量 lint 只跑 diff；回答要带「先测再改」意识：--profile/--stats 与 vite-plugin-inspect 定位瓶颈环节再动手" }
+]

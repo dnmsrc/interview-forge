@@ -1,0 +1,63 @@
+[
+  { "id": "cs.seceq.web", "title": "Web 攻防基础", "level": 3, "domain": "cs", "stack": "seceq", "topic": "web", "mustMaster": true, "estMinutes": 90,
+    "summary": "XSS/CSRF/注入三大类 Web 漏洞的成因、危害与标准防御：同源策略与输出编码、CSP 与 Cookie 安全属性、CSRF Token/SameSite、SQL 注入与命令注入/SSRF/路径穿越的参数化与白名单治理——后端与全栈工程师面试必考的安全常识底盘" },
+  { "id": "cs.seceq.auth", "title": "鉴权与授权", "level": 3, "domain": "cs", "stack": "seceq", "topic": "auth", "mustMaster": true, "estMinutes": 90,
+    "summary": "认证（你是谁）与授权（你能做什么）两条主线：Cookie/Session/Token/JWT 的结构与存储风险、OAuth2 授权码+PKCE 与 OIDC/SSO 的流程与常见漏洞、RBAC/ABAC 与水平/垂直越权、最小权限与 MFA——登录体系与权限系统设计的安全底线" },
+  { "id": "cs.seceq.crypto", "title": "密码学工程实践", "level": 3, "domain": "cs", "stack": "seceq", "topic": "crypto", "mustMaster": false, "estMinutes": 75,
+    "summary": "不要求推导算法，但要求工程上用对：对称/非对称/哈希/数字签名各自解决什么问题、密码为什么必须加盐慢哈希（bcrypt/argon2）、证书链与 PKI 信任模型、密钥管理与轮换、安全随机数与敏感数据脱敏合规——『不要自己造密码学』的落地手册" },
+  { "id": "cs.seceq.sec-eng", "title": "安全工程与运营", "level": 3, "domain": "cs", "stack": "seceq", "topic": "sec-eng", "mustMaster": false, "estMinutes": 60,
+    "summary": "把安全从单点知识变成体系能力：OWASP Top 10 的风险地图、依赖漏洞/SBOM/供应链安全、风控限流验证码与人机识别/WAF、审计日志与泄露应急响应、纵深防御与安全开发生命周期（SDL）——覆盖设计、开发、上线、运营全流程的安全工程视角" },
+
+  { "id": "cs.seceq.web.xss", "title": "XSS 类型、危害与防御（CSP/输出编码/Cookie 属性）", "level": 4, "domain": "cs", "stack": "seceq", "topic": "web",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清存储型、反射型、DOM 型三类 XSS 的触发路径与本质（恶意脚本被当同源脚本执行）及会话窃取、页面篡改等危害；防御成体系：按 HTML/属性/JS/URL 输出上下文做编码、用 CSP 的 script-src/nonce 拦截内联外链脚本、HttpOnly 防 Cookie 被脚本读取、SameSite/Secure 的边界，并说明输入过滤为何替代不了输出编码" },
+
+  { "id": "cs.seceq.web.csrf", "title": "CSRF 原理与防御（Token/SameSite/Referer/Origin）", "level": 4, "domain": "cs", "stack": "seceq", "topic": "web",
+    "prerequisites": ["cs.seceq.web.xss"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清 CSRF 本质：浏览器自动携带 Cookie 使跨站请求以受害者身份执行，及成立三前提（Cookie 鉴权、无二次校验、参数可预测）；掌握四类防御：CSRF Token（同步令牌、服务端存随机值比对）、SameSite 三值行为、Referer/Origin 校验、关键操作二次确认；并能对比 CSRF 与 XSS 的区别及 XSS 如何绕过 CSRF 防御" },
+
+  { "id": "cs.seceq.web.injection", "title": "注入类漏洞：SQL/命令注入、SSRF、路径穿越", "level": 4, "domain": "cs", "stack": "seceq", "topic": "web",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲清四类注入原理与防御主线：SQL 注入靠字符串拼接改变语句结构，根治于参数化查询/预编译加最小权限账号；命令注入借 shell 元字符执行任意命令，防御用参数数组调用、禁 shell 与白名单；SSRF 诱使服务端请求内网/元数据地址，靠协议与地址白名单、禁内网段；路径穿越用 ../ 跳出目录，靠路径规范化后校验根目录包含；并解释黑名单为何注定被绕过" },
+
+  { "id": "cs.seceq.auth.session-token", "title": "Cookie/Session/Token/JWT：结构、签名与存储位置风险", "level": 4, "domain": "cs", "stack": "seceq", "topic": "auth",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清服务端 Session（sessionId 在 Cookie、状态在服务端、可吊销）与 JWT（无状态、签名自证）的取舍；JWT 三段结构、Base64Url 只是编码不是加密、HMAC 与非对称签名区别、alg=none 教训；掌握 Token 存储风险（localStorage 易被 XSS 窃取、HttpOnly Cookie 防 XSS 但要防 CSRF）及 Cookie 安全属性" },
+
+  { "id": "cs.seceq.auth.oauth-sso", "title": "OAuth2 授权码+PKCE、OIDC/SSO 与 state/redirect_uri 漏洞", "level": 4, "domain": "cs", "stack": "seceq", "topic": "auth",
+    "prerequisites": ["cs.seceq.auth.session-token"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 OAuth2 解决授权委托而非认证、四角色与授权码流程步骤，隐式流程为何被废弃、公开客户端（SPA/移动端）为何必须 PKCE 防授权码截获，OIDC 加 ID Token 才解决认证；能分析 state 防 CSRF、redirect_uri 严格白名单防令牌劫持、开放重定向链式利用等漏洞点，并讲清 SSO 单点登录/登出的会话联动与第三方登录账号绑定风险" },
+
+  { "id": "cs.seceq.auth.rbac-iacl", "title": "RBAC/ABAC、水平/垂直越权、最小权限与 MFA", "level": 4, "domain": "cs", "stack": "seceq", "topic": "auth",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清认证与授权分工、RBAC（角色-权限关联、易落地但粒度粗）与 ABAC（属性/上下文策略、灵活但复杂）的适用场景；重点辨析水平越权（同级用户改 ID 访问他人数据，IDOR）与垂直越权（普通用户访问管理员功能）的根因——只在前端菜单控权、后端缺对象级鉴权；掌握最小权限、默认拒绝、服务端逐接口鉴权与资源归属校验，以及 MFA 多因素认证的防钓鱼撞库价值" },
+
+  { "id": "cs.seceq.crypto.sym-asym", "title": "对称/非对称/哈希/签名与密码加盐慢哈希存储", "level": 4, "domain": "cs", "stack": "seceq", "topic": "crypto",
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清四类原语：对称加密（AES，快、需共享密钥）、非对称（RSA/ECC，公钥加密私钥解密）、哈希（单向定长指纹、保完整性）、数字签名（私钥签公钥验、防抵赖）；理解 MD5/SHA-1 为何不安全、普通哈希为何不能直接存密码——太快且同密码哈希相同，必须每用户独立随机盐加 bcrypt/argon2 慢哈希抗彩虹表与暴力破解，并讲清 HMAC 与裸哈希区别" },
+
+  { "id": "cs.seceq.crypto.tls-pki", "title": "证书链/PKI 信任模型与密钥管理轮换（工程视角）", "level": 4, "domain": "cs", "stack": "seceq", "topic": "crypto",
+    "related": ["cs.net.http.tls-handshake"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能从工程视角（不重复握手）讲清 PKI 信任链：根 CA 自签证书内置信任库、中间 CA 分层签发、叶子证书绑定域名与公钥，验签逐级向上到信任锚；掌握证书生命周期（域名验证、有效期监控、ACME 自动续期、CRL/OCSP 吊销局限）、私钥绝不入代码仓库（HSM/KMS 托管）、密钥分级与定期轮换、泄露后吊销重签的应急流程，以及自签证书与证书固定的风险边界" },
+
+  { "id": "cs.seceq.crypto.random-secret", "title": "安全随机数、密钥密文存储、脱敏与数据合规", "level": 4, "domain": "cs", "stack": "seceq", "topic": "crypto",
+    "prerequisites": ["cs.seceq.crypto.sym-asym"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲清伪随机与密码学安全随机数的本质区别：Math.random 等普通 PRNG 输出可预测，Token、盐、密钥、验证码必须用 getRandomValues/randomBytes 等 CSPRNG；掌握密钥存储纪律（密钥与数据分离、KMS 托管、禁止硬编码进代码/镜像/日志）、敏感数据分级与脱敏（展示掩码、日志脱敏、测试匿名化），以及合规对最小收集、加密存储、留存期限与删除权的要求" },
+
+  { "id": "cs.seceq.sec-eng.owasp", "title": "OWASP Top 10、依赖漏洞/SBOM 与供应链安全", "level": 4, "domain": "cs", "stack": "seceq", "topic": "sec-eng",
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清 OWASP Top 10 作为 Web 风险地图的定位与典型条目（注入、失效访问控制、加密失败、安全误配置、脆弱依赖、身份识别失败），并把前述漏洞映射到对应条目；掌握供应链攻击面：第三方与传递依赖漏洞、恶意投毒包、CI/CD 与制品仓库风险；工程手段包括依赖扫描 SCA、锁版本与最小依赖、SBOM 物料清单让漏洞披露后快速定位受影响系统、镜像基础层扫描与制品签名" },
+
+  { "id": "cs.seceq.sec-eng.ratelimit-waf", "title": "风控限流、验证码与人机识别、WAF、防刷防爬", "level": 4, "domain": "cs", "stack": "seceq", "topic": "sec-eng",
+    "related": ["cs.design.limit.algorithm", "cs.design.cases.seckill"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲清业务安全的分层防护：限流按 IP/用户/设备/接口多维度防暴力破解与刷量；验证码从图形/短信到滑块、无感人机识别的演进与对抗；设备指纹、IP 信誉库与关键场景风控规则引擎、异常评分；WAF 在接入层基于特征拦截 SQLi/XSS/CC 攻击及其与代码层防御的纵深关系和被绕过可能；并讲清防爬的 robots、渲染成本、账号体系与数据分级手段的边界" },
+
+  { "id": "cs.seceq.sec-eng.audit", "title": "审计日志、泄露应急响应、纵深防御与安全开发生命周期", "level": 4, "domain": "cs", "stack": "seceq", "topic": "sec-eng",
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲清安全审计日志要素（谁、何时、从哪、对何对象、做什么、结果）与防篡改、独立存储要求，日志既是溯源依据也是入侵检测数据源；掌握数据泄露应急响应流程（遏制-根除-恢复-复盘、证据保全、监管通报与用户通知）；理解纵深防御为何单一防线不可信（WAF+编码+权限+审计多层互补）、最小攻击面与默认拒绝；能把安全嵌入 SDL：威胁建模、设计评审、SAST/DAST、上线检查与监控的全周期闭环" }
+]

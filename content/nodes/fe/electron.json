@@ -1,0 +1,40 @@
+[
+  { "id": "fe.electron.process", "title": "进程模型与应用生命周期", "level": 3, "domain": "fe", "stack": "electron", "topic": "process", "mustMaster": true, "estMinutes": 40,
+    "summary": "主/渲染/GPU 多进程架构、窗口与 app 生命周期、单实例" },
+
+  { "id": "fe.electron.process.model", "title": "多进程架构：主进程、渲染进程与 BrowserWindow 生命周期", "level": 4, "domain": "fe", "stack": "electron", "topic": "process",
+    "prerequisites": ["fe.js.async.event-loop"],
+    "related": ["fe.electron.ipc.channels", "fe.browser.render.pipeline"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲 Electron=Chromium+Node 的多进程结构：主进程（app 生命周期/窗口/菜单/系统集成，单例事件循环）每窗口默认独立渲染进程（Chromium sandbox 内跑 Chromium 组件，Node 能力经 preload 注入而非页面直连）、GPU/Network service 进程与 utility 子进程（Node v18+ 推荐 utilityProcess.fork 替代已废的 Renderer/Browser process 混用）、site isolation 在 Electron 下的边界；BrowserWindow 创建参数（webPreferences 三件套背景）、did-finish-load/did-fail-load/render-process-gone/unresponsive 事件治理崩溃窗口（reload 或降级页）、app ready-to-show 白屏时机与 show:false+ready-to-show 标准姿势、window-all-closed 的平台差异退出逻辑、requestSingleInstanceLock 二次实例聚焦转发 argv、app.whenReady 与单实例竞态的标准模板；内存视角：每个隐藏窗口的 renderer 都活着，用 webContents.close 彻底释放并监听 destroy 再置 null" },
+
+  { "id": "fe.electron.ipc.channels", "title": "IPC 通道设计：invoke/handle、push 流与安全边界", "level": 4, "domain": "fe", "stack": "electron", "topic": "ipc",
+    "prerequisites": ["fe.electron.process.model"],
+    "related": ["fe.network.realtime.websocket", "fe.electron.security.csp"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能选型三类通道：ipcRenderer.invoke/ipcMain.handle 请求-响应（Promise、结构化克隆、并发安全）作默认、send/on 单向高频（进度事件，注意 on 重复注册泄漏需 once/摘除与 AbortSignal）、MessagePortMain 建立渲染↔渲染或高频流的点对点端口（transfer 传 MessagePortMain/子窗口，避免主进程中转瓶颈）；大数据策略：结构化克隆对 ArrayBuffer 是拷贝（大文件走文件路径引用或 port 流式分块）、webContents.send 对隐藏窗口仍会序列化要节流；preload 侧纪律：contextBridge.exposeInMainWorld 只暴露函数化最小 API（禁透传 ipcRenderer 原对象否则隔离形同虚设）、sandbox:true 后 preload 只能 require electron 少数模块、类型安全用 ts 共享 channel 联合类型或 electron-trpc/electron-builder 类封装；可靠性：handle 抛错映射到 invoke reject、事件发送方用 event.senderFrame 校验来源帧防跨 frame 冒充、多窗口路由按 webContents.id/sender 分发不广播" },
+
+  { "id": "fe.electron.security", "title": "安全体系与 Web 内容整合", "level": 3, "domain": "fe", "stack": "electron", "topic": "security", "mustMaster": true, "estMinutes": 40,
+    "summary": "nodeIntegration/contextIsolation/sandbox 三层防线与导航外链治理" },
+
+  { "id": "fe.electron.security.csp", "title": "Electron 安全基线：进程隔离、CSP 与导航外链治理", "level": 4, "domain": "fe", "stack": "electron", "topic": "security",
+    "prerequisites": ["fe.electron.ipc.channels"],
+    "related": ["fe.browser.storage.local", "fe.network.transport.cors-cookie"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能以「XSS→RCE」为主线：历史事故链=nodeIntegration:true 时代页面 XSS 直接 require('child_process') 拿 shell 权限，官方十诫给出的现代解法是 nodeIntegration:false + contextIsolation:true + sandbox:true 三层，Node 能力全部收敛到 preload 白名单函数（contextBridge 的深拷贝语义保证暴露面不可原型污染逃逸）；renderer 加载远程内容时 CSP 必配（default-src 收紧、禁 unsafe-eval 影响 Vue runtime eval? Vue3 运行时模板编译才需要，SFC 预编译不需要——答题亮点）、script-src 锁 self 防注入；导航治理三钩子：will-navigate/pre-drag 拦站内跳外链、setWindowOpenHandler 返回 {action:'deny'}+新窗自己建（window.open 不再裸开带 Node 的窗）、webRequest onBeforeSendHeaders 剥离出站敏感 header（token 不跟第三方域）；shell.openExternal 必须 scheme 白名单（http/https/mailto），自定义 protocol.handle 里防路径穿越（decodeURIComponent+realpath 校验根目录）；更新链路：autoUpdater 走 HTTPS+macOS 公证/Windows 代码签名，否则中间人换包=本机 RCE；敏感数据：safeStorage 加密落盘替代明文 localStorage（呼应 web 存储课的登录态讨论）" },
+
+  { "id": "fe.electron.ship", "title": "打包分发与原生能力", "level": 3, "domain": "fe", "stack": "electron", "topic": "ship", "mustMaster": false, "estMinutes": 40,
+    "summary": "electron-builder 产物、签名公证、自动更新与系统集成" },
+
+  { "id": "fe.electron.ship.package", "title": "electron-builder 打包：asar、原生模块 ABI 与签名公证", "level": 4, "domain": "fe", "stack": "electron", "topic": "ship",
+    "prerequisites": ["fe.build.toolchain.vite", "fe.build.toolchain.package-manager"],
+    "related": ["fe.build.bundle.caching", "fe.electron.ship.native-os"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能走通发布流水线：electron-vite/electron-forge 组织 dev（主/预加载/renderer 三入口分别构建，主与 preload 走 SSR 式 bundle 且 external 原生模块）、electron-builder 出 nsis/dmg/AppImage 矩阵；体积控制：files 排除 devDependencies 与源码映射、asar 打包（启动 IO 聚合收益+轻度防翻，但原生 .node 与运行时写入文件要 asarUnpack）、多语言 Electron 裁剪 locales、目标平台分发包而非 universal；原生模块 ABI 地狱：Electron 的 Node/Chromium 版本与系统 Node 不同，N-API（prebuildify 产物免 rebuild）优于 node-gyp 直编，换 Electron 大版本必 rebuild（@electron/rebuild）、pnpm 下注意 rebuild 搜索路径；签名与信任链：Windows EV/常规证书消 SmartScreen、macOS codesign+notarization（spctl 门禁，未公证 Big Sur+ 直接打不开）、CI 里 keychain/cert P12 base64 挂秘密；自动更新：electron-updater generic/S3/GitHub releases 通道、差分 delta（nsis 支持）、staging 百分比灰度与强制更新策略、更新服务器自建要点（HTTPS+签名校验）；Electron 版本节奏 LTS 跟随 Chromium 安全 backport，升大版本前查 breaking（session/沙箱默认值变更史）" },
+
+  { "id": "fe.electron.ship.native-os", "title": "系统集成能力：托盘、快捷键、文件关联与崩溃观测", "level": 4, "domain": "fe", "stack": "electron", "topic": "ship",
+    "prerequisites": ["fe.electron.process.model"],
+    "related": ["fe.electron.ship.package", "fe.uniapp.mini.lifecycle"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能列举桌面端差异化能力及其坑：Tray/Menu/nativeImage 高分辨率 @2x 资源、globalShortcut 全局热键冲突注册失败兜底与单实例配合、Notification 的平台差异（Linux 依赖 libnotify、Windows AUMID 必须 setAppUserModelId 否则通知不弹不分组）、powerMonitor 锁屏/电池事件做暂停与省电、文件关联与 open-file/open-url/second-instance 事件链、拖拽进出（drop 文件拿 webUtils.getPathForFile——event.sender.getFilePath 已移除是经典升级坑）、剪贴板 rich text/image 读写、launch-at-login 与开机静默启动、macOS 全屏 menu bar 与 dock 菜单；观测面：crashReporter start 上传 minidump（Sentry/Electron 崩溃面板）、app.getAppMetrics 分进程 CPU/内存轮询做「本应用吃多少资源」面板、render-process-gone 捕获 OOM 分类恢复、日志纪律（主进程 electron-log 落 userData、renderer 远程日志走 IPC 汇聚）；性能直觉：多窗口=多份 Chromium 进程树，常驻托盘场景用用完即关窗而非 hide 到底" }
+]

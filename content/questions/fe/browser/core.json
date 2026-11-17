@@ -1,0 +1,1445 @@
+[
+  {
+    "id": "Q-fe-browser-0001",
+    "nodeId": "fe.browser.render.pipeline",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 HTML 解析与 CSS/JS 的相互影响，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "外部 CSS 会阻塞 DOM 解析，样式表没下载完 parser 不会继续建 DOM"
+      },
+      {
+        "key": "B",
+        "text": "同步 <script>（无 defer/async）会暂停 HTML 解析，等脚本下载并执行完才继续"
+      },
+      {
+        "key": "C",
+        "text": "defer 与 async 的效果完全等价，只是浏览器实现习惯不同"
+      },
+      {
+        "key": "D",
+        "text": "CSSOM 构建失败时页面一定白屏，绝不会先渲染出无样式内容"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：同步 script 是「解析器停在标签处→下载→执行→恢复解析」，这是首屏优化要把大脚本 defer/异步化的根本原因。A 错：CSS 不阻塞 DOM 解析（parser 照常跑），但阻塞渲染——浏览器保证首次绘制前 CSSOM 就绪，所以表现为白屏而非 DOM 不建；C 错：async 下载完立刻执行（乱序、打断解析），defer 保持相对顺序并在 DOMContentLoaded 前统一执行，两者语义差别很大；D 错：超阈值/超时等边界下 Chrome 可能先渲染已到达部分（FOUC 风险正是早期内联样式与「关键 CSS」要解决的问题）。",
+    "gapCheck": [
+      "易漏点：CSS「阻塞渲染不阻塞解析」与 JS「既下载又执行还阻塞解析」是两条不同的阻塞链",
+      "常见误区：把 defer/async 混谈；忽略多个 defer 脚本保持文档顺序",
+      "加分项：能说出 preloaded 样式与 render-blocking 判定（Lighthouse 的 render-blocking resources 口径）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.render.pipeline"
+      ],
+      "related": [
+        "fe.network.optimize.load-priority",
+        "fe.js.dom.dom-api"
+      ],
+      "followUps": [
+        "为什么关键 CSS 要内联而字体一般 preload？",
+        "document.write 为什么被诟病？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "解析阻塞链单选题"
+    },
+    "tags": [
+      "浏览器",
+      "渲染流水线",
+      "script",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0002",
+    "nodeId": "fe.browser.render.pipeline",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "面试官说：「在地址栏回车到页面出现第一帧，把你所知的每一步讲一遍，并顺手指出每一步对应的优化手段。」请按流水线顺序完整回答，要求覆盖网络段、解析段、布局绘制合成段，并说明主线程与合成器线程的分工。",
+    "answer": {
+      "ref": "参考骨架：① 网络段：重定向→DNS（缓存层级/预解析）→TCP/TLS（TTFB；preconnect、HTTP/2 复用、H3 0-RTT）→HTML 字节流响应（压缩、CDN、早刷新）。② 解析段：Chrome 拿到部分 HTML 即增量 parse 建 DOM（无需等全文），head 里 CSS 并行下载构建 CSSOM、二者合并成 render tree；同步 script 暂停解析（优化：defer/async、代码拆分、modulepreload）；字体 FOIT/FOUT 与 font-display（优化：subset、preload）。③ 布局段：layout 计算盒子几何（flex/grid 有两轮测量成本；优化：避免大面积强制同步布局、content-visibility:auto 跳过屏外子树）。④ 绘制段：paint 生成分层 display list/光栅化指令（优化：减少阴影模糊滤镜面积、分层隔离重绘范围）。⑤ 合成段：主线程 commit 给合成器线程，Layer Tree 上传 GPU 纹理，合成线程负责滚动（可从输入优先处理）与 transform/opacity 动画（优化：动画只用 transform/opacity、will-change 精准提层不滥用）。⑥ 首屏之后：样式变更走局部失效→脏矩形重绘的增量循环。分工要点：解析/布局/绘制在主线程，滚动与合成动画可完全在合成线程，这就是「transform 动画不掉主线程帧」的因果链；Long Task 卡住的正是主线程侧的前四步。"
+    },
+    "scoringPoints": [
+      {
+        "point": "网络段完整（DNS/TCP/TLS/TTFB）且各给出一个优化手段",
+        "weight": 2
+      },
+      {
+        "point": "解析段讲出增量解析与 CSS 阻塞渲染、script 阻塞解析两条链",
+        "weight": 2
+      },
+      {
+        "point": "layout/paint/composite 三段的职责与产物描述准确",
+        "weight": 2
+      },
+      {
+        "point": "说清主线程 commit→合成器线程的 IPC 交接及滚动的特殊性",
+        "weight": 2
+      },
+      {
+        "point": "每段的优化手段成对出现而非最后堆清单",
+        "weight": 1
+      }
+    ],
+    "analysis": "URL 输入题是老八股但 2026 年的高分线明显抬高：普通答案背「DNS→TCP→HTTP→DOM→渲染」口号；好答案会区分「解析/渲染」两条时间线、说清增量性与线程分工，并把优化钉在每个环节上。追问常落在「为什么 transform 动画流畅」「首屏白屏到底卡在哪个请求」。失分：把 paint 和 composite 混为一步、以为 DNS 是最大头而忽视 TTFB/关键 CSS。",
+    "gapCheck": [
+      "易漏点：HTML 是流式增量解析的，DOMContentLoaded 之前就能渲染出部分内容",
+      "常见误区：把「渲染」当单一步骤，漏掉 commit 的跨进程 IPC 与合成线程独立滚动",
+      "加分项：提到 Navigation Timing/PerformanceObserver 能把每段耗时量化佐证"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.render.pipeline"
+      ],
+      "related": [
+        "fe.perf.metrics.core",
+        "fe.network.optimize.conn-reuse"
+      ],
+      "followUps": [
+        "commit 之前主线程还要做什么？",
+        "LCP 元素图片和懒加载为什么自相矛盾？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "URL 到首帧全链路主观题"
+    },
+    "tags": [
+      "浏览器",
+      "渲染流水线",
+      "从URL到首屏",
+      "高频",
+      "主观题"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0003",
+    "nodeId": "fe.browser.render.reflow-repaint",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：对元素做 translate/rotate 的 CSS 动画之所以比改 left/top 流畅，是因为 transform 变化通常只触发合成阶段——元素已被提升为独立合成层后，动画由合成器线程完成，跳过了主线程的 layout 与 paint。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。left/top 改动几何 ⇒ 每次都要 layout→paint→composite 全流程且在主线程；transform/opacity 不改变布局几何，若元素在独立层（动画本身或 will-change 会促成提层），每帧只是合成线程重算变换矩阵叠加纹理，主线程 Long Task 也不影响它——这正是「动画用 transform」的机制依据。但要补边界：提层意味着额外 GPU 纹理内存，层爆炸（大量 will-change/嵌套提层）会在移动端因显存压力反向掉帧，will-change 应在动画临近开始时加、结束后撤。",
+    "gapCheck": [
+      "易漏点：成立前提是「已有独立合成层」，未提层的 transform 仍可能回主线程重绘",
+      "常见误区：把 will-change 当常开优化；不知道 opacity<1 同样可走合成",
+      "加分项：能提 getAncestorsOutsideLayers、DevTools Layers 面板核查层数与纹理大小"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.render.reflow-repaint"
+      ],
+      "related": [
+        "fe.css.layout.position",
+        "fe.perf.metrics.core"
+      ],
+      "followUps": [
+        "哪些属性会把元素提升为合成层？",
+        "filter/backdrop-filter 动画为什么不划算？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "transform 合成动画判断题"
+    },
+    "tags": [
+      "浏览器",
+      "合成层",
+      "动画",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0004",
+    "nodeId": "fe.browser.render.reflow-repaint",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "遍历 500 个列表项做「读 offsetHeight→按比例写 style.height」的循环时发现严重卡顿，Performance 面板出现大量紫色 Forced reflow。最有效的修法是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "把循环放进 requestAnimationFrame，让浏览器每帧自动合并读写"
+      },
+      {
+        "key": "B",
+        "text": "先一轮循环只读全部 offsetHeight 存入数组，再一轮循环只写 style.height"
+      },
+      {
+        "key": "C",
+        "text": "给每个列表项加 will-change: height 提层"
+      },
+      {
+        "key": "D",
+        "text": "把 height 改成 max-height 即可避免重排"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。病根是「读写交错」：每写一次 style 就使后续布局失效，下一次读 offsetHeight 又强制同步重排（forced/reflow thrashing），500 项就是 500 次全局级重排。改成「批量读→批量写」两次遍历后只发生一次布局。A 的 rAF 只决定执行时机，不合并同一轮里的交错读写；C 提层救不了几何属性 height 的重排本质；D 的 max-height 同样参与布局计算。",
+    "gapCheck": [
+      "易漏点：触发强制同步布局的是「写后读几何属性」这对组合，光靠 rAF 拆不开",
+      "常见误区：以为 rAF 是性能万金油；不知道 transform:scaleY 配合固定高度可完全绕开重排的替代思路",
+      "加分项：知道 FastDom/自建读写队列、ResizeObserver 替代轮询读取尺寸"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.render.reflow-repaint"
+      ],
+      "related": [
+        "fe.js.dom.dom-api",
+        "fe.perf.longlist.virtual"
+      ],
+      "followUps": [
+        "哪些属性读取会强制 flush layout？",
+        "content-visibility:auto 为什么能砍掉屏外列表的重排？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "layout thrashing 修法单选题"
+    },
+    "tags": [
+      "浏览器",
+      "重排",
+      "强制同步布局",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0005",
+    "nodeId": "fe.browser.events.event-loop",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "页面里执行：console.log(1); setTimeout(()=>console.log(2)); Promise.resolve().then(()=>console.log(3)); requestAnimationFrame(()=>console.log(4)); console.log(5)。关于输出与渲染时机，正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "输出 1 5 3 2 4，且 4 的回调在本次渲染更新的样式计算之前、布局之前执行"
+      },
+      {
+        "key": "B",
+        "text": "输出 1 5 2 3 4，setTimeout 回调总是先于微任务"
+      },
+      {
+        "key": "C",
+        "text": "输出 1 3 5 4 2，rAF 与普通宏任务同队列按提交顺序执行"
+      },
+      {
+        "key": "D",
+        "text": "输出 1 5 3 4 2，因为 rAF 属于微任务的一种"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确。当前同步脚本是一个宏任务：1、5 同步输出；脚本结束清空微任务队列输出 3；下一轮事件循环取定时器宏任务输出 2（定时器只是「到期后入队」，并不保证下一轮就是它，这里与 rAF 的顺序本质上不确定）；rAF 回调不属于宏/微任务普通队列，而在渲染前的 animation 阶段执行，位置在样式计算/布局之前——所以 4 相对 2 的先后取决于帧节奏，选项组合中只有 A 的时序模型自洽且描述了 rAF 的正确插入点。D 的概念错误最典型：rAF 不是微任务，它一帧最多跑一次、跟随 vsync，微任务则每个宏任务后必清空。",
+    "gapCheck": [
+      "易漏点：rAF 回调发生在「渲染更新的 animation 阶段」（样式计算前），在这里读几何属性是安全的（刚完成上一帧布局）",
+      "常见误区：把 setTimeout(0) 与微任务的相对顺序背成铁律；实际受帧调度影响",
+      "加分项：能讲 event loop 每轮清空全部微任务（含递归新增）、渲染并非每轮都发生"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.events.event-loop"
+      ],
+      "related": [
+        "fe.js.async.event-loop",
+        "fe.vue.scheduler.nexttick"
+      ],
+      "followUps": [
+        "Vue nextTick 为什么用微任务？和 rAF 方案比优劣？",
+        " MutationObserver 回调在这张时序图的哪个位置？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "rAF 与微任务时序单选题"
+    },
+    "tags": [
+      "浏览器",
+      "事件循环",
+      "requestAnimationFrame",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0006",
+    "nodeId": "fe.browser.events.event-loop",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请对比浏览器与 Node.js 的事件循环：(1) 两边的执行模型结构与差异点；(2) 为什么同一段「宏任务里套微任务再套 setImmediate/setTimeout」的代码在浏览器和 Node 输出顺序可能不同；(3) 浏览器渲染更新在事件循环的什么位置发生？和 rAF/rIC 的关系？",
+    "answer": {
+      "ref": "参考骨架：(1) 浏览器：外层宿主驱动，每轮从任务队列取一个宏任务（script/事件/定时器/解析任务）执行→清空整个微任务队列→按 vsync 需要执行 rAF 回调并做样式计算/布局/绘制提交；没有「阶段」概念，宏任务间穿插渲染。Node：libuv 提供 phases（timers→pending callbacks→idle/poll→check→close callbacks），每阶段一组 FIFO 队列，微任务在每阶段间及 phase 回调后清空；setImmediate 属 check 阶段、setTimeout(0) 属 timers。(2) 顺序差异根源：顶层模块（CJS 主模块）整体像一个宏任务，其同步代码的微任务先于一切宏任务；但在「已进入某个宏任务内部」时，旧版 Node 里 IO 回调后 setTimeout/setImmediate 谁先来不确定（受首轮循环耗时判断影响），Node 11+ 起对齐浏览器语义改为稳定 timers 先于 setImmediate——答出这段演进史最能证明理解深度，而不是背「setImmediate 总快」。(3) 渲染：一轮宏任务+微任务清空后，浏览器在有帧预算时于 frame 起始执行 animation frame callbacks（rAF，样式计算前，适合读旧布局写新样式）→ 计算样式/layout → 必要时 rIC 只在剩余空闲时间兜底跑低优任务（Chrome 已较少触发、Firefox 支持滞后，现代方案转向 scheduler.yield）；vsync 未对齐或页面隐藏时 rAF 停摆（后台标签页节流），这是「切后台动画暂停」的原因。"
+    },
+    "scoringPoints": [
+      {
+        "point": "浏览器模型：宏任务→清空微任务→按 vsync 渲染 的三段循环讲准",
+        "weight": 2
+      },
+      {
+        "point": "Node libuv 阶段模型与 timers/check 对号入座",
+        "weight": 2
+      },
+      {
+        "point": "解释顺序不确定性的历史版本差异（Node 11 前后语义变化）",
+        "weight": 2
+      },
+      {
+        "point": "rAF 插入点在渲染流程中的精确位置 + 后台停摆现象",
+        "weight": 2
+      },
+      {
+        "point": "rIC 的定位与现状（被 scheduler.yield 部分取代）",
+        "weight": 1
+      }
+    ],
+    "analysis": "这题的陷阱在第二问：网上旧教程仍写「Node 中 setImmediate 与 setTimeout 顺序不定」，而现行版本（≥11）已是稳定顺序，能讲清「为什么曾经不定、现在为什么定」才是 2026 年的合格线。渲染时机是浏览器侧的区分度所在：rAF≠宏任务≠微任务，它绑定帧。失分：把 libuv 六阶段背成固定死顺序而不懂微任务穿插点；把 rIC 吹成主流。",
+    "gapCheck": [
+      "易漏点：process.nextTick 队列比微任务更优先（Node 语义），答题时顺带提及更稳",
+      "常见误区：以为浏览器每轮宏任务后都渲染——一帧内可连续多轮任务，帧间也可能整段跳过渲染",
+      "加分项：能提 scheduler.yield() 让长任务在宏任务边界优雅让出的新范式"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.events.event-loop"
+      ],
+      "related": [
+        "fe.js.async.event-loop",
+        "fe.browser.events.input-frame"
+      ],
+      "followUps": [
+        "MessageChannel 为什么曾被用来模拟宏任务？",
+        "后台标签页的定时器节流策略是什么？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "浏览器 vs Node 事件循环主观题"
+    },
+    "tags": [
+      "浏览器",
+      "事件循环",
+      "Node",
+      "高频",
+      "主观题"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0007",
+    "nodeId": "fe.browser.events.input-frame",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：Core Web Vitals 中衡量交互响应性、已于 2024 年 3 月正式取代 FID 的指标缩写是 ______；单次任务超过约 ______ ms 即称为 Long Task；Chrome 129+ 提供的原生让出 API 是 scheduler.______()。",
+    "answer": {
+      "blanks": [
+        "INP",
+        "50",
+        "yield"
+      ],
+      "synonyms": {
+        "50": [
+          "50ms",
+          "50 ms"
+        ],
+        "INP": [
+          "Interaction to Next Paint",
+          "interaction-to-next-paint"
+        ],
+        "yield": [
+          "yield()",
+          "yield()"
+        ]
+      }
+    },
+    "analysis": "INP（Interaction to Next Paint）统计页面生命周期内几乎所有交互的「输入→下一帧绘制」延迟取 P75（桌面）/P98（移动），比只测首次交互的 FID 更能代表持续体验；>50ms 的 Long Task 是 INP 恶化的头号原因，切分手段里 setTimeout 分段会丢失优先级且间隙不受控，scheduler.yield() 以 YieldingTask 形式保留原队列优先级回到循环开头，配合 yield* 异步迭代器拆分循环；passive:true 监听器承诺不 preventDefault，让滚动可以不等 JS 直接合成。",
+    "gapCheck": [
+      "易漏点：INP 的取值口径是 P75 而非最大值，排查要按「最慢交互」逐条看 event timing",
+      "常见误区：把 INP 差归咎网络——它是纯主线程/渲染问题（与 LCP 的网络属性不同）",
+      "加分项：知道 PerformanceEventTiming 与 long-animation-frame（LoAF）API 可定位到具体脚本归属"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.events.input-frame"
+      ],
+      "related": [
+        "fe.perf.metrics.core",
+        "fe.browser.events.event-loop"
+      ],
+      "followUps": [
+        "event timing 的 processing start 和 duration 怎么看？",
+        "第三方脚本拖垮 INP 有哪些治理手段？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "INP 与长任务填空题"
+    },
+    "tags": [
+      "浏览器",
+      "INP",
+      "Long Task",
+      "性能指标"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0008",
+    "nodeId": "fe.browser.storage.local",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于浏览器存储，下列说法**正确的**有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "localStorage 是同步 API，一次写入几 MB 字符串会明显阻塞当前帧的主线程"
+      },
+      {
+        "key": "B",
+        "text": "sessionStorage 的数据在同一标签页的会话内有效，复制/中键新开该 URL 的新标签页会携带一份副本"
+      },
+      {
+        "key": "C",
+        "text": "IndexedDB 是异步事务型 NoSQL，可存储 Blob/File，配额可按磁盘比例申请远大于 5MB"
+      },
+      {
+        "key": "D",
+        "text": "Cookie 的主要存储容量为 5MB，因此适合缓存大型 JSON 字典"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "ABC 正确。A：localStorage 同步读写在百万字符级会产生几十 ms 卡顿，大数据应转 IndexedDB 或至少异步化分片；B：sessionStorage 的「会话」按顶层浏览上下文算，duplicate tab（复制标签页/中间键打开）会继承副本，这是常被实测验证的细节；C：IDB 支持结构化克隆、索引查询、navigate 时可持久化，存 File 引用不占 JS 堆。D 错：Cookie 单个约 4KB、每域几十条，它的设计目标是携带凭证不是装数据，塞大 value 还会随每个同域请求上传浪费带宽。",
+    "gapCheck": [
+      "易漏点：三方 Cookie 淘汰现状要答准——Safari ITP 长期拦截，Chrome 经反复后放弃全面禁用改为设置入口，CHIPS(Partitioned) 提供分区存活路径",
+      "常见误区：以为 localStorage 无痕模式关闭即清空（是窗口生命周期语义，普通标签页永久）",
+      "加分项：知道 navigator.storage.estimate() 查配额、storage 事件做跨标签同步"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.storage.local"
+      ],
+      "related": [
+        "fe.network.transport.cors-cookie",
+        "fe.browser.worker.thread"
+      ],
+      "followUps": [
+        "CHIPS 解决什么问题？",
+        "为什么登录态不建议只存 localStorage？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "浏览器存储对比多选题"
+    },
+    "tags": [
+      "浏览器",
+      "存储",
+      "Cookie",
+      "IndexedDB",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0009",
+    "nodeId": "fe.browser.worker.thread",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "Worker 之间 postMessage 传一个 100MB 的 ArrayBuffer，想避免序列化拷贝开销，最合适的做法是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "直接把 buffer 放进消息体即可，postMessage 对 TypedArray 本来就是零拷贝"
+      },
+      {
+        "key": "B",
+        "text": "transferList 传入 [buffer] 做所有权转移，发送方侧字节被 detach 置零长度"
+      },
+      {
+        "key": "C",
+        "text": "改用 SharedArrayBuffer 就必须开启 COOP/COEP，任何场景都不如 transfer 划算"
+      },
+      {
+        "key": "D",
+        "text": "把 buffer 转成 base64 字符串传输更快"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：默认 postMessage 走结构化克隆（真拷贝），Transferable 机制把 ArrayBuffer 字节直接移交接收方、发送方 detached，成本近乎常数。A 错在默认仍是克隆；C 太绝对——SharedArrayBuffer 配合 Atomics 适合高频共享可变内存（音视频、wasm），跨源隔离只是同源页的开关成本，不能一概而论；D 的 base64 膨胀 33% 还耗 CPU，是最差路线。顺带：OffscreenCanvas 也能 transfer，把渲染搬进 Worker 的标准做法。",
+    "gapCheck": [
+      "易漏点：transfer 后发送方不能再使用该 buffer（detached），忘了就是经典 bug",
+      "常见误区：以为 postMessage 像 Node worker_threads 那样默认共享内存——Web Worker 默认克隆",
+      "加分项：知道 wasm Memory grow 与 SharedArrayBuffer 的组合、Comlink 封装 RPC"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.worker.thread"
+      ],
+      "related": [
+        "fe.js.async.promise",
+        "fe.network.transfer.upload"
+      ],
+      "followUps": [
+        "哈希大文件为什么必须放 Worker？Atomics.wait 为什么要求跨源隔离？",
+        "Service Worker 里能用 SharedArrayBuffer 吗？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "postMessage 传输成本单选题"
+    },
+    "tags": [
+      "浏览器",
+      "Web Worker",
+      "postMessage",
+      "Transferable"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0010",
+    "nodeId": "fe.browser.worker.thread",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "团队要用 Service Worker 给 SPA 做离线与发布加速。请回答：(1) SW 的 install/fetch/activate 生命周期与注册激活的关键规则；(2) 如何让新版本「老用户下次访问即用、当前会话不打断」与「重要更新立刻接管」两种策略并存？(3) SW 缓存与 HTTP 强缓存在职责上如何分工？",
+    "answer": {
+      "ref": "参考骨架：(1) register 后 SW 脚本下载→install 事件（预缓存静态壳资源、open Cache 落盘，失败则安装失败回滚）→waiting 状态等待接管；已有 SW 时新 SW 停在 waiting 直到所有关联页面 unload 才 activate（删旧 cache 的时机），skipWaiting() 可让新 SW 立即跳过等待进入 activating，但需配 clientsClaim() 才接管当下页面（否则新 SW 只管下次导航）。关键约束：SW 必须 HTTPS 或 localhost、同源 scope 限制、可随时被浏览器杀死（启动成本模型，不能当常驻进程）、fetch 事件可改写/伪造响应、非 fetch 范围（跨源无 CORS 资源的 opaque response）注意配额。(2) 双策略：日常版本走默认「waiting 到下次冷启动」——天然做到旧页面用旧缓存不炸接口，发版后旧 cache 在 activate 清理；紧急修复走 skipWaiting + 前端检测（轮询版本清单/broadcast）后弹「刷新可用」按钮，用户确认再 postMessage 让 SW skipWaiting，避免运行中组件与新 chunk 混搭白屏（SPA 动态 import 的 chunk hash 换代是最大雷区：旧页面请求已被清理的旧 chunk 会 404，对策是保留旧版本 chunk 一个过渡期或捕获 ChunkLoadError 自动 reload）。(3) 分工：HTTP 强缓存管「单资源要不要问服务器」（hash 文件名+immutable），SW 管「请求要不要出网络」与跨资源一致性（原子发布、导航兜底 offline shell、预取下一页）；SW 命中仍会尊重底层 HTTP 缓存语义（fetch 走 cache mode），两套叠加时排障要看 DevTools 的 ServiceWorker 面板而非 Network 的 from disk cache。"
+    },
+    "scoringPoints": [
+      {
+        "point": "生命周期三事件与 waiting/activate 接管规则（含 skipWaiting/clientsClaim 区别）",
+        "weight": 2
+      },
+      {
+        "point": "两种发布策略的实现与「旧页面+新 chunk」风险处理",
+        "weight": 2
+      },
+      {
+        "point": "SW 的可被杀死特性与启动成本意识（不当常驻、状态持久化在 IDB/Client）",
+        "weight": 2
+      },
+      {
+        "point": "HTTP 缓存与 SW 的职责分层描述清晰",
+        "weight": 2
+      },
+      {
+        "point": "提到 cache 版本化命名与 activate 清理旧桶",
+        "weight": 1
+      }
+    ],
+    "analysis": "SW 题的深水区是「发布工程」而非 API 本身：满分答案必然围绕新旧共存期的 chunk 错配展开，这是 PWA 团队真实踩过的坑。常见失分：把 skipWaiting 说成立即刷新页面；以为 SW 常驻内存可以挂业务状态；忽略 opaque response 与配额。追问方向常是 Workbox 策略（precache/runtimecache/stale-while-revalidate）选型。",
+    "gapCheck": [
+      "易漏点：skipWaiting 只管新 SW 提前激活，接管当前页还必须 clientsClaim；两者要配套",
+      "常见误区：用 SW 替代 HTTP 缓存二选一的思维，实际是分层协作",
+      "加分项：知道 background sync/push、以及 iOS Safari 对 SW 的存储上限（7 天不访问驱逐）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.worker.thread"
+      ],
+      "related": [
+        "fe.network.transport.cache-strategy",
+        "fe.build.bundle.caching"
+      ],
+      "followUps": [
+        "Workbox 的 generateSW 与 injectManifest 差别？",
+        "SW 更新时如何设计用户提示交互？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "Service Worker 发布策略主观题"
+    },
+    "tags": [
+      "浏览器",
+      "Service Worker",
+      "缓存",
+      "发布",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0011",
+    "nodeId": "fe.browser.v8.engine",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 V8 的执行与垃圾回收，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "V8 把 JS 一次性编译为机器码后直接执行，运行期不再改变优化级别"
+      },
+      {
+        "key": "B",
+        "text": "新生代对象一律用 Mark-Sweep-Compact 回收，老生代用复制算法"
+      },
+      {
+        "key": "C",
+        "text": "Ignition 解释器执行 bytecode 同时收集类型反馈，热点函数再经 Sparkplug/Maglev/TurboFan 逐级编译优化"
+      },
+      {
+        "key": "D",
+        "text": "TurboFan 的优化基于推测，假设被打破时只会变慢不会重新编译"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "C"
+      ]
+    },
+    "analysis": "C 正确，这就是 V8 的分层流水线：bytecode+反馈向量支撑逐级升温（Maglev 自 V8 12.x 成为默认中层，编译快收益稳；TurboFan 吃满反馈做激进优化）。A 错在 V8 是解释+JIT 混合、可去优化(deopt)；B 把两代算法说反——新生代 Scavenge 复制（From/Semi-space），存活晋升老生代后才走增量标记-清除-整理；D 错在假设失效会 deopt 回退 bytecode 甚至重编，deopt 风暴本身就是性能问题。",
+    "gapCheck": [
+      "易漏点：GC 分代的动机是「多数对象朝生夕死」，新生代小空间高频率低停顿",
+      "常见误区：把「三色标记」说成 STW——现代是增量/并发着色+写屏障，浮动垃圾由此而来",
+      "加分项：能讲隐藏类与 inline cache 为何偏爱形状一致的对象字面量"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.v8.engine"
+      ],
+      "related": [
+        "fe.js.basics.types",
+        "fe.js.scope.closure"
+      ],
+      "followUps": [
+        "deoptimize 为什么会伤性能？写屏障解决什么问题？",
+        "weak refs 与 FinalizationRegistry 的回收时机为什么不可依赖？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "V8 流水线与 GC 单选题"
+    },
+    "tags": [
+      "浏览器",
+      "V8",
+      "JIT",
+      "GC",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-browser-0012",
+    "nodeId": "fe.browser.v8.memory",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "线上一个看板页面运行两小时后明显卡顿，怀疑内存泄漏。请回答：(1) 列出你能想到的前端高频泄漏源（至少 5 类）；(2) 给出用 DevTools 定位泄漏的完整操作流程；(3) 如何从架构上预防（结合框架生命周期）。",
+    "answer": {
+      "ref": "参考骨架：(1) 泄漏源清单：①闭包/全局变量长期引用大对象（window.__cache、模块级 Map 无上限）；②定时器与 rAF 循环未在卸载时 clear；③addEventListener 漏 remove，尤其 window/document/resize/scroll 与第三方库内部监听；④观察器类未 disconnect（Intersection/Resize/Mutation、WebSocket onmessage 链）；⑤detached DOM：JS 仍引用已被移除节点导致整棵子树无法释放；⑥无界缓存（Map/Set/Lodash memoize）应改 WeakMap/带 TTL-LRU；⑦console.log 在开发工具打开时 hold 对象、生产也应避免全局引用；⑧SW/消息端口/BroadcastChannel 未 close、React/Vue 组件卸载后异步回调仍 setState/操作已销毁实例。(2) 流程：Performance Monitor 观察 JS Heap 是否阶梯抬升→采集 Heap Snapshot（三次：操作前/操作后/手动 GC 后再采）比对，按 Retained Size 排序找增长类，Constructor 聚合+过滤对比新增对象→点开 retainers 链路找持有者（常见根到 window 或某闭包）→对可疑类 queryObjects 检查实例数→需要定位分配时刻时用 Allocation instrumentation on timeline 复现交互路径看分配簇；生产侧用 performance.measureUserAgentSpecificMemory（跨源需 COOP/COEP）+ 采样上报。(3) 预防：Vue 在 unmounted/watchStop/onScopeDispose 成对回收副作用（composable 内自带清理返回 cleanup），React useEffect 返回值清理订阅与 AbortController 统一取消 fetch/监听；封装 addEventListener/useEvent 自动解绑；ESLint 规则+泄漏测试（WeakRef 探针）纳入 CI；全局缓存统一带 maxEntries/TTL。"
+    },
+    "scoringPoints": [
+      {
+        "point": "泄漏源 ≥5 类且含 detached DOM 与观察器/定时器这类隐性源",
+        "weight": 2
+      },
+      {
+        "point": "Heap Snapshot 三连拍 + Retainers/Retained Size 读法完整",
+        "weight": 2
+      },
+      {
+        "point": "会用分配时间线或 queryObjects 等第二手段佐证",
+        "weight": 1
+      },
+      {
+        "point": "架构预防落到框架生命周期与自动解绑封装",
+        "weight": 2
+      },
+      {
+        "point": "区分「峰值高」与「锯齿抬升才是泄漏」的判定观",
+        "weight": 2
+      }
+    ],
+    "analysis": "内存题考的是排查肌肉记忆：答案里必须有「手动 GC 后再比对快照」「Retained Size 沿 retainers 回溯持有者」这类操作级细节，背概念（引用计数缺陷）反而拿不到高分。失分：把 GC 分代原理复述一遍却答不出三连拍；不知道 console.log 也会 hold 对象。追问：WeakMap key 何时被清？FinalizationRegistry 为什么不能当业务清理用（时序不保证）？",
+    "gapCheck": [
+      "易漏点：快照对比必须隔着手动的垃圾回收按钮，否则满屏待回收对象淹没真凶",
+      "常见误区：以为 Vue 组件卸载会自动清掉所有监听——组件外的 window 监听仍需手动 remove",
+      "加分项：知道 Chrome 任务管理器按进程看内存、扩展与页面共享 renderer 进程的干扰排除"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.v8.memory"
+      ],
+      "related": [
+        "fe.browser.v8.engine",
+        "fe.vue.composition.composable-design"
+      ],
+      "followUps": [
+        "WeakRef 的典型正当使用场景？",
+        "如何用 PerformanceObserver 抓长时间任务的内存归因？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "内存泄漏排查主观题"
+    },
+    "tags": [
+      "浏览器",
+      "内存泄漏",
+      "DevTools",
+      "GC",
+      "高频"
+    ]
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.events.event-loop",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于现代浏览器（Chrome/Edge 等）事件循环的任务调度机制，下列说法正确的有？",
+    "options": [
+      {
+        "key": "A",
+        "text": "每个宏任务执行结束后、浏览器渲染之前，引擎会清空当前全部微任务，微任务执行过程中新增的微任务也在同一轮被执行"
+      },
+      {
+        "key": "B",
+        "text": "queueMicrotask 注册的回调与 Promise.then 的回调进入同一个微任务队列，按入队顺序执行"
+      },
+      {
+        "key": "C",
+        "text": "setTimeout(fn, 0) 保证回调在 0 毫秒后立即执行，不会被其他已排队任务插队"
+      },
+      {
+        "key": "D",
+        "text": "requestAnimationFrame 的回调在微任务清空之后、样式计算与布局（Layout）之前的阶段执行"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A 正确：每一轮事件循环先取一个宏任务执行，随后把微任务队列彻底清空（包括微任务里继续注册的微任务），之后才进入渲染阶段。B 正确：Promise 的反应式回调、queueMicrotask、MutationObserver 等都走微任务队列，按入队先后执行。C 错误：setTimeout 的 0ms 只是最小延迟请求，嵌套定时器存在钳制（嵌套层级较深时最小约 4ms），且回调必须等当前宏任务及其微任务全部结束后才能轮到。D 正确：rAF 回调在渲染前的帧回调阶段运行，时序上位于微任务清空之后、Style/Layout 之前，因此适合在里面读取布局并写入视觉变更。",
+    "gapCheck": [
+      "易漏点：微任务中再注册微任务会在同一轮全部执行，若无限 queueMicrotask 会饿死渲染与交互，页面表现为卡死。",
+      "常见误区：以为 setTimeout(fn,0) 是零延迟立即执行，忽略了嵌套定时器钳制和队列排队，它也无法先于已就绪的微任务运行。",
+      "排查线索：用 Performance 面板区分 Main 线程上的 Task、Microtask、Animation Frame 轨道，或用日志验证 task→microtask→rAF→paint 的顺序。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.events.event-loop"
+      ],
+      "related": [
+        "fe.browser.events.input-frame",
+        "fe.browser.worker.thread",
+        "fe.browser.render.pipeline"
+      ],
+      "followUps": [
+        "如果微任务回调里不断调用 queueMicrotask，页面还能正常渲染和响应输入吗？为什么？",
+        "requestAnimationFrame 与 requestIdleCallback 在一帧中的位置和设计目标有何不同？",
+        "为什么把大批量同步计算拆成 setTimeout 分片可以缓解卡顿，而用 Promise 分片效果不同？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 HTML 事件循环规范与现代浏览器任务调度原理编写"
+    },
+    "tags": [
+      "事件循环",
+      "微任务",
+      "高频"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0001"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.events.input-frame",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "在中文输入法（IME）候选词尚未上屏的组词过程中，对 <input> 上的 input 与 composition 系列事件，下列说法正确的是？",
+    "options": [
+      {
+        "key": "A",
+        "text": "组词阶段派发的 input 事件，其 event.isComposing 属性返回 false"
+      },
+      {
+        "key": "B",
+        "text": "compositionstart 之后、compositionend 之前派发的 input 事件，isComposing 为 true"
+      },
+      {
+        "key": "C",
+        "text": "compositionend 事件一定先于最后一个 input 事件触发，之后不会再有 input"
+      },
+      {
+        "key": "D",
+        "text": "只要监听了 compositionend，就完全不需要再监听 input 事件"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：UI Events 规范规定，处于组合（composition）会话期间派发的 input 事件 isComposing 为 true，组合结束时先派发 compositionend，再派发一次 isComposing 为 false 的 input。A 错误，组词中的 input 事件 isComposing 恰为 true。C 错误，compositionend 之后通常还有一次收尾的 input 事件（现代 Chrome 即按此顺序实现，Safari 历史版本有差异，需实测）。D 错误，compositionend 只覆盖输入法组合场景，普通粘贴、拖拽、直接键入仍要靠 input 事件感知值变化。",
+    "gapCheck": [
+      "易漏点：组词过程中 input 会带着拼音字母持续触发，直接发搜索请求会把未上屏的拼音发出去，应判断 isComposing 为 false 后再提交。",
+      "常见误区：以为 compositionend 是最后一个相关事件，忽略它之后还有一次 isComposing=false 的 input，导致重复或漏处理。",
+      "排查线索：在各事件里打印 type、isComposing、data，结合输入法实测完整序列，并关注不同浏览器的历史差异。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.events.input-frame"
+      ],
+      "related": [
+        "fe.browser.events.event-loop",
+        "fe.js.dom.event",
+        "fe.html.form.form-basics"
+      ],
+      "followUps": [
+        "为什么中文搜索框常需要判断 event.isComposing 或 keyCode === 229？",
+        "compositionstart、compositionupdate、compositionend 各自携带什么数据？",
+        "React/Vue 的受控输入在 IME 组词期间可能出现什么问题，如何规避？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 UI Events 规范的 IME 组合事件语义与现代浏览器实现编写"
+    },
+    "tags": [
+      "输入事件",
+      "IME",
+      "易错"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0002"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.events.input-frame",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "简述从一次用户输入（如 pointerdown/click）到浏览器完成一帧呈现的大致阶段顺序，并说明在输入事件回调中执行长任务（几十毫秒量级）会对交互与渲染造成什么影响，以及可用哪些 API 或手段缓解。",
+    "scoringPoints": [
+      {
+        "point": "帧阶段顺序：输入事件回调 → 微任务清空 → requestAnimationFrame 回调 → 样式计算/布局 → 绘制 → 合成上屏，事件处理位于一帧的起点",
+        "weight": 3
+      },
+      {
+        "point": "长任务阻塞主线程，后续输入事件排队等待，造成点击/键入延迟（INP 指标恶化）并引发掉帧",
+        "weight": 3
+      },
+      {
+        "point": "缓解手段：任务切片（scheduler.yield()/setTimeout 分片）、把计算移入 Web Worker、requestIdleCallback 承载非关键工作、navigator.scheduling.isInputPending 主动让步",
+        "weight": 3
+      },
+      {
+        "point": "高频指针事件用 PointerEvent.getCoalescedEvents() 取回被合并的事件，避免只处理最后一次而丢失轨迹精度",
+        "weight": 1
+      }
+    ],
+    "answer": {
+      "ref": "一个典型帧从输入事件回调开始：浏览器先派发 input/pointer 等事件并执行监听器，随后清空微任务队列，接着运行 rAF 回调，然后依次做 Style、Layout、Paint，最后由合成线程 Composite 上屏。若事件回调里出现长任务，主线程被独占，后续输入事件无法及时处理，交互延迟（INP）升高，同时挤占渲染时间导致掉帧。缓解思路包括：用 scheduler.yield() 或 setTimeout 把大任务切成可让步的小片；纯计算移入 Worker 保持主线程空闲；非紧急工作放到 requestIdleCallback；必要时用 isInputPending 检查是否有待处理输入而主动让出；对 pointermove 等高频事件，通过 getCoalescedEvents() 拿到帧内合并的全部事件以保证绘制轨迹完整。"
+    },
+    "analysis": "本题考查帧级输入处理时序与长任务代价。一帧依次经历输入事件派发、JS 回调执行、微任务清空、rAF、样式计算/布局、绘制与合成；主线程在事件回调中被长任务独占时，后续输入事件只能排队等待，INP 等交互延迟指标升高，同时帧预算被击穿而掉帧。答题要抓住三条主线：阶段顺序、阻塞对交互与渲染的双重影响、让步/并行/空闲调度三类缓解思路，并能区分微任务分片与 setTimeout 分片在时序上的差异，补充 getCoalescedEvents 体现对高频事件合并机制的理解。",
+    "gapCheck": [
+      "易漏点：一帧的预算约 16.7ms，事件回调本身就是帧耗时的一部分，长任务不是只影响自己的回调。",
+      "常见误区：只关注 FPS 而忽视输入延迟指标 INP，掉帧不明显时交互仍可能明显卡顿。",
+      "排查线索：Performance 面板查看 Long Tasks 红色标记与 Input 延迟轨，结合 getCoalescedEvents 验证事件合并情况。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.events.input-frame"
+      ],
+      "related": [
+        "fe.browser.events.event-loop",
+        "fe.browser.render.pipeline",
+        "fe.browser.worker.thread"
+      ],
+      "followUps": [
+        "scheduler.yield() 与 await new Promise(r => setTimeout(r)) 在让步语义上有什么区别？",
+        "为什么滚动/指针场景推荐 passive 监听器与事件合并处理？",
+        "INP 取代 FIDO 成为核心 Web 指标后，长任务的评估口径有什么变化？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于浏览器帧生命周期、长任务与 Web 性能指标原理编写"
+    },
+    "tags": [
+      "帧生命周期",
+      "长任务",
+      "性能"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0003"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.render.pipeline",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于浏览器从 HTML/CSS 到像素上屏的渲染管线，下列说法正确的有？",
+    "options": [
+      {
+        "key": "A",
+        "text": "渲染树由 DOM 与 CSSOM 合并构建，display:none 的节点不会进入渲染树"
+      },
+      {
+        "key": "B",
+        "text": "布局（Layout）阶段负责计算每个可见元素的盒模型几何信息，即位置与尺寸"
+      },
+      {
+        "key": "C",
+        "text": "元素被提升为合成层后，仅改变 transform/opacity 时可以跳过 Layout 与 Paint，只走合成（Composite）"
+      },
+      {
+        "key": "D",
+        "text": "Paint 阶段直接把最终像素输出到屏幕，且整个过程与主线程完全无关"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A 正确：渲染树只包含可见节点，display:none 的元素不生成盒子、不进入渲染树（但 visibility:hidden 仍占位、会进入渲染树）。B 正确：Layout 根据渲染树计算各元素的几何位置和尺寸，生成盒模型坐标。C 正确：transform 与 opacity 可由合成线程在 GPU 上直接处理，命中合成层快路径时无需重新布局和绘制，这是动画性能优化的核心原理。D 错误：Paint 主要在主线程完成绘制指令记录（栅格化可在工作线程并行），真正把纹理输出到屏幕的是其后的 Composite 合成阶段，因此说 Paint 直接上屏且与主线程无关是错的。",
+    "gapCheck": [
+      "易漏点：display:none 与 visibility:hidden 在渲染树中的待遇不同，后者仍占据布局空间。",
+      "常见误区：把 Paint 当成最终上屏动作；上屏发生在 Composite，且合成线程可在主线程繁忙时独立维持滚动。",
+      "排查线索：Performance 面板对照 Main 线程的 Layout/Paint 记录与 Compositor 轨，用 Layers 面板确认合成层提升是否生效。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.render.pipeline"
+      ],
+      "related": [
+        "fe.browser.render.reflow-repaint",
+        "fe.browser.events.event-loop"
+      ],
+      "followUps": [
+        "哪些 CSS 属性变更只触发合成，哪些会触发 Layout？请各举两例。",
+        "浏览器在什么条件下会为元素创建新的合成层？过多合成层有什么代价？",
+        "visibility:hidden 与 display:none 在渲染树和布局开销上有何区别？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于浏览器关键渲染路径与渲染管线分层原理编写"
+    },
+    "tags": [
+      "渲染管线",
+      "关键渲染路径",
+      "高频"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0004"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.render.reflow-repaint",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "阅读下面代码：\n```js\nconst boxes = document.querySelectorAll('.box')\nboxes.forEach(box => {\n  const h = box.offsetHeight\n  box.style.height = `${h * 2}px`\n})\n```\n循环中“先读几何属性、再写样式”反复迫使浏览器同步重新计算布局。这种现象中文通常称为 ______，对应的英文术语是 ______；标准优化手法是先一次性批量 ______ 所有布局信息，再统一批量 ______ 样式，使整段逻辑只触发一次布局计算。",
+    "answer": {
+      "blanks": [
+        "强制同步布局",
+        "layout thrashing",
+        "读取",
+        "写入"
+      ],
+      "synonyms": {
+        "强制同步布局": [
+          "布局抖动",
+          "强制重排",
+          "forced synchronous layout"
+        ],
+        "layout thrashing": [
+          "layout thrash",
+          "forced reflow"
+        ],
+        "读取": [
+          "读",
+          "读布局",
+          "批量读"
+        ],
+        "写入": [
+          "写",
+          "修改",
+          "批量写"
+        ]
+      }
+    },
+    "analysis": "浏览器本来会把样式写入攒起来、异步统一做一次布局；但在脏布局未刷新时读取 offsetHeight、getBoundingClientRect、scrollTop 等几何属性，会迫使引擎立即执行一次同步布局。循环里每轮都读一次写一次，布局被反复强制触发，即强制同步布局（forced synchronous layout），俗称布局抖动 layout thrashing，复杂度可从一次 O(n) 布局退化为 O(n²) 量级。修复模式是读写分离：先遍历把所有需要的几何值读出来缓存，再遍历统一写样式，中间不穿插读取，整段只在下次自然节点触发一次布局；必要时可用 requestAnimationFrame 或 FastDOM 之类工具约束读写时序。",
+    "gapCheck": [
+      "易漏点：offsetTop/offsetHeight、clientWidth、scrollHeight、getBoundingClientRect 等都会强制挂起的布局立即执行，不只 offsetHeight 一个。",
+      "常见误区：以为套一层 requestAnimationFrame 就必然解决问题；rAF 回调内若仍交替读写，同一帧里照样发生强制布局，关键是读写分离。",
+      "排查线索：Performance 面板出现紫色 Layout 记录并标注 Forced reflow 警告时，沿调用栈即可定位到交替读写的代码行。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.render.reflow-repaint"
+      ],
+      "related": [
+        "fe.browser.render.pipeline",
+        "fe.js.dom.dom-api"
+      ],
+      "followUps": [
+        "哪些 DOM 属性的读取会强制浏览器立即执行布局？请再举出三个。",
+        "把交替读写改成“先全读、后全写”后，布局触发次数会发生什么变化？",
+        "ResizeObserver 回调里读取布局再写样式，是否也可能造成布局抖动？如何避免？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于强制同步布局与布局抖动的浏览器渲染原理编写"
+    },
+    "tags": [
+      "重排重绘",
+      "强制同步布局",
+      "性能"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0005"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.storage.local",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于浏览器 localStorage 的特性，下列说法正确的是？",
+    "options": [
+      {
+        "key": "A",
+        "text": "setItem 是异步接口并返回 Promise，调用时不会阻塞主线程"
+      },
+      {
+        "key": "B",
+        "text": "只能存储字符串，写入对象需要先用 JSON.stringify 序列化"
+      },
+      {
+        "key": "C",
+        "text": "在当前标签页修改 localStorage 后，本页面会立刻收到 storage 事件"
+      },
+      {
+        "key": "D",
+        "text": "容量通常在 50MB 以上，且可以跨不同源的页面共享数据"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：localStorage 是键值字符串存储，存对象会得到 [object Object]，必须自行 JSON.stringify，读取时再 parse 并容错。A 错误：localStorage 是同步 API，读写都在主线程上阻塞执行，数据量大时会拖慢交互。C 错误：storage 事件只在其他同源标签页/窗口触发，发起修改的那个文档本身收不到，事件对象携带 key、oldValue、newValue。D 错误：localStorage 受同源策略约束，协议/域名/端口任一不同即隔离，单源配额通常约 5MiB 量级，远不到 50MB。",
+    "gapCheck": [
+      "易漏点：storage 事件是跨标签页通知机制，修改源页面不触发，常用于多标签页状态同步。",
+      "常见误区：直接 setItem 一个对象得到 [object Object]，且 parse 历史脏数据时不做 try/catch 会抛异常。",
+      "排查线索：DevTools 的 Application 面板可查看 Local Storage；注意 file:// 下各文件路径的源判定与 http 页面不同。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.storage.local"
+      ],
+      "related": [
+        "fe.browser.worker.thread",
+        "fe.browser.v8.memory"
+      ],
+      "followUps": [
+        "如何利用 storage 事件实现两个同源标签页之间的状态同步？",
+        "sessionStorage 与 localStorage 在生命周期和跨标签页可见性上有何区别？",
+        "什么场景下应该用 IndexedDB 或 Cookie 替代 localStorage？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Web Storage 规范与现代浏览器存储限制编写"
+    },
+    "tags": [
+      "localStorage",
+      "同源策略",
+      "基础"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0006"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.storage.local",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "某应用需要在客户端缓存约 20MB 的结构化 JSON 数据、支持离线检索，并希望在 Web Worker 中读取这些数据。请说明为什么 localStorage 不适合该场景，并给出你的技术选型与至少三条理由。",
+    "scoringPoints": [
+      {
+        "point": "localStorage 是同步 API，读写 20MB 数据会阻塞主线程，造成明显卡顿",
+        "weight": 2
+      },
+      {
+        "point": "容量通常仅约 5MiB 且只能存字符串，无索引、无事务，20MB 结构化数据放不下也无法高效检索",
+        "weight": 3
+      },
+      {
+        "point": "Worker 全局上下文中没有 document/localStorage，无法在 Worker 中访问",
+        "weight": 2
+      },
+      {
+        "point": "应选型 IndexedDB：异步不阻塞、容量大、支持结构化克隆存对象、可建索引与事务、Worker 中可用",
+        "weight": 3
+      }
+    ],
+    "answer": {
+      "ref": "该场景应使用 IndexedDB 而非 localStorage，理由：1）localStorage 为同步接口，20MB 数据的序列化读写会长期占用主线程，触发长任务使页面失去响应；2）单源配额约 5MiB，且仅支持字符串，对象要手动 JSON 序列化，既浪费空间又无法按字段建索引，离线检索只能全量读出再过滤；3）localStorage 挂载在 Window/document 上下文，Web Worker 内不存在该对象，无法满足 Worker 读取的要求。IndexedDB 是浏览器内置的事务型对象库：异步请求不阻塞主线程，配额远大于 localStorage（通常按磁盘百分比动态分配），通过结构化克隆直接存对象，支持索引、游标和事务，且在 Worker 中可用；工程上可配合 idb 等 Promise 封装库简化回调写法。"
+    },
+    "analysis": "本题考查客户端存储选型，关键不是容量数字本身，而是同步/异步模型、结构化能力与运行上下文三条硬约束。localStorage 同步阻塞主线程、仅支持字符串、约 5MiB 配额且在 Worker 中不可用，三点中的任意一点都足以排除该场景；IndexedDB 异步事务、结构化克隆存储、可建索引、Worker 可用，正好逐项对应需求。答题时应先给出明确选型，再逐条把场景约束映射到两套 API 的能力差异，避免只笼统回答“IndexedDB 更大”。",
+    "gapCheck": [
+      "易漏点：容量只是问题之一，同步阻塞与 Worker 不可用是架构层面的硬约束。",
+      "常见误区：把 JSON 字符串切块塞进 localStorage 模拟数据库，结果失去索引与事务保证，读写放大严重。",
+      "排查线索：用 navigator.storage.estimate() 查询配额与占用，Application 面板检查 IndexedDB 的 objectStore 与索引。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.storage.local"
+      ],
+      "related": [
+        "fe.browser.worker.thread",
+        "fe.browser.v8.memory"
+      ],
+      "followUps": [
+        "IndexedDB 的事务在什么情况下会自动提交或中止？",
+        "Cache API 与 IndexedDB 在离线缓存场景下各自适合存什么？",
+        "navigator.storage.estimate() 返回的 quota 与 usage 如何解读？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Web Storage 与 IndexedDB 的规范能力差异编写"
+    },
+    "tags": [
+      "存储选型",
+      "IndexedDB",
+      "Worker"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0007"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.v8.engine",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于现代 V8 引擎（2024 年后 Chrome 使用的版本）执行 JavaScript 的分层编译管线，下列说法正确的有？",
+    "options": [
+      {
+        "key": "A",
+        "text": "Ignition 是基线解释器，以字节码方式逐段执行函数"
+      },
+      {
+        "key": "B",
+        "text": "Maglev 是位于 Ignition/Sparkplug 与 TurboFan 之间的中层优化编译器，对热点函数做较快的中等强度优化"
+      },
+      {
+        "key": "C",
+        "text": "函数被反复执行、收集到足够类型反馈后，可能被 TurboFan 优化编译为机器码"
+      },
+      {
+        "key": "D",
+        "text": "函数一旦被 TurboFan 优化编译，就永远不会再回退到解释执行"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A 正确：V8 先把源码解析成字节码，由 Ignition 解释执行，启动快、内存省。B 正确：现代 V8 形成 Ignition→Sparkplug（基线编译）→Maglev（中层优化）→TurboFan（顶层优化）的多级管线，Maglev 在编译耗时与优化收益之间取折中。C 正确：解释执行期间通过 feedback vector 收集类型与调用频次，热点函数触发 TurboFan 基于推测类型做深度优化。D 错误：当运行时事实与优化时的推测不符（如参数类型突变、对象形状变化），会触发去优化（deoptimization），回退到 Ignition 重新解释执行，因此优化不是永久锁死的。",
+    "gapCheck": [
+      "易漏点：优化是反馈驱动的，编译器依赖运行时收集的类型信息做推测，而不是静态分析出唯一真相。",
+      "常见误区：以为 JIT 优化后就固定不变；deopt 是正常机制，频繁去优化反而比从未优化更慢。",
+      "排查线索：用 --trace-opt/--trace-deopt 启动参数或 Performance 面板的优化轨观察函数的优化与去优化事件。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.v8.engine"
+      ],
+      "related": [
+        "fe.browser.v8.memory",
+        "fe.browser.events.event-loop"
+      ],
+      "followUps": [
+        "Sparkplug 与 Maglev 在编译时机和优化强度上如何分工？",
+        "什么样的代码模式会让 TurboFan 频繁去优化？",
+        "字节码的缓存（code caching）对二次加载性能有什么影响？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 V8 官方公布的分层编译架构（Ignition/Sparkplug/Maglev/TurboFan）编写"
+    },
+    "tags": [
+      "V8",
+      "JIT",
+      "编译管线"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0008"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.v8.engine",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "请解释 V8 的隐藏类（Hidden Class / Map）与内联缓存（Inline Cache）如何加速对象属性访问，并写出一个容易触发去优化的编码反例、说明原因。",
+    "scoringPoints": [
+      {
+        "point": "隐藏类：形状相同的对象共享同一个 Map，属性名到存储位置的偏移量固定，属性访问从哈希查找变为定长偏移",
+        "weight": 3
+      },
+      {
+        "point": "内联缓存：在字节码执行点缓存上次命中的 Map 与偏移，单态命中最快，多态/超态随形状数量增加而变慢甚至走泛化查找",
+        "weight": 3
+      },
+      {
+        "point": "反例：对象构造后动态 add/delete 属性、或函数参数类型在调用间反复变化，导致 Map 迁徙与 IC miss，进而触发 deopt",
+        "weight": 3
+      },
+      {
+        "point": "工程建议：在构造函数中一次性初始化全部字段、保持函数参数类型稳定、数组元素类型同质",
+        "weight": 1
+      }
+    ],
+    "answer": {
+      "ref": "V8 为每个对象关联一个隐藏类（Map），描述其属性布局。同形状（属性名、顺序、个数一致）的对象共享同一个 Map，属性在对象体内的偏移量固定，访问属性时不必做动态哈希查找，只需按 Map 记录的偏移取值。内联缓存则在属性访问的字节码站点上缓存上一次命中的 Map 和偏移：下次执行时先比对 Map，命中（单态）即直接用缓存的偏移，极快；若站点陆续见到少量不同 Map 退化为多态，见到很多形状则成为超态，回落到慢速泛化查找。典型反例：function Point(x,y){this.x=x;this.y.y} 之后再 point.z=1、delete point.x，动态增删属性迫使对象经历多次 Map 迁徙，原本单态的访问点不断 IC miss，TurboFan 基于旧 Map 的优化代码失效而 deopt。正确做法是在构造函数里一次性声明全部字段（用不到也初始化为 undefined），保持对象形状稳定，并让函数参数类型在调用间保持一致。"
+    },
+    "analysis": "本题串联 V8 的两个核心优化机制：隐藏类把动态对象的属性查找转为按固定偏移取值，内联缓存在字节码站点缓存 Map 与偏移形成单态快路径；两者都建立在对象形状稳定的前提上，动态增删属性或类型突变会引发 Map 迁徙、IC miss 乃至 TurboFan 去优化。答题需讲清机制如何协同加速、单态/多态/超态的退化路径，并给出可落地的反例与修正编码习惯；注意反例代码里 this.y.y 是故意留下的错误写法，意在考察能否识别构造函数赋值异常本身也会干扰形状建立。",
+    "gapCheck": [
+      "易漏点：隐藏类随属性增删和赋值顺序而变，两个字面量属性顺序不同的对象不共享 Map。",
+      "常见误区：只关注算法复杂度而忽视对象形状，单态/多态/超态的实际耗时差异可以达到数倍。",
+      "排查线索：用 --trace-maps、--trace-ic 观察 Map 迁徙与内联缓存状态，结合 deopt 日志定位反模式。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.v8.engine"
+      ],
+      "related": [
+        "fe.browser.v8.memory"
+      ],
+      "followUps": [
+        "单态、多态、超态内联缓存的性能差异大致是什么量级？",
+        "为什么数组混用不同类型元素会让 V8 改用更慢的存储表示？",
+        "class 语法相比普通函数构造对象，在隐藏类稳定性上有什么帮助？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 V8 隐藏类、内联缓存与去优化机制的公开原理编写"
+    },
+    "tags": [
+      "隐藏类",
+      "内联缓存",
+      "去优化"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0009"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.v8.memory",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断题：WeakMap 的键是弱引用——当键对象在程序其他位置不再被任何强引用持有时，即使 WeakMap 中仍存在该条目，垃圾回收器也可以回收该键对象，并随之清除整条目（其关联值若无其他引用也会被回收）。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。WeakMap 对键保持弱引用，键对象的可达性不受 WeakMap 自身影响；一旦键在外部不可达，GC 可以回收键并删除对应条目，值若没有别处强引用也会一并回收。这正是 WeakMap 适合给外部对象挂私有元数据的原因：不会因为登记表本身而阻止对象生命周期。需要区分的是：条目存活期间值仍是被强引用的，弱的是键不是值；且 WeakMap 不可枚举（没有 keys()、size 和迭代器），因为枚举依赖条目存活的确定性。",
+    "gapCheck": [
+      "易漏点：弱引用作用于键，值在条目存活时被强引用；键被回收后整条目消失，值才可能随之释放。",
+      "常见误区：试图遍历 WeakMap 或取 size，弱集合按设计不可枚举，需要遍历应使用普通 Map 并自行管理生命周期。",
+      "排查线索：堆快照中对比 WeakMap 条目的 retained size，配合 Detached DOM 节点视图排查被意外保活的对象。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.v8.memory"
+      ],
+      "related": [
+        "fe.browser.v8.engine",
+        "fe.browser.storage.local"
+      ],
+      "followUps": [
+        "WeakRef 与 FinalizationRegistry 分别解决什么问题，能否用来可靠管理资源？",
+        "为什么 WeakSet/WeakMap 的键必须是对象而不能是原始值？",
+        "用 WeakMap 给 DOM 节点绑定缓存数据，为什么能天然避免内存泄漏？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 ECMAScript 弱引用集合语义与 GC 可达性原理编写"
+    },
+    "tags": [
+      "WeakMap",
+      "垃圾回收",
+      "内存"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0010"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.v8.memory",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "V8 采用分代垃圾回收策略：堆被划分为存放短命对象的 ______ 代与存放长命对象的 ______ 代；新生代空间不足时触发 ______ GC，采用 Scavenge 半空间复制算法回收；经历多次 Minor GC 仍存活的对象会被 ______ 到老生代，老生代主要由 Major GC（Mark-Sweep / Mark-Compact）负责回收与整理。",
+    "answer": {
+      "blanks": [
+        "新生",
+        "老生",
+        "Minor",
+        "晋升"
+      ],
+      "synonyms": {
+        "新生": [
+          "年轻",
+          "young",
+          "新生代"
+        ],
+        "老生": [
+          "老",
+          "old",
+          "老生代"
+        ],
+        "Minor": [
+          "minor",
+          "次要",
+          "小回收"
+        ],
+        "晋升": [
+          "提升",
+          "promote",
+          "promotion"
+        ]
+      }
+    },
+    "analysis": "V8 依据“大多数对象朝生夕死”的观察做分代设计：新生代（young generation）用两个半空间做 Scavenge 复制，回收速度快、停顿短，称为 Minor GC；多次 Minor GC 后仍存活的对象被晋升（promote）到老生代。老生代对象存活率高、空间大，采用标记-清除（Mark-Sweep）回收垃圾、标记-整理（Mark-Compact）消除碎片，即 Major GC。现代 V8 的 Orinoco 项目还把标记、复制等工作并行化/并发化以缩短停顿。",
+    "gapCheck": [
+      "易漏点：Scavenge 是空间换时间的复制算法，新生代天然只利用一半空间；标记-清除/整理属于老生代 Major GC。",
+      "常见误区：把新生代回收称作 Mark-Sweep，混淆两代的算法与触发时机。",
+      "排查线索：Performance 的 Memory 轨观察 GC 事件类型与停顿，或用 performance.measureUserAgentSpecificMemory 监控内存水位。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.v8.memory"
+      ],
+      "related": [
+        "fe.browser.v8.engine",
+        "fe.browser.storage.local"
+      ],
+      "followUps": [
+        "Scavenge 半空间复制的具体流程是什么，为什么适合新生代？",
+        "Mark-Sweep 与 Mark-Compact 在碎片处理上有什么区别？",
+        "并发标记（concurrent marking）如何降低 Major GC 的主线程停顿？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 V8 分代垃圾回收与 Orinoco 回收管线原理编写"
+    },
+    "tags": [
+      "分代回收",
+      "GC",
+      "内存"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0011"
+  },
+  {
+    "g": 1,
+    "nodeId": "fe.browser.worker.thread",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 Web Worker 在现代浏览器中的能力边界与通信方式，下列说法正确的有？",
+    "options": [
+      {
+        "key": "A",
+        "text": "Worker 内可以使用 fetch、setTimeout、IndexedDB、WebSocket，但不能访问 DOM 与 window.document"
+      },
+      {
+        "key": "B",
+        "text": "postMessage 默认通过结构化克隆复制数据；Transferable 对象可以转移所有权，实现零拷贝传递"
+      },
+      {
+        "key": "C",
+        "text": "创建 Worker 后，主线程与 Worker 之间可以直接共享普通 JavaScript 对象的引用，无需任何拷贝"
+      },
+      {
+        "key": "D",
+        "text": "new Worker(url, { type: 'module' }) 创建的模块 Worker 内部可以使用 ESM 的 import 语法"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A 正确：Worker 运行在独立线程、独立全局作用域（WorkerGlobalScope/self），没有 window、document 和 DOM，但具备 fetch、定时器、IndexedDB、WebSocket、CacheStorage 等能力。B 正确：postMessage 默认走结构化克隆算法做深拷贝；ArrayBuffer 等 Transferable 可放入 transfer 列表转移所有权，发送方随即失去使用权，避免大数据复制。C 错误：普通对象按克隆传递，两边各持一份互不影响；要共享内存必须显式使用 SharedArrayBuffer 并配合 Atomics 同步。D 正确：type:'module' 的模块 Worker 支持标准 import/export，现代浏览器已广泛支持。",
+    "gapCheck": [
+      "易漏点：Worker 没有 DOM 但网络与存储能力完整，importScripts 仅经典 Worker 可用，模块 Worker 应使用 import。",
+      "常见误区：以为 postMessage 是引用共享；默认是克隆，大缓冲应转移所有权或改用 SharedArrayBuffer。",
+      "排查线索：DevTools 的 Console/Sources 需切换到对应 Worker 上下文调试；同源限制下可用 Blob URL 或打包器产出的模块脚本。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.browser.worker.thread"
+      ],
+      "related": [
+        "fe.browser.events.event-loop",
+        "fe.browser.storage.local"
+      ],
+      "followUps": [
+        "SharedArrayBuffer 为什么要求跨域隔离（COOP/COEP 头）？Atomics 解决什么问题？",
+        "Transferable 转移之后，原线程再访问该 ArrayBuffer 会发生什么？",
+        "Worker 中抛出的未捕获异常，主线程通过什么事件感知？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Web Workers、结构化克隆与 Transferable 规范语义编写"
+    },
+    "tags": [
+      "Web Worker",
+      "多线程",
+      "结构化克隆"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0012"
+  }
+]

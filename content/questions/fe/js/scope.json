@@ -1,0 +1,347 @@
+[
+  {
+    "id": "Q-fe-js-hoisting-0001",
+    "nodeId": "fe.js.scope.hoisting",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于变量提升（hoisting）与暂时性死区（TDZ），下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "`var` 声明的变量会提升到作用域顶部并初始化为 undefined；`let`/`const` 虽也提升，但在声明语句执行前访问会抛 ReferenceError（TDZ）"
+      },
+      {
+        "key": "B",
+        "text": "`let` 和 `var` 完全一样，都可以在声明前访问到 undefined"
+      },
+      {
+        "key": "C",
+        "text": "函数表达式 `var f = function(){}` 会把整个函数体提升，声明前可以直接调用 f()"
+      },
+      {
+        "key": "D",
+        "text": "`const x = 1` 之后，再执行 `x = 2` 只是默默失败，不会报错"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确且完整：var 的声明被提升并初始化为 undefined（所以声明前访问得到 undefined 而非报错）；let/const 同样存在提升，但进入作用域到声明执行之间处于「暂时性死区」，此时访问直接 ReferenceError。B 错，let 有 TDZ，声明前访问报错而不是得到 undefined。C 错：提升的只是变量 f（值为 undefined），函数体在赋值那一刻才赋给 f，声明前调用 f() 会报「f is not a function」；只有函数声明 `function f(){}` 才会整体提升、可在声明前调用。D 错：const 保证绑定不可重新赋值，`x = 2` 会抛 TypeError；但注意 const 对象的属性仍可修改，锁住的是绑定不是内容。",
+    "gapCheck": [
+      "易漏点：let/const 不是「不提升」，而是提升了但被 TDZ 拦住，访问即 ReferenceError",
+      "常见误区：把函数表达式当成函数声明，以为 var f = function(){} 也能提前调用",
+      "加分项：能讲清函数声明整体提升、且同名时函数声明优先于 var 声明的提升规则"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.scope.hoisting"
+      ],
+      "related": [
+        "fe.js.es6.modern"
+      ],
+      "followUps": [
+        "同一作用域内同时有函数声明和 var 同名声明，提升后谁覆盖谁？",
+        "为什么推荐循环里用 let 而不是 var（结合闭包/块级作用域）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "提升与 TDZ 概念单选题"
+    },
+    "tags": [
+      "JS基础",
+      "变量提升",
+      "暂时性死区",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-hoisting-0002",
+    "nodeId": "fe.js.scope.hoisting",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：`const` 声明的原始值不能被重新赋值，但 `const obj = { count: 0 }` 之后仍可以执行 `obj.count = 1` 修改对象内部属性；const 保证的是「绑定不可变」而不是「对象内容不可变」。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。const 与 let 的块级作用域、TDZ 规则一致，唯一区别是 const 声明时必须初始化、且之后不能把该变量重新指向另一个值（重新赋值抛 TypeError）。但对于对象、数组这类引用类型，const 锁住的只是变量里存的引用地址，对象本身在堆上的内容并不受保护，所以改属性、push 元素都合法。若需要让对象内容也不可变，可用 Object.freeze()（浅冻结）或深冻结/不可变数据方案。",
+    "gapCheck": [
+      "易漏点：const 锁的是绑定（变量→值的指向），不是堆里的对象数据",
+      "常见误区：看到 const 就以为对象彻底不可变，从而误判 obj.x = 1 会报错",
+      "加分项：知道 Object.freeze 是浅冻结、冻结后新增/删除/修改属性在严格模式下报错"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.scope.hoisting"
+      ],
+      "related": [
+        "fe.js.basics.types",
+        "fe.js.es6.modern"
+      ],
+      "followUps": [
+        "如何让一个对象真正不可修改？Object.freeze 能冻结嵌套对象吗？",
+        "const 声明时为什么必须立刻初始化？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "const 绑定不可变与对象内容可变判断题"
+    },
+    "tags": [
+      "JS基础",
+      "const",
+      "块级作用域",
+      "高频踩坑"
+    ]
+  },
+  {
+    "id": "Q-fe-js-closure-0001",
+    "nodeId": "fe.js.scope.closure",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "对比两段代码，分别输出什么？\n甲：`for (var i = 0; i < 3; i++) { setTimeout(() => console.log(i), 0) }`\n乙：`for (let i = 0; i < 3; i++) { setTimeout(() => console.log(i), 0) }`",
+    "options": [
+      {
+        "key": "A",
+        "text": "甲输出 3 3 3；乙输出 0 1 2"
+      },
+      {
+        "key": "B",
+        "text": "甲输出 0 1 2；乙输出 0 1 2"
+      },
+      {
+        "key": "C",
+        "text": "甲输出 3 3 3；乙输出 3 3 3"
+      },
+      {
+        "key": "D",
+        "text": "甲立即报错；乙输出 0 1 2"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确。甲用 var：整个循环只有一个函数作用域变量 i，三个回调闭包引用的是同一个 i；等定时器回调执行时循环早已结束，i 已被加到 3，于是打印 3 3 3。乙用 let：let 是块级作用域，规范规定每一轮循环都生成一个新的 i 绑定并把本轮值带进去，每个回调闭包各自捕获独立的 i，因此打印 0 1 2。另外 setTimeout 回调属于宏任务，无论哪段都在同步循环跑完后才执行，这解释了甲里为什么读到的是终值 3。var 写法的经典修复还有 IIFE 传参 `(function(j){...})(i)`，本质也是造一个独立作用域。",
+    "gapCheck": [
+      "易漏点：定时器回调是异步执行的，读变量的时刻在循环结束之后，不是注册那一刻",
+      "常见误区：以为回调里「保存」了注册时的 i——var 下闭包保存的是同一个变量引用而非快照",
+      "加分项：能说出 let 在 for 循环中每轮新建绑定的规范行为，以及用 IIFE/函数传参模拟块级作用域的修法"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.scope.closure"
+      ],
+      "related": [
+        "fe.js.scope.hoisting",
+        "fe.js.async.event-loop"
+      ],
+      "followUps": [
+        "如果把 setTimeout 换成同步打印，两段代码还会有差异吗？",
+        "用 var 时除了换 let，还有哪些写法能输出 0 1 2？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "var/let 循环闭包经典单选题"
+    },
+    "tags": [
+      "JS基础",
+      "闭包",
+      "块级作用域",
+      "经典题"
+    ]
+  },
+  {
+    "id": "Q-fe-js-closure-0002",
+    "nodeId": "fe.js.scope.closure",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请用自己的话回答：什么是闭包（closure）？它在实际开发中有哪些典型用途？又可能带来什么问题？",
+    "answer": {
+      "ref": "参考骨架：①定义——函数与其词法作用域的组合：内层函数引用了外层函数作用域中的变量，即使外层函数已经执行结束、其执行上下文弹出调用栈，内层函数仍能记住并访问这些变量（变量不会被回收）。②原理——基于词法作用域与作用域链，函数创建时就确定了对外部环境的引用，闭包把该环境捕获并保活。③典型用途——数据私有化/模块化（函数内变量外部无法直接访问，只暴露读写方法）、工厂函数与配置封装、防抖节流（用闭包保存 timer、上一次执行时间）、回调中持久化状态（循环计数、事件处理携带上下文）。④潜在问题——被引用的外层变量无法被 GC 回收，无节制地持有大对象可能造成内存泄漏；在循环中错误共享同一变量会引发计数 bug；排查时要确认引用是否还能被释放（移除监听、置空引用）。"
+    },
+    "scoringPoints": [
+      {
+        "point": "讲对闭包定义：函数记住并访问其词法作用域，外层函数返回后变量仍存活",
+        "weight": 2
+      },
+      {
+        "point": "能结合作用域链/词法作用域解释为什么能访问外部变量",
+        "weight": 1
+      },
+      {
+        "point": "至少举出两个典型用途（私有化、防抖节流、工厂函数、回调状态等）",
+        "weight": 2
+      },
+      {
+        "point": "提到内存占用/泄漏与 GC 的关系及释放手段",
+        "weight": 1
+      }
+    ],
+    "analysis": "闭包是 JS 面试必考概念。3 分档要求既能下准定义（不是「函数套函数」这种表面描述），又能落到真实场景。常见失分：把闭包等同于嵌套函数、只说用途讲不清变量为什么不被回收、完全不提内存代价。回答时建议用「定义 → 原理 → 用途 → 代价」四段式，并配一个计数器或防抖的小例子增强说服力。",
+    "gapCheck": [
+      "易漏点：闭包的关键是「外层函数执行完后变量依然存活」，而不是单纯的函数嵌套",
+      "常见误区：认为闭包必然导致内存泄漏——只有当持有闭包的引用长期不可达地挂着才构成泄漏",
+      "加分项：能举出防抖/节流里闭包保存 timer 的实例，并说明移除事件监听即可释放闭包"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.scope.closure"
+      ],
+      "related": [
+        "fe.js.oop.this",
+        "fe.js.scope.hoisting"
+      ],
+      "followUps": [
+        "闭包保活的变量存在哪？为什么 GC 不回收它们？",
+        "手写一个用闭包实现的私有计数器，并说明外部怎么访问？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "闭包定义/用途/代价主观题"
+    },
+    "tags": [
+      "JS基础",
+      "闭包",
+      "作用域链",
+      "高频主观题"
+    ]
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.js.scope.closure",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于闭包与作用域链，下列哪些说法是正确的？（多选）",
+    "options": [
+      {
+        "key": "A",
+        "text": "闭包的本质是函数与其词法环境的组合：函数创建时就把当时的外层作用域记录进 [[Environment]]，因此即使外层函数早已返回，通过该函数仍能访问那些仍然存活的绑定，这正是防抖、节流与模块模式能私有化状态的机制"
+      },
+      {
+        "key": "B",
+        "text": "for (let i = 0; i < 3; i++) 每轮迭代会为 i 新建一份绑定，三个 setTimeout 回调因此打印 0、1、2；换成 var 则三个回调共享函数作用域里的同一个 i，最终都打印 3"
+      },
+      {
+        "key": "C",
+        "text": "闭包一定会造成内存泄漏：只要函数引用还在，它捕获的所有局部变量就永远不会被回收，所以必须手动把它们置 null"
+      },
+      {
+        "key": "D",
+        "text": "现代引擎不会为闭包保留整个父级作用域对象，而是通过上下文分配只物化被内层函数真正引用的变量，未被引用的绑定可以被正常回收"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A 对：词法作用域意味着作用域由代码书写位置决定，函数对象携带 [[Environment]] 指向创建时的词法环境，这就是闭包的定义；防抖里保存 timer id、模块模式里保存私有变量都依赖这条机制。B 对：let 在 for 语句里被规范特别处理——每轮迭代复制上一轮的值并创建 per-iteration binding，因此各回调持有一份独立副本；var 只有函数作用域那一份 i，循环同步结束后 i === 3，异步回调读的是同一份。C 错在「一定」：闭包只是延长被引用绑定的生命周期，闭包本身不可达时连同其词法环境一起被回收；JS 按可达性回收，不会因循环引用而泄漏。真正的泄漏来自意外长期持有（全局数组累积、未摘除的监听器与定时器、被缓存的 DOM 节点引用），那时才需要主动断开。D 对：V8 等引擎不做「保留整个 activation record」的朴素实现，通过上下文分配只物化被捕获的变量，未捕获的局部照常释放，这也解释了「闭包实际占的内存比想象小」的工程直觉。补充加分：事件回调里闭包捕获大对象会让它无法回收，现代做法是用 AbortController/signal 统一摘监听；为性能而刻意避免创建闭包通常是过早优化。",
+    "gapCheck": [
+      "易漏点：区分「闭包延长绑定寿命」与「内存泄漏」：泄漏的必要条件是闭包自身仍可达，排查要从 GC Roots 找持有链，而不是给每个闭包置 null",
+      "常见误区：for 的 let 是每轮新建绑定，仅用「块级作用域」四个字解释不充分：块级作用域只保证单轮内独立，per-iteration 复制才是得到 0/1/2 的原因",
+      "排查线索：排查闭包类 bug 时在 DevTools 的 Scope 面板查看 Closure 捕获的变量快照，再用 Memory 堆快照比对 Detached 对象，可快速定位意外持有"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.scope.closure",
+        "fe.js.scope.hoisting"
+      ],
+      "related": [
+        "fe.js.oop.this",
+        "fe.js.async.promise"
+      ],
+      "followUps": [
+        "闭包捕获 this 与箭头函数继承外层 this 之间是什么关系？为什么回调里的 this 会丢失？",
+        "防抖与节流的闭包实现里，最后一次 trailing 调用如何保证拿到最新参数？",
+        "模块模式（IIFE + 闭包）的私有性与 ES Module 的私有性有什么区别？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 ECMAScript 的词法环境与 [[Environment]]、for 循环 per-iteration binding 语义及 V8 上下文分配策略编写"
+    },
+    "tags": [
+      "原理题",
+      "高频",
+      "闭包"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0130"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.js.scope.hoisting",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "阅读下面的脚本：\n```js\nconsole(typeof hoistedFn, typeof hoistedVar);\nfunction hoistedFn() {}\nvar hoistedVar = 1;\n\n(function () {\n  console(typeof sameName);   // A\n  var sameName = 'assigned';\n  function sameName() {}\n  console(typeof sameName);   // B\n})();\n\n(function () {\n  console(tdz);               // C\n  let tdz = 10;\n})();\n```\n说明 A、B、C 三行分别输出什么（或抛出什么错误），并解释 var 与 function 同名冲突时的提升次序、let 的提升与暂时性死区，以及 const 究竟约束了什么。",
+    "answer": {
+      "ref": "参考答案：\n最外层：hoistedFn 与 hoistedVar 都在进入脚本时就被登记；函数声明是「创建 + 初始化」整体提升，因此 typeof hoistedFn 得到 'function'；var 只提升声明不提升赋值，typeof 是能安全探测未初始化变量的运算符，故 typeof hoistedVar 得到 'undefined'（若直接裸用 hoistedVar 参与运算则是 undefined 参与，不抛错；而裸用未声明标识符才抛 ReferenceError）。\nA 输出 'function'：在内层 IIFE 中，函数声明 sameName 与 var sameName 同名，规范要求 var/let/const/class 的声明在遇到已存在的函数声明时不会把它覆盖掉（函数声明优先创建），所以进入函数体时 sameName 已是那个函数，A 行读到函数。\nB 输出 'string'：var sameName = 'assigned' 的执行位置不变（var 声明部分被吸收，赋值留在原地），执行后绑定被改写成字符串；紧随其后的 function sameName() {} 位于赋值之后，不再有任何效果（函数声明的创建发生在作用域进入阶段）。\nC 抛 ReferenceError: Cannot access 'tdz' before initialization：let 同样被提升到块顶，但绑定处于暂时性死区（TDZ），初始化前的读写都抛 ReferenceError；这与 var 的「已声明未初始化 → undefined」是两条完全不同的路径。typeof tdz 同样会抛错，所以 typeof 并不能安全探测 TDZ 中的 let/const。\nconst 的约束：它约束的是绑定的重新赋值（不可 re-declare、不可 re-assign），不是值的不可变——const obj = {} 之后 obj.x = 1 合法，要冻结内容需 Object.freeze；且 const 必须有初始化表达式，同样存在 TDZ。class 声明也遵循 let 式的 TDZ 语义，所以 extends 一个尚未初始化的 class 会抛错。"
+    },
+    "scoringPoints": [
+      {
+        "point": "答出 A 为 'function'，并说明函数声明优先于 var 同名声明、var 不会把已创建的函数覆盖成 undefined",
+        "weight": 3
+      },
+      {
+        "point": "答出 B 为 'string'，指出 var 的赋值留在原位置执行、写在后面的函数声明不再有效果",
+        "weight": 2
+      },
+      {
+        "point": "答出 C 抛 ReferenceError（Cannot access ... before initialization），并说明 let 也被提升但处于 TDZ",
+        "weight": 3
+      },
+      {
+        "point": "澄清 TDZ 与「没有提升」的区别，并指出 typeof 对 TDZ 内变量同样会抛错",
+        "weight": 1
+      },
+      {
+        "point": "准确说明 const 只约束绑定不可重新赋值，对象内容可变；顺带提到 class 也有 TDZ",
+        "weight": 1
+      }
+    ],
+    "gapCheck": [
+      "易漏点：同名冲突时函数声明先创建、var 声明不会覆盖它，于是 A 行读到函数——这是本题最容易答错的点",
+      "常见误区：不要把 TDZ 说成「没有提升」：let/const 会被提升到块顶只是未初始化，且 typeof 也无法安全探测它们",
+      "排查线索：排查偶发 ReferenceError 时留意块内 let 与块外同名 var 混用、循环体内的 per-iteration 绑定，以及 class extends 未初始化父类的场景"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.scope.hoisting",
+        "fe.js.scope.closure"
+      ],
+      "related": [
+        "fe.js.es6.modern",
+        "fe.js.oop.prototype"
+      ],
+      "followUps": [
+        "块级函数在严格模式与 sloppy 模式下的提升语义有什么差别？",
+        "class 声明也存在 TDZ，为什么 extends 一个尚未初始化的 class 会抛错？",
+        "var 的重复声明为什么被允许，而 let/const 在同一作用域重复声明会 SyntaxError？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 ECMAScript 的 var/function 声明提升次序、let/const 暂时性死区与 typeof 语义编写"
+    },
+    "tags": [
+      "经典题",
+      "作用域",
+      "难度高"
+    ],
+    "openBookAllowed": false,
+    "analysis": "考查变量提升（hoisting）与暂时性死区（TDZ）的双层语义，判分核心是区分两种『提前』：①var 与函数声明在脚本/函数进入时即登记进变量环境——函数声明是创建+初始化一步到位（所以 typeof hoistedFn === 'function' 成立且可提前调用），var 只创建不初始化（typeof hoistedVar === 'undefined' 而非 TDZ 报错，因为 typeof 对未初始化 var 返回 undefined 是规范行为）；②let/const/class 虽也被收集但处于 TDZ，进入块作用域时绑定已建立但未初始化，访问抛 ReferenceError——typeof 也不再是 undefined 而是直接抛错，这是 typeof 唯一会抛异常的场景；③块内 function 声明在现代严格模式/ESM 下块级绑定（外层看不到）， sloppy 模式下则提升为 var 语义（引擎兼容产物），答出 this/arguments 语境差异属加分；④最易错点：把 let 也当成『完全不存在所以 typeof 返回 undefined』——实际 let 已绑定未初始化，typeof 会抛 ReferenceError。白板追问：循环里 let i 每轮独立绑定 vs var i 共享绑定导致闭包捕获同一变量，正是 TDZ 与块作用域协同的结果。",
+    "id": "Q-fe-fill-0131"
+  }
+]

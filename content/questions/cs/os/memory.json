@@ -1,0 +1,429 @@
+[
+  {
+    "id": "Q-cs-os-memory-0001",
+    "nodeId": "cs.os.memory.virtual-memory",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于分页与分段两种内存管理方式，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "分段按固定大小切分内存，分页按程序逻辑模块变长划分" },
+      { "key": "B", "text": "分段按程序的逻辑单位（代码段、数据段、栈段等）变长划分，便于共享与保护但会产生外部碎片；分页把内存切成固定大小的页/页框，对程序员透明，消除了外部碎片但存在页内内部碎片" },
+      { "key": "C", "text": "分页会产生外部碎片，分段会产生内部碎片" },
+      { "key": "D", "text": "分段和分页都要求整个进程一次性全部装入连续的物理内存" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确对比了两种机制：分段的维度是逻辑意义，段长不固定，段表记录基址+界限，方便按段共享（如共享库代码段）和按段设权限；段间空闲区被切碎后产生外部碎片，需要紧凑（compaction）。分页用固定页（常见 4KB），进程的页可以散落在任意页框、不必连续，靠页表映射，外部碎片消失，代价是最后一个页用不满的内部碎片。A 把两者说反。C 也说反了：分段的问题是外部碎片，分页的问题是内部碎片。D 错：分页正是为了打破连续装入要求，配合虚拟内存还能按需调页、部分装入。",
+    "gapCheck": [
+      "易漏点：外部碎片=空闲区总量够但不连续；内部碎片=分配单元内用不满的浪费",
+      "常见误区：把分页和分段的碎片类型记反，或以为分页需要物理连续",
+      "加分项：能讲现代系统采用『段页式』的历史脉络，以及 x86-64 下段机制基本被弱化、主要靠分页"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.virtual-memory"],
+      "related": ["cs.os.memory.tlb-pagefault"],
+      "followUps": [
+        "4KB 页下一个 10001 字节的进程至少占多少物理内存？浪费在哪？",
+        "为什么共享库以段/页为单位共享，而不是按单个函数？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "分页与分段对比单选题" },
+    "tags": ["分页", "分段", "碎片", "虚拟内存"]
+  },
+  {
+    "id": "Q-cs-os-memory-0002",
+    "nodeId": "cs.os.memory.virtual-memory",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于虚拟内存的作用，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "每个进程拥有独立的虚拟地址空间，进程之间的虚拟页映射到不同物理页，一个进程无法随意读写另一个进程的内存，实现了地址隔离与保护" },
+      { "key": "B", "text": "程序可以使用比物理内存更大的地址空间，暂时不用的页换出到磁盘（swap），用到时再缺页换入" },
+      { "key": "C", "text": "虚拟内存让每个程序都认为自己独占从 0 开始的连续地址空间，简化了链接、加载与重定位，共享库还能映射到不同进程的不同虚拟地址" },
+      { "key": "D", "text": "虚拟内存让内存访问永远不会缺页、不会变慢，因为地址翻译由 MMU 免费完成" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确，对应虚拟内存的三大经典收益：隔离保护、超额订阅（overcommit，空间大于物理内存）、简化编程模型（统一地址空间 + 按需调页 + 共享映射）。D 错在两处：①访问未驻留的页会触发缺页中断，陷入内核换页，是毫秒级慢路径；②地址翻译也不是免费的——每级页表都要访问内存，所以才需要 TLB 缓存翻译结果，TLB miss 时访存成本成倍上升。虚拟内存是用『偶尔的慢』换『普遍的简单与安全』。",
+    "gapCheck": [
+      "易漏点：虚拟内存第四类常被忽略的收益是按需调页（懒加载），进程启动不必装入全部内容",
+      "常见误区：以为虚拟内存只是『用磁盘假装内存』，隔离与重定位简化同样是核心价值",
+      "加分项：能讲 copy-on-write、内存映射文件 mmap、共享页如何建立在虚拟内存机制上"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.virtual-memory"],
+      "related": ["cs.os.memory.tlb-pagefault", "cs.os.memory.page-replacement", "cs.os.process.thread-vs-process"],
+      "followUps": [
+        "两个进程映射同一个共享库，库的代码页在物理内存里有几份？数据页呢？",
+        "mmap 一个大文件和 read 整个文件相比，内存行为有什么差别？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "虚拟内存作用多选题" },
+    "tags": ["虚拟内存", "地址隔离", "swap", "高频"]
+  },
+  {
+    "id": "Q-cs-os-memory-0003",
+    "nodeId": "cs.os.memory.virtual-memory",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：CPU 发出的是虚拟地址，MMU 借助页表把它翻译成物理地址后才放到地址总线上；如果页表项中的『存在位』为 0，MMU 触发缺页中断，由操作系统负责把缺失页装入物理内存后再重新执行那条访存指令。",
+    "answer": { "judge": true },
+    "analysis": "正确。这是虚拟内存运行时的完整闭环：CPU 永远只见虚拟地址；MMU 走页表（先查 TLB）翻译，存在位=1 且权限通过才完成访存；存在位=0 时产生缺页异常陷入内核，内核分配页框、从磁盘（swap 或可执行文件）读入内容、建立页表项，然后返回用户态重启导致缺页的同一条指令——对指令本身透明。还要注意权限位（读/写/执行、用户/内核）违例触发的是段错误（SIGSEGV）而非普通缺页；写只读页、访问未映射区都属于这类保护异常。",
+    "gapCheck": [
+      "易漏点：缺页处理完是『重启指令』而非跳过指令，MMU 保存了故障虚址",
+      "常见误区：把缺页中断和内存违例混为一谈——前者合法但未驻留，后者是非法访问",
+      "加分项：能区分 major fault（要读磁盘）与 minor fault（页已在内存，只需建立映射，如 COW）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.virtual-memory"],
+      "related": ["cs.os.memory.tlb-pagefault", "cs.os.process.context-switch"],
+      "followUps": [
+        "一条 mov 指令理论上最多可能触发几次缺页？",
+        "写时复制的页在第一次写入时经历的是哪一种 fault？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "MMU 地址翻译与缺页流程判断题" },
+    "tags": ["MMU", "页表", "缺页中断", "地址翻译"]
+  },
+  {
+    "id": "Q-cs-os-memory-0004",
+    "nodeId": "cs.os.memory.virtual-memory",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：在 4KB 页大小、32 位虚拟地址的经典二级页表模型中，虚拟地址被划分为 ______ 位页目录索引、______ 位页表索引和 ______ 位页内偏移；页内偏移的位数由页大小决定，因为 4KB = 2 的 ______ 次方字节。",
+    "answer": {
+      "blanks": ["10", "10", "12", "12"],
+      "synonyms": {
+        "10": ["十"],
+        "12": ["十二"]
+      }
+    },
+    "analysis": "4KB=2^12，所以页内偏移占低 12 位；剩余 32-12=20 位虚页号在二级页表间平分，各 10 位，于是页目录和每个页表都有 2^10=1024 个表项。这种切分让每个页表恰好可放进一个 4KB 页（32 位下表项 4 字节 × 1024 = 4KB），非常工整。64 位系统因虚址空间更大，普遍采用 4~5 级页表（如 x86-64 的 PML4→PDPT→PD→PT 四级，每级 9 位、偏移 12 位）。",
+    "gapCheck": [
+      "易漏点：偏移位数只由页大小决定，与地址总位数无关；先算偏移再平分剩余位",
+      "常见误区：把二级索引位数算成 11/9 之类，忘记经典模型对称平分 10/10",
+      "加分项：能顺势推出单级页表的空间浪费（每进程 2^20 个表项×4B=4MB 连续内存）并解释多级页表省在哪"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.virtual-memory"],
+      "related": ["cs.os.memory.tlb-pagefault"],
+      "followUps": [
+        "x86-64 四级页表每级为什么取 9 位？一次翻译最坏访问几次内存？",
+        "开启 2MB 大页后页内偏移变成多少位？页表级数有什么变化？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "二级页表地址划分填空题" },
+    "tags": ["二级页表", "地址划分", "填空题", "高频"]
+  },
+  {
+    "id": "Q-cs-os-memory-0005",
+    "nodeId": "cs.os.memory.virtual-memory",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请系统阐述虚拟内存：①为什么需要虚拟内存，直接用物理地址编程有什么问题；②分页机制下一次内存访问的地址翻译全过程（结合页表、MMU、TLB）；③进程隔离、共享映射、写时复制、按需调页分别是怎么在这套机制上实现的；④缺页中断的处理流程。",
+    "answer": {
+      "ref": "参考骨架：【物理地址编程的问题】①程序必须按机器实际空闲位置重定位，链接加载困难；②进程能读写任意物理地址，一个野指针可能破坏内核或其他进程，无隔离无保护；③程序大小受物理内存限制且要求连续分配；④多道程序无法稳定共存。\n【翻译全过程】CPU 发出虚拟地址，MMU 先查 TLB（页表缓存）：命中即得到物理页框号，拼接页内偏移完成访问；未命中则遍历页表（多级页表逐级查表，每级一次内存访问），取得页表项，校验存在位与权限，成功后把翻译结果回填 TLB。页表基址由每进程的页表基址寄存器（x86 的 CR3）指向，进程切换时更换，天然切换地址空间。\n【四大机制的实现】隔离：每个进程一套页表，虚拟页各自映射、彼此看不到对方的物理页；内核页可在各页表中共享但靠特权位保护。共享映射：让多个进程的页表项指向同一物理页（共享库代码段、共享内存、mmap MAP_SHARED）。写时复制：fork 后父子页表项都标只读并共享物理页，任一方写入触发写保护 fault，内核复制该页后各自独立映射。按需调页：进程起始只建少量映射，存在位为 0 的页首次访问才缺页装入，启动快且省内存；文件页从可执行文件/映射文件读，匿名页换出后从 swap 读回。\n【缺页流程】①MMU 查存在位=0 触发异常并保存故障虚址；②陷入内核，判断合法性（地址区间、权限），非法访问发 SIGSEGV；③合法则找空闲页框（不足则跑页面置换算法淘汰旧页，脏页先回写磁盘）；④从 swap/文件读入目标页（major fault，阻塞等待 IO）或直接建立映射（minor fault，如 COW、新清零页）；⑤更新页表项置存在位、刷新 TLB 相关条目；⑥返回用户态重启故障指令，对程序透明。"
+    },
+    "scoringPoints": [
+      { "point": "讲清物理地址编程的重定位/隔离/容量/多道程序四类问题", "weight": 2 },
+      { "point": "翻译链路完整：虚址→TLB→多级页表→物理地址，含 CR3 与命中/未命中分支", "weight": 3 },
+      { "point": "隔离/共享映射/COW/按需调页四项机制都落到页表项怎么设置", "weight": 2 },
+      { "point": "缺页处理六步流程完整，区分 major/minor fault 与非法访问", "weight": 2 }
+    ],
+    "analysis": "这是内存管理章节的体系化大题。常见失分：只背『虚拟内存就是用硬盘当内存』；翻译过程漏掉 TLB 或讲不清多级页表逐级访问；COW 只知其名讲不出只读页表项+写保护 fault 的实现；缺页流程没有合法性判断与指令重启。能把页表项的存在位/权限位/脏位/引用位各自用途串起来，并提到大页、mmap、swap 等工程接口，属于高水准回答。",
+    "gapCheck": [
+      "易漏点：TLB miss 不等于缺页——miss 只是缓存没命中，页表项可能有效，缺页是存在位为 0",
+      "常见误区：把虚拟内存窄化成 swap；隔离、重定位、共享、COW 都是同一套页表机制的不同用法",
+      "加分项：能讲页表项各位（P/RW/X/U/D/A）作用，以及多级页表为什么只为用到的区间付空间成本"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.virtual-memory"],
+      "related": ["cs.os.memory.tlb-pagefault", "cs.os.memory.page-replacement", "cs.os.process.context-switch"],
+      "followUps": [
+        "TLB 在进程切换时为什么要刷新？ASID/PCID 是怎么避免全刷的？",
+        "mmap MAP_PRIVATE 和 MAP_SHARED 的写时复制语义有什么差别？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "虚拟内存体系化主观题" },
+    "tags": ["虚拟内存", "MMU", "缺页中断", "COW", "体系化"]
+  },
+
+  {
+    "id": "Q-cs-os-memory-0006",
+    "nodeId": "cs.os.memory.tlb-pagefault",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于 TLB（Translation Lookaside Buffer，快表），下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "TLB 是内存中页表的一份完整副本，容量和页表一样大" },
+      { "key": "B", "text": "TLB 是 CPU 内部缓存最近使用的『虚页号→物理页框号』翻译的高速缓存；命中时省去逐级查页表的多次内存访问，未命中才走页表并回填，因此程序的局部性越好 TLB 命中率越高" },
+      { "key": "C", "text": "TLB 命中后就不需要再访问内存了，数据也在 TLB 里" },
+      { "key": "D", "text": "TLB 失效只在进程退出时发生，进程运行期间条目永远有效" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确：TLB 是 SRAM 级的小容量相联缓存（典型几十到上千项），缓存的是翻译结果而非数据，命中后一次内存访问就能取到数据，未命中时多级页表最坏要 4~5 次内存访问。程序的时间/空间局部性让活跃页集合集中，命中率通常很高。A 错：TLB 只缓存热点条目，容量远小于页表，正是因为小才能做进 CPU、做到极快。C 错：TLB 只加速地址翻译，数据仍要按翻译出的物理地址访问内存/缓存。D 错：进程切换换页表要刷 TLB（或用 ASID/PCID 标记区分），页表项被操作系统改动（如换出、权限变化）也要主动 invalidate（invlpg）。",
+    "gapCheck": [
+      "易漏点：TLB 缓存的是翻译不是数据，一次完整访存 = TLB 查翻译 + 按物理地址取数据",
+      "常见误区：以为多级页表每次访存都要走满——TLB 命中时页表遍历被完全跳过",
+      "加分项：能讲大页（2MB/1GB）如何用一个 TLB 项覆盖更大范围，缓解大内存工作集的 TLB miss"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.tlb-pagefault"],
+      "related": ["cs.os.memory.virtual-memory", "cs.os.process.context-switch"],
+      "followUps": [
+        "为什么数据库、JVM 这类大内存应用常建议开启透明大页或显式大页？",
+        "PCID 特性是怎么在进程切换后保留 TLB 条目的？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "TLB 原理单选题" },
+    "tags": ["TLB", "快表", "地址翻译", "缓存"]
+  },
+  {
+    "id": "Q-cs-os-memory-0007",
+    "nodeId": "cs.os.memory.tlb-pagefault",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于多级页表与缺页中断，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "单级页表要求按虚址空间最大值为每个进程预留一张连续的大页表（32 位 4KB 页下约 4MB），即使进程只用了很少的页；多级页表只为实际用到的虚址区间建立下级页表，空闲区间不分配，大幅节省内存" },
+      { "key": "B", "text": "多级页表节省空间的代价是一次翻译最坏需要多次内存访问（级数+数据访问），这部分开销主要靠 TLB 命中率来摊薄" },
+      { "key": "C", "text": "major fault（主缺页）需要从磁盘读入页，耗时在毫秒级；minor fault（次缺页）页数据已在内存或只需新建清零页/COW 复制，只需改页表，开销小得多" },
+      { "key": "D", "text": "缺页中断处理期间进程保持运行态，操作系统在另一个 CPU 核上并行把页准备好" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 说清多级页表的空间账：顶级页表常驻，下级按需分配，稀疏虚址空间下节省巨大。B 说清时间账：空间换时间的反向代价，靠 TLB 弥补。C 的 major/minor 区分是性能分析高频点：ps/top 里的 minflt、majflt 列分别统计，majflt 伴随磁盘 IO，是延迟尖刺的常见来源（如进程首次启动、swap 换入）。D 错：缺页的进程会阻塞（进入等待态），内核调度别的进程运行，IO 完成后再把它唤醒回就绪队列——这正是『切换掩盖 IO 延迟』的经典场景，而不是在另一个核上并行替它跑。",
+    "gapCheck": [
+      "易漏点：多级页表不是免费午餐，级数越深翻译越慢，TLB 是关键放大器",
+      "常见误区：以为所有缺页都要读盘——COW、新匿名页、共享页已在内存的情况都是 minor fault",
+      "加分项：能用 perf stat 的 page-faults/major-faults 指标或 /proc/<pid>/stat 做实际观测"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.tlb-pagefault"],
+      "related": ["cs.os.memory.virtual-memory", "cs.os.memory.page-replacement", "cs.os.process.scheduling"],
+      "followUps": [
+        "malloc 一大块内存后立刻逐页写入，minor fault 会在什么时候发生？",
+        "为什么 major fault 对 P99 延迟的伤害比 minor fault 大几个数量级？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "多级页表与缺页类型多选题" },
+    "tags": ["多级页表", "缺页中断", "major-fault", "性能"]
+  },
+  {
+    "id": "Q-cs-os-memory-0008",
+    "nodeId": "cs.os.memory.tlb-pagefault",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：一个进程调用 `malloc` 申请 100MB 内存时，操作系统通常立刻就把 100MB 物理页框全部分配并清零；因此 malloc 返回后访问这些内存不会再触发任何缺页中断。",
+    "answer": { "judge": false },
+    "analysis": "错误。这是虚拟内存『懒分配』的经典考点。glibc 的 malloc 大块申请经 brk/mmap 向内核预留虚拟地址区间，内核只建立 VMA（虚拟内存区域）记录，并不立即分配物理页；首次触碰每个页时才触发 minor fault，内核现场分配零页并建立映射（demand paging）。所以 100MB 申请会在后续逐页写入时产生约 100MB/4KB≈25600 次缺页（若整块都是新匿名页，都是 minor fault）。这也是 RSS（实际驻留物理内存）远小于 VSZ（虚拟地址预留量）的原因。Linux 还支持 overcommit：malloc 成功不代表物理内存真的够，真分配时若内存耗尽，OOM killer 会挑进程杀掉。",
+    "gapCheck": [
+      "易漏点：malloc 分配的是虚拟内存，物理页在首次访问时才按需落地",
+      "常见误区：用 top 的 VIRT 列判断真实内存占用——应看 RES/RSS",
+      "加分项：能讲 VMA、overcommit 策略与 OOM killer 的触发链，以及 mmap 匿名区和 brk 堆的区别"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.tlb-pagefault"],
+      "related": ["cs.os.memory.virtual-memory", "cs.os.memory.page-replacement"],
+      "followUps": [
+        "free 命令里的 available 和 free 为什么差别很大？buffer/cache 算不算被占用？",
+        "Linux 的 overcommit_memory 三个模式（0/1/2）分别是什么语义？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "懒分配与缺页行为判断题" },
+    "tags": ["malloc", "按需调页", "minor-fault", "OOM"]
+  },
+
+  {
+    "id": "Q-cs-os-memory-0009",
+    "nodeId": "cs.os.memory.page-replacement",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "页框数为 3，引用串为 1、2、3、4、1、2、5、1、2、3、4、5，采用 FIFO 置换算法，缺页次数是：",
+    "options": [
+      { "key": "A", "text": "7 次" },
+      { "key": "B", "text": "9 次" },
+      { "key": "C", "text": "10 次" },
+      { "key": "D", "text": "12 次" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 正确，逐步推（队列内容，缺页标 *）：1*→[1]；2*→[1,2]；3*→[1,2,3]；4* 淘汰1→[2,3,4]；1* 淘汰2→[3,4,1]；2* 淘汰3→[4,1,2]；5* 淘汰4→[1,2,5]；1 命中；2 命中；3* 淘汰1→[2,5,3]；4* 淘汰2→[5,3,4]；5 命中。共 9 次缺页。对照：同串 LRU 也是 10 次（可自行验证），OPT 为 7 次。FIFO 不关心引用历史，只按进入顺序淘汰，可能把正在频繁使用的老页换出去，这正是它性能差且会出现 Belady 异常的原因。手算时务必一格一格列队列，避免漏算命中。",
+    "gapCheck": [
+      "易漏点：前三次装入也计入缺页次数，不是只有置换才算",
+      "常见误区：把命中也算进缺页，或淘汰时搞错队列头部",
+      "加分项：能同串再算 LRU/OPT 做横向对比，并指出 OPT 是理论下界、用于评价其他算法"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.page-replacement"],
+      "related": ["cs.os.memory.tlb-pagefault"],
+      "followUps": [
+        "同一引用串把页框数增加到 4，FIFO 的缺页次数一定减少吗？（Belady 异常）",
+        "LRU 用什么数据结构才能做到 O(1) 淘汰最久未使用页？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "FIFO 缺页次数手算单选题" },
+    "tags": ["页面置换", "FIFO", "手算题", "高频"]
+  },
+  {
+    "id": "Q-cs-os-memory-0010",
+    "nodeId": "cs.os.memory.page-replacement",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于页面置换算法与 Belady 异常，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "LRU 淘汰最久未被访问的页，利用了局部性原理，性能通常接近 OPT；但严格 LRU 需要每次访问都更新顺序，硬件实现成本高，实践中多用时钟算法（Clock）等近似方案" },
+      { "key": "B", "text": "Belady 异常指增加物理页框数后缺页次数反而增多的现象，FIFO 可能出现；LRU 和 OPT 属于栈式算法，永远不会出现 Belady 异常" },
+      { "key": "C", "text": "时钟（Clock/二次机会）算法用环形队列 + 访问位：扫描到访问位为 1 的页清 0 跳过，为 0 的页才淘汰，兼顾了 LRU 的近似效果与实现开销" },
+      { "key": "D", "text": "OPT（最佳置换）淘汰未来最久不会被访问的页，因为它需要预知未来，只用于理论评价，不能直接实现" }
+    ],
+    "answer": { "keys": ["A", "B", "C", "D"] },
+    "analysis": "四项全部正确。A 点出 LRU 的效果与成本：精确 LRU 要在每次访存时移动链表节点或更新时间戳，MMU 难以承担，故真实系统用 Clock、工作集时钟等近似。B 是 Belady 异常的标准表述：栈式算法满足『页框集合在帧数增加时是嵌套包含』的性质，所以帧数增加缺页单调不增；FIFO 不满足该性质才有反例。C 描述 Clock 的二次机会机制，改进版还会结合脏位（脏页优先靠后，因为回写磁盘代价大）。D 说明 OPT 的角色：理论下界、离线算法，用来衡量实际算法差距。",
+    "gapCheck": [
+      "易漏点：Belady 异常不是所有算法都有，栈式算法（LRU/OPT）天然免疫",
+      "常见误区：以为 LRU 被操作系统原样使用——真实 Linux 用的是活跃/非活跃链表 + 访问位的近似 LRU",
+      "加分项：能讲 Linux 双端 LRU（active/inactive list）、脏页回写策略与 swappiness 的关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.page-replacement"],
+      "related": ["cs.os.memory.tlb-pagefault"],
+      "followUps": [
+        "为什么 LRU 在大顺序扫描（扫库）场景表现很差？怎么改进？",
+        "改进型 Clock 算法怎么同时利用访问位和修改位（dirty bit）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "置换算法与 Belady 异常综合多选题" },
+    "tags": ["LRU", "Belady异常", "Clock", "页面置换"]
+  },
+  {
+    "id": "Q-cs-os-memory-0011",
+    "nodeId": "cs.os.memory.page-replacement",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：请用『哈希表 + 双向链表』实现一个严格 LRU 缓存类 `LRUCache`（任选 Java/C++/Python/JS 均可，下面以 Java 接口为准）：构造方法 `LRUCache(int capacity)`；`int get(int key)` 命中返回值并把该条目刷新为最近使用，未命中返回 -1；`void put(int key, int value)` 写入或更新，容量满时先淘汰最久未使用的条目。要求 get/put 平均时间复杂度都是 O(1)，并解释为什么这两种数据结构缺一不可。",
+    "answer": {
+      "ref": "设计要点：哈希表负责 key→链表节点的 O(1) 定位，双向链表负责维护访问先后——头部最近、尾部最久，删除任意节点与摘除尾部都是 O(1)（单链表无法 O(1) 找前驱）。get 命中后把节点摘下移到头部；put 已存在则更新值并移头，不存在则头插新节点，超容量时删尾节点并同步删哈希表项。哨兵头尾节点可省掉空指针判断。这正是操作系统精确 LRU 置换思想的数据结构化身，也对应 LeetCode 146。",
+      "code": "class LRUCache {\n    static class Node {\n        int key, value;\n        Node prev, next;\n        Node(int k, int v) { key = k; value = v; }\n    }\n\n    private final int capacity;\n    private final Map<Integer, Node> map = new HashMap<>();\n    private final Node head = new Node(0, 0); // 哨兵头\n    private final Node tail = new Node(0, 0); // 哨兵尾\n\n    public LRUCache(int capacity) {\n        this.capacity = capacity;\n        head.next = tail;\n        tail.prev = head;\n    }\n\n    public int get(int key) {\n        Node node = map.get(key);\n        if (node == null) return -1;\n        moveToHead(node);   // 命中即刷新为最近使用\n        return node.value;\n    }\n\n    public void put(int key, int value) {\n        Node node = map.get(key);\n        if (node != null) {\n            node.value = value;\n            moveToHead(node);\n        } else {\n            node = new Node(key, value);\n            map.put(key, node);\n            addToHead(node);\n            if (map.size() > capacity) {\n                Node lru = tail.prev;       // 最久未使用\n                remove(lru);\n                map.remove(lru.key);        // 两处必须同步删除\n            }\n        }\n    }\n\n    private void addToHead(Node n) {\n        n.prev = head;\n        n.next = head.next;\n        head.next.prev = n;\n        head.next = n;\n    }\n\n    private void remove(Node n) {\n        n.prev.next = n.next;\n        n.next.prev = n.prev;\n    }\n\n    private void moveToHead(Node n) {\n        remove(n);\n        addToHead(n);\n    }\n}"
+    },
+    "scoringPoints": [
+      { "point": "哈希表+双向链表组合正确，说清两者各自职责与缺一不可的原因", "weight": 2 },
+      { "point": "get 命中刷新顺序、未命中返回 -1，put 更新/插入/淘汰三分支完整", "weight": 3 },
+      { "point": "淘汰尾节点时同步删除哈希表项，避免悬空引用", "weight": 2 },
+      { "point": "get/put 均 O(1)，并能联系 OS 页面置换讲 LRU 语义", "weight": 1 }
+    ],
+    "analysis": "这是 LRU 考点最经典的手写形式，同时考数据结构功力和操作系统概念。典型失分：①只用哈希表，无法维护访问顺序；②只用链表，查找退化为 O(n)；③用单链表，删除尾节点或中间节点找不到前驱；④更新已有 key 时忘记刷新顺序；⑤淘汰后漏删 map 造成内存泄漏与逻辑不一致。能进一步讨论 LinkedHashMap（accessOrder=true）的等价实现、并发场景需加锁或用 Caffeine/W-TinyLFU，以及操作系统为何只用近似 LRU（硬件维护全量链表太贵），就是加分项。",
+    "gapCheck": [
+      "易漏点：链表节点要存 key——淘汰时需要用它反删哈希表项",
+      "常见误区：put 更新已有键只改值不移节点，导致 LRU 顺序错误",
+      "加分项：能讲哨兵节点简化边界、线程安全版本（Collections.synchronizedMap/分段锁）及生产级缓存的淘汰策略升级"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.page-replacement"],
+      "related": ["cs.os.memory.tlb-pagefault", "cs.os.sync.cas-lockfree"],
+      "followUps": [
+        "如果要求线程安全的 LRU，你会怎么加锁？读写锁还是 synchronized？",
+        "Caffeine 的 W-TinyLFU 相比纯 LRU 在扫描污染问题上好在哪里？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "哈希表+双向链表手写 LRU 代码题" },
+    "tags": ["手写题", "LRU", "双向链表", "哈希表", "高频"]
+  },
+  {
+    "id": "Q-cs-os-memory-0012",
+    "nodeId": "cs.os.memory.page-replacement",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：抖动（thrashing）是指进程频繁发生缺页、刚换出的页很快又要换入，CPU 大量时间耗在页面置换的磁盘 IO 上，有效计算推进极慢；其根本原因通常是分配给进程的物理页框数低于其工作集（working set）大小。",
+    "answer": { "judge": true },
+    "analysis": "正确。工作集模型认为进程在某段时间内真正活跃使用的页集合是有限的（局部性原理），若驻留集足以覆盖工作集，缺页率很低；一旦内存过载、多进程争抢页框使每个进程分到的帧少于工作集，缺页率陡增，换入换出形成恶性循环，磁盘灯长亮而 CPU 利用率反而下降（调度器看到 runnable 进程少）。治理手段：①控制多道程序度（内存不够就少放几个进程进来）；②工作集/缺页频率（PFF）驱动的局部置换，按进程缺页率动态增减帧；③增加物理内存、减少同时运行的大内存任务；④调整 swap 倾向（Linux swappiness）。Linux 的 OOM killer 是内存彻底耗尽时的最后兜底。",
+    "gapCheck": [
+      "易漏点：抖动时 CPU 利用率低而磁盘 IO 高，这是与 CPU 密集瓶颈相反的指纹",
+      "常见误区：以为加 CPU 能治抖动——病根在内存容量与工作集不匹配",
+      "加分项：能讲工作集窗口、PFF 机制，以及 Linux active/inactive 链表和 swap-in/swap-out 观测"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.page-replacement"],
+      "related": ["cs.os.memory.tlb-pagefault", "cs.os.linux.troubleshoot-cmds"],
+      "followUps": [
+        "vmstat 里的 si/so 列持续大于 0 说明什么？怎么据此判断抖动？",
+        "全局置换和局部置换在多进程争抢内存时各自有什么问题？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "抖动与工作集判断题" },
+    "tags": ["抖动", "thrashing", "工作集", "swap"]
+  },
+  {
+    "id": "Q-cs-os-memory-0013",
+    "nodeId": "cs.os.memory.page-replacement",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "线上场景题：一台 Linux 服务器出现响应间歇性卡顿，你用 vmstat 看到 `si/so` 两列长期非零、`wa`（iowait）偏高，free 显示可用内存很少且 swap 用了很多。请回答：①这是什么现象、机理是什么；②结合工作集模型解释根因；③给出至少四条治理措施（含临时止血与长期方案）；④说明 OOM killer 与 swap 在其中的角色。",
+    "answer": {
+      "ref": "参考骨架：【现象与机理】这是典型的抖动（thrashing）/ swap 风暴。物理内存不足时内核把匿名页换出到 swap 腾出页框，而这些页属于进程当前工作集、很快又被访问触发 major fault 换入，换入又挤走别的活跃页，形成换入换出循环。每次换页是毫秒级磁盘 IO，于是 si（swap in）/so（swap out）持续非零、iowait 升高、运行队列里的进程大多在等 IO，应用 P99 延迟暴涨而 CPU 有效利用率低。\n【工作集根因】工作集 = 进程在近期窗口内实际访问的页集合。系统当前总工作集超过物理内存容量，每个进程分到的驻留页框不足以覆盖工作集，缺页率越过拐点飙升；多进程互相偷页（全局置换）还会让情况雪上加霜。\n【治理措施】①临时止血：停掉/限流非核心进程与批处理任务，降低多道程序度；必要时重启内存泄漏的进程释放堆；`swapoff -a && swapon -a` 可在内存有余量时清理 swap（操作本身有 IO 风险，谨慎）。②定位真凶：用 top 按 RES 排序、`ps aux --sort=-rss`、smem/PSS 统计、`/proc/<pid>/status`、perf/ebpf 观测 major fault，找出内存大户或泄漏进程。③长期扩容：加物理内存或迁移到更大规格；给 JVM/数据库等设置合理堆上限与元空间，避免无节制增长。④调参与架构：降低 vm.swappiness 让内核倾向缓存而非换出匿名页；大内存服务用大页降低 TLB 压力；服务拆分、缓存下沉到 Redis、消息队列削峰，让单机工作集回落；容器环境设置 memory limit 并监控 OOM 事件。⑤对延迟敏感服务直接禁用 swap 或用 zswap/zram 压缩内存，配合监控告警（major fault、PSI memory 压力）提前发现。\n【OOM 与 swap 角色】swap 是缓冲垫：把冷页挪到磁盘延后物理内存耗尽的时刻，代价是换入延迟；当内核连可回收/可换出的页都找不到（分配请求无法满足）时触发 OOM killer，按 oom_score 选择进程（通常是内存占用最大且分数高的）发 SIGKILL 强制释放内存，是最后兜底而非正常调度手段。容器中 OOM 表现为 cgroup 直接杀容器并记录 oom_killed，需结合 dmesg/journalctl 确认。"
+    },
+    "scoringPoints": [
+      { "point": "准确判定抖动并讲清换入换出循环与 major fault 机理", "weight": 2 },
+      { "point": "用工作集模型解释总工作集超过物理内存的根因", "weight": 2 },
+      { "point": "治理 ≥4 条且分层：止血、定位、扩容、调参/架构，含具体命令与参数", "weight": 3 },
+      { "point": "讲清 swap 缓冲与 OOM killer 兜底的角色及容器表现", "weight": 2 }
+    ],
+    "analysis": "这是把页面置换理论接到真实线上故障的综合题。常见失分：把卡顿简单归因为『内存不够』却讲不出 swap 循环；只会说『加内存』一条措施；不知道 swappiness、PSI、cgroup OOM 等现代观测与控制手段；把 OOM 当成常规机制。能用到 vmstat si/so、PSI、smem PSS、dmesg oom 记录等具体工具，并区分匿名页/文件页回收路径，回答就有实战含量。",
+    "gapCheck": [
+      "易漏点：文件页回收（drop cache）与匿名页回收（swap）是两条路径，si/so 只反映后者",
+      "常见误区：看到 swap 用了就判定抖动——关键看 si/so 是否持续活跃、major fault 是否高",
+      "加分项：能讲 PSI（pressure stall information）、zswap 压缩换出、cgroup v2 memory.events 的现代监控口径"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.page-replacement"],
+      "related": ["cs.os.memory.tlb-pagefault", "cs.os.linux.troubleshoot-cmds", "cs.os.linux.process-states"],
+      "followUps": [
+        "swappiness 设成 0 是否等于完全禁用 swap？",
+        "K8s 里 Pod 被 OOMKilled 时节点和容器的内存账目分别怎么看？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "swap 抖动线上排查场景主观题" },
+    "tags": ["抖动", "swap", "OOM", "线上排查", "战例"]
+  },
+  {
+    "id": "Q-cs-os-memory-0014",
+    "nodeId": "cs.os.memory.tlb-pagefault",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请回答：①单级页表在 64 位地址空间下为什么不可行，多级页表是怎么节省内存的，代价是什么；②TLB 的工作过程（hit/miss 两条路径）与它缓存的内容；③缺页中断的完整处理流程，并区分 major fault 与 minor fault；④大页（huge page）为什么能同时改善 TLB 压力和缺页开销。",
+    "answer": {
+      "ref": "参考骨架：【多级页表的动因与代价】单级页表要覆盖整个虚址空间，每个进程必须预留一张含全部虚页表项的连续大表——32 位 4KB 页下就是 2^20 项 ×4B≈4MB，64 位下更是天文数字，而进程实际只用到稀疏的几段地址区间。多级页表把虚页号切成多级索引，顶级页表常驻，下级页表只为真正使用的区间分配，空闲区间根本不建表，空间占用与进程实际使用的内存量级挂钩。代价：一次地址翻译最坏要逐级访问内存（四级页表 + 数据访问共 5 次访存），这部分时间成本主要靠 TLB 命中率摊薄。\n【TLB 工作过程】MMU 拿到虚拟地址先查 TLB 中『虚页号+地址空间标识→物理页框号+权限』的缓存：命中直接拼页内偏移得到物理地址，一次访存完成；未命中则遍历多级页表，成功后把翻译结果回填 TLB（表项满时按替换策略淘汰），再继续访存。进程切换换页表基址（CR3）时 TLB 全局失效，现代架构用 ASID/PCID 给条目打地址空间标签避免全刷。\n【缺页处理流程】①MMU 发现页表项存在位为 0（或权限违例），触发缺页异常并保存故障虚址；②陷入内核，内核检查 VMA 判断访问合法性——非法访问发 SIGSEGV（段错误）；③合法则寻找空闲页框，不足时执行页面置换（脏页先回写）；④数据来源：swap/磁盘文件 → major fault，发起磁盘 IO、进程阻塞；页已在内存（共享页、预读页）或只需新建零页/COW 复制 → minor fault，无磁盘 IO；⑤更新页表项置存在位、必要时刷新 TLB；⑥返回用户态重启引发缺页的同一条指令。\n【大页的收益】常规页 4KB，大页 2MB/1GB：①一个 TLB 项覆盖的范围扩大 512 倍（2MB/4KB），同容量 TLB 能缓存更大工作集的翻译，TLB miss 率显著下降；②同样内存需要的页表项数量减少 512 倍，页表自身占用与多级遍历概率下降；③缺页次数按比例减少（100MB 匿名内存从约 2.56 万次 minor fault 降到约 50 次），启动与大块内存写入更快。代价：内部碎片变大、内存分配灵活性下降，透明大页（THP）还可能引入整理内存（compaction）的延迟尖刺，数据库类应用常自行管理显式大页。"
+    },
+    "scoringPoints": [
+      { "point": "多级页表省空间的原理（按需建下级表）与翻译变慢的代价", "weight": 2 },
+      { "point": "TLB hit/miss 路径、缓存内容与 PCID/ASID 优化", "weight": 2 },
+      { "point": "缺页六步流程完整，major/minor 按是否磁盘 IO 准确区分", "weight": 3 },
+      { "point": "大页在 TLB 覆盖率、页表项数量、缺页次数三方面的量化收益及碎片代价", "weight": 2 }
+    ],
+    "analysis": "这题把页表结构、TLB、缺页串成一条完整的访存链路。常见失分：只会背『多级页表省内存』讲不出按需分配的机制；把 TLB miss 等同于缺页；major/minor 混淆；大页只说『更快』没有量化视角。能讲到 PCID、COW 属于 minor fault、THP compaction 延迟，属于工程向加分。",
+    "gapCheck": [
+      "易漏点：TLB miss 仍可能在页表中命中有效项，只有存在位为 0 才进入缺页中断",
+      "常见误区：把缺页都当成读盘——COW、新零页、共享页映射都是 minor fault",
+      "加分项：能讲透明大页与显式大页（hugetlbfs）的区别，及数据库/JVM 对大页的使用方式"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.memory.tlb-pagefault"],
+      "related": ["cs.os.memory.virtual-memory", "cs.os.memory.page-replacement", "cs.os.process.context-switch"],
+      "followUps": [
+        "为什么进程切换后 TLB 条目会失效？PCID 是怎么缓解的？",
+        "透明大页的内存整理（khugepaged/compaction）为什么可能造成延迟毛刺？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "多级页表/TLB/缺页/大页体系化主观题" },
+    "tags": ["多级页表", "TLB", "缺页中断", "大页", "体系化"]
+  }
+]

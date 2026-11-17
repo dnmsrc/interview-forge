@@ -1,0 +1,332 @@
+[
+  {
+    "id": "Q-fe-js-promise-0001",
+    "nodeId": "fe.js.async.promise",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "关于 Promise，下列说法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "Promise 有 pending、fulfilled、rejected 三种状态，状态一旦从 pending 改变就不可逆"
+      },
+      {
+        "key": "B",
+        "text": "then 回调中 return 一个普通值，会被包成 resolved Promise 传给下一个 then；return 一个 Promise 则下游等它 settle"
+      },
+      {
+        "key": "C",
+        "text": "Promise.all 中只要有一个 Promise reject，整个结果立即 reject；想等全部结束（无论成败）应使用 Promise.allSettled"
+      },
+      {
+        "key": "D",
+        "text": "async 函数是脱离事件循环的新机制，await 会阻塞整个线程直到结果返回"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确。A 是状态机基础：pending → fulfilled 或 pending → rejected，只能转换一次，后续再 resolve/reject 都被忽略。B 是 then 链的值穿透规则：onFulfilled 的返回值经 Promise.resolve 包装，普通值变 resolved、thenable/Promise 则采纳其最终状态，所以链式调用能串起异步任务。C 正确区分了 all 与 allSettled：all 是「一败俱败」的快速失败；allSettled 等所有任务落定，返回每项 {status, value/reason}，适合并发且要收集全部结果的场景。D 错：async/await 只是 Promise + 生成器思路的语法糖，await 会暂停的是当前 async 函数内部的执行并让出线程，调用栈退空后去跑微任务/宏任务，根本不阻塞主线程，事件循环照常工作。",
+    "gapCheck": [
+      "易漏点：Promise 状态不可逆，重复 resolve 不生效；then 可以传两个回调但推荐 catch 统一兜底",
+      "常见误区：以为 Promise.all 会等所有请求都失败才 reject——它是快速失败",
+      "加分项：能对比 race（第一个 settle 就定胜负）、any（第一个 fulfilled 才成功，全败才 AggregateError）的语义"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.async.promise"
+      ],
+      "related": [
+        "fe.js.async.event-loop"
+      ],
+      "followUps": [
+        "Promise.all 和 Promise.race、Promise.any 的适用场景分别是什么？",
+        "then 里抛错和 return rejected Promise，下游 catch 的行为一样吗？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Promise 状态/链/组合 API 多选题"
+    },
+    "tags": [
+      "JS异步",
+      "Promise",
+      "async-await",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-promise-0002",
+    "nodeId": "fe.js.async.promise",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：async 函数内部 `await` 之后抛出的错误可以用同函数内的 try/catch 捕获；如果不写 try/catch，错误会让该 async 函数返回的 Promise 变为 rejected，可以由调用方的 `.catch()` 接住。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。await 本质是等待 Promise 落定：被等待的 Promise reject 时，await 会把它转成 throw，因此 try/catch 能像捕获同步异常一样接住；async 函数中未被捕获的异常不会让进程崩掉（浏览器环境），而是使函数返回的那个 Promise 进入 rejected 状态，沿 Promise 链向下游传播，最终由 .catch 或下游 try/await 处理。要注意若 async 函数既没 try/catch、返回的 Promise 也没人挂 catch，浏览器会报 unhandledrejection。并行任务不要盲目加 await 串行化，可用 Promise.all 包一层再 await。",
+    "gapCheck": [
+      "易漏点：await 一个 rejected Promise 等价于 throw，所以 try/catch 才生效",
+      "常见误区：以为 async 函数里抛错会同步炸掉外层调用——它体现为返回 Promise reject",
+      "加分项：知道未处理的 rejection 会触发 unhandledrejection 事件，以及顶层 await 的模块语义"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.async.promise"
+      ],
+      "related": [
+        "fe.js.async.event-loop"
+      ],
+      "followUps": [
+        "多个 await 串行和用 Promise.all 并行，耗时差别如何？",
+        "catch 之后链式调用还能继续 then 吗（值恢复）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "async/await 错误处理判断题"
+    },
+    "tags": [
+      "JS异步",
+      "async-await",
+      "错误处理",
+      "高频踩坑"
+    ]
+  },
+  {
+    "id": "Q-fe-js-eventloop-0001",
+    "nodeId": "fe.js.async.event-loop",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "浏览器环境执行以下代码，控制台输出顺序是：\n```js\nconsole.log(1);\nsetTimeout(() => console.log(2), 0);\nPromise.resolve().then(() => console.log(3));\nPromise.resolve().then(() => { console.log(4); setTimeout(() => console.log(5), 0); });\nconsole.log(6);\n```",
+    "options": [
+      {
+        "key": "A",
+        "text": "1 6 3 4 2 5"
+      },
+      {
+        "key": "B",
+        "text": "1 6 2 3 4 5"
+      },
+      {
+        "key": "C",
+        "text": "1 2 3 4 5 6"
+      },
+      {
+        "key": "D",
+        "text": "1 6 3 4 5 2"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确，手排过程：①同步代码先跑完——打印 1，注册宏任务 T1（打印2），注册微任务 M1（打印3）、M2（打印4并注册 T2 打印5），再打印 6，同步阶段输出 1、6。②调用栈清空后，本轮必须先清空微任务队列：M1 打印 3；M2 打印 4 并把 T2 放进宏任务队列。③微任务清空后才取一个宏任务：T1 打印 2；该宏任务结束后再次清空微任务（此时为空）。④再取宏任务 T2，打印 5。最终 1 6 3 4 2 5。关键规则：每轮执行一个宏任务后、渲染前，会把微任务队列彻底清空；微任务中新增的微任务也会在同一轮被消化，而微任务中新增的宏任务只能等后续轮次。B 错在让 setTimeout 先于 Promise.then；D 错在把 T2 排到了 T1 前面（宏任务按入队顺序，T1 更早）。",
+    "gapCheck": [
+      "易漏点：同步代码全部先执行，无论 setTimeout 延迟写多小都是 0 也不进同步流",
+      "常见误区：以为谁先写谁先回调——微任务（then/queueMicrotask/MutationObserver）整体优先于宏任务（setTimeout/setInterval/IO）",
+      "加分项：能说明 await 后面的代码等价于放进 then 微任务，且 Node 与浏览器在 process.nextTick、setImmediate 上的差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.async.event-loop"
+      ],
+      "related": [
+        "fe.js.async.promise",
+        "fe.vue.scheduler.nexttick"
+      ],
+      "followUps": [
+        "如果在微任务里再注册微任务，会无限阻塞渲染吗？",
+        "Node.js 的事件循环和浏览器有哪些阶段差异（timers/poll/check）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "宏任务微任务手排时序单选题"
+    },
+    "tags": [
+      "JS异步",
+      "事件循环",
+      "宏任务微任务",
+      "高频手排题"
+    ]
+  },
+  {
+    "id": "Q-fe-js-eventloop-0002",
+    "nodeId": "fe.js.async.event-loop",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：浏览器事件循环中，每执行完一个宏任务，引擎都会在重新渲染前把当前所有微任务清空；因此 `Promise.then` 的回调一定早于已经排队的 `setTimeout` 回调执行，即使 setTimeout 的延迟是 0。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。浏览器事件循环的一轮（task）大致是：取一个宏任务执行 → 清空微任务队列（期间新产生的微任务继续入队并执行，直到队列空）→ 必要时执行渲染（requestAnimationFrame 回调在渲染前）→ 再取下一个宏任务。setTimeout(fn, 0) 的 0 不代表立即执行，它只是把 fn 放入宏任务队列且受最小嵌套延迟（约 4ms）等限制；而 Promise.then、queueMicrotask 属于微任务，在当前宏任务结束后的清队列阶段就被消化，所以同轮注册的微任务必然先于已排队的宏任务。注意「一定早于」成立的前提是两者都已就绪排队；若 Promise 本身要等未来事件才 resolve，它的 then 自然也要等那之后。",
+    "gapCheck": [
+      "易漏点：清微任务发生在每个宏任务之后、渲染之前，而不是只在脚本首次跑完时清一次",
+      "常见误区：把 setTimeout(…,0) 理解成「零延迟立刻执行」，它仍要等下一轮宏任务",
+      "加分项：能说出 requestAnimationFrame 介于微任务与渲染之间、requestIdleCallback 在空闲期触发的位置"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.async.event-loop"
+      ],
+      "related": [
+        "fe.js.async.promise",
+        "fe.vue.scheduler.nexttick"
+      ],
+      "followUps": [
+        "Vue 的 nextTick 为什么优先用微任务实现？",
+        "微任务队列里不断自我追加微任务会发生什么（饿死渲染）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "事件循环每轮清微任务规则判断题"
+    },
+    "tags": [
+      "JS异步",
+      "事件循环",
+      "微任务优先",
+      "高频"
+    ]
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.js.async.event-loop",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "阅读下面的浏览器端代码，关于其执行时序，下列哪些判断是正确的？（多选）\n```js\nconsole.log('A');\nsetTimeout(() => console.log('B'), 0);\nPromise.resolve().then(() => console.log('C'));\nconst ob = new ResizeObserver(() => console.log('D'));\nob.observe(document.body);\nqueueMicrotask(() => console.log('E'));\n(async () => {\n  console.log('F');\n  await null;\n  console.log('G');\n})();\nconsole.log('H');\n```",
+    "options": [
+      {
+        "key": "A",
+        "text": "同步（classic script）执行结束时，微任务队列里已排着两个任务，控制台此刻的输出前缀是 A、F、H"
+      },
+      {
+        "key": "B",
+        "text": "同步阶段结束后先排空微任务队列，得到 C、E、G；ResizeObserver 回调不属于微任务，它在帧的渲染阶段派发，因此 D 必然晚于 G"
+      },
+      {
+        "key": "C",
+        "text": "若把 async 箭头函数换成同步立即执行的普通函数，G 就会落在同一轮同步阶段内输出，这恰好说明 await 之后的代码是被包进微任务续体里执行的"
+      },
+      {
+        "key": "D",
+        "text": "setTimeout(fn, 0) 的 fn 与 Promise 回调处于同一个队列，谁先注册谁先跑，因此本题 B 一定排在 C 之前"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "完整时序：同步块依次输出 A；注册定时器 B；把 C 压入微任务队列；注册观察器 D（不产生微任务）；把 E 压入微任务队列；async IIFE 同步执行到第一个 await，先输出 F 并挂起，把包含 G 的续体注册为微任务；最后输出 H。此刻微任务队列为 [C, E, G-continuation]，逐个排空得到 C、E、G；随后进入本轮的渲染（update the rendering）步骤，在样式计算与布局之后派发观察器投递，输出 D；再往后下一轮宏任务才是定时器回调输出 B。故最终顺序是 A F H C E G D B。A 对（同步末尾是 A、F、H，且队列里此时有 C、E 两个微任务加一个稍后注册的 await 续体）；B 对（微任务 C→E→G，观察器回调属渲染阶段而非微任务，故 D 晚于 G、早于 B）；C 对（去掉 await 就没有挂起点，普通函数同步跑完，G 落进同步阶段，反证 await 后续体走微任务）；D 错两处：定时器回调是宏任务、Promise 回调是微任务，不在同一队列；而且宿主对定时器还有最小延迟钳制（嵌套层级过深约 4ms、后台标签页更严），B 不可能抢在同轮微任务之前。易混点补充：await x 并非简单「注册一个微任务」——它要先对 x 做 Thenable 决议（非 Thenable 在现代引擎里只需很少的 tick），决议完成后才调度 continuation，因此 await 前后可能多出一层 tick；V8 已优化掉多余 tick，但「await 之后至少一轮微任务」这一结论不变，这也是很多「await 后代码比预期晚一步」困惑的来源。",
+    "gapCheck": [
+      "易漏点：ResizeObserver / IntersectionObserver 回调属观察器投递，在渲染阶段（样式与布局之后）派发，不是 Promise 微任务；把它排进微任务序列就会全错",
+      "常见误区：async 函数不是「整体异步」：第一个 await 之前的代码是同步执行的，很多时序题在这一步就能确定输出前缀",
+      "排查线索：对时序有争议时用 performance.mark 或带计数的日志打点；注意 await 的 Thenable 决议可能引入额外一轮 tick，且 Node 的模型（process.nextTick 优先级更高、批次不同）不能直接套到浏览器上"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.async.event-loop",
+        "fe.js.async.promise"
+      ],
+      "related": [
+        "fe.vue.scheduler.nexttick",
+        "fe.js.scope.closure"
+      ],
+      "followUps": [
+        "queueMicrotask、Promise.then 与 MutationObserver 这三类微任务在队列里有优先级差别吗？",
+        "Node 的事件循环与浏览器的模型有什么不同？为什么 process.nextTick 可能饿死 IO？",
+        "requestAnimationFrame 与 requestIdleCallback 分别处在帧生命周期的哪个位置？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 HTML 规范的事件循环、微任务检查点与观察器投递算法，以及 V8 对 await 续体的调度语义编写"
+    },
+    "tags": [
+      "时序题",
+      "高频",
+      "难度高"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0127"
+  },
+  {
+    "g": 6,
+    "nodeId": "fe.js.async.promise",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "按要求补全下面 4 个空缺：\n```js\n// (1) 任一输入 reject 就立即 reject；全部 fulfilled 才按输入顺序给出结果数组：\n//     const results = await Promise.______(tasks);\n\n// (2) 不因个别失败中断，要逐个观察 status/value/reason：\n//     const settled = await Promise.______(tasks);\n\n// (3) 只等第一个成功；全部失败时以 AggregateError 拒绝：\n//     const first = await Promise.______(tasks);\n\n// (4) 语义上 promise.catch(fn) 完全等价于：\n//     promise.then(undefined, fn)\n//     而 catch 处理完 rejection 之后，返回的新 Promise 状态变为 ______\n```",
+    "answer": {
+      "blanks": [
+        "all",
+        "allSettled",
+        "any",
+        "fulfilled"
+      ],
+      "synonyms": {
+        "all": [
+          "Promise.all",
+          "all(...)"
+        ],
+        "allSettled": [
+          "Promise.allSettled",
+          "allSettled(...)"
+        ],
+        "any": [
+          "Promise.any",
+          "any(...)"
+        ],
+        "fulfilled": [
+          "resolved",
+          "已成功态 fulfilled",
+          "fulfilled（已成功）"
+        ]
+      }
+    },
+    "analysis": "(1) all：首个 rejection 立即 reject，但它不会取消其余任务，只是再也观察不到后续结果（Promise 本身没有取消语义，要取消得配 AbortController）。(2) allSettled：每个元素形如 {status:'fulfilled',value} 或 {status:'rejected',reason}，永不整体 reject，适合「批量并发、既要成功结果也要失败原因」的场景，也避免用空 catch 吞掉真正的程序性错误。(3) any：只看第一个成功，全部失败时拒绝原因是 AggregateError（ES2021 引入，errors 属性挂着全部原因）；它与 race 的区别在于 race 看的是首个 settle（无论成败）。(4) fulfilled：这是 catch 语义最容易被忽略的一点——.catch(fn) 相当于 .then(undefined, fn)，fn 的返回值会让链上后续 then 收到一个 fulfilled 的结果，也就是说 catch 会「治愈」这条 rejection；因此在链中间放 catch，后面的 then 仍会执行。要表达「失败就走 reject 分支」就得写在 then 的第二参数位，或者重新 throw。另一个关键性质是 Promise 状态一经 settle 便不可逆：手写聚合工具时重复 resolve/reject 只有第一次生效，这正是「首个失败即 reject、其余忽略」能直接实现的原因；空数组输入会让 all/allSettled/any 立刻 settle（any 对空数组会以 AggregateError 立即拒绝，是手写聚合时最容易忽略的边界）。",
+    "gapCheck": [
+      "易漏点：catch 会把 rejected 治愈成 fulfilled，链上位置决定语义；需要「失败也计入结束」时要写在 then 第二参数或改用 allSettled",
+      "常见误区：Promise.all 的首个 reject 不会取消其余任务，误以为它像 AbortController 一样中断会造成资源泄漏；空数组时 Promise.any 会立刻以 AggregateError 拒绝",
+      "排查线索：排查「并发任务莫名少了一次 resolve」时先检查输入是否为空数组、以及是否在同一处重复 resolve（状态不可逆，只有首次生效）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.async.promise",
+        "fe.js.scope.closure"
+      ],
+      "related": [
+        "fe.js.async.event-loop",
+        "fe.js.es6.modern"
+      ],
+      "followUps": [
+        "Promise.all 在首个 reject 之后，其余任务的完成还能被观察到吗？Promise 有取消语义吗？",
+        "Promise.withResolvers 相比 new Promise 手写 resolve/reject 有什么优势？",
+        "AbortController 与 Promise 组合如何实现真正的并发取消？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 ECMAScript 规范的 Promise 状态机、then/catch 等价语义与 Promise.all/allSettled/any/AggregateError 行为编写"
+    },
+    "tags": [
+      "高频",
+      "Promise",
+      "易错"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0128"
+  }
+]

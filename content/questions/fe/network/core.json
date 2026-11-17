@@ -1,0 +1,1355 @@
+[
+  {
+    "id": "Q-fe-network-0001",
+    "nodeId": "fe.network.transport.http-basics",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "用原生 fetch 请求一个接口，服务端返回 HTTP 500（带 JSON 错误体）。此时 fetch 返回的 Promise 会：",
+    "options": [
+      {
+        "key": "A",
+        "text": "reject，进入 catch 分支"
+      },
+      {
+        "key": "B",
+        "text": "resolve，response.ok 为 false，需自行判断并抛错"
+      },
+      {
+        "key": "C",
+        "text": "resolve，且 response.ok 仍为 true，因为网络本身是通的"
+      },
+      {
+        "key": "D",
+        "text": "挂起直到超时才 reject"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。fetch 只在「网络级失败」（DNS 解析失败、连接被拒、CORS 拦截等）时才 reject；只要拿到了 HTTP 响应——无论 4xx 还是 5xx——Promise 都 resolve，由调用方检查 response.ok（status 在 200-299 才为 true）或 response.status 自行处理。所以封装层常见写法是先 if (!res.ok) throw new ApiError(...)，或像 axios 那样用 validateStatus 配置让 4xx/5xx 直接 reject。A 是 axios 默认行为，不是 fetch。",
+    "gapCheck": [
+      "易漏点：fetch 的 reject 语义只覆盖网络错误/CORS，不覆盖 HTTP 状态码",
+      "常见误区：把 axios 会自动对 4xx/5xx reject 的习惯套到 fetch 上，导致线上 500 被当成功静默处理",
+      "加分项：知道 response.body 是 ReadableStream，chunked 响应可逐块 reader.read() 消费（SSE/LLM 流式的基础）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transport.http-basics"
+      ],
+      "related": [
+        "cs.net.http.message",
+        "fe.js.async.promise"
+      ],
+      "followUps": [
+        "axios 拦截器里如何统一处理 401 跳登录？",
+        "fetch 如何读取 chunked 流式响应？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "fetch 错误语义单选题"
+    },
+    "tags": [
+      "网络",
+      "fetch",
+      "HTTP状态码",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0002",
+    "nodeId": "fe.network.transport.http-basics",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：服务端对大模型回答使用 Transfer-Encoding: chunked 流式返回 text/event-stream，浏览器要等整个响应体接收完毕才能执行 response.text() 之后的代码，因此前端无法边收边渲染。",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "错误。chunked 分块传输的意义正是「不等整体长度已知就逐块发送」；fetch 的 response.body 是 ReadableStream，前端可以通过 getReader() 循环 read()，每收到一块就解码追加渲染，这就是 ChatGPT 类页面打字机效果的实现路径之一（另一条是 EventSource/SSE）。response.text() 确实是等流结束才拿到完整文本，但不能因此推断前端只能整段渲染——是否流式取决于你选哪个消费方式。",
+    "gapCheck": [
+      "易漏点：text()/json() 会消费整个流，流式渲染必须用 response.body 的 ReadableStream reader",
+      "常见误区：以为 HTTP 响应必须完整到达才可读",
+      "加分项：能提到 TextDecoder 需 {stream:true} 处理跨块的多字节字符截断"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transport.http-basics"
+      ],
+      "related": [
+        "fe.network.realtime.sse"
+      ],
+      "followUps": [
+        "EventSource 和 fetch 流读 SSE 各有什么利弊？",
+        "为什么 nginx 默认会缓冲 SSE 导致不流式？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "chunked 流式响应判断题"
+    },
+    "tags": [
+      "网络",
+      "chunked",
+      "流式响应",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0003",
+    "nodeId": "fe.network.transport.cache-strategy",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请系统回答前端缓存问题：(1) 协商缓存的 Last-Modified 与 ETag 两条链路各自如何工作？为什么 ETag 更准但开销更高？两者同时存在时谁优先？(2) 现代 SPA 构建产物（js/css 文件名带 contenthash）应如何配置 Cache-Control 才能让「发版即生效」又最大化命中缓存？index.html 又该怎么配？(3) DevTools Network 里 200 (from disk cache)、200 (from memory cache)、304 分别说明什么？",
+    "answer": {
+      "ref": "参考骨架：(1) Last-Modified：响应头带资源最后修改时间，下次请求带 If-Modified-Since，服务器比对后未变则回 304（不带 body）；缺陷是秒级精度（1 秒内多次修改漏判）、只改时间或内容等长变更可能误判/失效。ETag：响应头带内容指纹（哈希），下次带 If-None-Match，服务器逐字比对生成新指纹即可精确判定；更准但要服务端计算/存储指纹的开销。RFC 规定 If-None-Match 优先：条件请求同时携带时服务器先校验 ETag。(2) 工程标准：入口 index.html 配 no-cache（每次协商，保证发版后新 HTML 里的新 chunk 引用立刻生效）或短 max-age；js/css/图片等带 hash 的静态资源配 max-age=31536000, immutable（一年强缓存，永不协商），因为文件名变了 URL 就变、天然刷新；HTML 引用的旧 hash 文件随旧 HTML 自然淘汰，需保留旧版本供在途用户访问（灰度期间不可删除）。若发版瞬间出现「新 HTML+旧 vendor chunk」错配，常见兜底是 vendor 独立命名 + 启动版本检测强制刷新。(3) from memory cache：本次标签页内存命中（对象生命周期内），最快、几乎无耗时记录；from disk cache：强缓存有效期内从磁盘缓存读取，不发请求；304：发起了协商请求，服务器确认未变，body 由本地缓存拼装，只有一次请求头的往返成本。"
+    },
+    "scoringPoints": [
+      {
+        "point": "讲清 LM 与 ETag 两条协商链路及 304 语义",
+        "weight": 2
+      },
+      {
+        "point": "指出 LM 的秒级精度/时间内容不一致缺陷与 ETag 的计算开销，并答出 If-None-Match 优先",
+        "weight": 2
+      },
+      {
+        "point": "给出 hash 资源一年 immutable 强缓存 + index.html no-cache 的标准组合及其成立前提（URL 随 hash 变化）",
+        "weight": 2
+      },
+      {
+        "point": "区分 memory cache / disk cache / 304 三种命中的成本差异",
+        "weight": 2
+      },
+      {
+        "point": "能补充发版瞬间新旧文件错配的兜底思路",
+        "weight": 1
+      }
+    ],
+    "analysis": "这题区分「背过缓存字段」和「做过发布体系」：满分答案会把缓存策略与构建 hash、发布流程串成一个闭环。常见失分：说 ETag 因为「更流行」所以优先（实际是规范规定 If-None-Match 优先）；给 html 也配一年强缓存导致发版白屏旧包；把 from disk cache 当成 304（前者根本没发请求）。",
+    "gapCheck": [
+      "易漏点：immutable 只对文件名带 hash 的资源成立，源名静态文件不能照抄",
+      "常见误区：以为 304 是服务器传回了 body",
+      "加分项：知道 ETag 弱校验（W/ 前缀）与 gzip 后指纹的关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transport.cache-strategy"
+      ],
+      "related": [
+        "cs.net.http.cache",
+        "fe.build.bundle.caching"
+      ],
+      "followUps": [
+        "Service Worker 的缓存在这套体系里扮演什么角色？",
+        "为什么 CDN 上的 hash 文件也要防「同名覆盖」？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "缓存策略与发布闭环主观题"
+    },
+    "tags": [
+      "网络",
+      "HTTP缓存",
+      "ETag",
+      "发布策略",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0004",
+    "nodeId": "fe.network.transport.cors-cookie",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "页面 https://shop.example.com 跨域调用 https://api.other.com/v1/order 需要携带 Cookie 且允许自定义头 X-Token。下列哪些配置是**必须**的？",
+    "options": [
+      {
+        "key": "A",
+        "text": "fetch 设置 credentials: 'include'（或 axios withCredentials: true）"
+      },
+      {
+        "key": "B",
+        "text": "响应头 Access-Control-Allow-Credentials: true"
+      },
+      {
+        "key": "C",
+        "text": "Access-Control-Allow-Origin 直接写 * 通配以兼容多环境"
+      },
+      {
+        "key": "D",
+        "text": "预检放行 X-Token：Access-Control-Allow-Headers 包含 X-Token"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "ABD 必选，C 必错。凭证请求三件套：请求侧显式声明带凭证（A）、响应侧 ACA-Credentials: true（B）、Origin 必须回显具体来源而不能是 *（C 的错误根源——带凭证时 Allow-Origin 为 * 会被浏览器判无效）。另外自定义头 X-Token 不属于简单请求头，必触发预检，需 Access-Control-Allow-Headers 明确放行（D）。缺任何一条，请求都会分别被「不带 Cookie」「预检失败」「Origin 校验失败」拦掉。",
+    "gapCheck": [
+      "易漏点：带凭证时 * 无效这一点最常被漏，网关动态回显 Origin 还要同步 Vary: Origin",
+      "常见误区：以为 withCredentials 单方面打开就能带上 Cookie——SameSite=Lax 下跨站 XHR 根本不发送 Cookie，还需 SameSite=None; Secure",
+      "加分项：能说出 Access-Control-Allow-Private-Network 针对本机私有网络的额外预检"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transport.cors-cookie"
+      ],
+      "related": [
+        "fe.browser.storage.local",
+        "cs.seceq"
+      ],
+      "followUps": [
+        "SameSite=None 为什么必须配 Secure？",
+        "预检请求失败时 Network 面板看到什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "CORS 凭证配置多选题"
+    },
+    "tags": [
+      "网络",
+      "CORS",
+      "Cookie",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0005",
+    "nodeId": "fe.network.transport.cors-cookie",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：跨域请求会先发预检请求，其方法是 ______ 方法；预检结果可用响应头 Access-Control-______ 缓存以减少开销；开发期让浏览器压根不发预检的常用手段是用 vite dev 的 ______ 把 API 转发成同源请求。",
+    "answer": {
+      "blanks": [
+        "OPTIONS",
+        "Max-Age",
+        "proxy"
+      ],
+      "synonyms": {
+        "OPTIONS": [
+          "options"
+        ],
+        "Max-Age": [
+          "max age",
+          "max_age",
+          "MAX-AGE"
+        ],
+        "proxy": [
+          "代理",
+          "dev proxy",
+          "server.proxy"
+        ]
+      }
+    },
+    "analysis": "非简单请求（自定义头、PUT/DELETE、JSON 等）会先以 OPTIONS 发起预检，询问 Allow-Methods/Allow-Headers/Allow-Credentials；Access-Control-Max-Age（秒）让预检结果进缓存避免每个请求都探一次。vite 的 server.proxy 由 Node dev-server 在服务器侧转发，浏览器视角是同源，天然免 CORS；生产对应物是 nginx 反向代理或网关统一加头，二者选其一即可，别既开反代又在 CDN 重复叠 CORS 头（会触发「多个 Allow-Origin」报错）。",
+    "gapCheck": [
+      "易漏点：预检可缓存 Max-Age 这点常被忽略，导致每个请求都双倍 RTT",
+      "常见误区：以为 dev proxy 是「浏览器放宽了跨域限制」——实际是变成了同源请求",
+      "加分项：知道中间件重复追加 CORS 头时浏览器取逗号拼接值并判无效"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transport.cors-cookie"
+      ],
+      "related": [
+        "fe.build.toolchain.vite"
+      ],
+      "followUps": [
+        "哪些 Content-Type 属于简单请求不触发预检？",
+        "Sec-Fetch-Site 有哪四个取值？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "预检与代理填空题"
+    },
+    "tags": [
+      "网络",
+      "CORS",
+      "预检",
+      "开发代理"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0006",
+    "nodeId": "fe.network.realtime.websocket",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 WebSocket 握手与连接特性，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "WebSocket 沿用 HTTP 的 CORS 机制，浏览器会按 Allow-Origin 拦截握手"
+      },
+      {
+        "key": "B",
+        "text": "握手是带 Upgrade: websocket / Connection: Upgrade 的 GET，成功后返回 101 Switching Protocols，此后走 TCP 全双工帧"
+      },
+      {
+        "key": "C",
+        "text": "WebSocket 握手请求不能携带任何 Header，所以无法传递 Cookie 或 Origin"
+      },
+      {
+        "key": "D",
+        "text": "wss:// 是在 WebSocket 帧内部加密，与 TLS 无关"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：WS 借 HTTP GET 完成升级握手（Sec-WebSocket-Version/Key 参与协议哈希换取 Sec-WebSocket-Accept），101 后该 TCP 连接脱离 HTTP 语义转为 WS 帧双向收发。A 错：WS 不受 CORS 约束——浏览器不因 Origin 不匹配拦截握手，需服务端自己校验 Origin 防跨站盗连；C 错：握手就是普通 HTTP 请求，可以带 Cookie 与 Origin 头（正因如此才需要服务端校验）；D 错：wss:// 就是跑在 TLS 之上（通常 443），帧本身另有掩码但不负责加密。",
+    "gapCheck": [
+      "易漏点：WS 不受 CORS 限制是最常见的认知盲区，安全要靠服务端验 Origin",
+      "常见误区：以为 101 是重定向（它是协议切换确认码）",
+      "加分项：能讲 Sec-WebSocket-Key+GUID 做 SHA-1 的作用——防止老代理/缓存误复用连接，并非鉴权"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.realtime.websocket"
+      ],
+      "related": [
+        "fe.network.realtime.sse",
+        "cs.net.tcpip.handshake"
+      ],
+      "followUps": [
+        "Authorization 头为什么没出现在 WS 握手里？token 怎么带？",
+        "多标签页共用一条 WS 怎么做？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "WebSocket 握手单选题"
+    },
+    "tags": [
+      "网络",
+      "WebSocket",
+      "握手",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0007",
+    "nodeId": "fe.network.realtime.websocket",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "你负责一个 IM 页面的 WebSocket 稳定性。请回答：(1) 为什么要应用层心跳？浏览器不会自动告诉你连接死了吗？(2) 设计断线重连策略要考虑哪些要素？(3) 移动端切后台/切标签页时应如何处理连接与消息一致性？",
+    "answer": {
+      "ref": "参考骨架：(1) TCP keepalive 默认两小时且不可细粒度控制，NAT/防火墙会话老化、半开连接（对端崩溃没发 FIN）都不会让 socket 报错，应用层 ping/pong（WS 控制帧或业务心跳）才能在几十秒内主动发现「连而不通」，并由服务端判定踢除僵尸连接。(2) 重连要素：指数退避（1s→2s→4s…）叠加随机 jitter 防重连风暴、上限封顶后转慢速轮询探测、区分关闭码决定是否重连（1008 策略拒绝不重连、1006 异常断开重连）、重连成功后用 lastSeq/lastMsgId 向服务端拉增量消息补齐空窗期、避免竞态需给连接加状态机（CONNECTING/OPEN/CLOSING/CLOSED）与代际 token 丢弃旧连接事件。(3) 移动端后台：document.visibilitychange 时主动 close 省电省流量、回前台立即重连并补拉；配合服务端消息序号 + 客户端去重（msgId）保证至少一次投递下的幂等展示；离线消息落 IndexedDB 队列、恢复网络后 flush；多标签页场景用 SharedWorker 维持单条连接广播给各页，防止 N 个标签 N 倍连接数。"
+    },
+    "scoringPoints": [
+      {
+        "point": "解释半开连接与 NAT 超时，指出 TCP keepalive 不够用故需应用层心跳",
+        "weight": 2
+      },
+      {
+        "point": "重连策略完整：指数退避+jitter+封顶、关闭码分流、状态机防竞态",
+        "weight": 2
+      },
+      {
+        "point": "消息一致性：序号增量补拉与 msgId 去重的至少一次语义",
+        "weight": 2
+      },
+      {
+        "point": "visibilitychange 主动断开/回前台重连与移动端省电考量",
+        "weight": 1
+      },
+      {
+        "point": "多标签 SharedWorker 单连接方案",
+        "weight": 1
+      }
+    ],
+    "analysis": "IM/协同类岗位必考的主观题，考察的是「把 WS 当不可靠基础设施来治理」的意识。高分答案的核心特征是提到消息序号与幂等去重——因为重连空窗必然丢消息，传输层再怎么修也补不齐业务层的账。失分点：只答「加心跳加重连」两句口号；不知道 1006 等关闭码语义；把 keepalive 与心跳混为一谈。",
+    "gapCheck": [
+      "易漏点：重连风暴与 jitter、关闭码分流这两个工程细节",
+      "常见误区：以为 onclose 一定会触发——网络拔线时往往只有心跳超时才能发现",
+      "加分项：了解 scheduler.yield 或 setTimeout 让重连退避不阻塞主线程"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.realtime.websocket"
+      ],
+      "related": [
+        "fe.network.realtime.sse",
+        "fe.browser.worker.thread"
+      ],
+      "followUps": [
+        "服务端如何用 Redis pub/sub 支撑多实例 WS？",
+        "WS 帧的掩码和 payload 长度字段起什么作用？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "self-authored",
+      "note": "WS 心跳重连治理主观题"
+    },
+    "tags": [
+      "网络",
+      "WebSocket",
+      "心跳",
+      "重连",
+      "IM",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0008",
+    "nodeId": "fe.network.realtime.sse",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "在线交易行情推送要求：浏览器持续接收服务端单向推送、断线后自动携带 Last-Event-ID 续传、走现有 HTTP 网关与鉴权体系、无需二进制。最低改造成本的方案是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "WebSocket"
+      },
+      {
+        "key": "B",
+        "text": "SSE（EventSource）"
+      },
+      {
+        "key": "C",
+        "text": "1 秒间隔短轮询"
+      },
+      {
+        "key": "D",
+        "text": "long polling"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。需求四要素全部落在 SSE 的能力圈：基于普通 HTTP 长响应（网关/鉴权/HTTPS 零改造）、EventSource 原生自动重连并用 Last-Event-ID 请求头从中断事件后续推、纯文本足够。A 的网关与鉴权改造成本高且这些需求不需要双向；C/D 延迟与带宽都差一档，且没有续传语义。",
+    "gapCheck": [
+      "易漏点：EventSource 自动重连 + Last-Event-ID 是 SSE 独有的免费能力，WS 要自己实现",
+      "常见误区：以为 SSE 只能 GET 传 query——POST-SSE 可用 fetch 流读取绕开，但就失去 EventSource 自动重连",
+      "加分项：知道 SSE 是多行 data: 拼文本、JSON 需自行按 \\n\\n 分包解析，以及 retry: 字段调重连间隔"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.realtime.sse"
+      ],
+      "related": [
+        "fe.network.realtime.websocket"
+      ],
+      "followUps": [
+        "LLM 打字机效果用 SSE 还是 WS？为什么业界多用 SSE？",
+        "HTTP/1.1 下大量 SSE 连接会踩到什么限制？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "SSE 选型单选题"
+    },
+    "tags": [
+      "网络",
+      "SSE",
+      "选型",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0009",
+    "nodeId": "fe.network.realtime.sse",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：前端已收到 SSE 分片但页面迟迟不渲染，原因之一是 nginx 等反向代理默认开启响应缓冲，把 text/event-stream 攒满 buffer 才下发；对策是给该响应加 X-Accel-Buffering: no 或 proxy_buffering off。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。nginx 默认 proxy_buffering on，会把上游响应攒到内存/临时文件再发给客户端，SSE 的分片节奏被抹平，表现为「服务端已 flush、浏览器收不到」；X-Accel-Buffering: no 是 nginx 识别的专用响应头，可对单个接口关缓冲（比全局 proxy_buffering off 更可控），php-fpm 场景还有类似开关。同理 Node express 的 compression 中间件也会缓冲流，需要按路由禁用或逐块 flush。",
+    "gapCheck": [
+      "易漏点：这是「SSE 不流式」最高频的线上原因，排查顺序应为 代理缓冲→压缩中间件→Content-Type 是否正确",
+      "常见误区：以为是浏览器 EventSource 的问题而反复改前端代码",
+      "加分项：知道 fetch 流读 SSE 时同样受代理缓冲影响，以及 HTTP/2 下仍有该问题"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.realtime.sse"
+      ],
+      "related": [
+        "fe.network.transfer.upload",
+        "cs.devops"
+      ],
+      "followUps": [
+        "compression 中间件为什么会破坏 SSE？",
+        "网关超时导致 SSE 每 60 秒断一次怎么办？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "SSE 代理缓冲判断题"
+    },
+    "tags": [
+      "网络",
+      "SSE",
+      "nginx",
+      "流式"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0010",
+    "nodeId": "fe.network.transfer.upload",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "上传一个 2GB 视频，方案要在「刷新页面后可继续、支持并发提速、可秒传」。下列设计**不合理**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "按固定大小 slice 切片，用并发池限流并发上传，失败分片单独重试"
+      },
+      {
+        "key": "B",
+        "text": "首次上传前先算整文件 MD5，服务端查指纹命中则直接返回秒传成功"
+      },
+      {
+        "key": "C",
+        "text": "断点信息存 localStorage，刷新后拉服务端已收分片清单，只补缺失分片"
+      },
+      {
+        "key": "D",
+        "text": "把整个 File 对象序列化存入 IndexedDB，刷新后从中间字节位置继续单连接 PUT"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "D"
+      ]
+    },
+    "analysis": "D 不合理。File 本来就是惰性引用（指向磁盘），无需也不应把 2GB 内容复制进 IndexedDB；单连接 PUT 续传依赖 Range 头且无并发、一次失败整段重来，对超大文件不如分片方案。ABC 分别是分片上传三件套的正确形态：切片+并发池提速、指纹秒传省流量、双端对账（本地队列+服务端清单）断点续传。注意 MD5 计算要放 Web Worker，否则主线程卡死数十秒。",
+    "gapCheck": [
+      "易漏点：File 对象是句柄不是数据，IndexedDB 存 File 引用即可持久化任务，存内容才是灾难",
+      "常见误区：以为并发越多越快——要按域名连接配额与带宽测出最优并发数（常见 3-6）",
+      "加分项：知道大文件哈希可用 spark-md5 增量分块计算、以及 hash-worker-plugin 类方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transfer.upload"
+      ],
+      "related": [
+        "fe.browser.worker.thread",
+        "fe.js.async.promise"
+      ],
+      "followUps": [
+        "form-data 直传为什么不会触发 CORS 预检？STS 直传的签名流程？",
+        "如何边读文件边计算哈希避免 2GB 驻留内存？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "大文件上传方案单选题"
+    },
+    "tags": [
+      "网络",
+      "上传",
+      "分片",
+      "秒传",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0011",
+    "nodeId": "fe.network.optimize.conn-reuse",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：在全面 HTTP/2 的站点上，把静态资源拆到 4-6 个域名做「域名分片」仍是公认的性能优化手段，因为分片能成倍增加并行下载通道。",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "错误。域名分片是 HTTP/1.x 时代为绕开同域 6 连接限制的手段；HTTP/2 单连接即可多路复用并行所有流，分片反而强制为每个域名再做一遍 DNS+TCP+TLS（慢启动从零开始）、稀释连接级拥塞窗口与头部压缩效率，还增加证书运维。HTTP/2/3 下主流实践是收敛到少量域名；但注意 HTTP/1.1 与 H/2 混合的存量环境仍需按主要协议版本决策。顺带：HTTP/1.1 的 6 连接限制是按 host 记的，这正是当年分片生效的原因。",
+    "gapCheck": [
+      "易漏点：结论依赖协议版本，答题要先分情况而不是背「分片好/坏」",
+      "常见误区：把 preconnect 的收益当成「增加连接数所以永远有益」——H/2 下滥用预连接也在耗移动端电量与带宽",
+      "加分项：能提到 HTTP/2 连接迁移（QUIC connection id）后域名收敛进一步利好"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.optimize.conn-reuse"
+      ],
+      "related": [
+        "cs.net.http.http2-3",
+        "fe.perf.loading.resource-hint"
+      ],
+      "followUps": [
+        "dns-prefetch 与 preconnect 的分工？",
+        "Server-Timing 头怎么用？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "HTTP/2 域名分片判断题"
+    },
+    "tags": [
+      "网络",
+      "HTTP/2",
+      "域名分片",
+      "性能"
+    ]
+  },
+  {
+    "id": "Q-fe-network-0012",
+    "nodeId": "fe.network.optimize.load-priority",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：想让当前页首屏的关键字体提前高优先级下载，应写 <link rel=\"______\" as=\"font\" crossorigin>（字体同源也要 crossorigin，否则二次下载）；预测用户下一页会用到某资源用 rel=\"______\"；给 LCP 图片显式提权可用属性 ______=\"high\"。",
+    "answer": {
+      "blanks": [
+        "preload",
+        "prefetch",
+        "fetchpriority"
+      ],
+      "synonyms": {
+        "preload": [
+          "pre-load"
+        ],
+        "prefetch": [
+          "pre-fetch"
+        ],
+        "fetchpriority": [
+          "fetch priority",
+          "FetchPriority"
+        ]
+      }
+    },
+    "analysis": "preload 是「本页马上要用、现在就取」的高优先级提示，as 缺失会双下载，字体即使同源也必须 crossorigin（CORS 模式加载）；prefetch 是「下一页可能用、低优先级捡空闲带宽」；fetchpriority=high 能把 LCP 图片的 Load 优先级提到 High，Chrome 实测优先于默认调度。三者时机与优先级各不相同，混用会适得其反（把 prefetch 当 preload 会来不及）。",
+    "gapCheck": [
+      "易漏点：preload 必须配 as，字体必须 crossorigin，这两个是最常见的面试考点级细节",
+      "常见误区：以为 preload 越多首屏越快——过度 preload 抢占关键资源带宽反而拖慢 LCP",
+      "加分项：知道 modulepreload 用于预载 ESM 依赖图、Speculation Rules 悬停级 prerender 已稳定可用"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.optimize.load-priority"
+      ],
+      "related": [
+        "fe.perf.loading.critical-path",
+        "fe.browser.render.pipeline"
+      ],
+      "followUps": [
+        "preload 和 preconnect 应该选哪个？",
+        "defer 和 async 脚本如何选？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "资源提示家族填空题"
+    },
+    "tags": [
+      "网络",
+      "preload",
+      "prefetch",
+      "fetchpriority",
+      "高频"
+    ]
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.optimize.conn-reuse",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "某站点已全站启用 HTTP/2，首屏还要请求一个跨域字体 CDN。关于连接建立与复用，下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "<link rel=\"preconnect\"> 会提前并行完成 DNS 解析、TCP 三次握手与 TLS 协商，从而缩短第一个跨域请求真正发出前的等待。"
+      },
+      {
+        "key": "B",
+        "text": "HTTP/2 多路复用意味着同一连接上的 stream 彻底互不影响，一个丢包或慢响应绝不会阻塞其他 stream。"
+      },
+      {
+        "key": "C",
+        "text": "preconnect 多多益善，应给页面上出现的所有第三方域名都加上，浏览器会无条件保留这些预连接。"
+      },
+      {
+        "key": "D",
+        "text": "dns-prefetch 与 preconnect 能力完全等价，可以无条件互相替代。"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：preconnect 提前触发 DNS+TCP+TLS 整套连接建立，等真正的资源请求发生时连接已就绪，省掉建连 RTT，尤其利于首屏关键的跨域字体/API。B 错误：HTTP/2 只是在应用层把多个 stream 复用到一条 TCP 连接上，消除了 HTTP/1.1 的应用层队头阻塞，但 TCP 层的队头阻塞依旧——一旦丢包，TCP 重传会拖住这条连接上的所有 stream；真正在传输层解决该问题的是 HTTP/3 基于 QUIC/UDP 的独立 stream。C 错误：每条预连接都占用带宽、端口与服务器连接数，浏览器对预连接数量有限制且会关闭迟迟不用的空闲连接，滥用反而浪费资源、争抢关键连接，一般只对确定会用到的少数关键域名使用。D 错误：dns-prefetch 仅提前做 DNS 解析，preconnect 还包含 TCP 握手与 TLS 协商，后者能力是前者的超集。",
+    "gapCheck": [
+      "易漏点：HTTP/2 解决的是应用层队头阻塞，TCP 层队头阻塞仍在，需 HTTP/3/QUIC 才能在传输层隔离 stream。",
+      "常见误区：把 preconnect 当成零成本兜底而全站第三方域名滥加，忽略连接本身的资源开销与浏览器数量上限。",
+      "排查线索：在 Network 面板按 Connection ID 分组看资源是否复用同一条连接，并用 Timing 拆解 DNS/Connect/TLS 各阶段耗时来评估 preconnect 收益。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.optimize.conn-reuse"
+      ],
+      "related": [
+        "fe.network.optimize.load-priority",
+        "fe.network.transport.http-basics"
+      ],
+      "followUps": [
+        "HTTP/3 的 QUIC 为什么能做到单 stream 丢包不拖累其他 stream？",
+        "preconnect 与 dns-prefetch 在能力和适用时机上具体差在哪？",
+        "弱网环境下过量预连接可能带来哪些反效果？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于连接建立流程、HTTP/2 多路复用与资源提示规范编写"
+    },
+    "tags": [
+      "连接复用",
+      "HTTP2",
+      "资源提示"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0028"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.optimize.conn-reuse",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "团队为了\"提升并发下载\"把静态资源拆到 3 个分片域名，但站点已升级到 HTTP/2，且有相当比例用户处于弱网。请回答：(1) 域名分片在 HTTP/1.1 与 HTTP/2 下分别意味着什么，为什么 HTTP/2 下通常应当取消分片；(2) 分片会额外引入哪些连接建立成本；(3) HTTP/3(QUIC) 在连接复用与队头阻塞上相对 HTTP/2 的关键改进。",
+    "scoringPoints": [
+      {
+        "point": "讲清 HTTP/1.1 下单连接并行请求受限（每连接约 6 个），域名分片靠多域名多连接绕过上限的历史动机",
+        "weight": 3
+      },
+      {
+        "point": "说明 HTTP/2 单连接多路复用已支持大量并发 stream，分片反而迫使浏览器开多条连接、稀释优先级与拥塞窗口，得不偿失",
+        "weight": 3
+      },
+      {
+        "point": "列出分片的额外成本：多套 DNS 解析、多次 TCP 握手与 TLS 协商、更多连接内存/端口占用、弱网下握手 RTT 被放大",
+        "weight": 2
+      },
+      {
+        "point": "指出 HTTP/3 基于 QUIC/UDP，stream 相互独立、单 stream 丢包只阻塞自身，且支持 0-RTT/连接迁移，缓解 TCP 队头阻塞",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "(1) HTTP/1.1 中浏览器对同一域名的一条 TCP 连接只允许有限数量（常见约 6 个）的并发请求，超出就要排队，域名分片通过把资源分散到多个域名来建立多条连接、并行下载更多资源，是当年的无奈优化。HTTP/2 引入二进制分帧与单连接多路复用，一条连接上可以并行跑大量 stream 且有明确优先级，分片带来的多连接不再带来并发收益，反而让每条连接的拥塞窗口、压缩上下文（HPACK）和优先级调度被拆碎，削弱 H2 的复用与压缩效率，因此 H2 站点通常应收敛到同域名、取消分片。(2) 每个额外域名都要独立承担一次 DNS 解析、TCP 三次握手和 TLS 协商（至少多个 RTT），弱网/高延迟下这部分成本被明显放大；同时增加客户端与服务端的连接数、内存与端口占用，预连接也更难覆盖全部域名。(3) HTTP/3 跑在 QUIC（基于 UDP）之上：各 stream 在传输层相互独立，某个 stream 丢包只需重传该 stream，不再像 TCP 那样阻塞整条连接上的所有 stream，真正消除了传输层队头阻塞；QUIC 还内置 TLS1.3、支持 0-RTT 建连以及连接迁移（切换网络时连接 ID 保持，无需重新握手），更契合移动弱网。"
+    },
+    "analysis": "本题考察连接复用的工程权衡而非记忆结论。关键是区分两个层级的队头阻塞：HTTP/1.1 的应用层队头阻塞被 H2 多路复用解决，但 H2 承载在 TCP 上，TCP 丢包重传仍会卡住所有 stream；H3/QUIC 才在传输层把 stream 隔离。答题时还要落到成本：域名分片的代价是重复的 DNS/TCP/TLS 与连接资源，弱网下 RTT 成本更突出。能把\"为什么 H1 需要分片、H2 为何反而受害、H3 改了什么\"串成一条演进线即为高水平回答。",
+    "gapCheck": [
+      "易漏点：域名分片是 HTTP/1.1 连接并发上限时代的产物，H2 单连接多路复用后其前提已消失。",
+      "常见误区：只说\"H2 更快所以不用分片\"，讲不出多连接稀释拥塞窗口、HPACK 上下文与优先级这些具体受害机制。",
+      "排查线索：用瀑布图对比分片前后 Connection ID 数量与建连耗时，弱网模拟（高 RTT/丢包）下观察握手 RTT 被放大的程度。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.optimize.conn-reuse"
+      ],
+      "related": [
+        "fe.network.optimize.load-priority",
+        "fe.network.transport.http-basics"
+      ],
+      "followUps": [
+        "HPACK/QPACK 字段压缩在多连接场景下为什么效率会下降？",
+        "如果部分老浏览器只能走 HTTP/1.1，域名分片要不要保留？如何灰度？",
+        "QUIC 的连接迁移在手机切换 Wi-Fi/蜂窝时具体是怎么保活的？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 HTTP/1.1 连接限制、HTTP/2 复用与 HTTP/3 QUIC 机制编写"
+    },
+    "tags": [
+      "域名分片",
+      "HTTP3",
+      "工程权衡"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0029"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.optimize.load-priority",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 preload / prefetch / modulepreload 与 fetchpriority 的使用，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "preload 用于强制、高优先级地获取当前页确定马上要用的资源；若 preload 的资源在加载后约几秒内没有被实际使用，Chrome 会在控制台给出未使用告警。"
+      },
+      {
+        "key": "B",
+        "text": "prefetch 通常以较低优先级获取下一次导航/下一页面可能用到的资源，面向的是未来导航而非当前渲染，命中时机与缓存用途和 preload 不同。"
+      },
+      {
+        "key": "C",
+        "text": "preload 的 crossorigin 设置必须与实际消费该资源的元素一致，否则两者因 CORS 模式不同而命中不同缓存条目，可能导致同一资源被下载两次（字体等尤其常见）。"
+      },
+      {
+        "key": "D",
+        "text": "给图片加 fetchpriority=\"high\" 能让浏览器把它提升到与阻塞渲染的 CSS 完全相同的优先级，并改变关键渲染路径的阻塞规则。"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A 正确：preload 是声明式的强制提前获取，针对当前页关键资源，浏览器会在较早期以高优先级发起；若迟迟不被使用会触发\"preloaded but not used\"告警，提示滥用。B 正确：prefetch 服务于后续导航，优先级低、可在空闲时进行，与 preload 面向当前页的定位不同。C 正确：缓存键包含请求的 CORS 模式，preload 与实际元素（script/img/字体）的 crossorigin 不一致会被当成两个请求，字体即便同源也要求匿名 CORS，写错极易二次下载。D 错误：fetchpriority 只是提示浏览器在同类资源内部调整相对优先级（hint），并不能把图片拔高到阻塞渲染 CSS 的地位，也不会改变渲染阻塞、关键路径这些结构性规则。",
+    "gapCheck": [
+      "易漏点：缓存键包含 CORS 模式，preload 与消费元素的 crossorigin 不一致会二次下载，字体同源也要带 crossorigin。",
+      "常见误区：把 fetchpriority 当成可以任意重排关键渲染路径的开关，它只调整同类资源的相对优先级提示。",
+      "排查线索：出现 preloaded but not used 告警或同一资源两条请求时，核对 as、type、crossorigin 是否与实际元素完全一致。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.optimize.load-priority"
+      ],
+      "related": [
+        "fe.network.optimize.conn-reuse",
+        "fe.network.transport.cache-strategy"
+      ],
+      "followUps": [
+        "modulepreload 相比普通 preload script 额外做了哪些事（依赖预取/模块图）？",
+        "preload 与 HTTP/2 Server Push 在思路上有何异同，后者为何逐步被弃用？",
+        "如何用 Priority Hints 优化 LCP 而不与 preload 互相打架？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于资源提示规范、缓存键与 Priority Hints 语义编写"
+    },
+    "tags": [
+      "preload",
+      "优先级",
+      "易错"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0030"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.optimize.load-priority",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "某页面的 LCP 元素是一张首屏大图，但它被写成 loading=\"lazy\" 且在文档中位置靠后，实测 LCP 偏慢。请系统说明：(1) 为什么 lazy 会拖慢 LCP 图，正确的加载策略是什么；(2) fetchpriority 与 preload 分别应在什么场景介入，二者叠加时有什么注意点；(3) 如何结合\"发现时机、请求优先级、连接复用\"这条链路解释优化前后瀑布图的变化。",
+    "scoringPoints": [
+      {
+        "point": "指出 lazy 让浏览器延后发现/请求 LCP 图，首屏关键图应 eager 加载并配合 decoding，必要时用 fetchpriority 提权",
+        "weight": 3
+      },
+      {
+        "point": "区分 fetchpriority（在同类资源内调优先级，改动小）与 preload（强制提前获取、绕过晚发现，适合被 CSS/背景或深层引用隐藏的 LCP 资源）",
+        "weight": 3
+      },
+      {
+        "point": "说明叠加注意点：避免对同一资源既 preload 又错误提权造成竞争、crossorigin/as 要一致、非关键资源勿滥用 preload 抢占带宽",
+        "weight": 2
+      },
+      {
+        "point": "能用瀑布图语言描述：发现时机提前、优先级上移、连接复用使握手不重复，从而缩短 LCP 资源的请求起点到完成时间",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "(1) loading=\"lazy\" 的语义是等资源接近可视区域再加载，浏览器还会刻意推迟懒加载图片的请求；而 LCP 图恰恰是首屏最关键、最早就要呈现的元素，lazy 会推迟它的发现与请求起点，直接拉长 LCP。正确做法是 LCP 图用默认的 eager（不写 lazy 或显式 loading=\"eager\"），配 decoding=\"async\" 避免阻塞解码，并让 <img> 尽量早出现在 HTML 中、带上 width/height 减少 CLS。(2) fetchpriority=\"high\" 适合图片本身能被浏览器较早发现、只是优先级偏低的情况，它在图片这一类资源内部提高相对优先级，改动最小、首选；preload 适合 LCP 资源发现得太晚的场景——例如背景图藏在 CSS 里、或图片在文档很深处/依赖脚本渲染，preload 能在解析早期就强制发起请求，绕过晚发现。二者叠加时：对同一 LCP 图优先用 fetchpriority，只有发现时机确实晚才再加 preload；preload 必须写对 as=\"image\" 与 crossorigin，且不要给一堆非关键资源 preload，否则会与关键请求争抢带宽和连接，反而劣化 LCP。(3) 瀑布图上优化前表现为 LCP 图请求起点靠后（晚发现）、优先级低、可能还要等新连接；优化后请求起点前移（早发现/preload）、优先级条上移（fetchpriority），并通过同域/ preconnect 复用已有连接、省掉重复 DNS-TCP-TLS，于是从请求发起到资源下载完成的整段被压缩，LCP 时间下降。"
+    },
+    "analysis": "本题核心是把 LCP 优化拆成\"发现时机\"和\"请求优先级\"两个独立杠杆。lazy 的问题在推迟发现，fetchpriority 解决的是已发现资源的优先级偏低，preload 解决的是发现过晚或被 CSS 隐藏的资源——三者作用层次不同。高分答案会强调不要滥用 preload 抢占关键带宽，以及 crossorigin/as 一致性导致的二次下载坑，并能落到瀑布图的具体阶段（发现、排队、连接、下载）来解释收益。",
+    "gapCheck": [
+      "易漏点：LCP 图绝不能 lazy；lazy 不仅延后加载，浏览器还会主动推迟懒加载请求的发起。",
+      "常见误区：一上来就 preload 所有大图，导致非关键资源抢占关键带宽；应先判断是\"发现晚\"还是\"优先级低\"再选 preload/fetchpriority。",
+      "排查线索：在 Performance/Network 中标记 LCP 条目，核对其 requestStart 与发现时机、优先级（Priority 列）及 Connection ID，定位是发现晚还是排队久。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.optimize.load-priority"
+      ],
+      "related": [
+        "fe.network.optimize.conn-reuse",
+        "fe.vue.perf.virtual-list"
+      ],
+      "followUps": [
+        "如何判断一个 LCP 慢是\"资源加载慢\"还是\"渲染延迟（render delay）\"？",
+        "背景图作为 LCP 元素时为什么比 <img> 更难优化？",
+        "preload 字体时为什么同源也要写 crossorigin，写错会发生什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 LCP 优化、懒加载与资源优先级最佳实践编写"
+    },
+    "tags": [
+      "LCP",
+      "懒加载",
+      "性能优化"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0031"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.realtime.sse",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：浏览器原生 EventSource 基于普通的 ______ 方法建立长连接，其响应头 Content-Type 必须是 ______；服务端可在事件流中用名为 ______ 的字段指定断线后的重连等待毫秒数；浏览器自动重连时会携带 ______ 请求头告知服务端最后收到的事件 id；EventSource 的 readyState 取值 0 表示 ______ 状态。",
+    "answer": {
+      "blanks": [
+        "GET",
+        "text/event-stream",
+        "retry",
+        "Last-Event-ID",
+        "CONNECTING"
+      ],
+      "synonyms": {
+        "GET": [
+          "get",
+          "GET 请求"
+        ],
+        "text/event-stream": [
+          "text/event-stream（事件流）"
+        ],
+        "retry": [
+          "retry 字段",
+          "retry（重连间隔）"
+        ],
+        "Last-Event-ID": [
+          "Last-Event-ID 请求头",
+          "Last-Event-ID 头"
+        ],
+        "CONNECTING": [
+          "CONNECTING（连接中）",
+          "连接中"
+        ]
+      }
+    },
+    "analysis": "EventSource 是建立在标准 HTTP 之上的单向服务器推送：它只能用 GET 打开一条长连接，服务端响应必须声明 Content-Type: text/event-stream，按 `data:`/`event:`/`id:`/`retry:` 等字段逐事件下发。retry 字段告诉浏览器重连前等待的毫秒数；当流中断、浏览器自动重连时，会通过 Last-Event-ID 请求头回传最后处理过的事件 id，服务端据此续传漏掉的消息。readyState 三态：0=CONNECTING（正在连接/重连）、1=OPEN（开放）、2=CLOSED（已关闭）。注意 EventSource 只支持 GET 与纯文本、不支持自定义请求头，需要复杂鉴权/二进制时应改用 fetch 流式或 WebSocket。",
+    "gapCheck": [
+      "易漏点：EventSource 只能 GET、Content-Type 必须是 text/event-stream，且浏览器原生不支持自定义请求头。",
+      "常见误区：以为 SSE 断线重连是无状态的，实际会带 Last-Event-ID，需要服务端配合按 id 续传才不丢消息。",
+      "排查线索：连接反复重连时在 Network 看请求头 Last-Event-ID 与响应的 retry 字段，并确认代理没有缓冲 event-stream。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.realtime.sse"
+      ],
+      "related": [
+        "fe.network.realtime.websocket",
+        "fe.network.transport.http-basics"
+      ],
+      "followUps": [
+        "SSE 与 WebSocket 在方向性、协议、二进制支持上各有什么边界？",
+        "为什么 nginx 默认缓冲会让 SSE 消息迟迟不到前端？怎么关？",
+        "需要带复杂鉴权头时 EventSource 受限，应如何用 fetch + ReadableStream 替代？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 EventSource/服务器发送事件规范与重连机制编写"
+    },
+    "tags": [
+      "SSE",
+      "断线续传",
+      "API 细节"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0032"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.realtime.websocket",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 WebSocket 协议与浏览器 WebSocket API，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "握手是一次携带 Upgrade: websocket 与 Connection: Upgrade 的 HTTP/1.1 请求，服务端同意后返回 101 Switching Protocols，之后连接切换为双向帧协议。"
+      },
+      {
+        "key": "B",
+        "text": "wss:// 是跑在 TLS 之上的 WebSocket，对应 HTTPS 的加密层；HTTPS 页面中的混合内容限制会阻止其连接明文 ws:// 端点。"
+      },
+      {
+        "key": "C",
+        "text": "同一连接可双向并发发送文本帧（UTF-8）与二进制帧，接收端用 binaryType 选择以 blob 还是 arraybuffer 形式拿到二进制数据。"
+      },
+      {
+        "key": "D",
+        "text": "浏览器原生 WebSocket 会自动做应用层心跳并在断线后自动重连，业务无需关心连接存活。"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A 正确：WebSocket 借一次 HTTP/1.1 Upgrade 握手（带 Sec-WebSocket-Key 等头）完成协议升级，101 之后同一 TCP 连接上改用 WebSocket 帧双向通信。B 正确：wss 即 WebSocket over TLS，加密与端口语义对应 HTTPS；安全上下文页面受混合内容策略约束，不能连接明文 ws。C 正确：全双工连接上文本与二进制帧可双向交错传输，binaryType=\"blob\"|\"arraybuffer\" 决定 message 事件里二进制数据的类型。D 错误：虽然协议层定义了 ping/pong 控制帧，但浏览器 API 不暴露自动应用层心跳，也不会在连接断开后自动重连——检测死连接、定时心跳、指数退避重连与消息补发都要业务自己实现，这正是工程题的重点。",
+    "gapCheck": [
+      "易漏点：协议层 ping/pong 不等于应用层心跳，浏览器既不暴露自动心跳也不自动重连，需自行实现。",
+      "常见误区：以为 new WebSocket 之后连接永远可用，忽略 NAT 超时、移动端切后台等造成的\"静默死链\"。",
+      "排查线索：用 Network 的 WS 面板观察握手 101 与帧收发，结合 close 事件 code/wasClean 判断是正常关闭还是异常断链。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.realtime.websocket"
+      ],
+      "related": [
+        "fe.network.realtime.sse",
+        "fe.network.transport.http-basics"
+      ],
+      "followUps": [
+        "应用层心跳间隔一般怎么定？过短或过长各有什么问题？",
+        "重连时如何保证消息不丢、不重？序号+ack 机制怎么设计？",
+        "Sec-WebSocket-Key/Accept 是用来做鉴权还是仅证明握手有效？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 WebSocket 协议握手、帧与浏览器 API 语义编写"
+    },
+    "tags": [
+      "WebSocket",
+      "握手",
+      "心跳重连"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0033"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.transfer.upload",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：对超大文件计算整体内容 hash（如 spark-md5 或 Web Crypto 的 SHA-256）用于秒传判重时，一次性在主线程读完整个文件会阻塞 UI；工程上应放到 Web Worker 中按切片增量计算 hash，对特别大的文件还可用\"采样 hash + 文件大小等复合指纹\"在判重准确率与计算耗时之间折中。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。秒传的依据是文件指纹（内容 hash），但在主线程对 GB 级文件做全量读取和哈希会占用主线程、造成卡顿甚至假死。规范做法是利用 Blob.slice 把文件切块，在 Web Worker 内用增量方式（spark-md5 的 append，或 crypto.subtle.digest 分块累积）计算，避免阻塞渲染；Worker 还可通过进度回调驱动 UI。对超大文件，全量 hash 本身耗时可观，常见折中是采样指纹（取首尾、固定间隔若干块）结合文件大小、修改时间等构成复合指纹，以极小的碰撞概率换取大幅提速，但要明确它不是严格的逐字节唯一，需在服务端兜底校验。",
+    "gapCheck": [
+      "易漏点：全量 hash 要放进 Web Worker 并按 slice 分块增量计算，主线程只做调度与进度展示。",
+      "常见误区：把采样指纹当成严格唯一，忽略其碰撞概率，关键场景需服务端对命中指纹再做校验。",
+      "排查线索：上传时页面掉帧/无响应，用 Performance 录制定位主线程长任务是否来自 FileReader/哈希计算。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transfer.upload"
+      ],
+      "related": [
+        "fe.network.optimize.conn-reuse",
+        "fe.js.async.event-loop"
+      ],
+      "followUps": [
+        "秒传命中后服务端如何在不接收数据的情况下完成\"复制\"？",
+        "分片并发上传时如何控制并发数与失败重试？",
+        "Web Crypto 的 digest 是全量接口，如何结合分块实现增量哈希？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于文件指纹、Web Worker 与分片秒传工程实践编写"
+    },
+    "tags": [
+      "秒传",
+      "Web Worker",
+      "大文件"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0034"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.transfer.upload",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "填空：对象存储（OSS/S3 类）直传的常见流程是，前端先向后端申请临时 ______（STS 令牌或预签名 URL），再用 HTTP 的 ______ 方法把数据直接上传到对象存储，使文件流量不经过业务服务器；分片上传全部完成后，需要调用 ______ 接口把各分片合并成完整对象；断点续传时只重传缺失分片，这依赖服务端记录的每个分片 ______ 来核对已上传部分。",
+    "answer": {
+      "blanks": [
+        "STS 临时凭证",
+        "PUT",
+        "CompleteMultipartUpload",
+        "ETag"
+      ],
+      "synonyms": {
+        "STS 临时凭证": [
+          "临时凭证",
+          "STS",
+          "预签名 URL",
+          "presigned URL",
+          "临时访问凭证"
+        ],
+        "PUT": [
+          "put",
+          "HTTP PUT"
+        ],
+        "CompleteMultipartUpload": [
+          "completeMultipartUpload",
+          "合并分片",
+          "Complete",
+          "完成分片上传"
+        ],
+        "ETag": [
+          "etag",
+          "分片 ETag",
+          "分片清单",
+          "ETag 列表"
+        ]
+      }
+    },
+    "analysis": "直传架构的核心是让业务服务器只做\"发凭证/记账\"，不中转文件流：前端用后端下发的 STS 临时凭证（或预签名 URL）获得对对象存储的有限时效授权，随后通过 HTTP PUT（S3 语义）把对象/分片直接 PUT 到存储桶。Multipart Upload 分三步——initiate 初始化拿到 uploadId、逐块 uploadPart 上传并收回每块的 ETag、最后调 CompleteMultipartUpload 携带分片号与 ETag 清单完成合并；AbortMultipartUpload 用于放弃。断点续传时先 listParts 或凭本地记录拿到已上传分片的 ETag/编号，只补传缺失块，从而避免整文件重传。",
+    "gapCheck": [
+      "易漏点：业务服务器只签发临时凭证、不中转流量；真正的文件数据走前端到对象存储的直传链路。",
+      "常见误区：把分片上传当成传完即可，忽略必须显式 Complete 合并，未完成的 multipart 会残留并可能持续计费。",
+      "排查线索：续传仍重传整文件时，核对是否正确保存并比对了 uploadId 与各分片 ETag/编号。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transfer.upload"
+      ],
+      "related": [
+        "fe.network.transport.cors-cookie",
+        "fe.network.transport.http-basics"
+      ],
+      "followUps": [
+        "预签名 URL 与 STS 临时凭证在授权粒度和时效上有什么区别？",
+        "直传场景下浏览器跨域 PutObject 需要对象存储侧配哪些 CORS 规则？",
+        "未调用 Complete 的分片残留如何通过生命周期规则清理？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 S3/OSS Multipart Upload 直传流程与临时授权机制编写"
+    },
+    "tags": [
+      "直传",
+      "分片上传",
+      "对象存储"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0035"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.transport.cache-strategy",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于现代浏览器缓存指令，下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "Cache-Control: no-cache 表示浏览器完全不写入缓存，每次都重新下载完整响应。"
+      },
+      {
+        "key": "B",
+        "text": "文件名带 contenthash 的不可变静态资源适合配 Cache-Control: public, max-age=31536000, immutable，发版通过更换文件名来使旧缓存自然失效。"
+      },
+      {
+        "key": "C",
+        "text": "协商缓存命中（ETag/If-None-Match 校验通过）时，服务器返回 200 并重新下发完整响应体。"
+      },
+      {
+        "key": "D",
+        "text": "Expires 与 Cache-Control 互斥，一旦设置 Expires 就不能再使用 Cache-Control。"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确：构建产物文件名含内容 hash，内容不变则文件名不变，可放心给一年长 max-age 并加 immutable（在有效期内即使手动刷新也不重新校验），发版后引用的新 hash 文件名天然是新 URL、新缓存，兼顾高命中与即时生效。A 错误：no-cache 不是不存储，而是允许缓存但每次使用前必须向服务器 revalidate（带条件请求），真正禁止存储的是 no-store。C 错误：协商缓存校验通过返回 304 Not Modified，响应无 body，浏览器复用本地副本；只有未命中才 200 带完整 body。D 错误：Expires 与 Cache-Control 可共存，Cache-Control 优先级更高并会覆盖 Expires，现代实践以 Cache-Control 为主、Expires 作老旧客户端兜底。",
+    "gapCheck": [
+      "易漏点：no-cache 是\"用前必校验\"而非不缓存，no-store 才是禁止存储；immutable 让刷新也不 revalidate。",
+      "常见误区：以为协商缓存命中会重新下载 body，实际 304 无响应体，只传头部。",
+      "排查线索：在 Network 面板区分 200 (from disk/memory cache) 与 304，核对响应头 Cache-Control/ETag 是否符合预期策略。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transport.cache-strategy"
+      ],
+      "related": [
+        "fe.network.transport.http-basics",
+        "fe.network.optimize.load-priority"
+      ],
+      "followUps": [
+        "index.html 为什么通常不能像带 hash 的 JS 那样配长强缓存？应怎么配？",
+        "immutable 在用户主动刷新时的行为与普通 max-age 有何不同？",
+        "stale-while-revalidate 与纯协商缓存在用户体验上有什么差别？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 HTTP 缓存控制指令与前端构建产物缓存策略编写"
+    },
+    "tags": [
+      "强缓存",
+      "协商缓存",
+      "高频"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0036"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.transport.cache-strategy",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：stale-while-revalidate 允许缓存先把已过期（stale）的响应立即返回给页面，同时在后台异步发起重新校验以更新缓存，从而消除当前请求的网络等待、并让后续请求拿到新鲜内容；它适合可容忍短暂陈旧的静态资源或接口，但不适合要求强一致的实时数据。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。stale-while-revalidate（SWR）是 Cache-Control 的现代指令（如 Cache-Control: max-age=60, stale-while-revalidate=600）：在宽限期内命中过期副本时，浏览器立即用旧响应满足当前请求（零网络等待），并行后台发条件请求刷新缓存，下一次请求即可用新副本。它用\"可接受的短暂陈旧\"换\"即时响应\"，非常适合字体、带 hash 的资源、非实时接口等；但对账户余额、库存、权限这类强一致数据，陈旧值可能导致错误决策，应改用 no-cache 协商校验或短 max-age 并在关键操作前强制刷新。HTTP 层面之外，前端数据请求库（如 SWR/TanStack Query）也借鉴了同名策略。",
+    "gapCheck": [
+      "易漏点：SWR 是\"先返回 stale、后台再 revalidate\"，当前请求零等待、新鲜度在下一次请求体现。",
+      "常见误区：把 SWR 用到强一致场景，忽略旧值可能让用户基于过期数据做决策。",
+      "排查线索：在 Network 观察是否出现\"页面先用缓存渲染、随后后台异步 304/200 更新\"的两段式请求模式。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transport.cache-strategy"
+      ],
+      "related": [
+        "fe.network.transport.http-basics",
+        "fe.network.optimize.load-priority"
+      ],
+      "followUps": [
+        "stale-while-revalidate 与 stale-if-error 分别解决什么问题？",
+        "前端请求库的 SWR 策略和 HTTP 头部的 SWR 是同一层的东西吗？",
+        "如何为强一致接口设计既快又不出错的缓存策略？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 Cache-Control stale-while-revalidate 指令与缓存新鲜度模型编写"
+    },
+    "tags": [
+      "SWR",
+      "缓存策略",
+      "现代特性"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0037"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.transport.cors-cookie",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：跨域且携带 Cookie 的请求中，服务端返回 Access-Control-Allow-Origin: * 通配符时浏览器仍会正常放行带凭证的响应；并且 Cookie 设置 SameSite=None 时不需要 Secure 就可以跨站发送。",
+    "answer": {
+      "judge": false
+    },
+    "analysis": "错误，两个分句都不成立。其一，带凭证请求（fetch 的 credentials:\"include\" 或 XHR withCredentials）不允许 ACAO 使用通配符 *，服务端必须回显具体的 Origin 值，同时返回 Access-Control-Allow-Credentials: true，否则浏览器拦截响应。其二，Cookie 要跨站发送必须设置 SameSite=None，而规范强制 SameSite=None 必须同时带 Secure（仅 HTTPS 下生效），缺少 Secure 的这类 Cookie 会被浏览器直接拒绝。补充：跨站 Cookie 还受第三方 Cookie 策略影响，现代浏览器对第三方 Cookie 限制趋严，SameSite=Lax（默认）下跨站子请求默认不带 Cookie，这是面试高频坑。",
+    "gapCheck": [
+      "易漏点：带凭证时 ACAO 不能用 *，必须回显具体 Origin 且配 Access-Control-Allow-Credentials: true。",
+      "常见误区：以为 SameSite=None 可单独使用，实际必须搭配 Secure，否则 Cookie 被拒。",
+      "排查线索：跨域登录态丢失时，同时核对响应头 ACAO/ACAC、Set-Cookie 的 SameSite/Secure，以及浏览器对第三方 Cookie 的拦截提示。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transport.cors-cookie"
+      ],
+      "related": [
+        "fe.network.transport.http-basics",
+        "fe.network.transfer.upload"
+      ],
+      "followUps": [
+        "预检请求在什么条件下会被触发？如何用简单请求规避预检？",
+        "SameSite 的 Strict/Lax/None 在跨站导航与子请求下各带不带 Cookie？",
+        "第三方 Cookie 被逐步禁用后，跨站登录有哪些替代方案？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 CORS 凭证模式与 SameSite/Secure Cookie 规范编写"
+    },
+    "tags": [
+      "CORS",
+      "Cookie",
+      "高频易错"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0038"
+  },
+  {
+    "g": 2,
+    "nodeId": "fe.network.transport.http-basics",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "下列关于 HTTP 状态码、方法语义与 fetch 行为的说法，正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "301/308 是永久重定向、302/307 是临时重定向；307/308 会保留原请求方法与请求体，而传统 301/302 在多数浏览器里把 POST 重定向时可能改成 GET。"
+      },
+      {
+        "key": "B",
+        "text": "409 Conflict 常用于资源状态冲突（如乐观锁版本不符），429 Too Many Requests 表示触发限流，二者都属于 4xx 客户端错误类别。"
+      },
+      {
+        "key": "C",
+        "text": "fetch 收到 404 或 500 响应时返回的 Promise 会 reject，必须靠 try/catch 才能读到状态码。"
+      },
+      {
+        "key": "D",
+        "text": "PUT 与 POST 一样天然非幂等，重复提交总会在服务端创建多份资源。"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B"
+      ]
+    },
+    "analysis": "A 正确：301/308 永久、302/307 临时；新增的 307/308 明确要求保持方法与 body，而老的 301/302 历史上被浏览器普遍实现为 POST 重定向后降级为 GET，这也是引入 307/308 的原因。B 正确：409 表示请求与服务器当前资源状态冲突（典型如版本号/并发冲突），429 表示请求过多被限流，二者都是 4xx。C 错误：fetch 只在网络层失败（断网、DNS 失败、CORS 被拦）时 reject；HTTP 4xx/5xx 仍是正常收到响应，Promise 会 resolve，需要用 response.ok 或 response.status 判定。D 错误：PUT 是幂等方法，语义是用请求体完整替换指定 URI 的资源，重复调用结果相同；POST 通常非幂等、重复提交可能创建多份资源。",
+    "gapCheck": [
+      "易漏点：fetch 不会因 HTTP 错误状态而 reject，只有网络/CORS 层失败才 reject，错误状态要靠 ok/status 判断。",
+      "常见误区：混淆 302 与 307——307 保留方法和 body，302 可能把 POST 变 GET。",
+      "排查线索：接口\"报错却进了 then\"时，先打印 response.ok/status，确认是否把 HTTP 错误状态当成了网络异常处理。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.network.transport.http-basics"
+      ],
+      "related": [
+        "fe.network.transport.cache-strategy",
+        "fe.network.transport.cors-cookie"
+      ],
+      "followUps": [
+        "幂等性在接口设计（重试、消息去重）中有什么实际意义？",
+        "301 与 308 对 SEO 和浏览器缓存重定向的行为有何差异？",
+        "429 响应通常配合哪些头部告知重试间隔？前端如何退避？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 HTTP 方法语义、状态码与 Fetch 标准行为编写"
+    },
+    "tags": [
+      "状态码",
+      "幂等",
+      "fetch"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0039"
+  }
+]

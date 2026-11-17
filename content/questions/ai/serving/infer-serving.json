@@ -6,25 +6,74 @@
     "difficulty": 3,
     "stem": "vLLM 论文（PagedAttention）解决的核心痛点，按论文口径最准确的是：",
     "options": [
-      { "key": "A", "text": "注意力算得太慢，PagedAttention 用稀疏化把 O(n²) 降为 O(n log n)" },
-      { "key": "B", "text": "既有系统把每序列 KV Cache 存进连续显存造成严重碎片与预留浪费（实测有效利用率仅 20~40%），PagedAttention 把 OS 分页思想搬进来用块表管理 KV，近乎零浪费地提升批量容量与吞吐" },
-      { "key": "C", "text": "多请求的 KV 互相污染，PagedAttention 给每个 token 单独加密解决隔离" },
-      { "key": "D", "text": "PagedAttention 通过丢弃远历史 token 的 KV 来省显存，本质是无损窗口截断" }]
-    ,
-    "answer": { "keys": ["B"] },
-    "analysis": "论文的立论就是显存管理而非算法加速：连续分配按最大可能长度预留→实际生成长度未知导致内部碎片、free 显存被切成无法利用的小块，KV 有效占用仅两至四成；借鉴虚拟内存分页把 KV 切成固定 size 块+块表映射，浪费降到 <4%，于是同卡能塞更大 batch→吞吐 2~4×（对比当时 SOTA）→ B 完整。A 张冠李戴（PagedAttention 不改复杂度，FlashAttention 才优化注意力计算本身）；C 编造（污染问题不存在，序列间本就分开寻址）；D 混淆了 PagedAttention 与滑窗/驱逐类方案（前者精确保留全部 KV，只是换个存法）。",
-    "gapCheck": ["易漏点：『Prefill 算力受限、Decode 访存受限』的两阶段画像要顺带给出——这是理解 KV 为何值钱的前提", "常见误区：把 PagedAttention 与 prefix caching 混谈：前者是存储布局，后者是跨请求复用 KV（vLLM 里两者叠加使用）", "加分项：报出『碎片导致 20~40% 有效利用』的论文数字，并说出块大小（block size）对碎片与注意力的权衡"],
-    "knowledgeLinks": {
-      "prereq": ["ai.serving.infer-serving.kv-cache-batching"],
-      "related": ["ai.serving.infer-serving.cost-latency", "ai.llm"],
-      "followUps": ["KV 公式手推：70B 模型 GQA 下每 token 多少字节？", "continuous batching 和 PagedAttention 谁贡献的吞吐大？它们解决的是同一问题吗？", "chunked prefill 为什么会把 TTFT 变差又变好？"]
+      {
+        "key": "A",
+        "text": "注意力算得太慢，PagedAttention 用稀疏化把 O(n²) 降为 O(n log n)"
+      },
+      {
+        "key": "B",
+        "text": "既有系统把每序列 KV Cache 存进连续显存造成严重碎片与预留浪费（实测有效利用率仅 20~40%），PagedAttention 把 OS 分页思想搬进来用块表管理 KV，近乎零浪费地提升批量容量与吞吐"
+      },
+      {
+        "key": "C",
+        "text": "多请求的 KV 互相污染，PagedAttention 给每个 token 单独加密解决隔离"
+      },
+      {
+        "key": "D",
+        "text": "PagedAttention 通过丢弃远历史 token 的 KV 来省显存，本质是无损窗口截断"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
     },
-    "resources": [{ "title": "vLLM / PagedAttention 论文", "digest": "arXiv:2309.06180：量化连续 KV 管理的碎片浪费（60~80% 显存被浪费），提出分页 KV+块表与 copy-on-write 共享，报告吞吐 2~4× 提升；vLLM 官方 docs 有 block size/prefix caching 实现细节。" }],
+    "analysis": "论文的立论就是显存管理而非算法加速：连续分配按最大可能长度预留→实际生成长度未知导致内部碎片、free 显存被切成无法利用的小块，KV 有效占用仅两至四成；借鉴虚拟内存分页把 KV 切成固定 size 块+块表映射，浪费降到 <4%，于是同卡能塞更大 batch→吞吐 2~4×（对比当时 SOTA）→ B 完整。A 张冠李戴（PagedAttention 不改复杂度，FlashAttention 才优化注意力计算本身）；C 编造（污染问题不存在，序列间本就分开寻址）；D 混淆了 PagedAttention 与滑窗/驱逐类方案（前者精确保留全部 KV，只是换个存法）。",
+    "gapCheck": [
+      "易漏点：『Prefill 算力受限、Decode 访存受限』的两阶段画像要顺带给出——这是理解 KV 为何值钱的前提",
+      "常见误区：把 PagedAttention 与 prefix caching 混谈：前者是存储布局，后者是跨请求复用 KV（vLLM 里两者叠加使用）",
+      "加分项：报出『碎片导致 20~40% 有效利用』的论文数字，并说出块大小（block size）对碎片与注意力的权衡"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.serving.infer-serving.kv-cache-batching"
+      ],
+      "related": [
+        "ai.serving.infer-serving.cost-latency",
+        "ai.llm"
+      ],
+      "followUps": [
+        "KV 公式手推：70B 模型 GQA 下每 token 多少字节？",
+        "continuous batching 和 PagedAttention 谁贡献的吞吐大？它们解决的是同一问题吗？",
+        "chunked prefill 为什么会把 TTFT 变差又变好？"
+      ]
+    },
+    "resources": [
+      {
+        "title": "vLLM / PagedAttention 论文",
+        "digest": "arXiv:2309.06180：量化连续 KV 管理的碎片浪费（60~80% 显存被浪费），提出分页 KV+块表与 copy-on-write 共享，报告吞吐 2~4× 提升；vLLM 官方 docs 有 block size/prefix caching 实现细节。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "official", "url": "https://arxiv.org/abs/2309.06180", "retrievedAt": "2026-11-09", "note": "论文官方 arXiv 页；实现佐证见 docs.vllm.ai 的 PagedAttention/自动缓存章节", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["推理核心", "论文口径", "必考"],
+    "learnFirst": true,
+    "source": {
+      "kind": "official",
+      "url": "https://arxiv.org/abs/2309.06180",
+      "retrievedAt": "2026-11-09",
+      "note": "论文官方 arXiv 页；实现佐证见 docs.vllm.ai 的 PagedAttention/自动缓存章节",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "推理核心",
+      "论文口径",
+      "必考"
+    ],
     "variants": [
-      { "angle": "追问延伸", "stem": "追问：Agent 工作负载（超长 prompt+多轮复用前缀）对 vLLM 这类引擎最友好的特性组合是什么？给出你的部署配置与理由。", "analysis": "组合拳：automatic prefix caching 开满（Agent 每轮重复 system+tools+历史前缀，命中即免重算，TTFT 与成本双降）+chunked prefill（长 prompt 的 prefill 与 decode 混批，防止新请求的巨型 prefill 饿死在跑的 decode，稳 TPOT）+足够大的 gpu_memory_utilization 与合理 block size 提高缓存驻留+必要时 KV offload/分层缓存（HBM→CPU→SSD 按命中率）撑住多会话并发。理由链要闭环：Agent 负载的瓶颈是前缀重复计算与 KV 驻留量，不是 FLOPS。能指出『prefix cache 命中率是你最该监控的推理指标』即为生产级认知。" }
+      {
+        "angle": "追问延伸",
+        "stem": "追问：Agent 工作负载（超长 prompt+多轮复用前缀）对 vLLM 这类引擎最友好的特性组合是什么？给出你的部署配置与理由。",
+        "analysis": "组合拳：automatic prefix caching 开满（Agent 每轮重复 system+tools+历史前缀，命中即免重算，TTFT 与成本双降）+chunked prefill（长 prompt 的 prefill 与 decode 混批，防止新请求的巨型 prefill 饿死在跑的 decode，稳 TPOT）+足够大的 gpu_memory_utilization 与合理 block size 提高缓存驻留+必要时 KV offload/分层缓存（HBM→CPU→SSD 按命中率）撑住多会话并发。理由链要闭环：Agent 负载的瓶颈是前缀重复计算与 KV 驻留量，不是 FLOPS。能指出『prefix cache 命中率是你最该监控的推理指标』即为生产级认知。"
+      }
     ]
   },
   {
@@ -33,19 +82,45 @@
     "type": "judge",
     "difficulty": 3,
     "stem": "判断正误：模型在 MMLU 上量化前后只差 0.5%，就可以安全地把 INT4 量化版替换到生产——因为通用基准的微小差距意味着所有下游任务都近似无损。",
-    "answer": { "judge": false },
+    "answer": {
+      "judge": false
+    },
     "analysis": "聚合基准掩盖任务敏感性差异：MMLU 是多选题平均，对格式遵循、精确数值生成、长尾代码符号这类『一个 token 错就全盘崩』的任务分辨率极低——INT4 常见现象恰是选择题几乎不掉、生成式代码/结构化输出掉得多（误差在自回归中复利放大）。另外 MMLU 的 0.5% 本身可能在噪声区间内（评测方差就有这个量级）。正确姿势：量化评估必须任务化——用业务自己的评估集测 pass^k/格式合规率/代码通过率，并测长尾（罕见语言、长上下文）。",
-    "gapCheck": ["易漏点：『量化误差在自回归解码里复利』这句机制解释是关键——首个坏 token 污染后续全部条件", "常见误区：只在短样本上测量化版——长上下文下 KV 量化+累积误差的组合惩罚要单独测", "加分项：给出安全的替换流程——影子评估→金丝雀流量→按任务风险分级放量（低风险先行）"],
+    "gapCheck": [
+      "易漏点：『量化误差在自回归解码里复利』这句机制解释是关键——首个坏 token 污染后续全部条件",
+      "常见误区：只在短样本上测量化版——长上下文下 KV 量化+累积误差的组合惩罚要单独测",
+      "加分项：给出安全的替换流程——影子评估→金丝雀流量→按任务风险分级放量（低风险先行）"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.serving.infer-serving.quantize-accel"],
-      "related": ["ai.eval.evaluation-qa.metrics-dataset", "ai.train.finetune-vs-rag.finetune-decision"],
-      "followUps": ["AWQ/GPTQ/bitsandbytes 各自的适用面？", "FP8 训练和 W4A16 推理可以同时用吗？分别省哪头？", "你们的哪个任务最先扛不住量化？你测过吗？"]
+      "prereq": [
+        "ai.serving.infer-serving.quantize-accel"
+      ],
+      "related": [
+        "ai.eval.evaluation-qa.metrics-dataset",
+        "ai.train.finetune-vs-rag.finetune-decision"
+      ],
+      "followUps": [
+        "AWQ/GPTQ/bitsandbytes 各自的适用面？",
+        "FP8 训练和 W4A16 推理可以同时用吗？分别省哪头？",
+        "你们的哪个任务最先扛不住量化？你测过吗？"
+      ]
     },
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "自创判断题；依据为量化文献共识（任务相关退化）与各推理栈文档的『按任务评估量化』建议" },
-    "tags": ["量化祛魅", "判断题", "评估素养"],
+    "source": {
+      "kind": "self-authored",
+      "note": "自创判断题；依据为量化文献共识（任务相关退化）与各推理栈文档的『按任务评估量化』建议"
+    },
+    "tags": [
+      "量化祛魅",
+      "判断题",
+      "评估素养"
+    ],
     "variants": [
-      { "angle": "换场景", "stem": "场景计算题：预算固定 $2000/月。方案 A：旗舰大模型 API 标准价，月支撑约 80 万次调用；方案 B：开源 70B 的 INT4 自托管+量化 KV，同预算支撑约 400 万次但小任务质量约等于上一档。你要服务 300 万次调用的需求，怎么定方案？给出决策要素而不是直接选 B。", "analysis": "要素清单：①任务分布拆分——那 300 万里有多少比例属于『B 的质量也够』的（分类/抽取/短问答），多少必须 A（复杂推理/长文写作）？路由混合（70% 走 B+30% 走 A）常是最优解，预算立刻打平；②质量差的钱值：B 掉的那档质量折算成转人工率/返工成本是多少；③运维隐性成本：自托管 400 万次要配 GPU 运维与值班，人力不在 $2000 里；④峰值弹性与 SLA：突发流量 B 能否扩容。满分答案必然给出『路由+按任务分级』而不是二选一，并报出决策所需的关键数据。" }
+      {
+        "angle": "换场景",
+        "stem": "场景计算题：预算固定 $2000/月。方案 A：旗舰大模型 API 标准价，月支撑约 80 万次调用；方案 B：开源 70B 的 INT4 自托管+量化 KV，同预算支撑约 400 万次但小任务质量约等于上一档。你要服务 300 万次调用的需求，怎么定方案？给出决策要素而不是直接选 B。",
+        "analysis": "要素清单：①任务分布拆分——那 300 万里有多少比例属于『B 的质量也够』的（分类/抽取/短问答），多少必须 A（复杂推理/长文写作）？路由混合（70% 走 B+30% 走 A）常是最优解，预算立刻打平；②质量差的钱值：B 掉的那档质量折算成转人工率/返工成本是多少；③运维隐性成本：自托管 400 万次要配 GPU 运维与值班，人力不在 $2000 里；④峰值弹性与 SLA：突发流量 B 能否扩容。满分答案必然给出『路由+按任务分级』而不是二选一，并报出决策所需的关键数据。"
+      }
     ]
   },
   {
@@ -54,27 +129,76 @@
     "type": "short",
     "difficulty": 3,
     "stem": "按 OpenAI 官方 latency optimization 指南的分层，把降低延迟的手段按 Prefill / Decode / 其他基础设施三层各列至少两条，并说明为什么『优化延迟』要先拆 TTFT 与 TPOT 再谈手段。",
-    "answer": { "ref": "【先拆两指标的理由】TTFT=排队+prefill 全长+缓存命中情况决定——用户感知是『多久开始出字』；TPOT=decode 逐 token 的访存与采样决定——感知是『出字多快』。两病的药不同：流式产品的卡顿多半是 TPOT 病，长文档首屏慢是 prefill 病，混着治会白费招。【Prefill 层】prompt caching（命中前缀免算，指南称可大幅降 TTFT 与成本）、精简/压缩输入（少喂即是少算）、把高频长 system+工具定义做成稳定前缀、必要时用更小的模型做 prefill 密集子任务。【Decode 层】投机解码（官方称 speculative decoding 可降延迟最高约三分之二）、流式输出（感知提速+早停能力）、控制 max_tokens 与让模型说重点、减少采样轮次（一次结构化输出代替多轮追问）。【基础层】低延迟区域/专用部署（如 batch 与大流量分离）、跨区域路由与就近接入、SDK 与网络优化（连接复用、HTTP/2）、以及排队侧的配额与优先级。收尾观点：Agent 场景要先算『全 turn 端到端』（TTFT+轮数×每轮开销）而非单次调用——轮次是最被低估的延迟乘数。" },
+    "answer": {
+      "ref": "【先拆两指标的理由】TTFT=排队+prefill 全长+缓存命中情况决定——用户感知是『多久开始出字』；TPOT=decode 逐 token 的访存与采样决定——感知是『出字多快』。两病的药不同：流式产品的卡顿多半是 TPOT 病，长文档首屏慢是 prefill 病，混着治会白费招。【Prefill 层】prompt caching（命中前缀免算，指南称可大幅降 TTFT 与成本）、精简/压缩输入（少喂即是少算）、把高频长 system+工具定义做成稳定前缀、必要时用更小的模型做 prefill 密集子任务。【Decode 层】投机解码（官方称 speculative decoding 可降延迟最高约三分之二）、流式输出（感知提速+早停能力）、控制 max_tokens 与让模型说重点、减少采样轮次（一次结构化输出代替多轮追问）。【基础层】低延迟区域/专用部署（如 batch 与大流量分离）、跨区域路由与就近接入、SDK 与网络优化（连接复用、HTTP/2）、以及排队侧的配额与优先级。收尾观点：Agent 场景要先算『全 turn 端到端』（TTFT+轮数×每轮开销）而非单次调用——轮次是最被低估的延迟乘数。"
+    },
     "scoringPoints": [
-      { "point": "TTFT/TPOT 两分法及各自用户感知讲清", "weight": 2 },
-      { "point": "Prefill 层 ≥2 条且含 prompt caching", "weight": 2 },
-      { "point": "Decode 层 ≥2 条且含投机解码或流式", "weight": 2 },
-      { "point": "基础层 ≥1 条不与前两层重复", "weight": 1 },
-      { "point": "落到 Agent 端到端（轮次乘数）的全局观", "weight": 1 }
+      {
+        "point": "TTFT/TPOT 两分法及各自用户感知讲清",
+        "weight": 2
+      },
+      {
+        "point": "Prefill 层 ≥2 条且含 prompt caching",
+        "weight": 2
+      },
+      {
+        "point": "Decode 层 ≥2 条且含投机解码或流式",
+        "weight": 2
+      },
+      {
+        "point": "基础层 ≥1 条不与前两层重复",
+        "weight": 1
+      },
+      {
+        "point": "落到 Agent 端到端（轮次乘数）的全局观",
+        "weight": 1
+      }
     ],
     "analysis": "指南原文就是按 prefill/decode/infra 三层组织的，答题照此结构最省力。区分度在两处：①手段与病因配对（『为什么流式是感知优化不是物理提速』——总计算没少但首字提前+可提前打断）；②Agent 语境的自觉——官方指南面向单次调用，面试官等的是你主动补『多轮 Agent 的延迟=Σ每轮，减少轮次优于优化单轮』。丢分大户是把 batching 当延迟手段（它提吞吐反增单请求延迟，方向反了）。",
-    "gapCheck": ["易漏点：batching 的吞吐-延迟张力要主动点破，这是该题最经典的反直觉点", "常见误区：把『降低温度/贪心』当延迟手段——采样策略几乎不影响 TPOT（除非 speculative 接受率变化）", "加分弹药：引用官方『speculative decoding 最高 -2/3 延迟』的原话数字；提到 e2e 预算分配表（TTFT 目标 800ms 时 prefill+排队各留多少）"],
+    "gapCheck": [
+      "易漏点：batching 的吞吐-延迟张力要主动点破，这是该题最经典的反直觉点",
+      "常见误区：把『降低温度/贪心』当延迟手段——采样策略几乎不影响 TPOT（除非 speculative 接受率变化）",
+      "加分弹药：引用官方『speculative decoding 最高 -2/3 延迟』的原话数字；提到 e2e 预算分配表（TTFT 目标 800ms 时 prefill+排队各留多少）"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.serving.infer-serving.cost-latency"],
-      "related": ["ai.serving.infer-serving.kv-cache-batching", "ai.harness.agent-loop.context-budget"],
-      "followUps": ["你们的 p95 TTFT 超标，排查顺序是什么？（排队→缓存 miss→长输入→供应商降级）", "流式下怎么做『中途取消省钱』？取消真的停止生成吗？", "多轮 Agent 里哪一轮的延迟最该优先杀？"]
+      "prereq": [
+        "ai.serving.infer-serving.cost-latency"
+      ],
+      "related": [
+        "ai.serving.infer-serving.kv-cache-batching",
+        "ai.harness.agent-loop.context-budget"
+      ],
+      "followUps": [
+        "你们的 p95 TTFT 超标，排查顺序是什么？（排队→缓存 miss→长输入→供应商降级）",
+        "流式下怎么做『中途取消省钱』？取消真的停止生成吗？",
+        "多轮 Agent 里哪一轮的延迟最该优先杀？"
+      ]
     },
-    "resources": [{ "title": "OpenAI Docs · Latency optimization", "digest": "官方指南：speculative decoding（最高约 2/3 延迟降幅）、streaming、prompt caching 降 TTFT、低延迟优化区域/部署选型、SDK 与网络层建议，按 prefill/decode/infra 组织。" }],
+    "resources": [
+      {
+        "title": "OpenAI Docs · Latency optimization",
+        "digest": "官方指南：speculative decoding（最高约 2/3 延迟降幅）、streaming、prompt caching 降 TTFT、低延迟优化区域/部署选型、SDK 与网络层建议，按 prefill/decode/infra 组织。"
+      }
+    ],
     "openBookAllowed": true,
-    "source": { "kind": "official", "url": "https://platform.openai.com/docs/guides/latency-optimization", "retrievedAt": "2026-11-09", "note": "官方延迟优化指南主页面结构与数字以此为准（平台文档随版本更新，答题注明访问日期）", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["延迟治理", "分层清单", "文档锚"],
+    "source": {
+      "kind": "official",
+      "url": "https://platform.openai.com/docs/guides/latency-optimization",
+      "retrievedAt": "2026-11-09",
+      "note": "官方延迟优化指南主页面结构与数字以此为准（平台文档随版本更新，答题注明访问日期）",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "延迟治理",
+      "分层清单",
+      "文档锚"
+    ],
     "variants": [
-      { "angle": "反向问", "stem": "反向排查：你们产品反馈『回答开头很快但越出字越慢最后像卡死』。按 TTFT/TPOT 框架定位病因方向（至少两个），并给出各自的验证数据。", "analysis": "症状定性：TTFT 正常、TPOT 恶化——典型方向：①输出越来越长时 KV 驻留增大+并发挤兑，decode 边际变慢（自托管看 KV 池水位与抢占次数；API 看高峰期 TPOT 曲线）；②服务端在长输出尾部插入更多调度中断（排队重入）；③客户端假象：前端渲染逐 token 重排整段 markdown（O(n²) 重渲染）让用户以为模型慢了——用『到达时间戳 vs 渲染时间戳』分离验证。验证数据：分位数拆开画 TPOT-已生成token 关系图、同时抓 SSE 到达间隔。考点：延迟归因要区分『服务端物理慢』与『客户端观感慢』两条链路。" }
+      {
+        "angle": "反向问",
+        "stem": "反向排查：你们产品反馈『回答开头很快但越出字越慢最后像卡死』。按 TTFT/TPOT 框架定位病因方向（至少两个），并给出各自的验证数据。",
+        "analysis": "症状定性：TTFT 正常、TPOT 恶化——典型方向：①输出越来越长时 KV 驻留增大+并发挤兑，decode 边际变慢（自托管看 KV 池水位与抢占次数；API 看高峰期 TPOT 曲线）；②服务端在长输出尾部插入更多调度中断（排队重入）；③客户端假象：前端渲染逐 token 重排整段 markdown（O(n²) 重渲染）让用户以为模型慢了——用『到达时间戳 vs 渲染时间戳』分离验证。验证数据：分位数拆开画 TPOT-已生成token 关系图、同时抓 SSE 到达间隔。考点：延迟归因要区分『服务端物理慢』与『客户端观感慢』两条链路。"
+      }
     ]
   },
   {
@@ -83,29 +207,490 @@
     "type": "essay",
     "difficulty": 5,
     "stem": "架构论述（d5）：你接手一个日活 5 万的 Agent 产品，月 LLM 账单 $80k、p95 端到端 45s、质量 NPS 38。老板要求三个月内账单砍半且质量不降。请完整论述：成本解剖的方法论、降本手段的优先级排序与各自的质量风险、哪些钱不该省、以及你如何证明『省下来的钱没有伤质量』。要求给出具体数字与机制，泛泛而谈不及格。",
-    "answer": { "ref": "参考骨架：【解剖】先建成本会计三视图：①按环节（模型调用/嵌入/rerank/工具执行/检索基建）②按功能线（各意图/feature 的调用量×单价，找出头部 20% 功能吃 80% 账单）③按 token 结构（输入 vs 输出 vs 缓存命中比例——Agent 账单第一真相通常是『每轮重复计费的历史』）。$80k 拆完常见发现：缓存命中率 <30%、某重试风暴路径占 15%、三个『顺手加的小模型步骤』合计 $9k 但贡献存疑。【手段优先级（ROI×风险）】第一梯队低风险：prompt caching 治理（前缀冻结，命中率 30→80%，输入费直降 ~75% 于命中部分——这是第一刀）、砍无效轮次（停滞检测+好工具减轮，Agent 成本大头是轮数）、重试与降级策略修正（transient 退避、失败别带全历史重试）；第二梯队中风险：模型路由分级（简单意图走便宜模型，需离线+在线双验证）、输出瘦身（max_tokens+风格约束，输出 token 单价高）、历史压缩（compaction 减每轮携带）；第三梯队高风险压轴：蒸馏/微调小模型替换（只替换已被证明的窄任务）、批量场景走 batch API（非实时路径半价）。【不该省的】高危动作的 HITL 确认成本、评估基建与线上抽检的 judge 费用（那是质量的雷达）、p95 延迟的冗余容量、以及错误恢复的重放预算——省这些的钱会以事故形式加倍偿还。【证明没伤质量】设计『省钱动作↔质量哨兵』配对：每项降本上线自带金丝雀+对照臂（同流量双版本），盯三层——任务层（完成率/转人工率无显著劣化，功效预算提前算）、质量代理（赞踩/改写率）、经济层（真实账单回验预估）；同时保留 5% 不可降的『质量保险田』跑全量旗舰作长期基线，防慢性漂移。【节奏】月度滚动：解剖→Top3 机会立项→A/B→回验→记账，三个月 $80k→$40k 的典型构成：缓存 + 减轮 + 路由各贡献约三分之一。" },
+    "answer": {
+      "ref": "参考骨架：【解剖】先建成本会计三视图：①按环节（模型调用/嵌入/rerank/工具执行/检索基建）②按功能线（各意图/feature 的调用量×单价，找出头部 20% 功能吃 80% 账单）③按 token 结构（输入 vs 输出 vs 缓存命中比例——Agent 账单第一真相通常是『每轮重复计费的历史』）。$80k 拆完常见发现：缓存命中率 <30%、某重试风暴路径占 15%、三个『顺手加的小模型步骤』合计 $9k 但贡献存疑。【手段优先级（ROI×风险）】第一梯队低风险：prompt caching 治理（前缀冻结，命中率 30→80%，输入费直降 ~75% 于命中部分——这是第一刀）、砍无效轮次（停滞检测+好工具减轮，Agent 成本大头是轮数）、重试与降级策略修正（transient 退避、失败别带全历史重试）；第二梯队中风险：模型路由分级（简单意图走便宜模型，需离线+在线双验证）、输出瘦身（max_tokens+风格约束，输出 token 单价高）、历史压缩（compaction 减每轮携带）；第三梯队高风险压轴：蒸馏/微调小模型替换（只替换已被证明的窄任务）、批量场景走 batch API（非实时路径半价）。【不该省的】高危动作的 HITL 确认成本、评估基建与线上抽检的 judge 费用（那是质量的雷达）、p95 延迟的冗余容量、以及错误恢复的重放预算——省这些的钱会以事故形式加倍偿还。【证明没伤质量】设计『省钱动作↔质量哨兵』配对：每项降本上线自带金丝雀+对照臂（同流量双版本），盯三层——任务层（完成率/转人工率无显著劣化，功效预算提前算）、质量代理（赞踩/改写率）、经济层（真实账单回验预估）；同时保留 5% 不可降的『质量保险田』跑全量旗舰作长期基线，防慢性漂移。【节奏】月度滚动：解剖→Top3 机会立项→A/B→回验→记账，三个月 $80k→$40k 的典型构成：缓存 + 减轮 + 路由各贡献约三分之一。"
+    },
     "scoringPoints": [
-      { "point": "成本解剖三视图且指出『重复历史计费』这一 Agent 特有大头", "weight": 2 },
-      { "point": "缓存治理作为第一优先级并给出量级（命中率与折扣数字）", "weight": 2 },
-      { "point": "减轮次/重试修正在前列——识别『轮数是成本乘数』", "weight": 2 },
-      { "point": "高风险手段（蒸馏/替换）放压轴且有准入证据要求", "weight": 2 },
-      { "point": "『不该省的钱』清单有原则（雷达类支出不可削）", "weight": 2 },
-      { "point": "质量证明机制完整：对照实验+三层哨兵+保险田", "weight": 2 },
-      { "point": "全程有具体数字与因果叙事，收尾给出三个月路线图", "weight": 2 }
+      {
+        "point": "成本解剖三视图且指出『重复历史计费』这一 Agent 特有大头",
+        "weight": 2
+      },
+      {
+        "point": "缓存治理作为第一优先级并给出量级（命中率与折扣数字）",
+        "weight": 2
+      },
+      {
+        "point": "减轮次/重试修正在前列——识别『轮数是成本乘数』",
+        "weight": 2
+      },
+      {
+        "point": "高风险手段（蒸馏/替换）放压轴且有准入证据要求",
+        "weight": 2
+      },
+      {
+        "point": "『不该省的钱』清单有原则（雷达类支出不可削）",
+        "weight": 2
+      },
+      {
+        "point": "质量证明机制完整：对照实验+三层哨兵+保险田",
+        "weight": 2
+      },
+      {
+        "point": "全程有具体数字与因果叙事，收尾给出三个月路线图",
+        "weight": 2
+      }
     ],
     "analysis": "d5 的成本题考『财务感的工程化』：能不能像 CFO 一样解剖、像科学家一样证明。最常见失败是清单式罗列（缓存/小模型/量化一起端出）没有优先级论证——高分卷必有『先摘低垂果实、伤筋动骨放最后』的排序哲学，且每项标风险。『保险田』设计（保留全旗舰对照组测慢性质量漂移）最少人答，是锁定高分段的暗桩。NPS/p95 两个既有指标要在证明段回收使用，否则说明读题不细。",
-    "gapCheck": ["易漏点：账单解剖要在动手前完成——跳过直接给手段=蒙眼开刀，考官必追问『你怎么知道该砍哪个』", "常见误区：把降本等同于换便宜模型——路由与缓存的收益常大于换模型且风险更低", "加分弹药：引用 Anthropic 延迟博客的『先定目标场景再定优化路线』框架、以及各家定价页的缓存折扣/batch 半价数字", "数字纪律：所有百分比都要给出处或测量方式（内部实测/文档承诺/社区基准），含糊数字在此题是减分项"],
+    "gapCheck": [
+      "易漏点：账单解剖要在动手前完成——跳过直接给手段=蒙眼开刀，考官必追问『你怎么知道该砍哪个』",
+      "常见误区：把降本等同于换便宜模型——路由与缓存的收益常大于换模型且风险更低",
+      "加分弹药：引用 Anthropic 延迟博客的『先定目标场景再定优化路线』框架、以及各家定价页的缓存折扣/batch 半价数字",
+      "数字纪律：所有百分比都要给出处或测量方式（内部实测/文档承诺/社区基准），含糊数字在此题是减分项"
+    ],
     "knowledgeLinks": {
-      "prereq": ["ai.serving.infer-serving.cost-latency", "ai.eval.evaluation-qa.online-regression"],
-      "related": ["ai.serving.infer-serving.kv-cache-batching", "ai.harness.agent-loop.context-budget", "eng.perf"],
-      "followUps": ["路由分级的『简单意图』误判成难意图，质量损失怎么兜底？（低置信升级回路）", "缓存命中率涨但账单没降——可能哪里漏了？（输出 token/新工具定义打碎前缀）", "老板下一步要 $40k 砍到 $20k，你的第二刀切哪里？"]
+      "prereq": [
+        "ai.serving.infer-serving.cost-latency",
+        "ai.eval.evaluation-qa.online-regression"
+      ],
+      "related": [
+        "ai.serving.infer-serving.kv-cache-batching",
+        "ai.harness.agent-loop.context-budget",
+        "eng.perf"
+      ],
+      "followUps": [
+        "路由分级的『简单意图』误判成难意图，质量损失怎么兜底？（低置信升级回路）",
+        "缓存命中率涨但账单没降——可能哪里漏了？（输出 token/新工具定义打碎前缀）",
+        "老板下一步要 $40k 砍到 $20k，你的第二刀切哪里？"
+      ]
     },
-    "resources": [{ "title": "Anthropic Engineering · Reduce latency LLMs", "digest": "官方：优化须先对齐产品目标场景（吞吐 vs 单响应延迟）、手段按 prefill/decode 归类、并行与缓存策略的收益量化；配合 OpenAI/Anthropic 定价页的缓存折扣数字构成本题的数字弹药库。" }],
+    "resources": [
+      {
+        "title": "Anthropic Engineering · Reduce latency LLMs",
+        "digest": "官方：优化须先对齐产品目标场景（吞吐 vs 单响应延迟）、手段按 prefill/decode 归类、并行与缓存策略的收益量化；配合 OpenAI/Anthropic 定价页的缓存折扣数字构成本题的数字弹药库。"
+      }
+    ],
     "openBookAllowed": false,
-    "source": { "kind": "web", "url": "https://www.anthropic.com/engineering/reducing-latency-llm-applications", "retrievedAt": "2026-11-09", "note": "官方工程文（目标先行方法论）；具体折扣比例以各 provider 定价页当日值为准", "reviewedBy": "agent+人工审核规则" },
-    "tags": ["成本治理", "CFO思维", "大厂压轴"],
+    "source": {
+      "kind": "web",
+      "url": "https://www.anthropic.com/engineering/reducing-latency-llm-applications",
+      "retrievedAt": "2026-11-09",
+      "note": "官方工程文（目标先行方法论）；具体折扣比例以各 provider 定价页当日值为准",
+      "reviewedBy": "agent+人工审核规则"
+    },
+    "tags": [
+      "成本治理",
+      "CFO思维",
+      "大厂压轴"
+    ],
     "variants": [
-      { "angle": "追问延伸", "stem": "顺着追问三个月后账单真到 $40k，但客服团队投诉『复杂问题的回答变笨了』。你的哨兵指标却没报警。解释可能的原因，并给出诊断路径。", "analysis": "矛盾的可能解释：①切片盲区——哨兵看全局均值，『复杂问题』只占流量小头被摊平，要按意图/难度分层重看（这正是当初必须分层报告的回响）；②慢性漂移——每次 A/B 都在显著性阈值下的小幅劣化累计三次后越过体验临界（单灯不亮总账超支），需要『累计劣化预算』制（每项变更的质量 delta 记账合并审计）；③投诉的可能是新引入的路由误判个案（低置信该升没升），查升级回路触发日志；④基线腐化——省钱后 judge 也换便宜版了，尺子变了显不出。诊断路径：投诉会话聚类→分层对照（同会话在新旧版本重放）→检查路由/缓存命中的个案归因→累计质量账本复盘。考点：质量治理的时间维度与粒度维度是成本题的真正收官。" }
+      {
+        "angle": "追问延伸",
+        "stem": "顺着追问三个月后账单真到 $40k，但客服团队投诉『复杂问题的回答变笨了』。你的哨兵指标却没报警。解释可能的原因，并给出诊断路径。",
+        "analysis": "矛盾的可能解释：①切片盲区——哨兵看全局均值，『复杂问题』只占流量小头被摊平，要按意图/难度分层重看（这正是当初必须分层报告的回响）；②慢性漂移——每次 A/B 都在显著性阈值下的小幅劣化累计三次后越过体验临界（单灯不亮总账超支），需要『累计劣化预算』制（每项变更的质量 delta 记账合并审计）；③投诉的可能是新引入的路由误判个案（低置信该升没升），查升级回路触发日志；④基线腐化——省钱后 judge 也换便宜版了，尺子变了显不出。诊断路径：投诉会话聚类→分层对照（同会话在新旧版本重放）→检查路由/缓存命中的个案归因→累计质量账本复盘。考点：质量治理的时间维度与粒度维度是成本题的真正收官。"
+      }
     ]
+  },
+  {
+    "id": "Q-ai-serv-ttft-0005",
+    "nodeId": "ai.serving.infer-serving.cost-latency",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：评估在线推理延迟时应区分 TTFT（首 token 延迟，反映排队与 prefill 速度）与 TPOT（每 token 平均生成时间/ inter-token 延迟，反映 decode 速度）；流式输出主要改善用户对 TTFT 之后等待的体感，并不能缩短总生成时长。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。自回归推理分两个性质不同的阶段：① prefill（提示处理）一次性并行处理全部输入 token、计算量集中，决定首 token 何时产出，TTFT（Time To First Token）= 排队等待 + 调度 + prefill 耗时，受输入长度、批处理排队、KV Cache 显存压力影响最大；② decode 阶段逐 token 串行生成，每步依赖上一步，其速度用 TPOT（Time Per Output Token，也称 inter-token latency）刻画，总生成时间≈TTFT + 输出 token 数 × TPOT。区分二者是因为优化手段不同：降 TTFT 靠缩短排队（连续批处理、优先级调度）、控制 prompt 长度、前缀缓存；降 TPOT 靠更快的解码 kernel、量化、投机解码、提升单步吞吐。流式（streaming/SSE）让首 token 一旦生成就推给前端，用户不必等整段完成，显著改善『开始响应』的体感感知，但 token 仍是逐个解码、总生成计算量和墙钟时间并没有减少，它优化的是可感知延迟而非绝对耗时。成本侧还要结合吞吐（tokens/s、并发数）与按 token 计费的输入/输出价差（输出通常更贵），并警惕缓存命中能降 prefill 成本却可能被新工具定义/动态前缀打碎。",
+    "gapCheck": [
+      "易漏点：prefill 决定 TTFT、decode 决定 TPOT，两阶段优化手段不同；流式改善体感不减总时长",
+      "常见误区：把首 token 延迟和生成速度混为一个指标，或以为流式让模型生成更快",
+      "加分项：能联系连续批处理、前缀缓存、量化/投机解码分别作用于哪个阶段，及输入输出 token 价差"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.serving.infer-serving.cost-latency"
+      ],
+      "related": [
+        "ai.serving.infer-serving.kv-cache-batching",
+        "ai.serving.infer-serving.quantize-accel"
+      ],
+      "followUps": [
+        "前缀缓存命中率提升但账单没降，可能是哪些因素打碎了缓存前缀？",
+        "投机解码主要降低 TTFT 还是 TPOT，为什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "TTFT/TPOT 两分法与流式体感的判断题"
+    },
+    "tags": [
+      "推理服务",
+      "TTFT",
+      "TPOT",
+      "流式输出",
+      "判断"
+    ]
+  },
+  {
+    "id": "Q-ai-serv-paged-0006",
+    "nodeId": "ai.serving.infer-serving.kv-cache-batching",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 KV Cache、PagedAttention 与连续批处理（continuous batching），下列说法正确的有：（多选）",
+    "options": [
+      {
+        "key": "A",
+        "text": "自回归解码中每生成一个 token 都要用到此前所有 token 的 Key/Value，缓存它们可避免每步重算，但 KV Cache 显存占用随序列长度和并发数快速增长，是推理显存的大头"
+      },
+      {
+        "key": "B",
+        "text": "传统给每个请求预留整块连续 KV 显存的方式会因预留过大和碎片造成浪费；PagedAttention 借鉴操作系统虚拟内存分页，把 KV Cache 切成定长 block 按需分配、用块表映射，降低碎片、提升显存利用率"
+      },
+      {
+        "key": "C",
+        "text": "连续批处理（动态批处理）在每个解码迭代边界动态组批，已完成的请求立刻让出槽位、新请求随时加入，比静态批处理（等整批都结束才换下一批）显著提升吞吐"
+      },
+      {
+        "key": "D",
+        "text": "PagedAttention 让不同请求共享同一物理 KV block 时无法保证隔离，因此不能用于前缀缓存、并行采样等需要共享的场景"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确，D 错。A 是 KV Cache 的存在理由与成本来源：注意力机制每步都要对历史 token 做 K/V 计算，缓存后把 O(n²) 重算降为增量计算，但 KV 大小≈层数×2(K和V)×序列长×隐藏维×精度字节×并发，长上下文+高并发时常常超过模型权重本身的显存占用，是服务化的核心瓶颈。B 是 vLLM/PagedAttention 的关键创新：传统方式为每个序列预留最大长度的连续显存，内部碎片与外部碎片严重；分页方案把 KV 划分为固定大小 block（类似内存页），逻辑块通过块表（block table，类似页表）映射到物理块，按需分配、近乎零碎片，并可通过引用计数安全共享。C 讲连续批处理（in-flight/orca 式 batching）：静态批以最慢请求为节拍、整批同进同出，GPU 在快请求结束后的空转被浪费；动态批在每一步 decode 后重新组合 batch，完成的请求立即退出释放 KV 槽、新请求即时插入，GPU 利用率与吞吐大幅提升。D 错：恰恰相反，分页+块表+引用计数让共享前缀（公共 system prompt、前缀缓存）、beam search/并行采样（同一 prompt 多分叉共享前缀 block）变得安全高效，写时复制（copy-on-write）保证分叉后各自隔离，这正是 PagedAttention 的优势而非限制。",
+    "gapCheck": [
+      "易漏点：KV Cache 显存随序列长×并发增长、常大于权重；分页用块表映射降碎片",
+      "常见误区：把静态批与连续批的调度节拍混淆，或误以为分页不能共享 KV（实际靠引用计数+CoW 安全共享）",
+      "加分项：能讲前缀缓存/并行采样的块共享与写时复制、连续批每迭代边界动态组批提吞吐"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.serving.infer-serving.kv-cache-batching"
+      ],
+      "related": [
+        "ai.serving.infer-serving.cost-latency",
+        "ai.serving.infer-serving.quantize-accel"
+      ],
+      "followUps": [
+        "KV Cache 显存具体由哪些维度决定，长上下文服务为什么容易 OOM？",
+        "写时复制（CoW）在并行采样共享前缀 block 时如何保证隔离？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "KV Cache/PagedAttention/连续批处理综合多选题"
+    },
+    "tags": [
+      "KV Cache",
+      "PagedAttention",
+      "连续批处理",
+      "显存",
+      "多选"
+    ]
+  },
+  {
+    "id": "Q-ai-serv-kvblank-0007",
+    "nodeId": "ai.serving.infer-serving.kv-cache-batching",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "填空：自回归推理时为避免每步重新计算历史 token 的注意力，会缓存各层的 ______ 和 ______ 张量，合称 KV Cache；它的显存占用与序列长度、并发路数成 ______ 比增长。vLLM 等引擎用 ______ 技术把 KV Cache 切成定长块、通过块表按需映射以消除显存碎片；而在每个解码步动态增删请求、重新组批以提升 GPU 利用率的调度方式称为 ______。",
+    "answer": {
+      "blanks": [
+        "Key",
+        "Value",
+        "正",
+        "PagedAttention",
+        "连续批处理"
+      ],
+      "synonyms": {
+        "Key": [
+          "K",
+          "key",
+          "键",
+          "Key张量"
+        ],
+        "Value": [
+          "V",
+          "value",
+          "值",
+          "Value张量"
+        ],
+        "正": [
+          "正比",
+          "正比例",
+          "线性",
+          "正相关"
+        ],
+        "PagedAttention": [
+          "分页注意力",
+          "pagedattention",
+          "分页",
+          "Paged Attention"
+        ],
+        "连续批处理": [
+          "continuous batching",
+          "动态批处理",
+          "in-flight batching",
+          "连续批",
+          "动态组批"
+        ]
+      }
+    },
+    "analysis": "①② 注意力对每个 token 生成 Query，并与历史所有 token 的 Key 算权重、对 Value 加权求和；把历史 token 的 K、V 缓存下来，decode 时只需为新 token 计算并追加，避免每步对全部历史重算。③ KV Cache 显存 ≈ 2(K,V) × 层数 × 序列长度 × 隐藏维度 × 每元素字节 × 并发请求数，因此与序列长度和并发数近似线性（正比）增长，长上下文高并发时是显存主要消耗，决定了能同时服务多少路请求（batch 容量）。④ PagedAttention 借鉴 OS 虚拟内存分页：把 KV 切成定长 block，用块表把逻辑块映射到物理块，按需分配、降低内部/外部碎片，并支持引用计数式块共享（前缀缓存、并行采样）。⑤ 连续批处理（continuous / in-flight batching）打破静态批『整批同进同出、等最慢请求』的节拍，在每个解码迭代边界检查完成情况、动态让完成者退出、新请求加入，显著减少 GPU 空转、提升吞吐。把这五点串起来即理解现代推理引擎（vLLM 类）高显存利用率与高吞吐的两大支柱：分页管显存、动态批管调度。",
+    "gapCheck": [
+      "易漏点：缓存的是 K 和 V（Q 每步现算）；显存与序列长×并发线性相关",
+      "常见误区：把 PagedAttention（显存分页）与连续批处理（请求调度）当成同一技术",
+      "加分项：能写出 KV 显存的维度公式，并联系块表、引用计数与静态批的空转问题"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.serving.infer-serving.kv-cache-batching"
+      ],
+      "related": [
+        "ai.serving.infer-serving.cost-latency"
+      ],
+      "followUps": [
+        "为什么只缓存 K/V 而不缓存 Q？",
+        "块大小（block size）取大或取小各自有什么权衡？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "KV Cache 构成、显存增长与分页/动态批填空题"
+    },
+    "tags": [
+      "KV Cache",
+      "PagedAttention",
+      "连续批处理",
+      "显存",
+      "填空"
+    ]
+  },
+  {
+    "id": "Q-ai-serv-quantsingle-0008",
+    "nodeId": "ai.serving.infer-serving.quantize-accel",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于量化、蒸馏与推测解码三类推理加速/压缩手段，下列描述正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "量化通过把权重/激活从 FP16 降到 INT8/INT4 等低比特表示来减小显存与带宽压力、提速，但过低比特会带来精度损失，通常需要校准或量化感知训练来控制"
+      },
+      {
+        "key": "B",
+        "text": "量化是无损的，INT4 与 FP16 精度完全一致，可以无脑对所有模型使用而无需评估"
+      },
+      {
+        "key": "C",
+        "text": "推测解码用一个大模型先草拟多个 token、再让小模型校验，目的是提升 TTFT 而非 decode 速度"
+      },
+      {
+        "key": "D",
+        "text": "知识蒸馏训练出的学生模型通常比教师模型更大更慢，主要用于提升单步精度而非降本"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确。量化把浮点权重/激活映射到更低比特（INT8、INT4 乃至更低），显存占用近似按比特比例下降、内存带宽压力减轻，配合低比特 kernel 还能提速，是端侧部署与高并发降本的主力手段；但低比特表示是有损的，会引入舍入误差，精度下降程度随比特数降低而加剧，因此权重量化常用校准数据统计取值范围（GPTQ、AWQ、SmoothQuant 等），或用量化感知训练（QAT）让模型适应低精度，部署前后必须用业务评测集核对质量。B 错：量化本质有损，INT4 不可能与 FP16 完全等精度，需在精度-成本间权衡并验证。C 错：推测解码（speculative decoding）方向恰好相反——用一个轻量『草稿模型』快速草拟若干候选 token，再由大的『目标模型』一次前向并行校验、接受匹配前缀，目标模型仍是质量把关者；它利用『并行验证比串行生成便宜』来降低每 token 延迟，主要改善的是 decode 阶段的 TPOT/总生成时间，而非 TTFT，且输出分布与原模型一致（无损加速）。D 错：知识蒸馏是让小的学生模型学习大教师模型的软标签/中间表示，学生更小更快、部署成本更低，以可接受的少量精度损失换取推理效率。",
+    "gapCheck": [
+      "易漏点：量化有损、需校准/QAT 控精度；推测解码是小模型草拟+大模型并行校验、加速 decode",
+      "常见误区：以为量化无损；把推测解码的草稿/目标模型大小关系或优化阶段搞反",
+      "加分项：能区分量化（降精度表示）、蒸馏（训小模型）、投机解码（无损改解码方式）三者作用层次"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.serving.infer-serving.quantize-accel"
+      ],
+      "related": [
+        "ai.serving.infer-serving.kv-cache-batching",
+        "ai.serving.infer-serving.cost-latency"
+      ],
+      "followUps": [
+        "权重量化与激活量化、W8A8 与 W4A16 的区别和难点在哪？",
+        "推测解码为什么能做到输出分布无损，草稿模型接受率受什么影响？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "量化/蒸馏/推测解码辨析单选题"
+    },
+    "tags": [
+      "量化",
+      "知识蒸馏",
+      "推测解码",
+      "推理加速",
+      "单选"
+    ]
+  },
+  {
+    "id": "Q-ai-serv-quantblank-0009",
+    "nodeId": "ai.serving.infer-serving.quantize-accel",
+    "type": "blank",
+    "difficulty": 4,
+    "stem": "填空：把模型权重从 FP16 压缩到 INT8/INT4 的技术称为 ______；只量化权重、激活仍保持浮点的方案常记作 W4A16 或 W8A16，而权重和激活都量化为 8 位的记作 ______。不需要重训、仅用少量校准数据统计数值范围的离线量化方法代表有 GPTQ、______ 等。用一个小的草稿模型快速生成候选、再由大模型一次性并行验证接受的无损加速方法称为 ______；让小学生模型学习大教师模型输出的压缩训练方法称为 ______。",
+    "answer": {
+      "blanks": [
+        "量化",
+        "W8A8",
+        "AWQ",
+        "推测解码",
+        "知识蒸馏"
+      ],
+      "synonyms": {
+        "量化": [
+          "quantization",
+          "模型量化",
+          "低比特量化"
+        ],
+        "W8A8": [
+          "w8a8",
+          "8权8激",
+          "权重激活均INT8",
+          "W8A8量化"
+        ],
+        "AWQ": [
+          "awq",
+          "SmoothQuant",
+          "smoothquant",
+          "GPTQ/AWQ"
+        ],
+        "推测解码": [
+          "speculative decoding",
+          "投机解码",
+          "speculative",
+          "推测采样"
+        ],
+        "知识蒸馏": [
+          "蒸馏",
+          "knowledge distillation",
+          "模型蒸馏",
+          "KD"
+        ]
+      }
+    },
+    "analysis": "① 量化（quantization）把高位浮点映射到低比特整数/窄浮点，按比特比例省显存、降带宽并可配合 kernel 提速，但属有损压缩，需要评测精度。② 命名约定 W{权重位宽}A{激活位宽}：W4A16/W8A16 是仅权重量化（weight-only），激活仍为 FP16，对硬件要求低、较易保持精度，适合显存受限场景；W8A8 权重激活都量化到 INT8，能进一步利用整数运算提速，但激活异常值（outlier）处理更难，需 SmoothQuant 等技术平滑。③ 离线/训练后量化（PTQ）无需重训，用少量校准数据估计每层分布与缩放因子，代表算法 GPTQ（基于二阶信息逐层补偿误差）、AWQ（按显著通道保护权重）、SmoothQuant（把激活量化难度迁移到权重）。④ 推测解码（speculative decoding）：小草稿模型自回归草拟 k 个 token，大目标模型一次前向并行打分，接受最长匹配前缀、拒绝处回退重采样，数学上保持与目标模型相同的输出分布，属无损加速，收益取决于草稿接受率与并行校验成本，主要降低 decode 延迟。⑤ 知识蒸馏（knowledge distillation）：训练学生模型拟合教师的软标签（温度软化 logits）或中间特征，得到更小更快、可低成本部署的模型，是训练期压缩，与运行期的量化、解码期的投机解码处于不同环节。",
+    "gapCheck": [
+      "易漏点：WxAy 命名含义、weight-only 与 W8A8 的差异；PTQ 代表 GPTQ/AWQ/SmoothQuant",
+      "常见误区：混淆三类技术所处环节（训练期蒸馏、部署量化、解码期投机），或以为投机解码改变输出",
+      "加分项：能讲激活异常值难题、推测解码的无损性与接受率、蒸馏软标签/温度机制"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.serving.infer-serving.quantize-accel"
+      ],
+      "related": [
+        "ai.serving.infer-serving.kv-cache-batching",
+        "ai.train.finetune-vs-rag.lora-peft"
+      ],
+      "followUps": [
+        "激活异常值为什么让 W8A8 比 weight-only 更难，SmoothQuant 如何缓解？",
+        "推测解码在什么硬件/模型组合下收益最大，接受率低时会发生什么？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "量化位宽命名、PTQ、推测解码与蒸馏综合填空题"
+    },
+    "tags": [
+      "量化",
+      "W8A8",
+      "GPTQ",
+      "推测解码",
+      "知识蒸馏",
+      "填空"
+    ]
+  },
+  {
+    "id": "Q-ai-serving-infer-serving-k-1rci0",
+    "nodeId": "ai.serving.infer-serving.kv-cache-batching",
+    "type": "essay",
+    "difficulty": 3,
+    "stem": "假设你在负责一个 LLM 在线推理服务，线上出现“吞吐尚可，但首 token 延迟升高、长尾请求明显”的现象。面试官请你现场论述：KV Cache、PagedAttention 与连续批处理分别解决什么问题？它们如何协同影响吞吐、显存利用和尾延迟？你会从哪些角度定位这类问题？",
+    "options": [],
+    "answer": {
+      "keys": [],
+      "ref": []
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "bank_update 自动生成",
+      "retrievedAt": "2026-11-15"
+    },
+    "tags": [
+      "自动生成"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-15",
+      "version": 1,
+      "history": []
+    },
+    "scoringPoints": [
+      "结论正确且给出机制",
+      "覆盖关键边界或失败场景",
+      "能联系相关考点延伸"
+    ]
+  },
+  {
+    "id": "Q-ai-serving-infer-serving-k-vmt60",
+    "nodeId": "ai.serving.infer-serving.kv-cache-batching",
+    "type": "essay",
+    "difficulty": 3,
+    "stem": "在 LLM 推理服务中，如果面试官请你从系统优化角度解释：KV Cache、PagedAttention 和连续批处理分别解决什么问题？它们如何协同提升吞吐与显存利用率？同时请说明可能带来的显存碎片、调度公平性或长尾延迟风险，以及你会考虑哪些缓解思路。",
+    "options": [],
+    "answer": {
+      "ref": "要点：1）KV Cache 缓存历史 token 的 Key/Value 张量，避免自回归解码时重复计算前缀 attention，代价是显存占用随 batch、序列长度、层数、头数和 dtype 增长；2）PagedAttention 将 KV Cache 按固定大小 block/page 管理，通过 block table 将逻辑 token 位置映射到非连续物理块，降低预留显存和外部碎片，并支持动态增长、共享或复制语义；3）连续批处理让请求在 decode 过程中动态加入/退出，不必等待整批完成，提高 GPU 利用率和吞吐；4）三者协同：KV Cache 决定单请求状态大小，PagedAttention 决定这些状态能否被紧凑、灵活地放入显存，连续批处理决定这些空闲容量能否被新请求及时复用；5）风险包括 block 过小导致元数据开销、block 过大导致尾部浪费、长 prefill 抢占 decode、高优先级请求饿死低优先级请求、长序列导致显存压力与排队延迟；6）缓解思路包括合理选择 block size、限制最大序列长度/并发、使用抢占与 swap/spill、chunked prefill、优先级与公平调度、prefix cache 复用公共前缀、监控显存水位与队列延迟。",
+      "judge": "manual"
+    },
+    "scoringPoints": [
+      "能准确说明 KV Cache 的作用是缓存历史 K/V 以避免重复计算，而不是简单等同于模型权重缓存",
+      "能指出 KV Cache 显存占用与 batch size、序列长度、模型层数、注意力头数、head_dim、dtype 等因素相关",
+      "能解释 PagedAttention 的核心是把 KV Cache 切成固定大小 block/page，并用 block table 做逻辑到物理的非连续映射",
+      "能说明 PagedAttention 相比连续预分配 KV Cache 可降低显存碎片和过度预留，提升可服务请求数",
+      "能解释连续批处理是在请求完成或显存/调度条件允许时动态加入新请求、移除已完成请求，而不是固定 batch 同步执行",
+      "能把三者串起来：KV Cache 提供状态复用，PagedAttention 提供显存管理，连续批处理提供请求级调度复用",
+      "能识别至少一个真实风险，如显存碎片、调度不公平、长 prefill 拖慢 decode、长尾延迟或显存 OOM",
+      "能给出至少两个合理缓解思路，如 block size 调优、max_model_len/max_num_seqs 限制、抢占、swap/spill、chunked prefill、公平调度、prefix cache"
+    ],
+    "analysis": "常见错误理解包括：把 KV Cache 误解为缓存整个 prompt 文本或模型参数；把 PagedAttention 误解为普通分页内存管理而不涉及 KV Cache 的 block table 映射；把连续批处理误解为简单增大 batch size。正确理解应区分三层：KV Cache 是计算复用机制，PagedAttention 是显存布局与碎片控制机制，连续批处理是请求生命周期调度机制。若只说“提升吞吐”而不说明显存碎片、调度公平性和长尾延迟，则属于不完整回答。",
+    "gapCheck": [
+      "是否提到 KV Cache 会显著增加 decode 阶段显存占用，而不是只在 prefill 阶段有用",
+      "是否提到 PagedAttention 的 block/page 与 block table 映射，而不是泛泛说显存池化",
+      "是否提到连续批处理会动态 admit/remove requests，而不是静态 batch 等待全部完成",
+      "是否提到三者协同关系，而不是孤立罗列三个概念",
+      "是否提到风险与缓解，而不是只讲收益"
+    ],
+    "knowledgeLinks": {
+      "prereq": []
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "bank_update 自动生成",
+      "retrievedAt": "2026-11-15"
+    },
+    "tags": [
+      "自动生成"
+    ],
+    "status": "active",
+    "meta": {
+      "created": "2026-11-15",
+      "version": 1,
+      "history": []
+    }
   }
 ]

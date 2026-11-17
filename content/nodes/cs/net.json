@@ -1,0 +1,65 @@
+[
+  { "id": "cs.net.tcpip", "title": "网络分层与传输层", "level": 3, "domain": "cs", "stack": "net", "topic": "tcpip-overview", "mustMaster": true, "estMinutes": 90,
+    "summary": "OSI/TCP-IP 分层模型、TCP 与 UDP 的机制差异、连接管理、可靠传输、流量与拥塞控制——所有网络题的地基" },
+  { "id": "cs.net.http", "title": "HTTP 协议族", "level": 3, "domain": "cs", "stack": "net", "topic": "http-overview", "mustMaster": true, "estMinutes": 90,
+    "summary": "报文/方法/状态码、持久连接、缓存体系、HTTPS 与 TLS、HTTP/2 与 HTTP/3 的演进，前后端与全栈岗位必考" },
+  { "id": "cs.net.dns", "title": "DNS 与域名解析", "level": 3, "domain": "cs", "stack": "net", "topic": "dns-overview", "mustMaster": false, "estMinutes": 45,
+    "summary": "递归/迭代查询、记录类型、缓存层级与故障排查，常作为网络排障题的切入点" },
+
+  { "id": "cs.net.tcpip.layering", "title": "OSI 与 TCP-IP 分层模型、封装与分用", "level": 4, "domain": "cs", "stack": "net", "topic": "tcpip",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清 OSI 七层与 TCP-IP 四层的对应、每层职责与代表性协议、数据下行封装（加首部）与上行分用、为什么分层（解耦/可替换），以及交换机/路由器/网关分别工作在哪一层" },
+
+  { "id": "cs.net.tcpip.tcp-vs-udp", "title": "TCP 与 UDP：连接、可靠性与适用场景", "level": 4, "domain": "cs", "stack": "net", "topic": "tcpip",
+    "prerequisites": ["cs.net.tcpip.layering"],
+    "related": ["cs.net.http.tls-handshake"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清面向连接 vs 无连接、可靠传输（确认/重传/序号/滑动窗口）vs 尽力交付、首部开销、有序/丢包/拥塞控制的有无，以及 HTTP、DNS、视频通话、游戏各选 TCP 还是 UDP 的依据" },
+
+  { "id": "cs.net.tcpip.handshake", "title": "三次握手与四次挥手：为什么是三次/四次", "level": 4, "domain": "cs", "stack": "net", "topic": "tcpip",
+    "prerequisites": ["cs.net.tcpip.tcp-vs-udp"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能画出三次握手 SYN/SYN-ACK/ACK 与四次挥手 FIN/ACK 流程、解释为什么握手三次而挥手四次（被动方 ACK 与 FIN 不能合并）、TIME_WAIT 为何 2MSL、SYN 洪水与半连接队列、ISN 为何随机" },
+
+  { "id": "cs.net.tcpip.reliable-flow", "title": "可靠传输、滑动窗口与流量控制", "level": 4, "domain": "cs", "stack": "net", "topic": "tcpip",
+    "prerequisites": ["cs.net.tcpip.handshake"],
+    "related": ["cs.net.tcpip.congestion"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清序号/确认号/累计确认、超时与快速重传、滑动窗口如何把停止等待变流水线、接收窗口 rwnd 做流量控制、糊涂窗口与 Nagle、零窗口探测，以及可靠与有序如何同时保证" },
+
+  { "id": "cs.net.tcpip.congestion", "title": "拥塞控制：慢启动、拥塞避免、快重传快恢复", "level": 4, "domain": "cs", "stack": "net", "topic": "tcpip",
+    "prerequisites": ["cs.net.tcpip.reliable-flow"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能区分流量控制（点对点、看接收方）与拥塞控制（全局、看网络），讲清 cwnd 慢启动指数增长、ssthresh 后线性增长、超时/三次重复 ACK 各自如何降窗，以及 BBR 与传统丢包驱动的差别" },
+
+  { "id": "cs.net.http.message", "title": "HTTP 报文、方法、状态码与持久连接", "level": 4, "domain": "cs", "stack": "net", "topic": "http",
+    "prerequisites": ["cs.net.tcpip.tcp-vs-udp"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清请求/响应报文结构、GET/POST/PUT/DELETE 等方法语义与幂等性、常见状态码（2xx/3xx/4xx/5xx 及 301/302/304/401/403 区别）、HTTP 头字段、短连接与 Keep-Alive 管道化" },
+
+  { "id": "cs.net.http.cache", "title": "HTTP 缓存：强缓存与协商缓存", "level": 4, "domain": "cs", "stack": "net", "topic": "http",
+    "prerequisites": ["cs.net.http.message"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 Cache-Control/Expires 强缓存与 ETag/Last-Modified 协商缓存的命中流程、max-age/no-cache/no-store 区别、304 的触发、缓存键与 Vary，以及前端构建产物如何做哈希长效缓存" },
+
+  { "id": "cs.net.http.tls-handshake", "title": "HTTPS 与 TLS：混合加密与握手", "level": 4, "domain": "cs", "stack": "net", "topic": "http",
+    "prerequisites": ["cs.net.http.message", "cs.net.tcpip.tcp-vs-udp"],
+    "related": ["cs.net.tcpip.tcp-vs-udp"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲清为什么用混合加密（非对称协商密钥、对称传数据）、TLS 1.2/1.3 握手流程、证书链与 CA 如何防中间人、数字签名与摘要的作用、前向保密，以及 HTTPS 相对 HTTP 的额外开销在哪" },
+
+  { "id": "cs.net.http.http2-3", "title": "HTTP/1.1 队头阻塞与 HTTP/2、HTTP/3 演进", "level": 4, "domain": "cs", "stack": "net", "topic": "http",
+    "prerequisites": ["cs.net.http.message", "cs.net.tcpip.reliable-flow"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 HTTP/1.1 的应用层队头阻塞、HTTP/2 的二进制分帧/多路复用/头部压缩/服务器推送、HTTP/2 仍受 TCP 层队头阻塞、HTTP/3 为什么换 QUIC over UDP，以及各版本的兼容与收益边界" },
+
+  { "id": "cs.net.dns.resolve", "title": "DNS 解析流程、记录类型与缓存层级", "level": 4, "domain": "cs", "stack": "net", "topic": "dns",
+    "prerequisites": ["cs.net.tcpip.layering"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清浏览器→本地 DNS→根→顶级→权威的递归/迭代查询、A/AAAA/CNAME/MX/NS/TXT 记录、各级 DNS 缓存与 TTL、DNS 用 UDP 还是 TCP、以及域名解析慢或不生效如何逐层排查" },
+
+  { "id": "cs.net.dns.advanced", "title": "DNS 高可用：智能解析、HTTPDNS 与污染应对", "level": 4, "domain": "cs", "stack": "net", "topic": "dns",
+    "prerequisites": ["cs.net.dns.resolve"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲清基于来源的智能/就近解析、负载均衡与 GSLB、HTTPDNS 绕过 LocalDNS 劫持、DNS 污染的原理与 DoH/DoT 的作用、TTL 设置与切换生效时间的权衡" }
+]

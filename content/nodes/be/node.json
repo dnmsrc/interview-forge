@@ -1,0 +1,85 @@
+[
+  {
+    "id": "be.node.core",
+    "title": "事件循环与异步 I/O",
+    "level": 3,
+    "domain": "be",
+    "stack": "node",
+    "topic": "core",
+    "mustMaster": false,
+    "estMinutes": 70,
+    "summary": "libuv 事件循环各阶段、微任务调度、Stream 背压，是理解 Node 高并发与排查异步时序问题的核心"
+  },
+  {
+    "id": "be.node.core.eventloop",
+    "title": "libuv 事件循环阶段、nextTick/Promise/setImmediate 时序",
+    "level": 4,
+    "domain": "be",
+    "stack": "node",
+    "topic": "core",
+    "prerequisites": ["fe.browser.events.event-loop"],
+    "related": ["be.node.core.async-stream", "fe.js.async.event-loop"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 35,
+    "summary": "要能讲 Node 事件循环的 timers/pending/poll/check/close 五个阶段、与浏览器事件循环的差异（无宏任务统一队列、分阶段）、process.nextTick 与 Promise 微任务在每阶段末的清空顺序、setTimeout(0) 与 setImmediate 在主模块和 I/O 回调里的执行先后、libuv 线程池处理文件/DNS 阻塞调用的边界"
+  },
+  {
+    "id": "be.node.core.async-stream",
+    "title": "异步演进、Stream 背压与 Buffer",
+    "level": 4,
+    "domain": "be",
+    "stack": "node",
+    "topic": "core",
+    "prerequisites": ["be.node.core.eventloop"],
+    "related": ["cs.os.io.models"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 35,
+    "summary": "要能讲 callback→Promise→async/await 的演进与回调地狱、可读/可写/双工/转换四种 Stream、背压（backpressure）如何用 highWaterMark 与 drain 防止慢消费者撑爆内存、Buffer 二进制处理与字符串编码、pipeline 相比 pipe 的错误传播优势，并能解释为什么流式处理大文件比 fs.readFile 一次性读更省内存"
+  },
+
+  {
+    "id": "be.node.runtime",
+    "title": "模块体系、多进程与 BFF",
+    "level": 3,
+    "domain": "be",
+    "stack": "node",
+    "topic": "runtime",
+    "mustMaster": false,
+    "estMinutes": 60,
+    "summary": "CommonJS/ESM 模块机制、Cluster 多进程利用多核、BFF 定位，决定 Node 在工程里的边界"
+  },
+  {
+    "id": "be.node.runtime.module-process",
+    "title": "CommonJS vs ESM、模块加载缓存与 process/全局对象",
+    "level": 4,
+    "domain": "be",
+    "stack": "node",
+    "topic": "runtime",
+    "prerequisites": ["be.node.core.eventloop"],
+    "related": ["fe.build.module.esm-cjs"],
+    "mustMaster": true,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲 CommonJS 的 require/module.exports 运行时加载与缓存、ESM 的 import/export 静态分析与 top-level await、两者循环依赖行为差异、__dirname 在 ESM 里的替代、process 的 env/nextTick/on('uncaughtException')、globalThis 与浏览器 window 的区别，以及模块单例缓存如何被利用"
+  },
+  {
+    "id": "be.node.runtime.cluster-bff",
+    "title": "Cluster/PM2 多进程模型与 BFF 层定位",
+    "level": 4,
+    "domain": "be",
+    "stack": "node",
+    "topic": "runtime",
+    "prerequisites": ["be.node.runtime.module-process"],
+    "related": ["cs.os.process.thread-models"],
+    "mustMaster": false,
+    "masteryThreshold": 2,
+    "unlockOverrideAllowed": true,
+    "estMinutes": 30,
+    "summary": "要能讲单线程 Node 为什么靠 Cluster 父子进程 + 句柄共享利用多核而不是开多线程、PM2 的 fork/cluster 模式与负载均衡、worker_threads 的适用场景（CPU 密集）、BFF（Backend For Frontend）层做接口聚合/协议转换/裁剪的价值与边界，并能对比 Node BFF 与 Java 微服务在长事务/重计算上的分工"
+  }
+]

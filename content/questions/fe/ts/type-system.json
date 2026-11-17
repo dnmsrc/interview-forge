@@ -1,0 +1,336 @@
+[
+  {
+    "id": "Q-fe-ts-struct-0001",
+    "nodeId": "fe.ts.type-system.structural-typing",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 TypeScript 的结构化类型（structural typing），下列说法**正确的是**：",
+    "options": [
+      {
+        "key": "A",
+        "text": "两个类型只要名字相同就兼容，与成员无关，这叫名义类型"
+      },
+      {
+        "key": "B",
+        "text": "一个类型只要拥有目标类型要求的全部成员（结构是其超集），即使二者声明名不同也可赋值；多余成员在变量直接传对象字面量时会触发额外属性检查"
+      },
+      {
+        "key": "C",
+        "text": "对象字面量传给形参时永远不做任何检查，多写属性也一定通过"
+      },
+      {
+        "key": "D",
+        "text": "结构化类型下，函数参数按返回值协变、与参数类型无关"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "TS 默认结构化（鸭子类型）：兼容看成员形状而非类型名，成员是目标超集即可赋值，B 准确，并点出『对象字面量直接传参会触发 excess property check』这个高频坑。A 描述的是 Java/C# 的名义类型，正好说反。C 错：字面量直接传参会做额外属性检查报错，但先赋给一个变量再传（freshness 消失）就只按结构兼容、允许多余属性。D 错：函数赋值在 strictFunctionTypes 下参数是逆变（方法语法除外）、返回值协变，不能说与参数无关。",
+    "gapCheck": [
+      "易漏点：解释清『字面量 freshness』——为什么同样的对象，先存变量就能传、直接内联就报错",
+      "常见误区：把结构化兼容等同于『随便多属性都行』，忽略额外属性检查",
+      "追问延伸：strictFunctionTypes 打开前后函数参数兼容性发生了什么变化？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.type-system.structural-typing"
+      ],
+      "related": [
+        "fe.ts.type-system.type-narrowing"
+      ],
+      "followUps": [
+        "为什么用中间变量能绕过额外属性检查？",
+        "逆变/协变/双变分别在什么位置出现？",
+        "interface 和 type alias 在类型兼容上有区别吗？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "official",
+      "url": "https://www.typescriptlang.org/docs/handbook/type-compatibility.html",
+      "retrievedAt": "2026-11-11",
+      "note": "TS 手册 Type Compatibility 章：结构化类型、额外属性检查、函数兼容性"
+    },
+    "tags": [
+      "TS 基础",
+      "结构化类型",
+      "必考"
+    ]
+  },
+  {
+    "id": "Q-fe-ts-struct-0002",
+    "nodeId": "fe.ts.type-system.structural-typing",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：在开启 strictFunctionTypes 后，把 (x: Dog) => void 类型的函数赋给要求 (x: Animal) => void 的位置会报错，因为函数参数是逆变的，要求参数类型方向与返回值相反。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。strictFunctionTypes 对函数类型属性启用严格逆变检查：目标形参类型 Animal 必须能赋给源函数形参 Dog（即源函数能接受目标传入的任意 Animal——但它声明只要 Dog，传一个不是 Dog 的 Animal 就不安全），因此该赋值被拒。返回值仍是协变（返回更具体的 Dog 可赋给要求 Animal 的位置）。注意：该严格检查只对『函数类型写法』生效，用 method 简写语法声明的方法仍保持双变（bivariant），这是为了兼容数组等内置可变场景的刻意设计。",
+    "gapCheck": [
+      "易漏点：方法语法（method shorthand）不受 strictFunctionTypes 逆变约束、仍是双变",
+      "常见误区：以为逆变对所有函数声明一视同仁",
+      "追问延伸：为什么数组 push 之类在严格逆变下没有全面报错？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.type-system.structural-typing"
+      ],
+      "related": [
+        "fe.ts.advanced.generics-utility"
+      ],
+      "followUps": [
+        "举一个协变位置和一个逆变位置的例子",
+        "双变为什么是类型不安全的？",
+        "method 与 property-function 在检查上的差异怎么记？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "official",
+      "url": "https://www.typescriptlang.org/tsconfig/strictFunctionTypes",
+      "retrievedAt": "2026-11-11",
+      "note": "tsconfig strictFunctionTypes 文档说明函数参数逆变与方法双变例外"
+    },
+    "tags": [
+      "逆变协变",
+      "strict 系列",
+      "判断题",
+      "高频追问"
+    ]
+  },
+  {
+    "id": "Q-fe-ts-narrow-0001",
+    "nodeId": "fe.ts.type-system.type-narrowing",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "类型窄化填空：用 `typeof x === 'string'`、`x instanceof Date`、`'kind' in x` 做的都属于 ______ 窄化；对可空类型最安全的兜底是 ______ 写法而非非空断言 `!`；在 switch 里用判别字段（discriminant）做到穷尽分支时，把默认分支变量标注为 ______ 类型可在漏分支时编译报错。",
+    "answer": {
+      "blanks": [
+        "控制流（类型守卫）",
+        "提前 return（或 if 判空）",
+        "never"
+      ],
+      "synonyms": {
+        "控制流（类型守卫）": [
+          "类型守卫",
+          "控制流",
+          "control flow",
+          "守卫"
+        ],
+        "提前 return（或 if 判空）": [
+          "if 判空",
+          "return 提前返回",
+          "可选链 ?.",
+          "判空 return"
+        ],
+        "never": [
+          "never 类型"
+        ]
+      }
+    },
+    "analysis": "typeof/instanceof/in/真值判断都是『类型守卫（type guard）』，编译器沿控制流把联合类型逐分支收窄。可空处理首选显式判空后提前 return 或可选链/空值合并，避免用 `!` 强行断言——断言只是骗过编译器，运行时仍可能是 null/undefined。穷尽检查利用 never：处理完所有判别联合成员后，default 分支里 x 应被窄化为 never，一旦将来新增联合成员却漏处理，x 不再是 never 即编译期报错，这是保证 switch 完整性的标准技巧。",
+    "gapCheck": [
+      "易漏点：区分类型守卫（运行时真实检查）与类型断言（编译期、无运行时效果）",
+      "常见误区：滥用 ! 导致『编译通过、线上崩』",
+      "追问延伸：自定义类型谓词 x is T 和普通 boolean 返回值在窄化上的区别？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.type-system.type-narrowing"
+      ],
+      "related": [
+        "fe.ts.type-system.structural-typing"
+      ],
+      "followUps": [
+        "手写一个 isString 类型谓词函数",
+        "为什么 never 能用来做穷尽检查？",
+        "可选链 ?. 与空值合并 ?? 各自短路规则？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "official",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/narrowing.html",
+      "retrievedAt": "2026-11-11",
+      "note": "TS 手册 Narrowing：守卫、判别联合、never 穷尽性"
+    },
+    "tags": [
+      "类型窄化",
+      "判别联合",
+      "never",
+      "填空题"
+    ]
+  },
+  {
+    "id": "Q-fe-ts-narrow-0002",
+    "nodeId": "fe.ts.type-system.type-narrowing",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "有判别联合 `type Shape = { kind: 'circle'; r: number } | { kind: 'square'; side: number }`，下列哪种写法能在访问 `r`/`side` 时通过类型检查且最稳健？",
+    "options": [
+      {
+        "key": "A",
+        "text": "直接写 (s as any).r，任何分支都能访问，最省事"
+      },
+      {
+        "key": "B",
+        "text": "用 if (s.kind === 'circle') { s.r } else { s.side }，靠字面量判别字段窄化到具体成员"
+      },
+      {
+        "key": "C",
+        "text": "用 if ((s as { r?: number }).r) 先断言再判真值"
+      },
+      {
+        "key": "D",
+        "text": "switch(s) 但不区分 kind，在每个 case 里同时访问 r 和 side"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "判别联合的标准做法是对公共字面量字段 kind 做等值判断，控制流据此把 s 窄化成对应成员，B 分支内 r 合法、else 内 side 合法，且新增成员时配合 never 穷尽检查能强制覆盖。A 的 any 断言完全放弃类型安全，字段拼错也不报错；C 用断言+真值判断是绕路，且没有真正窄化联合，可空/0 等假值还会误判；D 不按 kind 区分，s 在分支内仍是完整联合，访问非共有成员 r/side 直接编译报错。",
+    "gapCheck": [
+      "易漏点：判别字段必须是字面量类型（string/number literal）才能触发判别窄化",
+      "常见误区：用 in 以外的断言硬访问联合的非共有属性",
+      "追问延伸：没有公共判别字段时，用 in 操作符如何窄化？"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.type-system.type-narrowing"
+      ],
+      "related": [
+        "fe.ts.advanced.mapped-conditional"
+      ],
+      "followUps": [
+        "判别联合 vs 普通联合在窄化上的优势？",
+        "给 Shape 加 triangle 后怎么让编译器提醒补分支？",
+        "in 守卫和 instanceof 守卫适用场景差异？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": {
+      "kind": "official",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/narrowing.html#discriminated-unions",
+      "retrievedAt": "2026-11-11",
+      "note": "TS 手册 Discriminated Unions 小节"
+    },
+    "tags": [
+      "判别联合",
+      "类型窄化",
+      "高频",
+      "单选"
+    ]
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.ts.type-system.structural-typing",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 TypeScript 结构化类型系统的边界情形，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "对象字面量直接赋值给宽类型会触发额外属性检查（excess property check），但先存入一个变量再赋值时 fresh literal 状态消失，只按结构兼容性判断"
+      },
+      {
+        "key": "B",
+        "text": "interface 声明同名接口会自动合并（声明合并），type 别名重复声明同名则直接编译报错，二者在扩展语法与合并行为上存在真实差异"
+      },
+      {
+        "key": "C",
+        "text": "结构化类型下任何带 name: string 成员的对象都可以赋给要求 { name: string } 的位置，包括用 private 字段实现的类私有成员场景也一律放行"
+      },
+      {
+        "key": "D",
+        "text": "泛型类型参数若在结构中未被实际使用，兼容性检查会忽略它，形如 type Box<T> = { id: number } 的两个 Box 不同 T 实例可以互相赋值"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A、B、D 正确。A 描述 freshness 机制：对象字面量是「新鲜」的，直接传参/赋值时编译器额外校验不得出现目标类型不存在的属性；经过一次变量绑定后字面量拓宽为普通对象类型，多余属性被允许（只要必需成员齐全）。B 是 interface 与 type 的实质差异之一：interface 开放声明合并，同名块的成员被叠加，适合库的渐进扩展；type 是标识符到类型的单次绑定，重名即冲突，且 type 能用联合、交叉、条件、元组等表达力更强的形态。D 正确：TS 的兼容性最终回到结构比较，未参与结构的类型参数不产生区分度，Box<string> 与 Box<number> 在 T 未被成员引用时结构相同、可互相赋值；需要强制区分应让 T 出现在成员中（如 brand 标记字段）。C 错误：类的 private/protected 成员会触发名义化兼容规则——带私有成员的类类型，只有同一个声明来源的实例才互相兼容，这正是结构化系统里刻意保留的名义逃生舱，用来阻止两个结构相同但私有实现无关的类互换。",
+    "gapCheck": [
+      "易漏点：额外属性检查只对新鲜字面量生效，中间变量传递后检查放宽，这不是 bug 而是 freshness 设计。",
+      "常见误区：认为 interface 与 type 完全可互换；声明合并、类/继承 extends 场景的差异是选型依据。",
+      "排查线索：需要让未使用泛型参数产生类型区分度时加 phantom/brand 字段；遇到私有类成员赋不进去回想名义兼容规则。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.type-system.structural-typing"
+      ],
+      "related": [
+        "fe.ts.type-system.type-narrowing",
+        "fe.ts.advanced.generics-utility"
+      ],
+      "followUps": [
+        "品牌类型（branded type）如何在结构化系统里模拟名义类型？",
+        "声明合并在第三方库类型扩展（如 Window 接口）中怎么落地？",
+        "freshness 拓宽与 const 断言 as const 之间有什么联动？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 TypeScript Handbook 类型兼容、声明合并与私有成员名义规则语义编写"
+    },
+    "tags": [
+      "结构化类型",
+      "声明合并",
+      "freshness",
+      "品牌类型"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0086"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.ts.type-system.type-narrowing",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：对联合类型的可空字段，可选链 obj?.user?.name 在任一环节为 null/undefined 时短路返回 undefined，它能安全「读取」但不能替代判空后的「写入」；而类型谓词 function isAdmin(x): x is Admin 的返回值必须是布尔表达式，其作用是让编译器在通过分支里把 x 按 Admin 窄化，函数体内部逻辑错误不会被编译器自动发现。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确，两层结论都成立。其一，可选链是只读短路运算：链上任一引用为空，整个表达式求值为 undefined 且不再访问后续属性，避免「Cannot read properties of null」运行时异常；但 obj?.user.name = x 这样的赋值左值不能使用可选链（语法即非法），写入前仍需显式判空并提前 return 或给出默认对象，空值合并 ?? 常与可选链配对用于兜底取值。其二，类型谓词（user-defined type guard）的本质是「由开发者背书的窄化注解」：签名 x is T 要求函数返回 boolean，true 分支编译器信任并把 x 收窄为 T、false 分支收窄为排除 T 的类型；但编译器不会验证函数体逻辑与谓词是否真的一致——写错判断条件（如用了取反、漏判字段）只会得到错误的窄化结果而不报错，因此谓词函数内部应尽量基于可靠的判别字段或 instanceof/typeof 组合，并配单测兜底。对照 as 断言：断言完全无运行时代码，谓词至少是真实执行的布尔函数。",
+    "gapCheck": [
+      "易漏点：可选链只能用于读取位置，赋值左值不允许 ?.，写操作必须先显式判空。",
+      "常见误区：以为 x is T 有编译期校验逻辑的能力，实际上函数体判错时编译器照样信任谓词。",
+      "排查线索：窄化失效先检查是否跨函数边界（守卫不跨闭包）、谓词返回条件是否覆盖所有联合成员。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.ts.type-system.type-narrowing"
+      ],
+      "related": [
+        "fe.ts.type-system.structural-typing",
+        "fe.ts.advanced.mapped-conditional"
+      ],
+      "followUps": [
+        "为什么类型守卫在回调函数/异步分支里常常失效，如何用常量中转修复？",
+        "类型谓词与 as 断言在运行时产物上有什么不同？",
+        "?? 与 || 的兜底语义差异（0/空串/false 处理）分别是什么？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 TypeScript Handbook Narrowing、类型谓词与可选链规范语义编写"
+    },
+    "tags": [
+      "类型窄化",
+      "类型谓词",
+      "可选链",
+      "高频辨析"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0087"
+  }
+]

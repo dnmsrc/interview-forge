@@ -1,0 +1,433 @@
+[
+  {
+    "id": "Q-cs-design-sharding-0001",
+    "nodeId": "cs.design.sharding.strategy",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "订单表按 user_id 做水平拆分，初期 4 个库用 `库号 = user_id % 4` 路由。数据增长后扩容到 8 个库，若直接改成 `user_id % 8`，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "取模基数变化会让绝大多数历史数据的路由结果改变，约 7/8 的数据需要重新迁移，迁移成本巨大" },
+      { "key": "B", "text": "取模结果完全不变，历史数据一行都不用迁" },
+      { "key": "C", "text": "只有 1/8 的数据需要迁移，扩容很轻松" },
+      { "key": "D", "text": "哈希取模分片天然支持弹性扩容，这正是它相对一致性哈希的优势" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：普通取模分片的映射随节点数整体改变，N 从 4 变 8 后，只有约 1/8 的 key 路由保持不变、约 7/8 的历史行要搬迁，且迁移期间要处理双写、路由切换，是取模分片扩容的最大痛点（B、C 正好说反）。D 错：弹性扩容恰是普通取模的弱项，一致性哈希通过把 key 映射到固定哈希环、节点只负责环上相邻区间，使新增节点只分流其相邻节点的一部分数据（配合虚拟节点约迁移 1/(N+1) 的量），才是为扩容友好设计的方案。",
+    "gapCheck": [
+      "易漏点：扩容迁移期间路由规则变化，需要双写+数据校验+灰度切流的完整方案，不能一次性硬切",
+      "常见误区：以为取模分片扩容只是加机器，忽视全量数据重分布的代价",
+      "加分项：能提倍增扩容（4→8）结合一致性哈希/基因法把迁移量降到约 1/8 的工程技巧"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.strategy"],
+      "related": ["cs.algo.linear.hash-table"],
+      "followUps": [
+        "一致性哈希环上节点宕机时，它的数据由谁接管？",
+        "虚拟节点数量怎么选？太少和太多分别有什么问题？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "取模分片扩容迁移单选题" },
+    "tags": ["分库分表", "取模", "扩容迁移", "一致性哈希"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0002",
+    "nodeId": "cs.design.sharding.strategy",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于范围分片、哈希分片与一致性哈希，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "范围分片按分片键区间路由，便于范围查询与顺序扫描，但持续增长的区间（如自增 ID）容易把写入压到最新一个分片形成热点" },
+      { "key": "B", "text": "哈希分片数据分布均匀、打散热点效果好，但按范围查询会退化为向所有分片广播再聚合" },
+      { "key": "C", "text": "一致性哈希把 key 和节点都映射到同一哈希环，增删节点只影响相邻区间，虚拟节点用来缓解节点少时的数据倾斜" },
+      { "key": "D", "text": "哈希分片后任何查询都能精确定位到单分片，范围查询和排序完全不受影响" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 指出范围分片的双刃剑：范围查询友好但自增主键/时间类分片键有写热点。B 说明哈希分片的取舍——均匀但丧失有序性，范围条件无法定位单分片。C 是一致性哈希的标准定义与虚拟节点的作用。D 错：哈希打乱了顺序，不带分片键或带范围条件的查询必须 scatter-gather 广播到各分片再归并，这正是分库分表后最常见的性能退化点。",
+    "gapCheck": [
+      "易漏点：分片键选择要同时满足『大部分查询带分片键』和『写入分布均衡』，二者常冲突需权衡",
+      "常见误区：以为分片后所有查询都变快——广播查询、跨片排序分页反而更慢",
+      "加分项：能提基因法（把用户基因融入订单号）解决『按用户分片又要按订单号查』的路由问题"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.strategy"],
+      "related": ["cs.design.sharding.readwrite", "cs.algo.linear.hash-table"],
+      "followUps": [
+        "既有按用户查又有按订单号查的需求，分片键怎么设计？",
+        "范围分片的写热点有哪些缓解手段（反转、哈希前缀、按时间分表）？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "三种分片策略对比多选题" },
+    "tags": ["范围分片", "哈希分片", "一致性哈希", "分片键"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0003",
+    "nodeId": "cs.design.sharding.strategy",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：一致性哈希环上节点很少时，节点负责的哈希区间大小可能差异很大导致数据倾斜；引入虚拟节点（每个物理节点映射成环上的大量虚拟节点）可以让各物理节点分摊的区间趋于均匀，且物理节点增减时数据重分布更平滑。",
+    "answer": { "judge": true },
+    "analysis": "正确。一致性哈希用固定环解决了普通取模扩容全量迁移的问题，但节点数少时哈希落点随机、区间面积不均，容易倾斜。虚拟节点把每个物理节点复制成成百上千个虚拟节点均匀撒在环上，按大数定律各物理节点持有的虚拟节点数趋近相等，数据量随之均衡；增删物理节点时，其上虚拟节点承担的 key 被环上前后的虚拟节点（属于其他物理节点）接管，迁移量约占总量的 1/(N+1)，且来源分散、不会压垮单个邻居。",
+    "gapCheck": [
+      "易漏点：虚拟节点数太少仍会倾斜，实践中常用几百到上千个虚拟节点",
+      "常见误区：以为一致性哈希完全不需要迁移——它只是把全量迁移降为局部迁移",
+      "加分项：能讲带负载权重的虚拟节点（异构机器按容量比例分配虚拟节点数）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.strategy"],
+      "related": ["cs.algo.linear.hash-table"],
+      "followUps": [
+        "虚拟节点到物理节点的映射表在客户端和代理端分别怎么维护？",
+        "扩容时如何做到迁移过程中新旧路由都能读到数据？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "一致性哈希虚拟节点判断题" },
+    "tags": ["一致性哈希", "虚拟节点", "数据倾斜", "判断"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0004",
+    "nodeId": "cs.design.sharding.strategy",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 JavaScript 实现一个支持虚拟节点的一致性哈希环 `ConsistentHash`，要求：①`addNode(node)` / `removeNode(node)` 增删物理节点（每个物理节点生成数百个虚拟节点，如 500 个）；②`route(key)` 返回 key 顺时针方向遇到的第一个虚拟节点所属的物理节点；③用稳定的字符串哈希（自行实现一个简单 32 位哈希即可）；④写测试验证 3 节点下 key 分布大致均衡，并演示删除一个节点后其 key 如何被接管、迁移量约为 1/(N+1)。",
+    "answer": {
+      "ref": "机理：把 0~2^32 的哈希空间首尾相连成环，物理节点经『节点名#虚拟序号』哈希成数百个虚拟落点，业务 key 哈希后沿环顺时针找第一个落点（二分查找上界），落点归属的物理节点即路由目标。增删物理节点只增删它名下的虚拟落点，受影响的仅是相邻区间的 key，约 1/(N+1) 的数据迁移，虚拟节点越多分布越均衡。代码用有序数组保存环上落点并二分查找上界，绕到数组头表示环的回绕。",
+      "code": "class ConsistentHash {\n  constructor(virtualCount = 500) {\n    this.virtualCount = virtualCount;\n    this.ring = [];          // [{ hash, node }] 按 hash 升序\n    this.physicalNodes = new Set();\n  }\n\n  // 32 位字符串哈希：FNV 风格逐字符累加 + murmur finalizer 打散，分布比朴素 FNV 更均匀\n  static hash(str) {\n    let h = 0x811c9dc5;\n    for (let i = 0; i < str.length; i++) {\n      h = Math.imul(h ^ str.charCodeAt(i), 0x01000193);\n    }\n    h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b);\n    h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35);\n    h ^= h >>> 16;\n    return h >>> 0; // 无符号 32 位\n  }\n\n  addNode(node) {\n    if (this.physicalNodes.has(node)) return;\n    this.physicalNodes.add(node);\n    for (let i = 0; i < this.virtualCount; i++) {\n      const hash = ConsistentHash.hash(node + '#vn' + i);\n      this.ring.push({ hash, node });\n    }\n    this.ring.sort((a, b) => a.hash - b.hash);\n  }\n\n  removeNode(node) {\n    if (!this.physicalNodes.delete(node)) return;\n    this.ring = this.ring.filter((slot) => slot.node !== node);\n  }\n\n  route(key) {\n    if (!this.ring.length) return null;\n    const h = ConsistentHash.hash(key);\n    // 二分：第一个 hash >= h 的落点（顺时针上界）\n    let lo = 0, hi = this.ring.length;\n    while (lo < hi) {\n      const mid = (lo + hi) >> 1;\n      if (this.ring[mid].hash < h) lo = mid + 1;\n      else hi = mid;\n    }\n    const slot = this.ring[lo % this.ring.length]; // 回绕到环首\n    return slot.node;\n  }\n}\n\n// 测试\nconst ch = new ConsistentHash(500);\nch.addNode('node-A');\nch.addNode('node-B');\nch.addNode('node-C');\nconst N = 9000;\nconst keys = Array.from({ length: N }, (_, i) => 'order:' + i);\nconst dist = {};\nfor (const k of keys) {\n  const node = ch.route(k);\n  dist[node] = (dist[node] || 0) + 1;\n}\nconsole.log('删除前分布:', dist);\nconst ideal = N / 3;\nconst maxDev = Math.max(...Object.values(dist).map((c) => Math.abs(c - ideal) / ideal));\nconsole.log('相对理想均分(3000)最大偏差:', (maxDev * 100).toFixed(1) + '%', maxDev < 0.1 ? '均衡(<=10%)' : '偏斜');\nconst before = new Map(keys.map((k) => [k, ch.route(k)]));\nch.removeNode('node-B');\nlet moved = 0, movedToOthers = true;\nfor (const k of keys) {\n  const now = ch.route(k);\n  if (before.get(k) !== now) {\n    moved++;\n    if (now === 'node-B') movedToOthers = false; // 不应再路由到已删节点\n  }\n}\nconsole.log('删除 node-B 后迁移 key 数:', moved, '占比', (moved / N * 100).toFixed(1) + '%（理论约 1/3）');\nconsole.log('迁移后无 key 落到已删节点:', movedToOthers);\nconsole.log('删除后分布:', {\n  A: keys.filter((k) => ch.route(k) === 'node-A').length,\n  C: keys.filter((k) => ch.route(k) === 'node-C').length\n});"
+    },
+    "scoringPoints": [
+      { "point": "环结构与虚拟节点生成正确，物理节点增删同步增删虚拟落点", "weight": 3 },
+      { "point": "route 用顺时针上界查找并正确处理环回绕，哈希函数稳定确定", "weight": 3 },
+      { "point": "测试验证分布大致均衡，删节点后迁移量约 1/(N+1) 且 key 不落到已删节点", "weight": 2 },
+      { "point": "讲清虚拟节点缓解倾斜、增删节点只迁移相邻区间的机理", "weight": 2 }
+    ],
+    "analysis": "这题考一致性哈希的工程实现。常见失分：没有虚拟节点导致分布不均；顺时针查找写成找最大值或不处理回绕；哈希函数不稳定（用随机数）导致同 key 两次路由结果不同；删除节点后未验证 key 接管。能进一步讨论二分查找 O(log M)、虚拟节点数与均衡度的关系、Redis Cluster 的 16384 个槽位设计属于加分。",
+    "gapCheck": [
+      "易漏点：环是首尾相连的，查找超过最大 hash 时要回绕到第一个落点",
+      "常见误区：虚拟节点用随机哈希而非确定性哈希，重启后路由全乱",
+      "加分项：能对比一致性哈希与固定槽位（如 Redis Cluster slot）两种扩容路由方案"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.strategy"],
+      "related": ["cs.algo.linear.hash-table", "cs.algo.sort.binary-search"],
+      "followUps": [
+        "如果物理节点机器配置不同，怎么按权重分配虚拟节点？",
+        "迁移过程中新旧节点都可能收到请求，双写怎么设计？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "一致性哈希环手写代码题" },
+    "tags": ["手写题", "一致性哈希", "虚拟节点", "分片"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0005",
+    "nodeId": "cs.design.sharding.strategy",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "场景题：一张 50 亿行的订单表要水平拆分，主要查询有两类：①用户端按 user_id 查『我的订单』（占 80%）；②运营端按订单号 order_id 查订单详情（占 20%）。请说明你会怎么选分片键，以及怎么让两类查询都能单分片定位。",
+    "answer": {
+      "ref": "参考骨架：\n选 user_id 作为分片键：80% 的高频查询带 user_id，按它分片能让用户的全部订单落在同一分片，『我的订单』天然单分片命中且分页友好；写入也按用户均匀打散。但 order_id 查询不带 user_id，无法直接路由，会退化为全分片广播。\n解决 order_id 路由的主流方案：\n①基因法（推荐）：生成 order_id 时把 user_id 的分片基因（如 user_id % 64 的几位二进制）嵌入 order_id 的固定位，按 order_id 查询时从 ID 中提取基因算出分片，实现两个查询维度都能单分片定位；代价是 ID 生成器要改造、基因位数决定分片数上限。\n②映射索引表：另建 order_id→user_id（或→分片号）的索引表，可按 order_id 分片或放缓存，查订单先查索引再路由；多一次查询、索引表本身要高可用。\n③订单号查询走 ES 等异构索引：把订单明细异步同步到 Elasticsearch，运营复杂查询直接搜 ES，规避在线广播。\n补充：若两类查询权重相当或还有按时间的报表需求，可考虑按时间分表+user_id 分库的二维拆分，但运维更复杂。最终要说明广播查询在 20% 且可接受时也可临时保留，按业务演进。"
+    },
+    "scoringPoints": [
+      { "point": "按查询占比选 user_id 为分片键并解释用户维度单分片收益", "weight": 3 },
+      { "point": "指出 order_id 查询的广播退化问题", "weight": 2 },
+      { "point": "给出基因法或映射索引/异构索引的可落地方案并讲原理", "weight": 3 },
+      { "point": "能权衡各方案代价（ID 改造、额外查询、异步延迟）而非只背名词", "weight": 2 }
+    ],
+    "analysis": "分片键设计是分库分表面试的核心开放题。常见失分：只说『按 user_id 分片』却回答不了 order_id 怎么查；编造中间件万能路由；不知道基因法原理。高分回答会先按查询模式做权重分析，再给出多维度路由的工程解法，并诚实说明每种方案的代价与演进路径。",
+    "gapCheck": [
+      "易漏点：分片键一旦选定很难更改，设计时要把未来主要查询维度都纳入评估",
+      "常见误区：认为中间件能自动解决不带分片键的查询——本质仍是广播",
+      "加分项：能提基因位数与最大分片数的绑定关系、ES 异构索引的最终一致延迟"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.strategy"],
+      "related": ["cs.design.sharding.id-gen", "cs.design.sharding.readwrite"],
+      "followUps": [
+        "基因法里分片数从 64 扩到 128 时，嵌入的基因位不够怎么办？",
+        "ES 异构索引和主库之间怎么保证订单数据不丢？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "分片键选择场景简答题" },
+    "tags": ["分片键", "基因法", "路由", "订单表"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0006",
+    "nodeId": "cs.design.sharding.id-gen",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "分库分表后各分片都有自增主键，继续依赖数据库自增 ID 会出现不同分片生成相同 ID 的问题。关于分布式 ID 方案，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "雪花算法（Snowflake）用『时间戳 + 工作节点号 + 序列号』拼出 64 位 Long 型 ID，单机趋势递增、本地生成无网络开销，但需要处理时钟回拨" },
+      { "key": "B", "text": "UUID 因为长度短、单调递增，作为 InnoDB 主键插入性能最好" },
+      { "key": "C", "text": "号段模式每次 insert 都同步请求数据库取一个 ID，性能取决于数据库 RT" },
+      { "key": "D", "text": "雪花 ID 的序列号部分在同一毫秒内可以无限分配，不会耗尽" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确描述了雪花算法的结构与优缺点：64 位中 1 位符号、41 位时间戳、10 位节点、12 位序列号，本地生成、整体随时间趋势递增，依赖机器时钟所以要防回拨。B 错：UUID 是 36 字符（或 16 字节）且无序，作为 InnoDB 聚簇索引主键会导致页分裂、插入随机 IO、索引膨胀，性能差。C 错：号段模式是一次性从数据库取一个区间（如 1000 个号）缓存在本地内存发号，用完才再取，不是每次 insert 都访问 DB，双 buffer 还能让取号无阻塞。D 错：序列号位数固定（经典 12 位即每毫秒 4096 个），耗尽后要等下一毫秒。",
+    "gapCheck": [
+      "易漏点：雪花 ID 趋势递增的前提是时钟单调，时钟回拨会产生重复 ID，需拒绝/等待/切换节点",
+      "常见误区：只看到 UUID 全局唯一就忽略其无序性对关系型数据库索引的伤害",
+      "加分项：能讲号段双 buffer、Redis 发号的持久化风险，以及不同方案的全局唯一 vs 趋势递增差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.id-gen"],
+      "related": ["cs.design.sharding.strategy"],
+      "followUps": [
+        "时钟回拨 5 毫秒和回拨 5 秒分别可以怎么处理？",
+        "雪花的 10 位工作节点号不够用、节点数超 1024 时怎么调整位结构？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "分布式 ID 方案单选题" },
+    "tags": ["分布式ID", "雪花算法", "UUID", "号段模式"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0007",
+    "nodeId": "cs.design.sharding.id-gen",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：经典雪花算法生成的是 64 位长整型 ID，通常由 1 位符号位、41 位毫秒级时间戳、10 位工作机器/数据中心节点号和 12 位毫秒内序列号组成；同一节点同一毫秒内靠序列号区分，序列号耗尽则等待下一毫秒，且整个机制对机器时钟回拨敏感。",
+    "answer": { "judge": true },
+    "analysis": "正确，这是雪花算法的标准位结构（不同实现可调整各段位数但思路一致）。41 位毫秒时间戳可用约 69 年（相对自定义纪元）；10 位节点支持约 1024 个发号节点；12 位序列号每毫秒可发 4096 个 ID，耗尽后自旋等到下一毫秒。由于时间戳是 ID 的高位主体，一旦 NTP 校时把时钟往回拨，可能生成与历史重复的 ID，因此实现必须检测 lastTimestamp 与当前时间的关系，回拨量小则等待、量大则告警并切换节点。",
+    "gapCheck": [
+      "易漏点：可用年限取决于自定义纪元（epoch），41 位毫秒约 69.7 年",
+      "常见误区：以为雪花 ID 全局严格单调递增——它只在同节点内趋势递增，跨节点受时钟偏差影响不保证全局有序",
+      "加分项：能讲百度 UidGenerator/美团 Leaf 等方案在位数分配与时钟回拨上的改进思路（不写死版本号）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.id-gen"],
+      "related": ["cs.design.sharding.strategy"],
+      "followUps": [
+        "为什么雪花 ID 适合做 InnoDB 主键而 UUID 不适合？",
+        "如果要求 ID 不可被竞品枚举推测业务量，雪花 ID 要怎么改造？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "雪花算法位结构判断题" },
+    "tags": ["雪花算法", "位运算", "时钟回拨", "判断"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0008",
+    "nodeId": "cs.design.sharding.id-gen",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 JavaScript（BigInt）实现一个简化版雪花 ID 生成器 `SnowflakeId`，位结构为 1 位符号 + 41 位毫秒时间戳（相对自定义纪元）+ 5 位数据中心号 + 5 位机器号 + 12 位序列号。要求：①`nextId()` 同毫秒内递增序列号、序列号 4095 耗尽时等待到下一毫秒；②检测时钟回拨并直接抛错；③写测试连续生成 5000 个 ID，验证无重复且整体递增。",
+    "answer": {
+      "ref": "机理：ID 是各字段按位左移后拼接——时间戳左移 22 位（10 位节点+12 位序列号），数据中心号左移 17 位，机器号左移 12 位，序列号占最低 12 位。同毫秒用序列号自增区分，超过 4095 自旋等下一毫秒；每次生成记录上次时间戳，当前时钟小于它即判定时钟回拨并抛错，杜绝重复 ID。JS 的 Number 只有 53 位安全整数，64 位 ID 必须用 BigInt 做位运算与输出。",
+      "code": "class SnowflakeId {\n  constructor(dataCenterId, workerId, epoch = 1704067200000n) {\n    this.DATACENTER_BITS = 5n;\n    this.WORKER_BITS = 5n;\n    this.SEQUENCE_BITS = 12n;\n    this.MAX_DATACENTER = (1n << this.DATACENTER_BITS) - 1n; // 31\n    this.MAX_WORKER = (1n << this.WORKER_BITS) - 1n;         // 31\n    this.MAX_SEQUENCE = (1n << this.SEQUENCE_BITS) - 1n;     // 4095\n    this.WORKER_SHIFT = this.SEQUENCE_BITS;                  // 12\n    this.DATACENTER_SHIFT = this.SEQUENCE_BITS + this.WORKER_BITS; // 17\n    this.TIMESTAMP_SHIFT = this.DATACENTER_SHIFT + this.DATACENTER_BITS; // 22\n    if (dataCenterId > this.MAX_DATACENTER || workerId > this.MAX_WORKER) {\n      throw new Error('节点号超出位数范围');\n    }\n    this.dataCenterId = BigInt(dataCenterId);\n    this.workerId = BigInt(workerId);\n    this.epoch = epoch;\n    this.sequence = 0n;\n    this.lastTimestamp = -1n;\n  }\n\n  currentMillis() {\n    return BigInt(Date.now());\n  }\n\n  nextId() {\n    let timestamp = this.currentMillis();\n    if (timestamp < this.lastTimestamp) {\n      throw new Error('时钟回拨，拒绝生成 ID，回拨毫秒数=' + (this.lastTimestamp - timestamp));\n    }\n    if (timestamp === this.lastTimestamp) {\n      this.sequence = (this.sequence + 1n) & this.MAX_SEQUENCE; // 溢出归零\n      if (this.sequence === 0n) {\n        // 本毫秒序列号耗尽，自旋等到下一毫秒\n        while (timestamp <= this.lastTimestamp) timestamp = this.currentMillis();\n      }\n    } else {\n      this.sequence = 0n;\n    }\n    this.lastTimestamp = timestamp;\n    return ((timestamp - this.epoch) << this.TIMESTAMP_SHIFT)\n      | (this.dataCenterId << this.DATACENTER_SHIFT)\n      | (this.workerId << this.WORKER_SHIFT)\n      | this.sequence;\n  }\n}\n\n// 测试\nconst sf = new SnowflakeId(1, 2);\nconst ids = new Set();\nlet prev = -1n, increasing = true;\nfor (let i = 0; i < 5000; i++) {\n  const id = sf.nextId();\n  if (ids.has(id)) throw new Error('发现重复 ID');\n  if (id <= prev) increasing = false;\n  ids.add(id);\n  prev = id;\n}\nconsole.log('生成数量:', ids.size);           // 5000\nconsole.log('无重复:', ids.size === 5000);    // true\nconsole.log('整体递增:', increasing);         // true（单线程同步生成）\nconsole.log('首个 ID:', sf.nextId().toString());"
+    },
+    "scoringPoints": [
+      { "point": "位结构与移位拼接正确，各段位数与掩码计算无误", "weight": 3 },
+      { "point": "同毫秒序列号递增、4095 耗尽后等待下一毫秒的逻辑正确", "weight": 3 },
+      { "point": "时钟回拨检测抛错，使用 BigInt 避免 53 位精度问题", "weight": 2 },
+      { "point": "测试验证唯一性与递增性，代码可运行", "weight": 2 }
+    ],
+    "analysis": "高频手写题，失分集中在：用 Number 做 64 位运算导致精度丢失；序列号溢出处理错误（不会等下一毫秒）；忘记时钟回拨检测；移位位数算错（节点 10 位+序列号 12 位，时间戳左移 22 位）。能进一步讲纪元选择对可用年限的影响、改造位结构适配更多节点、以及批量发号优化属于加分。",
+    "gapCheck": [
+      "易漏点：JS/Java 等语言要注意整数精度，64 位 ID 在 JS 中必须 BigInt、JSON 传输建议用字符串",
+      "常见误区：序列号耗尽直接报错而不是等下一毫秒，或回拨检测方向写反",
+      "加分项：能讲小回拨等待、大回拨告警切换节点的分级处理策略"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.id-gen"],
+      "related": ["cs.design.sharding.strategy"],
+      "followUps": [
+        "前端拿到 Long 型雪花 ID 精度丢失怎么解决？",
+        "如何在雪花 ID 里嵌入分片基因，让 ID 自带路由信息？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "雪花算法手写代码题" },
+    "tags": ["手写题", "雪花算法", "BigInt", "时钟回拨"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0009",
+    "nodeId": "cs.design.sharding.id-gen",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：雪花算法 64 位 ID 中，时间戳通常占 ______ 位（毫秒级），工作节点相关占 10 位，毫秒内序列号占 ______ 位（即每毫秒最多 4096 个）；分布式 ID 的核心要求包括全局唯一、______ 递增（利于数据库索引）、高性能与高可用；UUID 不适合做 InnoDB 聚簇索引主键的主要原因是它 ______，导致页分裂与随机 IO。",
+    "answer": {
+      "blanks": ["41", "12", "趋势", "无序"],
+      "synonyms": {
+        "41": ["四十一"],
+        "12": ["十二"],
+        "趋势": ["单调趋势", "整体趋势"],
+        "无序": ["随机无序", "不是递增", "非递增", "乱序"]
+      }
+    },
+    "analysis": "经典位结构：41 位毫秒时间戳（相对纪元可用约 69 年）+10 位节点+12 位序列号（2^12=4096/毫秒）。分布式 ID 要求全局唯一、趋势递增（注意是趋势而非全局严格单调）、本地高性能、节点高可用。InnoDB 主键是聚簇索引，数据按主键有序组织，UUID 随机无序使新行插入位置随机，引发页分裂、碎片与随机磁盘 IO，且 36 字符长度放大二级索引。",
+    "gapCheck": [
+      "易漏点：雪花只保证同节点趋势递增，跨节点因时钟偏差不保证全局严格有序",
+      "常见误区：把序列号容量记成 1024（那是 10 位节点数），12 位对应 4096",
+      "加分项：能提有序 UUID（如 UUIDv7）在一定程度缓解无序问题"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.id-gen"],
+      "related": ["cs.design.sharding.strategy"],
+      "followUps": [
+        "UUIDv7 相比 UUIDv4 在索引友好性上改进了什么？",
+        "号段模式生成的 ID 是否趋势递增？双 buffer 怎么工作？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "雪花位结构与 UUID 填空题" },
+    "tags": ["雪花算法", "UUID", "聚簇索引", "填空"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0010",
+    "nodeId": "cs.design.sharding.readwrite",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "系统采用一主多从、读写分离后，用户反馈『刚提交的订单刷新就看不到』。关于主从延迟与写后读不一致，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "主库写入后 binlog 复制到从库并回放需要时间，读请求若立刻命中尚未同步的从库就会读不到，这是典型的复制延迟问题" },
+      { "key": "B", "text": "可对『写后立即读』的请求强制路由主库（如写后短时间内的读走主库），牺牲部分读压力换一致性" },
+      { "key": "C", "text": "大事务、从库单线程回放、网络抖动都会拉长主从延迟，半同步复制至少让主库确认有从库收到 binlog 才返回" },
+      { "key": "D", "text": "读写分离后读库数据和主库永远严格一致，用户反馈一定是前端缓存 bug" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 解释了写后读不一致的根因：异步复制下从库回放有时间差。B 是常用工程解法：对一致性敏感的读（如下单后跳订单详情）在一个时间窗内强制走主库，或基于 GTID/位点等待从库追平后再读。C 列出延迟三大来源并点出半同步复制（semi-sync）的保证边界——至少一个从库收到日志（注意是收到不是回放完），比纯异步安全但仍非零延迟。D 错：异步/半同步复制都不保证实时强一致，直接归罪前端缓存是误诊。",
+    "gapCheck": [
+      "易漏点：半同步只保证 binlog 被从库接收，不保证已回放，延迟窗口仍存在",
+      "常见误区：以为读写分离是免费午餐，忽视复制延迟带来的读一致性问题",
+      "加分项：能讲 GTID 等待、并行复制、读写中间件的延迟检测与自动主库路由"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.readwrite"],
+      "related": ["cs.design.cache.consistency"],
+      "followUps": [
+        "怎么监控主从延迟？Seconds_Behind_Master 有什么局限？",
+        "强制走主库的时间窗口怎么定才不会让主库被读流量打垮？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "主从延迟与写后读多选题" },
+    "tags": ["读写分离", "主从延迟", "半同步复制", "一致性"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0011",
+    "nodeId": "cs.design.sharding.readwrite",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：订单表按 user_id 分片后，一个不带分片键的『按时间倒序分页查询全部订单』请求必须广播到所有分片，各分片分别取数据后在中间件或应用层内存归并排序；随着页码加深（如 LIMIT 100000, 20），每个分片都要取前 10 万余行，总成本随页码线性膨胀，深分页几乎不可用。",
+    "answer": { "judge": true },
+    "analysis": "正确。不带分片键的查询无法定位单分片，只能 scatter-gather 全分片广播。跨片分页排序要求每个分片都取到 offset+size 条（否则全局第 offset 之后的数据可能遗漏），N 个分片就是 N×(offset+size) 行参与内存归并，深分页时网络传输、内存占用和延迟都随页码爆炸。工程对策：限制最大页码/改用游标（seek pagination，用上一页最后一条的排序字段做 where 条件）、引入 ES/宽表等异构索引承接复杂查询、离线报表走数仓，避免在线深分页。",
+    "gapCheck": [
+      "易漏点：归并排序要求每分片取足 offset+size 行，而不是只取 size 行",
+      "常见误区：以为加个中间件就能让分片表的深分页性能与单库相同",
+      "加分项：能讲游标分页、搜索引擎异构、汇总表三种规避路线的适用边界"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.readwrite"],
+      "related": ["cs.design.sharding.strategy"],
+      "followUps": [
+        "游标分页为什么能避开深分页？它牺牲了什么能力？",
+        "把订单同步到 ES 做查询，写入链路和数据一致性怎么设计？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "跨片分页深分页判断题" },
+    "tags": ["跨片查询", "深分页", "广播", "归并排序"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0012",
+    "nodeId": "cs.design.sharding.readwrite",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "订单表按 user_id 分片后，关于不带分片键的全局 count 统计与在线扩容迁移，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "这类 count 需要向所有分片发送局部 count 再汇总相加；扩容双写迁移期间同一行可能在新旧分片同时存在，简单相加会重复计数，要靠路由生效点或迁移标记去重" },
+      { "key": "B", "text": "分片中间件会自动把全局 count 优化成单分片查询，其成本与单库 count 完全相同" },
+      { "key": "C", "text": "在线扩容只要把历史数据拷贝到新分片即可，不需要双写、数据校验和路由切流" },
+      { "key": "D", "text": "求全局 avg 时，把各分片返回的 avg 直接再取算术平均就能得到正确结果" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：跨片聚合的本质是 scatter-gather，各分片并行算局部 count、中间件归并求和；扩容双写迁移期新旧分片数据重叠，若无归属标记会把同一行算两次，工程上靠路由生效点、迁移状态表或唯一 ID 去重。B 错：不带分片键的查询必须广播，请求数随分片数线性增长，成本明显高于单库。C 错：在线扩容是双写、历史数据迁移、一致性校验、灰度切流、旧数据清理的完整工程，裸拷贝会出现路由错乱与数据丢失。D 错：各分片行数不同，avg 不能直接平均，必须让分片同时返回 sum 与 count，再用总 sum/总 count 重算。",
+    "gapCheck": [
+      "易漏点：不同聚合的归并方式不同——count/sum 可相加，avg 必须带 count 和 sum 重算，distinct 要收集全集",
+      "常见误区：以为跨片 count 等价于单库 count 的性能，实际随分片数线性放大请求数",
+      "加分项：能讲高频统计用汇总表/流计算预聚合，避免每次全分片扫描"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.readwrite"],
+      "related": ["cs.design.sharding.strategy"],
+      "followUps": [
+        "跨片 avg 和 distinct 为什么不能直接把各分片结果平均/合并？",
+        "扩容双写期间怎么保证新旧分片数据最终一致？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "跨片聚合与迁移计数单选题" },
+    "tags": ["跨片聚合", "count", "数据迁移", "双写"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0013",
+    "nodeId": "cs.design.sharding.readwrite",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "场景题：分片集群的从库监控频繁告警主从延迟飙升，排查发现白天峰值延迟可达数十秒。请说明：①主从延迟的常见成因（至少 4 个）；②从库单线程回放为什么是经典瓶颈；③给一套从应急到根治的治理方案。",
+    "answer": {
+      "ref": "参考骨架：\n①常见成因：主库写入 TPS 高、从库回放能力跟不上；大事务（批量 update/delete、一次刷几十万行）在从库也要完整重放；从库 SQL 线程历史上单线程回放，主库多线程并行写、从库串行追；从库硬件差（机械盘、CPU 弱）或与主库配置不对等；网络带宽不足/抖动；从库上还跑着慢查询、备份、分析任务争抢资源；无主键表的行回放退化为全表扫描。\n②单线程回放瓶颈：主库写入是多会话并发的，而传统复制的 SQL 线程只有一个，binlog 事件按提交顺序串行执行，主库并行度越高、从库追得越吃力，延迟自然累积；MySQL 后续版本引入基于组提交/写集的并行复制缓解，但受事务依赖关系限制。\n③治理方案：应急——把写后读等强一致请求临时切主库、关停从库上的分析任务、限流主库非核心写入；短期——升级从库配置与主库对齐、开启并行复制、拆分大事务为小批次、检查保证每个表有主键；长期——读写分离框架接入延迟检测自动路由、引入半同步复制降低数据丢失风险、按业务垂直拆分减轻单库写入、关键业务评估 NewSQL/原生多副本架构，并建立延迟监控（GTID 位点对比、心跳表）与告警基线。"
+    },
+    "scoringPoints": [
+      { "point": "成因覆盖大事务、单线程回放、硬件不对等、网络、从库负载等至少 4 个", "weight": 3 },
+      { "point": "讲清主库并发写与从库串行回放的能力差这一核心矛盾", "weight": 3 },
+      { "point": "治理分应急/短期/长期三层且措施具体可落地", "weight": 3 },
+      { "point": "提到并行复制、半同步、延迟监控等工程机制", "weight": 1 }
+    ],
+    "analysis": "这题把复制原理与线上排障结合。常见失分：只会说『网络慢』；不知道 SQL 线程单线程回放的历史背景；治理只给『加机器』。高分回答能串起 binlog 提交顺序、并行复制的依赖约束、无主键表回放放大等细节，并给出分层、可执行的治理清单与监控手段。",
+    "gapCheck": [
+      "易漏点：无主键表会让从库 row 模式回放每行都全表扫描，是隐蔽的延迟元凶",
+      "常见误区：把延迟一律归因网络，忽视大事务和从库自身负载",
+      "加分项：能讲心跳表/GTID 监控比 Seconds_Behind_Master 更可靠，以及并行复制的粒度演进"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.readwrite"],
+      "related": ["cs.design.cache.consistency", "cs.design.limit.ha"],
+      "followUps": [
+        "并行复制在什么事务模式下效果最好？为什么有外键依赖时提速有限？",
+        "主从切换（failover）时怎么保证不丢已提交的数据？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "主从延迟治理场景简答题" },
+    "tags": ["主从延迟", "并行复制", "大事务", "线上排障"]
+  },
+  {
+    "id": "Q-cs-design-sharding-0014",
+    "nodeId": "cs.design.sharding.readwrite",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：分片订单表用 `LIMIT offset, size` 做深分页时，每个分片都要取 offset+size 行再内存归并，页码越深成本越高。请用 JavaScript 实现基于上一页最后一条记录排序字段的『游标分页（seek pagination）』模拟：①构造 3 个分片，每片保存按 (create_time, id) 有序的订单；②实现 `fetchPage(cursor, size)`，只从每片取游标之后的前 size 条，再全局归并出 size 条，并返回下一页游标；③写测试翻 3 页验证顺序正确、不会重复或遗漏，并解释它为什么避开深分页。",
+    "answer": {
+      "ref": "机理：传统 LIMIT offset 在每分片都要扫描并丢弃前 offset 行，offset 越大浪费越多，且跨片要 N×(offset+size) 行参与归并。游标分页把『跳过多少行』改成『从哪里继续』：WHERE (create_time, id) > (上页最后一条的 create_time, id) ORDER BY create_time, id LIMIT size，数据库可直接用 (create_time,id) 复合索引定位起点，每片只取 size 条，中间件对 N×size 条做一次多路归并取前 size，成本与页码无关。游标用 (create_time,id) 二元组是为了在 create_time 相同时仍有唯一决胜列，保证全序、不重不漏。代价是不能直接跳到任意页码，只适合『上一页/下一页』式无限滚动。",
+      "code": "// 模拟 3 个分片，每片订单按 (createTime, id) 升序\nconst shards = [\n  [\n    { id: 1, createTime: 100 }, { id: 4, createTime: 300 }, { id: 7, createTime: 500 }\n  ],\n  [\n    { id: 2, createTime: 200 }, { id: 5, createTime: 400 }, { id: 8, createTime: 600 }\n  ],\n  [\n    { id: 3, createTime: 250 }, { id: 6, createTime: 450 }, { id: 9, createTime: 700 }\n  ]\n];\n\n// 游标之后的判定：先比 createTime，相同再比 id\nfunction afterCursor(order, cursor) {\n  if (!cursor) return true;\n  if (order.createTime !== cursor.createTime) return order.createTime > cursor.createTime;\n  return order.id > cursor.id;\n}\n\nfunction fetchPage(cursor, size) {\n  // 每个分片只取游标之后的前 size 条（对应 SQL: WHERE (create_time,id) > ? LIMIT size）\n  const candidates = [];\n  for (const shard of shards) {\n    let taken = 0;\n    for (const order of shard) {\n      if (afterCursor(order, cursor)) {\n        candidates.push(order);\n        if (++taken === size) break;\n      }\n    }\n  }\n  // 全局多路归并排序后取前 size 条\n  candidates.sort((a, b) =>\n    a.createTime - b.createTime || a.id - b.id\n  );\n  const page = candidates.slice(0, size);\n  const nextCursor = page.length\n    ? { createTime: page[page.length - 1].createTime, id: page[page.length - 1].id }\n    : null;\n  return { page, nextCursor };\n}\n\n// 测试：每页 3 条，连续翻 3 页\nlet cursor = null;\nconst all = [];\nfor (let p = 1; p <= 3; p++) {\n  const { page, nextCursor } = fetchPage(cursor, 3);\n  console.log('第' + p + '页:', page.map((o) => o.id).join(','));\n  all.push(...page);\n  cursor = nextCursor;\n}\n// 第1页: 1,2,3  第2页: 4,5,6  第3页: 7,8,9\nconst ids = all.map((o) => o.id);\nconsole.log('总数:', ids.length);                 // 9\nconsole.log('无重复:', new Set(ids).size === 9);  // true\nconsole.log('全局有序:', ids.every((v, i) => i === 0 || v > ids[i - 1])); // true\nconsole.log('末页后游标再取:', fetchPage(cursor, 3).page.length); // 0，自然结束"
+    },
+    "scoringPoints": [
+      { "point": "游标比较用 (create_time,id) 二元组，正确处理时间相同的决胜顺序", "weight": 3 },
+      { "point": "每分片只取游标后 size 条、全局归并再截 size，体现与页码无关的成本", "weight": 3 },
+      { "point": "测试翻页不重不漏、全局有序并能自然结束，代码可运行", "weight": 2 },
+      { "point": "讲清 seek pagination 相比 LIMIT offset 的索引定位原理与不能跳页的代价", "weight": 2 }
+    ],
+    "analysis": "跨片深分页是分库分表的经典痛点。常见失分：游标只用单个时间字段，时间相同时分页错乱或丢数据；每片仍取 offset+size 行，没体现游标优化；没有全局归并直接拼接分片结果导致乱序；答不出游标分页牺牲随机跳页能力。能进一步提到复合索引设计、ES 异构索引承接任意页码查询，属于加分。",
+    "gapCheck": [
+      "易漏点：排序字段必须含唯一列（id）做决胜，否则同值数据在翻页边界会重复或丢失",
+      "常见误区：以为游标分页能支持直接跳到第 100 页——它只支持顺序翻页",
+      "加分项：能对比 LIMIT offset、游标分页、ES search_after 三种方案的适用场景"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.design.sharding.readwrite"],
+      "related": ["cs.design.sharding.strategy", "cs.algo.sort.binary-search"],
+      "followUps": [
+        "排序方向改成倒序时，游标比较和索引要怎么调整？",
+        "业务必须支持『跳到第 N 页』时，搜索引擎方案怎么承接？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "分片游标分页手写代码题" },
+    "tags": ["手写题", "深分页", "游标分页", "分片", "归并"]
+  }
+]

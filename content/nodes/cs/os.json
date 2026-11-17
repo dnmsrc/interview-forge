@@ -1,0 +1,104 @@
+[
+  { "id": "cs.os.process", "title": "进程与线程", "level": 3, "domain": "cs", "stack": "os", "topic": "process", "mustMaster": true, "estMinutes": 100,
+    "summary": "进程/线程本质、进程状态与调度算法、上下文切换、用户线程与内核线程及协程——操作系统并发的地基，后端与客户端面试必考" },
+  { "id": "cs.os.sync", "title": "同步互斥与死锁", "level": 3, "domain": "cs", "stack": "os", "topic": "sync", "mustMaster": true, "estMinutes": 100,
+    "summary": "临界区与锁、信号量与经典同步问题、CAS/ABA 与无锁编程、死锁条件与银行家算法——并发编程正确性的核心理论" },
+  { "id": "cs.os.memory", "title": "内存管理", "level": 3, "domain": "cs", "stack": "os", "topic": "memory", "mustMaster": true, "estMinutes": 90,
+    "summary": "分页分段、虚拟内存与地址翻译、TLB 与多级页表、缺页中断、页面置换算法与抖动——理解内存性能与 OOM 的钥匙" },
+  { "id": "cs.os.io", "title": "IO 模型与零拷贝", "level": 3, "domain": "cs", "stack": "os", "topic": "io", "mustMaster": true, "estMinutes": 90,
+    "summary": "五种 IO 模型、select/poll/epoll 对比、LT/ET 触发、零拷贝 sendfile/mmap 与 DMA——高并发网络编程的操作系统底座" },
+  { "id": "cs.os.linux", "title": "Linux 工程实践", "level": 3, "domain": "cs", "stack": "os", "topic": "linux", "mustMaster": false, "estMinutes": 60,
+    "summary": "文件系统与 inode、排查命令与 load average、进程状态与僵尸/孤儿进程——线上排障与八股结合的实战章节" },
+
+  { "id": "cs.os.process.thread-vs-process", "title": "进程与线程的本质区别、资源占用与 IPC", "level": 4, "domain": "cs", "stack": "os", "topic": "process",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清进程是资源分配的最小单位、线程是 CPU 调度的最小单位；进程间地址空间隔离而同进程线程共享堆/全局变量/文件描述符但各自有栈和寄存器上下文；进程创建（fork/写时复制）与线程创建的开销差异；以及管道、消息队列、共享内存、信号量、信号、Socket 等 IPC 方式各自的特点与选型" },
+
+  { "id": "cs.os.process.scheduling", "title": "进程状态转换与调度算法", "level": 4, "domain": "cs", "stack": "os", "topic": "process",
+    "prerequisites": ["cs.os.process.thread-vs-process"],
+    "related": ["cs.os.process.context-switch"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能画出三/五状态模型（新建、就绪、运行、阻塞、终止）及就绪与阻塞的本质区别；能手算 FCFS、短作业优先 SJF、时间片轮转 RR、优先级调度、多级反馈队列 MLFQ 的调度时序与平均等待时间；讲清抢占与非抢占、饥饿与老化、时间片大小对吞吐和响应的权衡" },
+
+  { "id": "cs.os.process.context-switch", "title": "上下文切换的开销与触发时机", "level": 4, "domain": "cs", "stack": "os", "topic": "process",
+    "prerequisites": ["cs.os.process.scheduling"],
+    "related": ["cs.os.process.thread-models"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清上下文切换要保存/恢复哪些内容（寄存器、程序计数器、栈指针、PCB/TCB、内存映射）、为什么进程切换比线程切换贵（切页表刷 TLB）、触发时机（时间片到期、IO 阻塞、中断、更高优先级就绪、主动 yield），以及用户态/内核态切换与上下文切换的关系和减少切换的工程手段" },
+
+  { "id": "cs.os.process.thread-models", "title": "用户线程与内核线程、协程与多线程模型", "level": 4, "domain": "cs", "stack": "os", "topic": "process",
+    "prerequisites": ["cs.os.process.thread-vs-process", "cs.os.process.context-switch"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清用户线程（用户态调度、内核不可见）与内核线程（内核调度）的区别；多对一、一对一、多对多三种映射模型的阻塞行为与并行度；协程为什么是用户态轻量级线程、靠协作式调度避免内核切换，以及 Go goroutine、Java 虚拟线程等现代实现的大致思路与适用边界" },
+
+  { "id": "cs.os.sync.lock-vs-spinlock", "title": "临界区、互斥锁与自旋锁的区别与适用场景", "level": 4, "domain": "cs", "stack": "os", "topic": "sync",
+    "prerequisites": ["cs.os.process.thread-vs-process"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清临界区与临界资源、互斥的四个要求（空闲让进、忙则等待、有限等待、让权等待）；互斥锁（mutex，阻塞睡眠、上下文切换开销）与自旋锁（spinlock，忙等、不睡眠）的实现差异与适用场景（锁持有时间短/长、单核与多核），以及读写锁、可重入锁等衍生锁的取舍" },
+
+  { "id": "cs.os.sync.semaphore-classic", "title": "信号量原理与经典同步问题", "level": 4, "domain": "cs", "stack": "os", "topic": "sync",
+    "prerequisites": ["cs.os.sync.lock-vs-spinlock"],
+    "related": ["cs.os.sync.deadlock"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲清整型/记录型信号量的 P(wait)/V(signal) 原语语义（资源计数 + 等待队列）、二元信号量与互斥锁的关系；能手写或用伪代码描述生产者-消费者（空/满/互斥三个信号量）、读者-写者（读写互斥、读读共享、写者饥饿）、哲学家进餐（破坏死锁的几种策略），并说明 P 操作顺序错误为何会死锁" },
+
+  { "id": "cs.os.sync.cas-lockfree", "title": "CAS 原子操作、ABA 问题与无锁编程", "level": 4, "domain": "cs", "stack": "os", "topic": "sync",
+    "prerequisites": ["cs.os.sync.lock-vs-spinlock"],
+    "related": ["cs.os.process.context-switch"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清 CAS（compare-and-swap）的原子语义与硬件支持（总线锁定/缓存锁定）、用 CAS 实现自旋更新的套路；ABA 问题的产生与版本号/标记位解法；无锁编程相比互斥锁的优势（无死锁、无阻塞切换）与代价（自旋浪费、ABA、内存回收 hazard pointer/RCU），以及原子类在 Java/C++ 中的典型用法" },
+
+  { "id": "cs.os.sync.deadlock", "title": "死锁四个必要条件、预防/避免/检测与解除", "level": 4, "domain": "cs", "stack": "os", "topic": "sync",
+    "prerequisites": ["cs.os.sync.semaphore-classic"],
+    "related": ["cs.os.sync.lock-vs-spinlock"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能背出并解释死锁四个必要条件（互斥、占有且等待、不可抢占、循环等待）；区分预防（破坏四条件，如资源有序分配破坏循环等待）、避免（银行家算法用安全序列判断）、检测（资源分配图化简）与解除（剥夺资源、撤销进程、回滚）；能结合实际排查经验讲锁顺序、超时与 tryLock 的工程防御" },
+
+  { "id": "cs.os.memory.virtual-memory", "title": "分页分段、虚拟内存的作用与地址翻译", "level": 4, "domain": "cs", "stack": "os", "topic": "memory",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清连续分配的碎片问题、分段（按逻辑模块、段表、便于共享保护）与分页（固定大小页框、对内透明、内部碎片）的区别；虚拟内存让每个进程拥有独立连续的虚拟地址空间的四大收益（隔离、大于物理内存、按需调页、简化链接/加载）；以及 MMU 页表翻译、页表项权限位、用户态/内核态空间划分的完整过程" },
+
+  { "id": "cs.os.memory.tlb-pagefault", "title": "TLB 快表、多级页表与缺页中断", "level": 4, "domain": "cs", "stack": "os", "topic": "memory",
+    "prerequisites": ["cs.os.memory.virtual-memory"],
+    "related": ["cs.os.memory.page-replacement"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清单级页表的空间浪费、多级页表如何用『只为用到的区间建下级页表』省内存及 64 位下的级数；TLB 作为页表缓存的命中率与地址翻译快路径（TLB hit/miss、巨大页的收益）；缺页中断的完整处理流程（陷入内核、找空闲页框/置换、磁盘换入、更新页表、重启指令），以及 major/minor fault 的区别" },
+
+  { "id": "cs.os.memory.page-replacement", "title": "页面置换算法、Belady 异常与抖动", "level": 4, "domain": "cs", "stack": "os", "topic": "memory",
+    "prerequisites": ["cs.os.memory.tlb-pagefault"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能手推 OPT、FIFO、LRU、Clock（二次机会）在给定引用串下的缺页次数；讲清 LRU 的近似实现与开销、Belady 异常（FIFO 增帧反而更多缺页，栈类算法不会）；抖动 thrashing 的成因（驻留集不足、频繁换入换出）、工作集模型与局部/全局置换策略，以及 swap 与 OOM 在 Linux 上的表现" },
+
+  { "id": "cs.os.io.models", "title": "五种 IO 模型：阻塞/非阻塞/多路复用/异步", "level": 4, "domain": "cs", "stack": "os", "topic": "io",
+    "prerequisites": ["cs.os.process.scheduling"],
+    "related": ["cs.os.io.epoll", "cs.os.io.zero-copy"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清同步阻塞、同步非阻塞、IO 多路复用、信号驱动、异步 IO 五种模型在『等数据就绪』和『拷数据到用户态』两阶段是否阻塞；select/poll/epoll 三者在 fd 上限、每次拷贝、触发方式、时间复杂度上的区别；以及为什么多路复用仍属同步 IO、AIO（如 Linux io_uring 思路）真正异步在哪" },
+
+  { "id": "cs.os.io.epoll", "title": "epoll 的 LT/ET 触发与高效原理", "level": 4, "domain": "cs", "stack": "os", "topic": "io",
+    "prerequisites": ["cs.os.io.models"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 epoll_create/epoll_ctl/epoll_wait 三个接口与红黑树+就绪队列的内核结构；LT 水平触发（fd 可读就一直通知）与 ET 边缘触发（状态变化才通知、必须配非阻塞 fd 一次读干净）的编程差异；epoll 相比 select 高效的三个原因（无 fd 上限线性扫描、mmap/回调加入就绪链表、不重复传 fd 集合），以及 Reactor 模式与惊群现象" },
+
+  { "id": "cs.os.io.zero-copy", "title": "零拷贝 sendfile/mmap、传统拷贝对比与 DMA", "level": 4, "domain": "cs", "stack": "os", "topic": "io",
+    "prerequisites": ["cs.os.io.models"],
+    "related": ["cs.os.io.epoll"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能数出传统 read+write 文件发送经历的 4 次上下文切换与 4 次拷贝（2 次 CPU 拷贝 + 2 次 DMA）；mmap 省一次 CPU 拷贝的原理、sendfile 进一步降到 2 次 DMA 拷贝（带 SG-DMA 的实现）；DMA 控制器如何替 CPU 搬数据、中断与轮询的取舍，以及 Kafka/Nginx 等中间件用零拷贝的工程收益" },
+
+  { "id": "cs.os.linux.filesystem-inode", "title": "文件系统、inode 与软硬链接", "level": 4, "domain": "cs", "stack": "os", "topic": "linux",
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲清 Linux VFS 抽象、inode（存元数据与数据块指针，不含文件名）与目录项 dentry 的关系；硬链接与源文件共享 inode、不能跨文件系统/不能链目录，软链接是独立 inode 存目标路径、可跨设备可链目录但会悬空；以及 ls -i、ln/ln -s、删除文件本质是 unink 目录项且磁盘空间在引用计数归零后释放" },
+
+  { "id": "cs.os.linux.troubleshoot-cmds", "title": "top/ps/netstat 排查命令与 load average、CPU 占用", "level": 4, "domain": "cs", "stack": "os", "topic": "linux",
+    "prerequisites": ["cs.os.process.scheduling"],
+    "related": ["cs.os.io.models"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能用 ps aux/pstree/top/htop 看进程与线程（-L）、netstat/ss 看连接与端口、vmstat/iostat 看系统瓶颈；准确解释 load average 三个值是 R+D 态进程的平均数量（不是 CPU 使用率）及与核数的关系；区分用户态 us、内核态 sy、iowait wa、steal st，知道 load 高但 CPU 闲通常是 IO 等待" },
+
+  { "id": "cs.os.linux.process-states", "title": "R/S/D/Z 进程状态、僵尸进程与孤儿进程", "level": 4, "domain": "cs", "stack": "os", "topic": "linux",
+    "prerequisites": ["cs.os.process.scheduling"],
+    "related": ["cs.os.linux.troubleshoot-cmds"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲清 ps 输出中 R（运行/就绪）、S（可中断睡眠）、D（不可中断睡眠，常是磁盘 IO）、T（停止）、Z（僵尸）各状态含义；僵尸进程是子进程退出后父进程未 wait 回收、残留 PCB 占用 pid；孤儿进程是父进程先退出、被 init/systemd（pid 1）收养后自动回收；以及定位僵尸父进程（ps -o ppid）与修复的工程手段" }
+]

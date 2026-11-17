@@ -1,0 +1,371 @@
+[
+  {
+    "id": "Q-cs-os-linux-0001",
+    "nodeId": "cs.os.linux.filesystem-inode",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "关于 Linux 的 inode，下列说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "inode 里保存着文件的名字和文件内容" },
+      { "key": "B", "text": "inode 保存文件的元数据（大小、属主、权限、时间戳、数据块指针等）但不包含文件名；文件名存放在所在目录的目录项（dentry）中，目录项把文件名映射到 inode 号" },
+      { "key": "C", "text": "一个文件可以对应多个 inode，每次 cp 复制都会新建一个目录项指向同一 inode" },
+      { "key": "D", "text": "inode 耗尽只影响超大文件存储，小文件不受影响" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 准确描述了 inode 与 dentry 的分工：inode 编号在文件系统内唯一，元数据与数据块寻址都挂在 inode 上；目录本身也是一种文件，其内容是『文件名→inode 号』的目录项表，所以改名/硬链接只改目录项而不动 inode。A 错：文件名不在 inode 里，文件内容在数据块里、inode 只存指针。C 错：cp 复制会创建新 inode（独立文件）；多个目录项指向同一 inode 的是硬链接（ln）。D 错：小文件恰恰最容易先耗尽 inode——海量小文件可能 inode 用完而数据块还空闲，此时即使磁盘有空间也无法新建文件（df -i 看 inode 使用率）。",
+    "gapCheck": [
+      "易漏点：删除文件的本质是 unlink 目录项，inode 链接计数归 0 且无进程打开时数据块才真正释放",
+      "常见误区：把文件名当文件固有属性——它是目录到 inode 的一层间接映射",
+      "加分项：能讲 mv 同文件系统内为什么是原子的元数据操作（不搬数据），以及 fsync 落盘的是数据+元数据"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.filesystem-inode"],
+      "related": ["cs.os.linux.process-states"],
+      "followUps": [
+        "一个正在被进程打开的文件被 rm 后，磁盘空间什么时候释放？",
+        "df 显示有空间却创建文件失败，可能是什么原因？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "inode 概念单选题" },
+    "tags": ["inode", "文件系统", "dentry", "高频"]
+  },
+  {
+    "id": "Q-cs-os-linux-0002",
+    "nodeId": "cs.os.linux.filesystem-inode",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于硬链接与软链接（符号链接），下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "硬链接与源文件共享同一个 inode，本质是多了一个目录项，链接计数加 1；删除其中一个名字，数据仍可通过另一个名字访问" },
+      { "key": "B", "text": "软链接是一个独立的新文件（有自己的 inode），内容是目标路径字符串；删除源文件后软链接变成悬空链接（dangling link），访问报错" },
+      { "key": "C", "text": "硬链接不能跨文件系统、通常不能对目录创建；软链接可以跨文件系统、可以指向目录" },
+      { "key": "D", "text": "软链接和硬链接一样都共享 inode，因此对软链接执行 ls -i 看到的 inode 号与源文件相同" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确，完整覆盖两类链接的核心差异。硬链接是同一 inode 的多个名字，受文件系统边界限制（inode 号只在本文件系统内有意义），目录硬链接会破坏目录树无环结构所以普通用户被禁止。软链接存的是路径，类似 Windows 快捷方式，跨设备、可链目录，但目标没了就悬空。D 错：软链接有独立 inode，ls -i 看到的是链接自己的 inode 号；用 ls -li 还能看到它指向的路径。另一个常考点：对软链接用 rm 删的是链接本身而非目标；chmod 改软链接权限实际作用在目标上（链接自身权限在 Linux 上被忽略）。",
+    "gapCheck": [
+      "易漏点：硬链接的链接计数（ls -l 第二列），归零才释放数据块",
+      "常见误区：以为软链接也共享 inode；它是独立小文件，存的是路径文本",
+      "加分项：能讲目录默认链接数为 2 的原因（. 与父目录的 ..），以及 readlink 命令"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.filesystem-inode"],
+      "related": ["cs.os.memory.virtual-memory"],
+      "followUps": [
+        "为什么 root 也不允许随便给目录建硬链接？",
+        "对软链接执行 chmod/chown，实际改的是谁？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "硬链接软链接对比多选题" },
+    "tags": ["硬链接", "软链接", "inode", "高频"]
+  },
+  {
+    "id": "Q-cs-os-linux-0003",
+    "nodeId": "cs.os.linux.filesystem-inode",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：用 `rm` 删除一个仍被进程打开的大文件后，`ls` 已经看不到它、目录项被移除，但在进程关闭文件描述符之前，对应的数据块不会被释放，`du` 统计的磁盘占用也不会下降，可用 `lsof | grep deleted` 找到这类文件。",
+    "answer": { "judge": true },
+    "analysis": "正确。Linux 回收数据块要求链接计数为 0 且没有进程持有打开的 fd。rm 只是 unlink 目录项、链接计数减 1，进程的 fd 仍让 inode 存活，空间继续被占；lsof 会把它标为 (deleted)。线上常见事故：日志文件被 rm 但服务没重启，磁盘空间不释放。处理办法：①重启服务或让进程重新打开日志（如 kill -HUP 触发日志轮转 reopen）；②实在不能重启时，可向该 fd 对应的 /proc/<pid>/fd/<n> 写入或截断（如 `: > /proc/<pid>/fd/1`）释放空间。",
+    "gapCheck": [
+      "易漏点：空间释放的两个条件——链接计数为 0 且打开计数为 0",
+      "常见误区：以为 rm 后空间立刻回来；df 不降时要想到被占用的 deleted 文件",
+      "加分项：能讲日志轮转（logrotate）为什么用 copytruncate 或 reopen 两种策略及其取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.filesystem-inode"],
+      "related": ["cs.os.linux.troubleshoot-cmds"],
+      "followUps": [
+        "不重启进程，怎么让被删除但仍打开的日志文件空间立刻释放？",
+        "/proc/<pid>/fd 下的数字链接和普通软链接有什么区别？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "deleted 文件空间释放判断题" },
+    "tags": ["inode", "lsof", "日志", "线上排查"]
+  },
+  {
+    "id": "Q-cs-os-linux-0004",
+    "nodeId": "cs.os.linux.filesystem-inode",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：创建硬链接的命令是 ______（不带参数），创建软链接需要加 ______ 参数；查看文件 inode 号可以用 ls 加 ______ 参数（如 ls -li）。",
+    "answer": {
+      "blanks": ["ln", "-s", "-i"],
+      "synonyms": {
+        "ln": ["ln 命令"],
+        "-s": ["s", "--symbolic"],
+        "-i": ["i", "--inode"]
+      }
+    },
+    "analysis": "①`ln 源 链接名` 建硬链接：新建目录项指向同一 inode，链接计数 +1。②`ln -s 源 链接名` 建符号链接：新建独立小文件存目标路径。③`ls -i` 显示 inode 号，配合 -l 即 ls -li 可同时看权限、链接计数与 inode；判断两个文件是不是硬链接关系，最直接的方法就是比较 inode 号是否相同且在同一文件系统。",
+    "gapCheck": [
+      "易漏点：ln 默认就是硬链接，-s 才是软链接，记反是面试常见口误",
+      "常见误区：以为硬链接有专门的新文件类型，它在 ls -l 里显示为普通文件类型 -",
+      "加分项：能讲 stat 命令一次看全 inode、链接数、三个时间戳（atime/mtime/ctime）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.filesystem-inode"],
+      "related": ["cs.os.linux.troubleshoot-cmds"],
+      "followUps": [
+        "atime、mtime、ctime 分别在什么操作下更新？",
+        "find 命令怎么按 inode 号查找或删除乱码文件名的文件？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "ln/ls 命令填空题" },
+    "tags": ["ln", "软链接", "硬链接", "命令"]
+  },
+
+  {
+    "id": "Q-cs-os-linux-0005",
+    "nodeId": "cs.os.linux.troubleshoot-cmds",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "一台 4 核机器 `uptime` 显示 load average 为 8.00、7.50、6.00（1/5/15 分钟），下列理解**正确**的是：",
+    "options": [
+      { "key": "A", "text": "CPU 使用率达到了 800%，机器已经过载 8 倍" },
+      { "key": "B", "text": "load average 是单位时间内处于可运行（R）和不可中断睡眠（D）状态进程数的平均值；4 核机器负载 8 意味着平均有约 8 个任务在争抢 CPU 或卡在 IO，系统处于过载状态，且 1 分钟值高于 15 分钟值说明负载还在上升" },
+      { "key": "C", "text": "load average 只统计正在 CPU 上运行的进程，不包含阻塞在 IO 上的进程" },
+      { "key": "D", "text": "负载高一定代表 CPU 瓶颈，应该立即扩容 CPU" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 完整准确：Linux 负载计数包含 R 态（运行/就绪排队）与 D 态（不可中断睡眠，通常是磁盘 IO 等待）的任务，是『对资源有需求的任务平均数』而非 CPU 百分比。4 核上长期负载 8 意味着任务数是核数的两倍，排队明显，属过载；三个数递增方向（1 分钟 > 15 分钟）表明负载正在爬坡。A 错在把负载当使用率：8 不是 800% 使用率，top 里的 %CPU 才是使用率口径。C 漏掉 D 态——这正是 load 高但 CPU 闲的原因（IO 瓶颈）。D 错：要结合 %us/%sy/%wa 判断瓶颈类型，wa 高或 D 态多是 IO 问题，加 CPU 没用，应查磁盘/存储/锁。",
+    "gapCheck": [
+      "易漏点：D 态进程计入负载，所以 load 高 ≠ CPU 忙，要配合 top/vmstat 交叉验证",
+      "常见误区：拿单核时代『负载超过 1 就危险』的经验套多核机器，比较基准是核数",
+      "加分项：能讲负载指数衰减平均的算法本质，以及容器中 load 来自宿主 /proc 而可能失真的坑"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.troubleshoot-cmds"],
+      "related": ["cs.os.linux.process-states", "cs.os.process.scheduling"],
+      "followUps": [
+        "load 很高但 top 看 CPU 很闲，你会按什么路径排查？",
+        "容器里 /proc/loadavg 反映的是容器还是宿主机的负载？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "load average 含义单选题" },
+    "tags": ["load-average", "top", "性能排查", "高频"]
+  },
+  {
+    "id": "Q-cs-os-linux-0006",
+    "nodeId": "cs.os.linux.troubleshoot-cmds",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 top/ps/netstat（ss）等排查命令，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "`ps aux` 能查看进程快照（USER/PID/%CPU/%MEM/STAT/COMMAND），`ps -ef` 显示 PPID 便于还原父子关系；`top -H -p <pid>` 可查看某进程的线程级 CPU 占用" },
+      { "key": "B", "text": "top 中 us 是用户态 CPU 时间、sy 是内核态时间、wa 是等待 IO 的时间、st 是被虚拟化环境偷走的时间；us 高通常是应用计算重，sy 高可能是系统调用/上下文切换频繁，wa 高指向 IO 瓶颈" },
+      { "key": "C", "text": "`netstat -anp` 或现代替代 `ss -tanp` 可以查看连接状态、监听端口与对应进程；TIME-WAIT 大量堆积通常是主动关闭方的正常现象，CLOSE-WAIT 堆积往往意味着应用没正确 close 连接" },
+      { "key": "D", "text": "vmstat 的 r 列是运行队列长度，b 列是阻塞在 IO 的进程数，si/so 是 swap 换入换出；这些指标可以和 load average 互相印证" }
+    ],
+    "answer": { "keys": ["A", "B", "C", "D"] },
+    "analysis": "四项全部正确，构成一套线上排查的基础工具箱。A 区分快照（ps）与动态视图（top），-H 线程视角是定位 Java 热点线程（配合 jstack  tid→nid 十六进制转换）的标准动作。B 的 CPU 时间分类是瓶颈定性的关键：us 高查算法/GC，sy 高查锁竞争/系统调用/网络栈，wa 高查磁盘，st 高查宿主机超卖。C 中 ss 是 netstat 的现代替代（直接读 socket 内核结构、更快），TIME-WAIT 与 CLOSE-WAIT 的责任方不同：前者是主动关闭方的 2MSL 正常状态，后者是被动关闭方收到 FIN 后应用层迟迟不 close，属于代码缺陷信号。D 的 vmstat 列含义与负载、抖动分析直接挂钩。",
+    "gapCheck": [
+      "易漏点：CLOSE-WAIT 是应用没调 close 的指纹，TIME-WAIT 才是协议正常行为，两者排查方向相反",
+      "常见误区：只看 %CPU 总览不看 us/sy/wa 分解，导致瓶颈定性错误",
+      "加分项：能讲 pidstat -d/-w 看线程级 IO 与切换、iostat -x 看 %util 与 await、ss -s 的汇总统计"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.troubleshoot-cmds"],
+      "related": ["cs.os.linux.process-states", "cs.os.memory.page-replacement"],
+      "followUps": [
+        "线上 CPU 100%，给出从 top 到线程栈定位的完整命令链",
+        "大量 ESTABLISHED 连接但服务无响应，你会怎么分层排查？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "排查命令综合多选题" },
+    "tags": ["top", "ps", "ss", "vmstat", "线上排查"]
+  },
+  {
+    "id": "Q-cs-os-linux-0007",
+    "nodeId": "cs.os.linux.troubleshoot-cmds",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：`top` 里看到 load average 很高但 %CPU 各项加起来不高、%wa（iowait）明显偏高，同时 vmstat 的 b 列长期大于 0，这种组合通常说明瓶颈在 IO（磁盘/网络存储）而不是 CPU 算力，盲目升配 CPU 解决不了问题。",
+    "answer": { "judge": true },
+    "analysis": "正确。这是负载与使用率分离的经典情形：D 态（不可中断睡眠）进程等待块设备 IO 时被计入 load 但不占 CPU，于是负载高、CPU 闲、wa 高、vmstat 的 b 列（阻塞中的进程数）非零。排查方向：①iostat -x 1 看设备 %util、await、svctm，确认哪块盘饱和；②pidstat -d 找 IO 大户进程；③结合业务判断是随机小 IO、swap 抖动（si/so）、日志狂写还是网络存储（NFS/EBS）延迟；④应用侧可用缓存、批量写、异步化、换 SSD/扩容 IOPS 解决。反过来 us 持续接近核数×100% 才是 CPU 瓶颈。",
+    "gapCheck": [
+      "易漏点：wa 统计依赖 CPU 空闲这个前提，CPU 很满时 wa 可能被低估，要结合 b 列与 iostat",
+      "常见误区：把负载当扩容信号直接加 CPU，IO 瓶颈下扩容无效",
+      "加分项：能讲 D 态为什么不可中断（防止磁盘操作半途而废破坏内核状态），以及 iowait 在多核下的统计口径"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.troubleshoot-cmds"],
+      "related": ["cs.os.linux.process-states", "cs.os.memory.page-replacement"],
+      "followUps": [
+        "iostat 的 await 和 %util 分别说明什么？%util 100% 一定到极限了吗？",
+        "NFS 卡顿为什么会让进程进入 D 态且 kill -9 都杀不掉？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "IO 瓶颈指标组合判断题" },
+    "tags": ["iowait", "load", "vmstat", "IO瓶颈"]
+  },
+  {
+    "id": "Q-cs-os-linux-0008",
+    "nodeId": "cs.os.linux.troubleshoot-cmds",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "线上实战题：某 Java 服务响应突然变慢、请求大量超时。请给出一套分层排查流程，要求覆盖：①先看哪些全局指标判断大致瓶颈方向（CPU/内存/IO/网络）；②如何定位到具体进程与线程；③如何从线程落到代码栈；④网络与连接维度怎么查；⑤每一步给出实际命令。",
+    "answer": {
+      "ref": "参考骨架（自上而下、先全局后局部）：\n【全局定性】①`uptime` 或 top 头部看 load average 与核数对比、1/5/15 分钟趋势；②`top` 看 %us/%sy/%wa/%st 分解与内存、按 P 按 CPU 排序、按 M 按内存排序；③`vmstat 1` 看 r（运行队列）、b（IO 阻塞）、si/so（swap 抖动）、us/sy/wa；④`iostat -xz 1` 看磁盘 %util/await；⑤`ss -s`、`sar -n DEV 1` 看连接与网卡吞吐。据此分流：us 高→CPU 瓶颈；wa/b 高→IO 瓶颈；si/so 高→内存抖动。\n【定位进程】`top -c` 找高 CPU/高 RES 的 pid；`ps -eo pid,ppid,%cpu,%mem,stat,cmd --sort=-%cpu | head` 快照排序；`pidstat 1` 持续观测进程级 CPU/内存/IO（-d）/切换（-w）。\n【定位线程到代码】①`top -H -p <pid>` 找占 CPU 最高的线程 tid；②tid 转十六进制 `printf '%x\\n' <tid>`；③`jstack <pid>` dump 线程栈，搜 nid=0x<十六进制 tid>，定位具体方法与栈帧；多次采样对比（或用 Arthas `thread -n 3`、`thread <tid>` 一键完成）。若怀疑死锁，jstack 末尾有 deadlock 段，Arthas `thread -b` 直接找阻塞源；GC 问题则 jstat -gcutil 看分代与 GC 频次/耗时，必要时 jmap dump 用 MAT 分析大对象。\n【网络与连接】①`ss -tanp`（或 netstat -anp）看各状态连接数，重点 TIME-WAIT/CLOSE-WAIT/ESTABLISHED 异常堆积；②`ss -lntp` 核对监听端口；③`sar -n DEV,TCP 1` 看网卡吞吐与重传/重置；④`tcpdump -i any -nn port <port> -w cap.pcap` 抓包后 Wireshark 分析；⑤DNS/上游延迟用 dig、curl -w 分阶段计时（dns/connect/ttfb）。\n【收敛与验证】把指标、线程栈、连接状态串成因果链（如 GC 频繁→STW→超时；慢 SQL→D 态→load 高；连接池耗尽→CLOSE-WAIT 堆积），改动后用同样命令复测确认。全程保留现场（栈、dump、日志）再做重启类动作。"
+    },
+    "scoringPoints": [
+      { "point": "全局指标分层完整：load/top CPU 分解/vmstat/iostat/ss，能按指标分流瓶颈类型", "weight": 3 },
+      { "point": "进程→线程→代码栈链路命令正确（top -H、tid 转十六进制、jstack nid 对应）", "weight": 3 },
+      { "point": "网络连接维度有具体命令与状态语义（ss 状态、抓包、curl 计时）", "weight": 2 },
+      { "point": "体现先保现场再处置、改动后复测的工程纪律", "weight": 1 }
+    ],
+    "analysis": "这是排查命令考点的综合战例题，面试官看的是排查有没有方法论而不是命令堆砌。常见失分：一上来就 jstack 不做全局定性；知道 top 但不知道 top -H 与 nid 十六进制转换；把 CLOSE-WAIT 当网络问题而不是应用连接泄漏；没有验证闭环。能引入 Arthas、pidstat、jstat、tcpdump/curl -w 等工具并讲清各自位置，回答就具备 SRE 实战成色。",
+    "gapCheck": [
+      "易漏点：先全局定性再下钻，避免拿着一个工具找问题；线程 tid 到 jstack nid 必须转十六进制",
+      "常见误区：CPU 高就重启——重启会销毁现场，应先抓栈和 GC 日志",
+      "加分项：能讲容器内排查的特殊性（/proc 是宿主视角、用 ctop/crictl、进入 namespace 抓栈）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.troubleshoot-cmds"],
+      "related": ["cs.os.linux.process-states", "cs.os.sync.deadlock", "cs.os.memory.page-replacement"],
+      "followUps": [
+        "如果故障进程在容器里，宿主机上怎么找到它的真实 pid 并抓栈？",
+        "Arthas 的 thread、dashboard、trace 分别替代了哪些传统命令组合？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "线上分层排查流程战例主观题" },
+    "tags": ["线上排查", "top", "jstack", "ss", "战例"]
+  },
+
+  {
+    "id": "Q-cs-os-linux-0009",
+    "nodeId": "cs.os.linux.process-states",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "`ps`/`top` 输出中进程 STAT 列的 R、S、D、Z 四种状态，下列解释**正确**的是：",
+    "options": [
+      { "key": "A", "text": "R=正在睡眠可被信号唤醒，S=正在 CPU 运行，D=已死亡，Z=暂停调试" },
+      { "key": "B", "text": "R=运行或就绪等待 CPU；S=可中断睡眠（等待事件，可被信号唤醒）；D=不可中断睡眠（通常是磁盘 IO，信号也叫不醒）；Z=僵尸进程（已退出但父进程未回收）" },
+      { "key": "C", "text": "D 状态的进程可以用 kill -9 立即杀掉" },
+      { "key": "D", "text": "Z 状态进程仍在执行用户代码，占用大量 CPU" }
+    ],
+    "answer": { "keys": ["B"] },
+    "analysis": "B 是标准定义。R（TASK_RUNNING）包含正在运行和在运行队列就绪两种情况；S（TASK_INTERRUPTIBLE）是最常见的睡眠态，等待 socket/锁/定时事件，信号可唤醒；D（TASK_UNINTERRUPTIBLE）主要用于块设备 IO 等内核路径，保证关键操作不被信号打断；Z 是进程已 exit 但父进程未 wait，只剩 task_struct 等回收。A 全错。C 错：D 态进程连 SIGKILL 都不响应，必须等它从内核 IO 路径返回（或重启），NFS 挂死时常见。D 错：僵尸进程已停止执行、不占 CPU，只占一个 pid 和少量内核结构；真正的危害是堆积耗尽 pid。另有 T（停止/被信号暂停或被 ptrace 跟踪）态可补充。",
+    "gapCheck": [
+      "易漏点：R 态不等于正在 CPU 上，就绪排队也算 R，这是它计入 load 的原因",
+      "常见误区：以为 kill -9 万能——D 态杀不掉，僵尸也杀不动（它已经死了，问题在父进程）",
+      "加分项：能讲 STAT 后缀字符（+ 前台进程组、s 会话首进程、l 多线程、< 高优先级、N 低优先级）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.process-states"],
+      "related": ["cs.os.process.scheduling", "cs.os.linux.troubleshoot-cmds"],
+      "followUps": [
+        "为什么 D 态设计成不可中断？什么场景会看到大量 D 态？",
+        "ps 里 STAT 为 Sl、Ss、R+ 分别透露了什么信息？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "进程状态含义单选题" },
+    "tags": ["进程状态", "D态", "僵尸进程", "高频"]
+  },
+  {
+    "id": "Q-cs-os-linux-0010",
+    "nodeId": "cs.os.linux.process-states",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于僵尸进程与孤儿进程，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "子进程退出后内核保留其退出状态与 task_struct，等待父进程通过 wait/waitpid 回收；父进程不处理 SIGCHLD 也不 wait，子进程就变成僵尸（Z）进程" },
+      { "key": "B", "text": "父进程先于子进程退出时，子进程成为孤儿进程，会被 pid 为 1 的 init/systemd（或其用户态代理）收养，由它负责 wait 回收，因此孤儿进程一般不会变成僵尸" },
+      { "key": "C", "text": "僵尸进程不占 CPU 和内存（只剩少量内核结构），但大量堆积会耗尽 pid 号，导致无法创建新进程" },
+      { "key": "D", "text": "清除僵尸进程的正确做法是直接 kill -9 僵尸本身；孤儿进程则必须重启服务器才能消除" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 是僵尸的成因：退出与回收是两步，wait 之前子进程以 Z 态保留退出码供父进程查询。B 是孤儿的机制：现代 Linux 由 pid 1（容器内可能是 reaper 进程）收养并自动 reap，这是 daemon 进程常用的 double-fork 技巧的原理。C 说清僵尸的真实危害：不耗 CPU、几乎不耗内存，但占 pid 与 task_struct 槽位，pid_max 耗尽后 fork 失败（EAGAIN）。D 全错：僵尸已经死了，任何信号都无法作用于它，正解是通知其父进程回收——kill 父进程让孤儿转由 init 收养是最常用的清理手段；修复代码则是父进程显式 wait、注册 SIGCHLD 处理器或设 SA_NOCLDWAIT。孤儿进程本身是正常现象、无需『消除』。",
+    "gapCheck": [
+      "易漏点：杀僵尸要从父进程下手（或杀父进程让 init 接管），杀僵尸本身无效",
+      "常见误区：把孤儿进程当异常——它有明确的收养回收机制，僵尸才是缺陷",
+      "加分项：能讲 double-fork 守护进程化、SA_NOCLDWAIT/SIG_IGN 自动回收、容器里 pid 1 不 reap 的坑"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.process-states"],
+      "related": ["cs.os.process.thread-vs-process", "cs.os.linux.troubleshoot-cmds"],
+      "followUps": [
+        "怎么用 ps 快速定位僵尸进程及其父进程（ppid）？",
+        "容器里为什么容易出现僵尸进程？tini 这类 init 进程解决什么问题？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "僵尸与孤儿进程多选题" },
+    "tags": ["僵尸进程", "孤儿进程", "SIGCHLD", "高频"]
+  },
+  {
+    "id": "Q-cs-os-linux-0011",
+    "nodeId": "cs.os.linux.process-states",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "线上你用 `ps aux` 发现一批 STAT 为 Z 的进程，请回答：①僵尸进程是怎么产生的，它占用什么资源、有什么危害；②给出定位与清理的完整步骤（含命令）；③代码层面怎么预防；④顺带说明孤儿进程为什么通常不会造成同样的问题。",
+    "answer": {
+      "ref": "参考骨架：【产生与危害】子进程调用 exit 后，内核释放其用户态资源但保留 task_struct 与退出码/统计信息，发 SIGCHLD 通知父进程；父进程若没有 wait/waitpid 回收（也没设 SIGCHLD 自动处理），子进程永久停在 Z 态。僵尸不再被调度、不耗 CPU、用户内存已释放，只占一个 task_struct 和一个 pid；危害是长期堆积耗尽 pid 空间（/proc/sys/kernel/pid_max）与进程表槽位，最终 fork 返回 EAGAIN，新进程/线程都创建不了。\n【定位与清理】①`ps -eo pid,ppid,stat,cmd | awk '$3 ~ /Z/'` 或 `ps aux | grep ' Z'` 列出僵尸及其 PPID；②`pstree -p <ppid>` 或 `ps -o ppid= -p <zombie_pid>` 确认父进程；③僵尸本身不响应任何信号（它已经是尸体），正确清理是让父进程回收：温和方式是给父进程发 SIGCHLD（kill -SIGCHLD <ppid>）提示它处理；若父进程逻辑有缺陷不响应，则重启父进程或 `kill <ppid>`（必要时 -9），父进程死后僵尸变成孤儿，由 pid 1 的 systemd/init 收养并自动 wait，Z 随即消失。\n【代码预防】①父进程显式 waitpid 回收子进程；②注册 SIGCHLD 处理器，在处理器中循环 waitpid(-1, &status, WNOHANG) 直到无子进程可回收（注意一次信号可能合并多个子进程退出，必须循环）；③ signal(SIGCHLD, SIG_IGN) 或 sigaction 设 SA_NOCLDWAIT，让内核自动回收；④服务程序用 double-fork 脱离父进程、交由 init 接管；⑤容器入口使用 tini/dumb-init 等具备 reap 能力的 init 进程。\n【孤儿进程为何无害】父进程先退出时，子进程被 pid 1（或 subreaper）收养，收养者的职责就是循环 wait 所有被托管的子进程，退出状态被及时取走，不会残留 Z 态。所以问题的本质永远在『活着的父进程不履行回收义务』，而不是子进程本身。"
+    },
+    "scoringPoints": [
+      { "point": "讲清僵尸产生机制（exit 与 wait 两步）与真实危害（pid/进程表耗尽而非 CPU）", "weight": 2 },
+      { "point": "定位清理步骤正确：找 PPID、SIGCHLD/杀父进程、init 接管，明确杀僵尸无效", "weight": 3 },
+      { "point": "预防措施 ≥3 种：waitpid、SIGCHLD 循环回收、SIG_IGN/SA_NOCLDWAIT、double-fork、tini", "weight": 3 },
+      { "point": "解释孤儿被 init 收养自动回收、与僵尸的责任主体差异", "weight": 2 }
+    ],
+    "analysis": "这题把进程状态考点落到真实故障处理。常见失分：试图 kill 僵尸本身；不知道 SIGCHLD 会合并、处理器里不循环 wait 会漏回收；把孤儿和僵尸混为一谈；不知道容器 pid 1 不 reap 是容器化应用僵尸泛滥的典型原因。能讲 WNOHANG 非阻塞回收、subreaper 机制、pid_max 耗尽的报错现象，回答就有工程深度。",
+    "gapCheck": [
+      "易漏点：SIGCHLD 不排队，多个子进程同时退出可能只发一次信号，处理器必须循环 waitpid 到 ECHILD",
+      "常见误区：以为僵尸占内存占 CPU——它只占 pid 与 task_struct 槽位",
+      "加分项：能讲容器 tini/dumb-init 的作用、double-fork 守护化原理、systemd 的 subreaper 属性"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.process-states"],
+      "related": ["cs.os.linux.troubleshoot-cmds", "cs.os.process.thread-vs-process"],
+      "followUps": [
+        "pid_max 耗尽时系统会有什么表现？怎么确认是 pid 耗尽而不是内存不足？",
+        "Java/Python/Node 服务里 fork 子进程后分别用什么 API 正确回收？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "僵尸进程排查预防综合主观题" },
+    "tags": ["僵尸进程", "SIGCHLD", "waitpid", "容器", "战例"]
+  },
+  {
+    "id": "Q-cs-os-linux-0012",
+    "nodeId": "cs.os.linux.filesystem-inode",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请回答：①inode 里存什么、不存什么，目录项（dentry）与 inode 是什么关系；②硬链接与软链接在 inode、跨文件系统、目录链接、删除行为上的差异；③为什么一个正在被进程打开的文件被 rm 后磁盘空间不释放，怎么排查和处理；④df 显示有空间却无法新建文件，可能的原因有哪些。",
+    "answer": {
+      "ref": "参考骨架：【inode 与 dentry】inode 存文件元数据：类型、权限、属主 uid/gid、大小、atime/mtime/ctime、链接计数、数据块指针（直接/间接/extent），以及 inode 号；不存文件名也不存目录结构。目录是一种特殊文件，其数据内容是目录项表：『文件名 → inode 号』的映射，dentry 是内核内存中对这层映射的缓存对象。访问 /a/b.txt 的过程就是逐级查目录项拿到下级 inode 号、再读 inode。\n【硬链接 vs 软链接】硬链接：同一个 inode 的多个目录项，链接计数 +1，删一个名字只减计数、数据在计数归 0 且无进程打开时释放；不能跨文件系统（inode 号只在本 fs 内有效）；普通用户不能对目录建硬链接（破坏目录树有环结构，. 和 .. 是内核维护的特例）。软链接：独立 inode 的小文件，内容是目标路径字符串；可跨文件系统、可链目录；目标删除后变成悬空链接（dangling），访问报 No such file；权限位对软链接本身无意义，操作实际作用于目标。\n【被打开文件 rm 不释放】空间释放要求链接计数为 0 且打开计数为 0。rm 只 unlink 目录项，进程持有的 fd 让 inode 与数据块继续存活。排查：`lsof | grep deleted` 或 `find /proc/*/fd -ls | grep deleted`。处理：让持有进程关闭 fd——重启服务、触发日志 reopen（kill -HUP/logrotate），或应急截断 `/proc/<pid>/fd/<n>`（如 `: > /proc/<pid>/fd/1`）。\n【有空间却建不了文件】①inode 耗尽：海量小文件把 inode 表用完（`df -i` 查看 IUse%），数据块还空闲也无法新建，需清理小文件或重建文件系统调大 inode 密度；②目录项/配额限制：用户/项目磁盘配额（quota）触顶；③只读挂载：文件系统出错后被内核保护式 remount-ro；④权限或 SELinux/AppArmor 策略拒绝；⑤保留块：ext 类文件系统默认给 root 预留 5%，普通用户在阈值上无法写入。"
+    },
+    "scoringPoints": [
+      { "point": "inode 元数据内容与『不存文件名』、dentry 映射关系讲清", "weight": 2 },
+      { "point": "两类链接四维度对比（inode/跨 fs/目录/删除悬空）准确", "weight": 3 },
+      { "point": "打开计数+链接计数双条件、lsof deleted 与处理手段", "weight": 3 },
+      { "point": "新建失败原因 ≥3 个：inode 耗尽、quota、只读挂载、root 保留块", "weight": 2 }
+    ],
+    "analysis": "这是文件系统考点的综合收口题。常见失分：以为 inode 存文件名；硬链接软链接区别只背一句『一个能跨文件系统』；不知道 rm 不释放空间的双计数原理；df 有空间建文件失败只答得出权限问题。能讲到 /proc/fd 应急截断、df -i、ext 保留块，回答就有运维实战味道。",
+    "gapCheck": [
+      "易漏点：mv 在同一文件系统内只是改目录项、inode 不变，所以同 fs 内移动大文件是原子且瞬时的",
+      "常见误区：把软链接权限当真实权限，或以为 rm 软链接会删掉目标文件",
+      "加分项：能讲 fsync 落盘数据+元数据两次写、journal 文件系统的日志模式，以及 bind mount 与软链接的取舍"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.os.linux.filesystem-inode"],
+      "related": ["cs.os.linux.troubleshoot-cmds", "cs.os.memory.virtual-memory"],
+      "followUps": [
+        "logrotate 的 copytruncate 和 create+reopen 两种策略各有什么风险？",
+        "海量小文件场景除了 inode 耗尽，还会带来哪些性能问题？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "inode/链接/空间回收综合主观题" },
+    "tags": ["inode", "硬链接", "软链接", "df", "线上排查"]
+  }
+]

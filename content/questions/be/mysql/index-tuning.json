@@ -1,0 +1,201 @@
+[
+  {
+    "id": "Q-be-mysql-index-0001",
+    "nodeId": "be.mysql.index.bplus-tree",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "InnoDB 为什么选择 B+ 树而不是 B 树、哈希表或二叉搜索树作为索引结构？下列解释**最准确**的是：",
+    "options": [
+      { "key": "A", "text": "B+ 树只有叶子节点存数据、非叶子节点只存索引键，单个页能容纳更多键，树更矮，一次查询的磁盘 IO 次数更少，且叶子节点用双向链表相连，非常适合范围查询和顺序扫描" },
+      { "key": "B", "text": "B+ 树支持 O(1) 等值查询，比哈希表还快，所以放弃了哈希" },
+      { "key": "C", "text": "B+ 树是二叉树，每次比较都能排除一半数据，所以查询稳定为 log2(n)" },
+      { "key": "D", "text": "B+ 树的数据存在每个节点上，查任意一行都要遍历到根节点，因此结构最严谨" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确。InnoDB 按页（默认 16KB）读写磁盘，B+ 树是多叉平衡树，非叶子节点只放键+子指针，一个页能放下上千个键，使得几百万行的表索引高度通常只有 3-4 层，即一次主键查询只需 3-4 次磁盘 IO；同时所有数据都在叶子层并用双向链表串联，范围查询（between、>、order by）定位到起点后顺着链表顺序读即可，是顺序 IO，极快。B 错：哈希索引等值查询虽接近 O(1)，但不支持范围、排序、最左前缀，InnoDB 只在自适应哈希里内部使用，主索引不用它。C 错：B+ 树是多叉（N 叉）不是二叉，扇出大才是它矮的原因，二叉搜索树在数据量大时树高过大、还可能退化成链表。D 错：正好说反，B 树每个节点都存数据，导致单页键数少、树更高；B+ 树数据只在叶子层。对照前端：B+ 树很像为「减少磁盘这个超慢存储的随机访问次数」而设计的多路查找表，树高就是最坏 IO 数。",
+    "gapCheck": [
+      "易漏点：索引高度通常 3-4 层对应 3-4 次 IO，页 16KB、非叶子节点不存整行是树矮的根因",
+      "常见误区：以为 B+ 树是二叉树，或以为哈希索引能做范围查询",
+      "加分项：能讲清页（page）、扇出（fanout）、顺序 IO 与随机 IO 的成本差异"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.java.dsa.tree"],
+      "related": ["be.mysql.index.left-prefix-explain"],
+      "followUps": ["B 树和 B+ 树在范围查询上的具体差别是什么？", "什么是自适应哈希索引（AHI），它由谁触发？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "InnoDB 索引结构选型高频题" },
+    "tags": ["MySQL", "B+树", "索引原理", "磁盘IO", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-index-0002",
+    "nodeId": "be.mysql.index.bplus-tree",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于聚簇索引、二级索引、回表与覆盖索引，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "InnoDB 的聚簇索引就是主键索引，其叶子节点直接存放整行数据；一张表有且只有一个聚簇索引" },
+      { "key": "B", "text": "二级索引（辅助索引）的叶子节点存放的是主键值，而不是整行，因此走二级索引往往还要拿主键再查一次聚簇索引，这叫回表" },
+      { "key": "C", "text": "若查询所需的列全部包含在某个二级索引里（含主键），就能用覆盖索引避免回表，EXPLAIN 的 Extra 会显示 Using index" },
+      { "key": "D", "text": "二级索引叶子存的是行的物理磁盘地址，和 MyISAM 一样" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：InnoDB 是索引组织表（IOT），数据按主键顺序组织在聚簇索引的叶子上，没有主键时会选唯一非空索引，再没有就隐式生成一个 6 字节 ROWID；一张表只能有一个聚簇索引。B 正确：二级索引叶子存的是索引列 + 主键值，用二级索引查到主键后，若还需其他列就要回表查聚簇索引，这是二级索引多一次 IO 的原因。C 正确：覆盖索引指查询列（含 where、select、order by 用到的列）都在索引内，无需回表，Extra 出现 Using index，是重要优化手段。D 错：MyISAM 的索引叶子存的是行物理地址（数据和索引分离），而 InnoDB 二级索引存主键值——这也是为什么主键不宜过长（每个二级索引都会冗余一份主键）和不宜用无序 UUID（导致页分裂、聚簇索引碎片）。对照前端：回表很像你先查一个精简索引数组拿到 id，再用 id 去完整 Map 里取整条记录，多了一次查找。",
+    "gapCheck": [
+      "易漏点：二级索引叶子存主键而非物理地址，主键会被所有二级索引冗余",
+      "常见误区：把 InnoDB 和 MyISAM 的索引叶子内容混为一谈",
+      "加分项：能解释为什么主键要短、要自增有序（页分裂与二级索引体积）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.index.bplus-tree"],
+      "related": ["be.mysql.index.left-prefix-explain"],
+      "followUps": ["为什么推荐用自增整型主键而不是 UUID？", "Using index 和 Using where 在 EXPLAIN 里分别意味着什么？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "聚簇/二级/回表/覆盖索引核心概念多选题" },
+    "tags": ["MySQL", "聚簇索引", "回表", "覆盖索引", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-index-0003",
+    "nodeId": "be.mysql.index.bplus-tree",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：对于一张写多读少、并且大量插入新数据的表，用随机无序的 UUID 作为聚簇索引主键，往往比自增 BIGINT 主键带来更多的页分裂、索引碎片和更低的写入吞吐。",
+    "answer": { "judge": true },
+    "analysis": "正确。聚簇索引的数据页按主键顺序排列。自增主键的新行总是追加在 B+ 树最右侧的页，顺序写、页填得满、几乎不产生页分裂；而 UUID 随机无序，新行的主键可能落在树的任意位置，目标页已满时就要分裂成两页并移动数据，造成大量随机 IO、页利用率下降（碎片）和更高的写入延迟。此外 UUID 占 36 字符（或 16 字节二进制），相比 8 字节 BIGINT，会让聚簇索引和每一个二级索引都更臃肿（二级索引叶子要冗余主键），进一步降低单页可容纳的键数、抬高树高。工程上若一定要用分布式唯一 id，更推荐有序的雪花算法 id 或 UUIDv7（时间有序），兼顾分布式与局部顺序写入。对照前端：这就像往一个始终保持排序的大数组里插入元素，append 到末尾几乎零成本，插到中间则要搬动大量元素。",
+    "gapCheck": [
+      "易漏点：页分裂的根因是无序主键插入到已满的中间页，顺序插入只在最右页追加",
+      "常见误区：只看到 UUID 全局唯一就忽视其无序性对聚簇索引写入的伤害",
+      "加分项：知道 UUIDv7/雪花算法这类「时间有序」分布式 id 可缓解页分裂"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.index.bplus-tree"],
+      "related": ["be.micro.communication.id-lock"],
+      "followUps": ["雪花算法的时钟回拨问题是什么？怎么处理？", "什么是页分裂和页合并，如何用 OPTIMIZE TABLE 整理碎片？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "主键选型与页分裂，结合分布式 id" },
+    "tags": ["MySQL", "页分裂", "主键选型", "UUID", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-index-0004",
+    "nodeId": "be.mysql.index.left-prefix-explain",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "表 t 上有联合索引 idx(a,b,c)。下列查询条件中，**能充分利用该联合索引（符合最左前缀）**的是：",
+    "options": [
+      { "key": "A", "text": "where b = 2 and c = 3（完全不带 a）" },
+      { "key": "B", "text": "where a = 1 and c = 3（跳过 b）" },
+      { "key": "C", "text": "where a = 1 and b = 2 and c = 3（三列都按序给出）" },
+      { "key": "D", "text": "where a + 1 = 2（对索引列 a 做了运算）" }
+    ],
+    "answer": { "keys": ["C"] },
+    "analysis": "C 正确：联合索引 (a,b,c) 在 B+ 树里按 a→b→c 的顺序排序，最左前缀原则要求从最左列开始连续使用，三列全给能完整走索引。A 完全跳过最左列 a，索引无法用于定位（可能全表扫描，个别新版优化器有 index skip scan 但非普遍可靠）。B 给了 a 和 c 但跳过 b：只有 a 能用于索引定位，c 因为中间断了 b，无法继续按序利用，只能在 a 确定后靠过滤（ICP 索引下推可减少回表，但 c 仍不能当有序键）。D 对索引列做运算/函数会破坏索引的有序性，导致索引失效退化为全表扫描，应改写成 where a = 1。同类失效场景还有：隐式类型转换（字符串列传数字）、like '%xx' 左模糊、用 or 连接一个无索引列等。对照前端：联合索引像多级排序的数组先按 a 排、a 相同按 b 排、再按 c 排，缺了第一级排序键，后面的排序对查找就没有定位价值。",
+    "gapCheck": [
+      "易漏点：最左前缀要求「从最左列开始连续」，中间断列则后续列不能用于定位",
+      "常见误区：以为只要命中索引里任意一列就能走索引；或对索引列做函数/运算",
+      "加分项：知道索引下推 ICP 能在断列场景减少回表，以及 order by 与最左前缀的关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.index.bplus-tree"],
+      "related": ["be.mysql.index.bplus-tree"],
+      "followUps": ["索引下推（ICP）具体优化了什么？", "为什么 like '%abc' 走不了索引而 like 'abc%' 可以？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "联合索引最左前缀经典单选题" },
+    "tags": ["MySQL", "最左前缀", "联合索引", "索引失效", "高频必考"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-index-0005",
+    "nodeId": "be.mysql.index.left-prefix-explain",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "用 EXPLAIN 分析执行计划时：type 列的性能从好到差常见为 system > const > eq_ref > ref > range > ______（全索引扫描）> ALL（______）；若 Extra 出现 ______ 表示用到了覆盖索引、无需回表；出现 Using filesort 或 Using temporary 通常意味着需要重点优化。",
+    "answer": {
+      "blanks": ["index", "全表扫描", "Using index"],
+      "synonyms": {
+        "index": ["INDEX", "索引扫描"],
+        "全表扫描": ["全表", "full table scan"],
+        "Using index": ["using index", "Using Index"]
+      }
+    },
+    "analysis": "三个空串起 EXPLAIN 的核心读法。① type=index 是遍历整棵索引树（比 ALL 略好，因为索引更小且有序），ALL 是全表扫描、逐行扫数据页，生产 SQL 应尽量避免在大表上出现 ALL。② 覆盖索引时 Extra 显示 Using index，意为直接从索引树拿到全部所需列、不回表。③ key 列显示实际选用的索引、key_len 可判断联合索引用到了几列、rows 是优化器预估扫描行数（越大越差）、ref 显示索引比较来源。另外 Using where 表示在存储引擎返回后还要过滤，Using filesort 表示无法用索引完成排序需要额外排序，Using temporary 表示用了临时表（常见于 group by/distinct），后两者在大数据量下是明确的优化信号。对照前端：EXPLAIN 很像浏览器 Performance 面板，告诉你这条 SQL「走没走捷径、大概要扫多少条、有没有额外开小灶排序」。",
+    "gapCheck": [
+      "易漏点：index（全索引扫描）与 ALL（全表扫描）的区别，以及 Using index 才是覆盖索引",
+      "常见误区：把 Using where 当成坏信号，或混淆 key_len 与 rows 的含义",
+      "加分项：会用 key_len 精确判断联合索引命中列数，读懂 Using filesort/temporary"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.index.left-prefix-explain"],
+      "related": ["be.mysql.index.bplus-tree"],
+      "followUps": ["key_len 怎么算？如何用它判断联合索引命中了几列？", "rows 是精确值还是预估值？统计信息从哪来？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "EXPLAIN 执行计划关键字段填空题" },
+    "tags": ["MySQL", "EXPLAIN", "执行计划", "覆盖索引", "填空题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-index-0006",
+    "nodeId": "be.mysql.index.left-prefix-explain",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：对深分页 `limit 1000000, 20`，MySQL 仍需先扫描并丢弃前 100 万行，越往后翻页越慢；常见优化是「书签法/延迟关联」——先用覆盖索引查出命中行的主键，再用主键回表 join 取整行，从而避免对大量行做回表。",
+    "answer": { "judge": true },
+    "analysis": "正确。limit M,N 的执行逻辑是先查出前 M+N 条再丢弃前 M 条，M 很大时即使有索引也要扫描大量条目，且若 select * 每行都回表，成本随偏移量线性增长，这就是深分页越翻越卡的根因。两类主流优化：① 书签法（seek 分页）——用上一页最后一条的有序键（通常是主键 id）做 where id > last_id order by id limit N，把「跳过 100 万行」变成「从某个位置往后取 20 行」，代价是只能上一页/下一页、不能随机跳页；② 延迟关联——先用覆盖索引子查询 select id from t order by ... limit 1000000,20 只在索引树上拿到 20 个 id（不回表），再 join 原表用这 20 个主键回表取整行，把 100 万次回表压缩到 20 次。搜索引擎类产品还常把深翻页改造成滚动游标（cursor）或限制最大翻页深度。对照前端：这和虚拟列表只渲染可视区、用偏移量定位而非渲染全部 DOM 是同一种「避免处理无关数据」的思想。",
+    "gapCheck": [
+      "易漏点：limit 的偏移行也要先扫描出来再丢弃，回表次数随偏移量放大",
+      "常见误区：以为加了索引 limit 深分页就不慢，忽略回表成本",
+      "加分项：能对比书签法（游标分页）与延迟关联各自的适用前提和限制"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.index.left-prefix-explain"],
+      "related": ["eng.warstory.data.deep-pagination"],
+      "followUps": ["延迟关联的 SQL 大致怎么写？", "为什么游标分页不支持直接跳到第 N 页？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "深分页优化，关联工程难题" },
+    "tags": ["MySQL", "深分页", "延迟关联", "游标分页", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-mysql-index-0007",
+    "nodeId": "be.mysql.index.bplus-tree",
+    "type": "multiple",
+    "difficulty": 4,
+    "stem": "关于 InnoDB 的索引下推（ICP）、change buffer 与唯一/普通索引的写入差异，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "索引下推（ICP）在存储引擎层就用联合索引中已包含但未能最左匹配的列做过滤，减少回表次数，EXPLAIN 的 Extra 会显示 Using index condition" },
+      { "key": "B", "text": "普通二级索引插入时，若目标页不在内存，可先用 change buffer 缓存变更、之后合并，减少随机磁盘 IO；唯一索引因要保证唯一性必须立即读页判断，无法用 change buffer 优化" },
+      { "key": "C", "text": "在写多读少、索引列区分度不高的场景，普通索引配合 change buffer 通常比唯一索引写入性能更好" },
+      { "key": "D", "text": "唯一索引和普通索引在查询性能上差异巨大，任何查询都应优先用唯一索引" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：索引下推是 5.6 引入的优化。没有 ICP 时，存储引擎按索引定位后把整行（回表）交给 Server 层再用 where 其余条件过滤；开启 ICP 后，若 where 里的列本身就在这个二级索引中，引擎层先用这些列过滤掉不满足的记录再回表，显著减少回表次数，Extra 显示 Using index condition。B 正确：change buffer 缓存的是「二级索引页不在 Buffer Pool 时的变更」，等该页被读入再 merge。普通索引不要求唯一，插入时不必立刻确认有没有相同键，可以先记 change buffer；唯一索引为了保证唯一约束，插入必须立刻把对应页读进内存检查是否冲突，因此享受不到 change buffer 的延迟合并。C 正确：写多读少、页命中率低时，change buffer 能把大量随机 IO 合并、延迟，普通索引写入更有优势；但若业务天然保证唯一且写入后立刻读（页很快被加载），两者差距缩小，且唯一索引能在数据库层兜底数据正确性。D 错：等值查询时普通索引找到第一条满足记录后再多取一条即可判断结束，与唯一索引的查询性能几乎无差，选型应取决于业务是否需要唯一约束，而非盲目追求唯一索引。对照前端：ICP 很像在数据库索引层提前 filter，避免把全量数据捞到应用层再过滤，是「把过滤下推到离数据最近的地方」的通用优化思想。",
+    "gapCheck": [
+      "易漏点：ICP 在引擎层用索引内列预过滤减少回表；change buffer 只对普通二级索引生效",
+      "常见误区：以为唯一索引查询一定更快，或不知道唯一索引因约束无法延迟合并",
+      "加分项：能结合读写比、页命中率分析 change buffer 收益与 merge/redo 代价"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.mysql.index.bplus-tree"],
+      "related": ["be.mysql.index.left-prefix-explain"],
+      "followUps": ["change buffer 在 crash 后会丢吗？它和 redo log 如何配合？", "Using index condition 和 Using index（覆盖索引）有什么区别？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "ICP 与 change buffer 深度多选题" },
+    "tags": ["MySQL", "索引下推", "change buffer", "唯一索引", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  }
+]

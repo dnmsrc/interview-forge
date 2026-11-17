@@ -1,0 +1,164 @@
+[
+  {
+    "id": "Q-be-node-mod-0001",
+    "nodeId": "be.node.runtime.module-process",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于 CommonJS 与 ES Module（ESM）的区别，下列说法**正确**的有：",
+    "options": [
+      { "key": "A", "text": "CommonJS 用 require/module.exports，是运行时同步加载，加载后模块对象会被缓存，再次 require 返回同一缓存（模块单例）" },
+      { "key": "B", "text": "ESM 用 import/export，是静态的、在编译期就能确定依赖关系，支持 tree-shaking 和顶层 await" },
+      { "key": "C", "text": "CommonJS 中可以用 __dirname、__filename，而标准 ESM 里没有这两个变量，需要用 import.meta.url 配合 fileURLToPath 推导" },
+      { "key": "D", "text": "ESM 和 CommonJS 的循环依赖行为完全相同，都能在任何时刻拿到对方完整的导出" }
+    ],
+    "answer": { "keys": ["A", "B", "C"] },
+    "analysis": "A 正确：CommonJS 是 Node 传统模块系统，require 在运行时同步读取并执行模块，模块的 module.exports 被放进 Module._cache，后续 require 同一模块直接返回缓存对象，因此天然单例，常被用来存共享状态/连接池。B 正确：ESM 的 import/export 是静态声明，依赖图在解析阶段就确定，打包工具据此做 tree-shaking（删掉没被 import 的导出），ESM 还支持 top-level await。C 正确：__dirname/__filename 是 CommonJS 包装函数注入的局部变量，ESM 标准里不存在，要从 import.meta.url（模块的 file:// URL）用 fileURLToPath 转换得到路径。D 错：两者循环依赖语义不同——CommonJS 遇到循环时返回对方「尚未执行完的 module.exports 半成品」，可能拿到 undefined；ESM 用活绑定（live binding），导出是引用而非快照，等真正访问时变量可能已初始化，但在初始化前访问（TDZ）仍会报错。混用两者时 ESM 不能同步 require，要用动态 import()。对照前端：浏览器和现代打包工具原生就是 ESM 静态模型，CommonJS 主要是 Node 历史包袱。",
+    "gapCheck": [
+      "易漏点：CommonJS 运行时同步+缓存单例，ESM 编译期静态+活绑定+tree-shaking",
+      "常见误区：以为 ESM 也有 __dirname，或以为两种循环依赖都能拿到完整导出",
+      "加分项：能讲清 live binding 与 CommonJS 值拷贝的差异、动态 import() 的用途"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.node.core.eventloop"],
+      "related": ["fe.build.module.esm-cjs"],
+      "followUps": ["什么是 live binding？和 CommonJS 的导出有何本质区别？", "package.json 的 type:module 如何决定模块系统？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "CommonJS 与 ESM 对比多选题" },
+    "tags": ["Node.js", "CommonJS", "ESM", "模块系统", "tree-shaking"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-node-mod-0002",
+    "nodeId": "be.node.runtime.module-process",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：process 是 Node 的全局对象，可通过 process.env 读环境变量、process.nextTick 注册微任务、监听 process.on('uncaughtException') 兜底未捕获异常；但仅靠 uncaughtException 兜底后进程状态可能已损坏，生产上更稳妥的做法是记录日志后让进程优雅退出，再由进程管理器（如 PM2）重新拉起。",
+    "answer": { "judge": true },
+    "analysis": "正确。process 是 Node 提供的全局进程对象（globalThis.process），常用能力：process.env 读环境变量做配置外置、process.argv 取启动参数、process.nextTick 把回调放进 nextTick 微任务队列（优先级高于 Promise）、process.pid/cwd()、process.on 监听生命周期事件。异常处理上，未被 try/catch 捕获的同步异常会触发 uncaughtException 事件，若没有监听器进程直接崩溃；注册监听器可阻止默认崩溃，但此时应用可能处于不确定的中间状态（比如刚改了一半的数据、持有的连接），官方文档明确不建议把它当万能容错继续运行，推荐：记录错误与上下文、关闭 HTTP 服务停止接新请求、处理完存量请求后 process.exit(1)，交给 PM2/K8s 这类外部 supervisor 重启一个干净实例。Promise 的未处理拒绝对应 unhandledRejection 事件。这正是 Node「fail fast + 外部保活」的可靠性哲学，而不是让受损进程硬撑。对照前端：浏览器里一个页面崩了可以刷新，Node 服务端则靠进程管理器实现等价的「自动刷新」。",
+    "gapCheck": [
+      "易漏点：uncaughtException 后进程状态不可信，应优雅退出而非继续服务",
+      "常见误区：把 uncaughtException 当 try/catch 万能兜底，让进程带病运行",
+      "加分项：知道 unhandledRejection 与外部 supervisor（PM2/K8s）重启模式"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.node.runtime.module-process"],
+      "related": ["be.node.runtime.cluster-bff"],
+      "followUps": ["uncaughtException 和 unhandledRejection 分别在什么场景触发？", "优雅退出（graceful shutdown）通常要清理哪些资源？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "process 对象与进程可靠性" },
+    "tags": ["Node.js", "process", "uncaughtException", "PM2", "可靠性"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-node-cluster-0001",
+    "nodeId": "be.node.runtime.cluster-bff",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "Node.js 主线程单线程，要充分利用多核 CPU，下列关于 Cluster 多进程模型的说法**正确**的是：",
+    "options": [
+      { "key": "A", "text": "Cluster 用主进程 fork 出多个 worker 子进程，多个 worker 共享同一个监听的服务器句柄（handle），由内核/主进程把新连接分发给各 worker，从而让多个进程并行利用多核" },
+      { "key": "B", "text": "Cluster 是在一个进程内开多个线程并行执行 JS，和 Java 线程池原理完全一样" },
+      { "key": "C", "text": "worker 之间可以直接共享内存变量，无需任何通信机制" },
+      { "key": "D", "text": "开的 worker 数越多越好，应该远大于 CPU 核数才能跑满性能" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "A 准确。cluster 模块基于 child_process.fork：主进程（master）创建多个 worker 子进程，让它们复用同一个 server 句柄监听同一端口（靠句柄传递，避免端口冲突），新 TCP 连接由操作系统（SO_REUSEPORT 或主进程 round-robin 分发，Node 默认在主进程做轮转）分配给某个 worker，每个 worker 是独立进程、独立事件循环、跑在不同 CPU 核上，从而把多核利用起来。B 错：Cluster 是多进程不是多线程，worker 间内存隔离；真正的多线程是 worker_threads，通过共享 SharedArrayBuffer 通信，适合 CPU 密集计算。C 错：进程内存独立，worker 不能直接共享变量，只能通过 process.send/on('message') 走 IPC 通信，或借助 Redis 等外部存储共享状态。D 错：worker 数一般设为 CPU 核数（或核数±1），过多进程会带来上下文切换、内存翻倍和 IPC 开销，反而下降。PM2 的 cluster 模式就是对这套机制的封装，并提供自动重启、零停机 reload、负载均衡。对照 Java：Java 一个进程内多线程共享堆内存，Node 则用多进程换并行，隔离更好但通信更重。",
+    "gapCheck": [
+      "易漏点：共享的是监听句柄而非内存；worker 独立进程、靠 IPC 通信",
+      "常见误区：把 Cluster 当多线程，或以为 worker 能直接共享变量",
+      "加分项：能区分 Cluster（I/O 扩展）与 worker_threads（CPU 密集），知道 worker 数取核数"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.node.runtime.module-process"],
+      "related": ["cs.os.process.thread-models", "cs.os.process.thread-vs-process"],
+      "followUps": ["Cluster 和 worker_threads 的适用场景怎么选？", "PM2 的 reload（零停机重启）是怎么做到不中断服务的？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "Cluster 多进程利用多核" },
+    "tags": ["Node.js", "Cluster", "多进程", "PM2", "多核利用"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-node-cluster-0002",
+    "nodeId": "be.node.runtime.cluster-bff",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：BFF（Backend For Frontend，服务于前端的后端）层通常用 Node.js 实现，主要负责面向特定端（Web/App/小程序）做接口聚合、字段裁剪、协议转换和编排，把多个后端微服务的数据拼装成该端一次需要的视图模型，但它不应承载核心事务逻辑和重计算。",
+    "answer": { "judge": true },
+    "analysis": "正确。BFF 是介于前端与后端微服务之间、为特定用户端量身定制的一层。典型职责：① 接口聚合——前端一个页面要的数据散落在用户、订单、商品多个微服务，BFF 并行调用后聚合成一次响应，减少前端请求数（避免前端串多次 RPC）；② 字段裁剪——按端只返回需要的字段、做端特定的数据格式转换；③ 协议转换——对外用 HTTP/GraphQL/WebSocket，对内可能是 gRPC；④ 编排与轻量缓存、鉴权透传。用 Node 实现 BFF 的优势是前后端同语言、团队可全栈、流式/高并发 I/O 友好、JSON 处理自然。但边界要清晰：核心领域逻辑、强一致事务、复杂计算、持久化主数据仍应留在 Java/Go 等后端微服务，BFF 只做编排和适配，否则会出现逻辑重复、多端不一致、难以测试的「胖 BFF」反模式。对照前端：BFF 很像把原本散在浏览器里的多个 fetch 拼装、数据整形逻辑上收到一个专门的中间层，让前端只管渲染。",
+    "gapCheck": [
+      "易漏点：BFF 面向「特定端」做聚合/裁剪/转换，定位是编排而非核心领域",
+      "常见误区：把事务和重计算也塞进 BFF，造成胖 BFF、逻辑重复",
+      "加分项：能说清一个端一个 BFF 的思路，以及 BFF 与 API 网关的分工"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.node.runtime.module-process"],
+      "related": ["be.micro.governance.registry-gateway"],
+      "followUps": ["BFF 和 API 网关有什么区别和重叠？", "GraphQL 在 BFF 层解决了什么问题？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "BFF 层定位与边界" },
+    "tags": ["Node.js", "BFF", "接口聚合", "微服务", "架构分层"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-node-mod-0003",
+    "nodeId": "be.node.runtime.module-process",
+    "type": "judge",
+    "difficulty": 3,
+    "stem": "判断正误：CommonJS 中 require 一个模块得到的是 module.exports 的缓存引用，模块在首次加载后被缓存，因此多次 require 同一模块返回同一个对象（模块单例）；利用这一特性可以在模块作用域维护共享状态，但它也意味着对导出对象的原地修改会被所有引用方看到。",
+    "answer": { "judge": true },
+    "analysis": "正确。Node 在 Module._cache 里以文件绝对路径为 key 缓存模块：第一次 require 时同步读取、包裹成函数执行一次，把 module.exports 存入缓存；之后任何地方再 require 同一路径，直接返回缓存的 exports 对象，不会重新执行模块体，所以天然是单例。这带来两个工程后果：① 可用来做共享的连接池、配置、内存缓存（如全局 Redis client、单例 logger），无需额外单例模式；② 正因为返回共享引用，某处在拿到导出对象后原地增减属性（require('x').foo = ...），所有引用方都会看到改动，可能造成隐式耦合和难排查的状态污染，最佳实践是导出不可变的接口或工厂函数，而不是可变的共享对象。还要注意缓存 key 是解析后的绝对路径，同一文件用不同相对路径 require 仍命中同一缓存；但符号链接、ESM 与 CJS 互操作可能产生不同的模块实例。ESM 用 live binding，导出的是绑定而非对象快照，语义又有不同。对照前端：这和 ES Module 的单例特性一致——一个模块无论被 import 多少次，模块体只执行一次。",
+    "gapCheck": [
+      "易漏点：缓存 key 是绝对路径，模块体只执行一次，exports 是共享引用",
+      "常见误区：以为每次 require 都重新执行模块，或随意原地改导出对象造成全局污染",
+      "加分项：能联系 ESM live binding、符号链接导致的多实例、用工厂函数隔离状态"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.node.runtime.module-process"],
+      "related": ["fe.build.module.esm-cjs"],
+      "followUps": ["如何手动清除或注入一个 require 缓存？", "ESM 的 live binding 和 CommonJS 缓存对象在循环依赖下表现有何不同？"]
+    },
+    "openBookAllowed": true,
+    "source": { "kind": "self-authored", "note": "CommonJS 模块缓存单例判断题" },
+    "tags": ["Node.js", "CommonJS", "模块缓存", "单例", "require"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  },
+  {
+    "id": "Q-be-node-cluster-0003",
+    "nodeId": "be.node.runtime.cluster-bff",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "用 Cluster/PM2 部署的多进程 Node 服务里，每个 worker 内存独立。要在多个 worker 之间共享一份会话/缓存状态，下列方案**最不合理**的是：",
+    "options": [
+      { "key": "A", "text": "在每个 worker 内用一个普通模块级全局变量存会话，指望各 worker 自动互通——实际上它们各存一份、互不可见，会出现同一用户请求落到不同 worker 时登录态丢失" },
+      { "key": "B", "text": "把会话集中存到 Redis 等外部存储，所有 worker 通过网络读写同一份数据" },
+      { "key": "C", "text": "用粘性会话（sticky session）让同一用户的请求始终路由到固定 worker，配合该 worker 本地状态" },
+      { "key": "D", "text": "通过主进程作为协调者，worker 用 IPC（process.send）向主进程申请/更新共享状态" }
+    ],
+    "answer": { "keys": ["A"] },
+    "analysis": "题目选最不合理项，A 是典型错误。Cluster 的每个 worker 是独立操作系统进程，有独立的 V8 堆和内存空间，模块级全局变量在每个进程里各有一份，彼此不共享；而负载均衡会把同一用户的不同请求分发到不同 worker，于是登录态/缓存在 worker A 设置、在 worker B 读不到，表现为随机掉线，这是多进程部署最常见的坑。B 是主流正解：把有状态数据外置到 Redis（session store、分布式缓存），所有无状态 worker 共享同一外部数据源，worker 可随时增减、崩溃重启不丢状态，这也是「服务无状态化」原则。C 粘性会话是折中：让负载均衡按用户标识把同一用户钉在同一 worker，本地内存状态即可工作，但牺牲了弹性（该 worker 挂了状态即失、负载可能不均），一般作为迁移期方案。D 用主进程 + IPC 集中管理状态在技术上可行，但主进程会成为瓶颈和单点，只适合少量协调场景，不适合高频会话。结论：水平扩展的前提是进程无状态，状态外置。对照 Java：这和 Java 多实例部署时不能用实例字段存用户会话、要接 Redis Session 是完全相同的分布式原则。",
+    "gapCheck": [
+      "易漏点：worker 内存隔离，本地全局变量不跨进程共享，多实例下状态必须外置",
+      "常见误区：把单进程里好用的模块级状态直接搬到 Cluster，导致随机读不到状态",
+      "加分项：能对比 Redis 外置、粘性会话、IPC 协调三方案的弹性与瓶颈"
+    ],
+    "knowledgeLinks": {
+      "prereq": ["be.node.runtime.cluster-bff"],
+      "related": ["be.redis.cache.patterns", "cs.os.process.thread-vs-process"],
+      "followUps": ["粘性会话为什么不利于弹性扩缩容？", "无状态服务（stateless）对部署和扩容有什么好处？"]
+    },
+    "openBookAllowed": false,
+    "source": { "kind": "self-authored", "note": "多进程状态共享与无状态化，闭卷高频" },
+    "tags": ["Node.js", "Cluster", "无状态", "Redis Session", "闭卷题"],
+    "status": "active",
+    "meta": { "created": "2026-11-14", "version": 1, "history": [] }
+  }
+]

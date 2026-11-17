@@ -1,0 +1,105 @@
+[
+  { "id": "cs.design.capacity", "title": "容量估算与架构方法论", "level": 3, "domain": "cs", "stack": "design", "topic": "capacity", "mustMaster": true, "estMinutes": 90,
+    "summary": "back-of-envelope 容量估算（QPS/带宽/存储）、架构权衡方法论（CAP/BASE、自顶向下拆解）、垂直与水平扩展——系统设计面试的开场基本功，决定方案是否有量化依据" },
+  { "id": "cs.design.cache", "title": "缓存体系", "level": 3, "domain": "cs", "stack": "design", "topic": "cache", "mustMaster": true, "estMinutes": 90,
+    "summary": "四大缓存读写模式、穿透/击穿/雪崩三大问题、缓存与数据库一致性、热点 key 与大 key 治理、多级缓存——高并发系统性价比最高的加速层，也是事故高发区" },
+  { "id": "cs.design.sharding", "title": "数据库扩展与分库分表", "level": 3, "domain": "cs", "stack": "design", "topic": "sharding", "mustMaster": true, "estMinutes": 90,
+    "summary": "分片策略（范围/哈希/一致性哈希）、分片键选择与扩容迁移、分布式 ID、读写分离与主从延迟、跨片查询分页聚合——单机数据库到达瓶颈后的标准扩展路径" },
+  { "id": "cs.design.mq-dedup", "title": "削峰填谷与异步解耦", "level": 3, "domain": "cs", "stack": "design", "topic": "mq-dedup", "mustMaster": true, "estMinutes": 75,
+    "summary": "MQ 削峰填谷与异步解耦、消息幂等与可靠投递、延迟消息、死信队列与积压治理——用异步化换吞吐与韧性的核心中间件章节" },
+  { "id": "cs.design.limit", "title": "限流熔断与高可用", "level": 3, "domain": "cs", "stack": "design", "topic": "limit", "mustMaster": true, "estMinutes": 90,
+    "summary": "四大限流算法及单机/分布式实现、熔断器三态与舱壁隔离降级、主备/双活/多活容灾与 SLA——保护系统在流量洪峰与依赖故障下存活的防线" },
+  { "id": "cs.design.cases", "title": "经典系统设计实战", "level": 3, "domain": "cs", "stack": "design", "topic": "cases", "mustMaster": true, "estMinutes": 100,
+    "summary": "秒杀/抢券、信息流 Feed 流、短链/排行榜/计数三类高频实战，串联容量估算→整体架构→组件选型→瓶颈权衡的完整面试答题链路" },
+
+  { "id": "cs.design.capacity.estimation", "title": "容量估算与 back-of-envelope（QPS/带宽/存储）", "level": 4, "domain": "cs", "stack": "design", "topic": "capacity",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清系统设计面试开场的量化估算套路：从 DAU/日活与行为比例推峰值 QPS（日均与峰值的倍数关系、二八定律）、按对象大小与留存周期估算存储容量、按报文大小估算带宽并留峰值余量；熟记常用数量级（万/亿/KB/MB/Gbps 换算）与『先估量级、不纠结精确值、显式假设、留 2~5 倍冗余』的估算纪律，并能用估算结果反推机器数与缓存容量" },
+
+  { "id": "cs.design.capacity.ddia-tradeoff", "title": "架构设计方法论与权衡（CAP/BASE、自顶向下、面试框架）", "level": 4, "domain": "cs", "stack": "design", "topic": "capacity",
+    "prerequisites": ["cs.design.capacity.estimation"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清系统设计面试的标准答题框架（澄清需求→容量估算→整体架构→组件选型→瓶颈与扩展）；理解 CAP 三选二的真实含义（分区容错必然、CP 与 AP 的取舍）、BASE 最终一致性与 ACID 的对比；能在可用性、一致性、延迟、成本、可维护性之间做有据可依的权衡，避免『上来就上微服务/上消息队列』的堆组件式回答" },
+
+  { "id": "cs.design.capacity.scalability", "title": "垂直 vs 水平扩展、无状态化与分层架构", "level": 4, "domain": "cs", "stack": "design", "topic": "capacity",
+    "prerequisites": ["cs.design.capacity.ddia-tradeoff"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清垂直扩展（Scale Up，升配有硬件天花板）与水平扩展（Scale Out，加机器、近乎线性但要求无状态）的边界；服务无状态化的含义（会话外置到 Redis/DB、请求可落到任意节点）与有状态服务的扩展难点；接入层/服务层/存储层的分层架构以及每层各自的扩展手段（负载均衡、微服务拆分、读写分离、分片），并解释为什么扩展难点最终都集中在有状态的数据层" },
+
+  { "id": "cs.design.cache.pattern", "title": "缓存读写模式：Cache-Aside/Read-Through/Write-Through/Write-Behind", "level": 4, "domain": "cs", "stack": "design", "topic": "cache",
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清四种缓存模式的读写路径与职责归属：Cache-Aside 由业务代码显式维护缓存（最常用、缓存与 DB 最终一致）、Read-Through/Write-Through 由缓存层统一代理加载与写入（业务只对接缓存）、Write-Behind 先写缓存异步刷库（写吞吐高但有丢数据窗口）；能对比各自的一致性窗口、实现复杂度与适用场景，并说明写穿透与写回在故障行为上的差别" },
+
+  { "id": "cs.design.cache.problems", "title": "缓存穿透/击穿/雪崩的成因与对策", "level": 4, "domain": "cs", "stack": "design", "topic": "cache",
+    "prerequisites": ["cs.design.cache.pattern"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清三大缓存问题的区分与组合对策：穿透是查不存在的数据（空值缓存、布隆过滤器、参数校验）；击穿是单个热点 key 过期瞬间大量并发打到 DB（互斥锁/逻辑过期/热点永不过期）；雪崩是大面积 key 同时失效或缓存节点宕机（过期时间加随机、多级缓存、集群高可用、限流降级兜底）；还要能讲清各方案的副作用，如空值缓存被恶意利用造成的内存占用" },
+
+  { "id": "cs.design.cache.consistency", "title": "缓存与数据库一致性、热点 key/大 key、多级缓存", "level": 4, "domain": "cs", "stack": "design", "topic": "cache",
+    "prerequisites": ["cs.design.cache.problems"],
+    "related": ["cs.design.sharding.readwrite"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 Cache-Aside 下『先更新 DB 再删缓存』为主流方案的原因、双写不一致与并发读写的错乱时序、延迟双删与订阅 binlog（如 canal）兜底的思路；掌握热点 key 的发现（监控/代理统计）与治理（本地缓存、分片打散）、大 key 的危害（阻塞单线程、网络拥塞、迁移超时）与拆分压缩手段；理解本地缓存→分布式缓存→DB 多级缓存的命中率、容量与一致性取舍" },
+
+  { "id": "cs.design.sharding.strategy", "title": "分库分表策略：范围/哈希/一致性哈希、分片键与扩容迁移", "level": 4, "domain": "cs", "stack": "design", "topic": "sharding",
+    "related": ["cs.algo.linear.hash-table"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲清垂直拆分（按业务拆库）与水平拆分（按数据行拆表）的区别；对比范围分片（利于范围查询但易热点）、哈希取模（均匀但扩容取模变化大、迁移多）、一致性哈希（扩容只迁移相邻区间、虚拟节点解决倾斜）的优劣；能按查询模式选分片键（避免跨片、兼顾均衡），并讲清扩容时的双写/数据迁移/路由切换步骤，以及基因法、倍增扩容等降低迁移量的工程技巧" },
+
+  { "id": "cs.design.sharding.id-gen", "title": "分布式 ID：雪花算法、号段模式与 UUID 取舍", "level": 4, "domain": "cs", "stack": "design", "topic": "sharding",
+    "prerequisites": ["cs.design.sharding.strategy"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清分库分表后自增主键失效的原因与分布式 ID 的核心要求（全局唯一、趋势递增/单调、高性能、高可用）；能手画雪花算法的位结构（符号位+时间戳+工作节点+序列号）并解释时钟回拨问题与应对；对比号段模式（数据库批量取号、双 buffer 优化）、UUID（无序导致 InnoDB 页分裂、占用空间大）与 Redis 发号的取舍，知道拿不准具体中间件版本时不写死版本号" },
+
+  { "id": "cs.design.sharding.readwrite", "title": "读写分离、主从延迟与跨片查询/分页聚合", "level": 4, "domain": "cs", "stack": "design", "topic": "sharding",
+    "prerequisites": ["cs.design.sharding.strategy"],
+    "related": ["cs.design.cache.consistency"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清一主多从复制的基本流程与主从延迟的成因（单线程回放、大事务、网络），以及写后读不一致的工程解法（强制走主库、半同步复制、延迟检测路由）；掌握分片后不带分片键查询退化为全分片扫描（广播/ scatter-gather）的代价；能说明跨片分页排序需要各片取前 N 再内存归并、深分页成本爆炸的问题，以及用业务上限、搜索引擎、汇总表/ES 异构索引等规避手段" },
+
+  { "id": "cs.design.mq-dedup.peak-shaving", "title": "MQ 削峰填谷、异步解耦与流量整形", "level": 4, "domain": "cs", "stack": "design", "topic": "mq-dedup",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
+    "summary": "要能讲清消息队列三大价值（异步、削峰、解耦）在具体链路中的体现：突发流量先写入 MQ、下游按自身消费能力匀速拉取实现流量整形；同步调用改异步后的响应时间与可用性收益，以及引入 MQ 带来的新问题（链路变长、复杂度上升、消息丢失/重复/乱序、最终一致性）；能结合秒杀下单等场景讲清生产者、Broker、消费者三方的容量匹配关系" },
+
+  { "id": "cs.design.mq-dedup.idempotent", "title": "消息幂等、去重表/唯一键/状态机与可靠投递", "level": 4, "domain": "cs", "stack": "design", "topic": "mq-dedup",
+    "prerequisites": ["cs.design.mq-dedup.peak-shaving"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 MQ 至少一次投递必然产生重复消息、消费端必须幂等的根本原因；掌握三类幂等武器：唯一键/去重表（消息 ID 落库判重）、数据库唯一约束兜底插入、业务状态机（只允许合法状态流转）；能画出生产端 confirm/发送方重投、Broker 持久化与副本、消费端手动 ack 的可靠投递闭环，并解释先做业务再 ack 与先 ack 再做业务各自的丢消息/重复风险" },
+
+  { "id": "cs.design.mq-dedup.delay", "title": "延迟消息、死信队列与消息积压处理", "level": 4, "domain": "cs", "stack": "design", "topic": "mq-dedup",
+    "prerequisites": ["cs.design.mq-dedup.idempotent"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 20,
+    "summary": "要能讲清延迟消息的典型场景（订单超时关单、支付回调重试、定时提醒）与两类实现思路（Broker 原生延迟/定时等级、Redis 有序列表或时间轮兜底）；死信队列的触发条件（消费失败超次数、消息过期、队列满）与运维闭环（告警、排查、重放）；掌握消息积压的应急处置（扩消费者、排查慢消费/下游故障、临时转储到新队列并行消费），并说明只扩消费者不解决下游瓶颈为何无效" },
+
+  { "id": "cs.design.limit.algorithm", "title": "限流算法：计数器/滑动窗口/漏桶/令牌桶与单机分布式实现", "level": 4, "domain": "cs", "stack": "design", "topic": "limit",
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清并手写四种限流算法：固定计数器（简单但有临界突刺）、滑动窗口（平滑临界、内存换精度）、漏桶（恒定速率出水、强整形但允许不了突发）、令牌桶（定速发令牌、允许攒令牌应对合理突发）；能讲清单机限流（原子变量/内存队列）与分布式限流（Redis+Lua 保证原子、网关集中式限流）的实现差异，以及限流后的拒绝、排队、降级三种处理策略" },
+
+  { "id": "cs.design.limit.circuit-breaker", "title": "熔断降级隔离：熔断器三态、舱壁与降级兜底", "level": 4, "domain": "cs", "stack": "design", "topic": "limit",
+    "prerequisites": ["cs.design.limit.algorithm"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清熔断器 closed/open/half-open 三态转换与触发指标（失败率/慢调用比例/时间窗），熔断的本质是让故障快速失败、避免线程与连接被下游拖垮；区分熔断（保护性断开）、降级（兜底返回缓存/默认值）、限流（控制进入速率）、隔离（线程池/信号量舱壁防止故障蔓延）四件套；能结合超时设置、重试风暴与雪崩链讲清一套完整的容错防护组合拳" },
+
+  { "id": "cs.design.limit.ha", "title": "高可用与容灾：主备/双活/多活、故障转移、SLA 与故障演练", "level": 4, "domain": "cs", "stack": "design", "topic": "limit",
+    "prerequisites": ["cs.design.limit.circuit-breaker"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清高可用的度量（可用性百分比与年停机时间换算、SLA/SLO/SLI 关系）与冗余+自动故障转移的基本思想；对比主备（冷备/热备，切换有 RTO）、同城双活（低延迟、防机房故障）、异地多活（防城市级灾难、需解决跨地域一致性与流量路由）的成本与复杂度；理解 RPO/RTO 指标、心跳与仲裁防脑裂，以及混沌工程/故障演练（如全链路压测、红蓝对抗）在验证容灾有效性上的作用" },
+
+  { "id": "cs.design.cases.seckill", "title": "秒杀/抢券系统：库存扣减、防超卖、限流与异步下单全链路", "level": 4, "domain": "cs", "stack": "design", "topic": "cases",
+    "prerequisites": ["cs.design.limit.algorithm", "cs.design.cache.problems"],
+    "related": ["cs.design.mq-dedup.peak-shaving"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 35,
+    "summary": "要能讲清并按完整链路设计秒杀系统：前置拦截（CDN/静态化、网关限流、验证码/答题削峰）→内存标记与 Redis 预减库存（Lua 原子扣减防超卖）→MQ 异步下单削峰→DB 乐观锁/唯一约束兜底→支付超时回补库存；能讲清超卖的并发根因、一人一单的防重手段、库存对账与少卖的处理，并对各环节做容量估算与瓶颈分析，体现『把流量逐层挡在数据库之前』的设计主线" },
+
+  { "id": "cs.design.cases.feed-timeline", "title": "信息流/Feed 流：推/拉/推拉结合、扇出与 Timeline 存储", "level": 4, "domain": "cs", "stack": "design", "topic": "cases",
+    "prerequisites": ["cs.design.cache.consistency"],
+    "related": ["cs.design.sharding.readwrite"],
+    "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清 Feed 流三种架构：推模式（写扩散，发布时扇出到所有粉丝收件箱，读快但大 V 写放大严重）、拉模式（读扩散，读时实时聚合关注列表，写省但读放大、时延高）、推拉结合（普通用户推、大 V 单独拉取合并）；能设计 Timeline 的存储选型（长列表/有序集合、分片与缓存）、在线推与离线推的取舍，以及 feed 排序从时间线到推荐排序的演进思路" },
+
+  { "id": "cs.design.cases.shortlink", "title": "短链/排行榜/计数高频场景：发号、重定向、布隆过滤器与计数选型", "level": 4, "domain": "cs", "stack": "design", "topic": "cases",
+    "prerequisites": ["cs.design.sharding.id-gen"],
+    "related": ["cs.algo.tree.trie", "cs.algo.linear.hash-table"],
+    "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
+    "summary": "要能讲清短链系统设计：发号（号段/雪花后 Base62 编码变短码）、长短链映射存储与分库分表、301/302 重定向取舍与缓存加速、布隆过滤器判存在防穿透；能讲清排行榜用有序集合的跳表实现原理与实时 TopN、计数场景（点赞/浏览）在 DB、Redis、时序/聚合存储之间的选型，以及高并发热点计数的批量合并、Pipeline 与异步落库手段，形成一套高频读写场景的通用方法论" }
+]

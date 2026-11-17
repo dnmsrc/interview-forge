@@ -1,0 +1,1075 @@
+[
+  {
+    "id": "Q-fe-js-dsa-linear-0001",
+    "nodeId": "fe.js.dsa.linear",
+    "type": "single",
+    "difficulty": 1,
+    "stem": "关于数组与链表这两种线性结构，下列说法**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "数组和链表都支持 O(1) 的随机访问，按下标取值都一样快"
+      },
+      {
+        "key": "B",
+        "text": "数组元素在内存中连续存储，按下标随机访问是 O(1)；链表靠指针逐个跳转，随机访问需 O(n)，但在已知节点位置时增删为 O(1)"
+      },
+      {
+        "key": "C",
+        "text": "链表按下标取值是 O(1)，数组在中间插入元素是 O(1)"
+      },
+      {
+        "key": "D",
+        "text": "JS 的数组底层一定是连续内存，push 永远是 O(1) 操作"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 准确概括了两种结构的取舍：数组的核心优势是连续存储 + 下标基址寻址，arr[i] 一次定位 O(1)，代价是中间插入/删除要搬移后续元素 O(n)；链表每个节点只持有 next 指针，访问第 i 个节点必须从头遍历 O(n)，但一旦已持有目标节点引用，修改指针即可完成增删 O(1)。A 错在链表没有随机访问能力。C 把两者的特点完全说反。D 错在「一定」二字：JS 引擎（V8）对稀疏数组、含空洞数组或元素类型混杂的数组会退化为哈希表/字典模式存储，不再是连续内存；push 均摊为 O(1)，但触发扩容（重新分配并整块拷贝）的那一次是 O(n)，属于均摊分析。前端实践中虚拟滚动按区间切片渲染依赖的正是数组 O(1) 随机访问。",
+    "gapCheck": [
+      "易漏点：数组中间插入/删除是 O(n)，因为要搬移元素；链表增删 O(1) 的前提是已经持有目标节点",
+      "常见误区：以为 JS 数组永远连续存储——稀疏/空洞数组在 V8 中会降级为字典模式",
+      "加分项：能说出 push 是均摊 O(1)（扩容时整块拷贝 O(n)），并联系虚拟滚动的切片访问"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.linear"
+      ],
+      "related": [
+        "fe.js.dsa.complexity",
+        "fe.js.dsa.hash"
+      ],
+      "followUps": [
+        "虚拟滚动长列表为什么几乎都基于数组而不是链表实现？",
+        "V8 的 Holey Elements 与 Packed Elements 模式有什么性能差异？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "数组与链表选型入门单选题"
+    },
+    "tags": [
+      "数据结构",
+      "线性结构",
+      "数组",
+      "链表",
+      "送分题"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-linear-0002",
+    "nodeId": "fe.js.dsa.linear",
+    "type": "code",
+    "difficulty": 3,
+    "stem": "手写题：实现一个数组扁平化函数 `flatten(arr, depth)`，把多层嵌套数组按指定深度展开（depth 默认为 1，传入 Infinity 表示完全展平）。要求：①不能直接使用 `Array.prototype.flat`；②正确处理 depth 递减与非数组元素原样保留；③再说明若要完全展平，递归与迭代（显式栈）两种写法各自的注意点。",
+    "answer": {
+      "ref": "设计要点：递归版对每个元素判断 Array.isArray，是数组且 depth>0 就递归并把 depth-1 透传，否则直接 push（concat 或展开归并）；depth 边界用 depth>0 守卫，Infinity-1 仍是 Infinity，天然支持无限展平。迭代版用显式栈：元素连同其剩余深度一起入栈，出栈时数组元素展开回栈（注意保持顺序可借助 reverse 或 unshift），非数组直接收结果。易错点：把类数组对象误判为数组（必须用 Array.isArray 而非 instanceof）、depth 写成全局变量导致各分支深度串台、栈版展开后顺序颠倒。加分：能指出递归深度受调用栈上限约束（极端嵌套爆栈），显式栈无此限制。",
+      "code": "// 递归版\nfunction flatten(arr, depth = 1) {\n  const result = []\n  for (const item of arr) {\n    if (Array.isArray(item) && depth > 0) {\n      result.push(...flatten(item, depth - 1))\n    } else {\n      result.push(item)\n    }\n  }\n  return result\n}\n\n// 迭代版（显式栈，元素与剩余深度成对入栈）\nfunction flattenStack(arr, depth = 1) {\n  const result = []\n  const stack = arr.map((item) => [item, depth])\n  while (stack.length) {\n    const [item, d] = stack.shift()\n    if (Array.isArray(item) && d > 0) {\n      stack.unshift(...item.map((child) => [child, d - 1]))\n    } else {\n      result.push(item)\n    }\n  }\n  return result\n}\n\n// 用例\nflatten([1, [2, [3, [4]]]], 1)        // [1, 2, [3, [4]]]\nflatten([1, [2, [3, [4]]]], Infinity) // [1, 2, 3, 4]"
+    },
+    "scoringPoints": [
+      {
+        "point": "递归骨架正确：Array.isArray 判断 + 非数组原样保留",
+        "weight": 2
+      },
+      {
+        "point": "depth 边界处理正确（depth>0 才递归、depth-1 透传、Infinity 可用）",
+        "weight": 2
+      },
+      {
+        "point": "默认参数 depth=1 且不依赖原生 flat",
+        "weight": 1
+      },
+      {
+        "point": "能给出显式栈迭代写法并保证输出顺序",
+        "weight": 2
+      },
+      {
+        "point": "讲清递归爆栈风险与 Array.isArray 对类数组的严谨性",
+        "weight": 1
+      }
+    ],
+    "analysis": "这道题表面考数组操作，实质考递归三要素（终止条件、递归深度传递、结果归并）与线性结构中「栈」的应用。常见失分：①用 typeof item === 'object' 判数组，会把普通对象也展开；②depth 没有在每层减 1，导致要么展平过度要么不足；③递归直接 result.push(递归结果) 忘了展开，得到嵌套一层的数组；④迭代版用 shift/unshift 保持顺序却没意识到它们是 O(n)，深展平场景整体退化到 O(n²)，更优做法是入栈 reverse 后用 pop/push。工程上还应知道原生 flat 已内置且引擎层优化更好，手写的价值在于展示对递归与栈的理解。",
+    "gapCheck": [
+      "易漏点：depth 必须逐层减 1 且仅在 depth>0 时递归；Infinity-1 仍是 Infinity",
+      "常见误区：用 typeof 或 instanceof 判数组，跨 iframe/realm 场景失效，应统一用 Array.isArray",
+      "加分项：主动指出 shift/unshift 的 O(n) 代价并给出 pop+reverse 的 O(n) 栈写法，说明递归爆栈边界"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.linear"
+      ],
+      "related": [
+        "fe.js.dsa.complexity",
+        "fe.js.dsa.tree"
+      ],
+      "followUps": [
+        "如果数组元素里有稀疏空洞（empty slot），你的实现会保留空洞吗？flat 呢？",
+        "如何改造让扁平化同时去除重复元素？时间复杂度是多少？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "数组扁平化手写代码题，考递归与显式栈"
+    },
+    "tags": [
+      "手写题",
+      "数组",
+      "递归",
+      "栈",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-hash-0001",
+    "nodeId": "fe.js.dsa.hash",
+    "type": "multiple",
+    "difficulty": 2,
+    "stem": "关于哈希表原理以及 ES6 `Map` 与普通对象（plain object）的对比，下列说法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "哈希表通过哈希函数把键映射到数组下标，理想情况下查找/插入/删除的平均时间复杂度都是 O(1)"
+      },
+      {
+        "key": "B",
+        "text": "链地址法把哈希冲突的元素挂在同一个桶的链表上；开放寻址法则在冲突后按规则探测下一个空位"
+      },
+      {
+        "key": "C",
+        "text": "Map 的键可以是对象、函数等任意类型且按引用区分；普通对象的键会被转成字符串（或 Symbol），`obj[1]` 与 `obj['1']` 是同一个键"
+      },
+      {
+        "key": "D",
+        "text": "普通对象完全没有原型污染风险，且键的遍历顺序在所有场景下都严格按插入顺序"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "analysis": "A、B、C 正确。A 是哈希表的核心价值：以空间换时间，均摊 O(1) 的增删改查，代价是 O(n) 空间与最坏 O(n)（所有键挤进一个桶）的退化风险。B 给出两类主流冲突解法：链地址（桶挂链表/红黑树，Java HashMap 即此路线）与开放寻址（线性探测、二次探测等，内存更紧凑但删除需墓碑标记）。C 是 Map 相对普通对象最实用的差异：Map 用 SameValueZero 比较键，对象键按引用区分且保留插入顺序；普通对象的非 Symbol 键一律 ToPropertyKey 转字符串，所以数字 1 与字符串 '1' 撞键。D 错两处：普通对象的原型链带来污染风险（`obj['__proto__']`、`obj['constructor']` 是敏感键，需 Object.create(null) 或 Map 规避）；且对象的整数索引键会被引擎优先按数字升序枚举，字符串键才按插入顺序，遍历顺序并非全局可靠。",
+    "gapCheck": [
+      "易漏点：哈希表 O(1) 是平均/均摊复杂度，冲突严重时最坏退化到 O(n)；装填因子过高触发扩容 rehash",
+      "常见误区：以为普通对象键保留原始类型——非 Symbol 键都被字符串化，1 与 '1' 撞键",
+      "加分项：能讲 __proto__/constructor 原型污染面、Map 的 SameValueZero 判定（NaN 也可作键）与 size 属性 O(1) 取长度"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.hash"
+      ],
+      "related": [
+        "fe.js.dsa.linear",
+        "fe.js.dsa.complexity"
+      ],
+      "followUps": [
+        "为什么用 Map 实现 LRU 比普通对象更合适？Map 的迭代顺序给了什么便利？",
+        "Object.create(null) 创建的对象为什么能规避原型污染？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "哈希原理与 Map/对象对比多选题"
+    },
+    "tags": [
+      "哈希表",
+      "Map",
+      "Set",
+      "原型污染",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-hash-0002",
+    "nodeId": "fe.js.dsa.hash",
+    "type": "code",
+    "difficulty": 4,
+    "stem": "手写题：用 ES6 `Map` 实现一个 LRU（最近最少使用）缓存类 `LRUCache`，要求：构造函数接收容量 `capacity`；`get(key)` 命中则返回值并把该条目刷新为「最近使用」，未命中返回 -1；`put(key, value)` 写入或更新，容量满时先淘汰最久未使用的条目再写入；`get` 与 `put` 平均时间复杂度都要 O(1)。",
+    "answer": {
+      "ref": "设计要点：Map 的迭代器严格按插入顺序产出，因此把「最久未使用」约定为迭代器第一个键、「最近使用」为最后一个。get 命中后先 delete 再 set，使该键移到末尾完成刷新；put 时若键已存在先 delete（更新也要刷新顺序），写入后若 size 超过容量，用 this.map.keys().next().value 取最老键删除。O(1) 的关键在于 Map 的 delete/set/keys 游标操作均为均摊 O(1)，不能用数组 shift 做淘汰（那是 O(n)）。易错点：更新已有键时忘记刷新顺序、容量为 0 的边界、淘汰与写入的先后。加分：能讲为什么不用普通对象（无可靠顺序+原型键风险），以及双向链表+哈希表的经典实现思路（Map 在 JS 里等价替代了链表的顺序维护）。",
+      "code": "class LRUCache {\n  constructor(capacity) {\n    this.capacity = capacity\n    this.map = new Map()\n  }\n\n  get(key) {\n    if (!this.map.has(key)) return -1\n    const value = this.map.get(key)\n    // 删了重插，移动到迭代顺序末尾 = 最近使用\n    this.map.delete(key)\n    this.map.set(key, value)\n    return value\n  }\n\n  put(key, value) {\n    if (this.map.has(key)) {\n      this.map.delete(key)\n    }\n    this.map.set(key, value)\n    if (this.map.size > this.capacity) {\n      // 迭代器第一个键 = 最久未使用\n      const oldestKey = this.map.keys().next().value\n      this.map.delete(oldestKey)\n    }\n  }\n}\n\n// 用例\nconst cache = new LRUCache(2)\ncache.put('a', 1)\ncache.put('b', 2)\ncache.get('a')       // 1，a 刷新为最近使用\ncache.put('c', 3)    // 容量超限，淘汰 b\ncache.get('b')       // -1\ncache.get('c')       // 3"
+    },
+    "scoringPoints": [
+      {
+        "point": "选用 Map 并利用其插入顺序语义表达新旧（最老键=keys().next()）",
+        "weight": 2
+      },
+      {
+        "point": "get 命中后 delete+set 刷新顺序，未命中返回 -1",
+        "weight": 2
+      },
+      {
+        "point": "put 处理已存在键的更新与顺序刷新",
+        "weight": 1
+      },
+      {
+        "point": "超容量时先淘汰最久未使用键再保证 size 不越界",
+        "weight": 2
+      },
+      {
+        "point": "说明 get/put 均摊 O(1) 的依据及双向链表+哈希表的等价经典结构",
+        "weight": 1
+      }
+    ],
+    "analysis": "LRU 是前端面试出镜率最高的数据结构手写题，常见于接口响应缓存、KeepAlive 组件实例缓存、Webpack loader 缓存等场景。核心矛盾是「既要哈希级别的 O(1) 查找，又要维护使用顺序」：教科书答案是哈希表 + 双向链表（节点 O(1) 摘除与头插），而 JS 的 Map 天然同时具备哈希查找与有序迭代，delete 再 set 即可模拟节点移动，代码量骤减。典型扣分：①用对象+数组实现，淘汰时 indexOf/shift 导致 O(n)；②put 更新已有键时只改值不刷新顺序，淘汰逻辑出错；③没考虑 capacity 为 0 或重复 put 同键的边界。能主动讲出 Map 方案与经典链表方案的对应关系（Map 内部顺序≈链表）是明显加分项。",
+    "gapCheck": [
+      "易漏点：更新已有键也要 delete 重插刷新顺序；淘汰发生在写入导致 size 超限之后",
+      "常见误区：用数组存键并 shift 淘汰，看似能跑但 put 退化为 O(n)，不满足复杂度要求",
+      "加分项：能对比 Map 方案与「哈希表+双向链表」经典实现，并举出 KeepAlive/请求缓存等前端落地场景"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.hash"
+      ],
+      "related": [
+        "fe.js.dsa.linear",
+        "fe.js.dsa.complexity"
+      ],
+      "followUps": [
+        "Vue 的 KeepAlive 缓存组件实例用的是什么淘汰策略？和 LRU 有何异同？",
+        "如果要求 LRU 同时支持按过期时间淘汰（TTL），你会怎么扩展？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Map 实现 LRU 缓存高频手写题"
+    },
+    "tags": [
+      "手写题",
+      "LRU",
+      "Map",
+      "缓存",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-tree-0001",
+    "nodeId": "fe.js.dsa.tree",
+    "type": "single",
+    "difficulty": 2,
+    "stem": "一棵二叉搜索树（BST）的结构为：根 5，左孩子 3（其左 2、右 4），右孩子 8（其左 7、右 9）。对它做**中序遍历**得到的序列是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "5, 3, 2, 4, 8, 7, 9"
+      },
+      {
+        "key": "B",
+        "text": "2, 3, 4, 5, 7, 8, 9"
+      },
+      {
+        "key": "C",
+        "text": "2, 4, 3, 7, 9, 8, 5"
+      },
+      {
+        "key": "D",
+        "text": "5, 3, 8, 2, 4, 7, 9"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确。中序遍历顺序是「左子树 → 根 → 右子树」（L-N-R），对 BST 而言左子树所有键小于根、右子树所有键大于根，因此中序遍历必然得到严格升序序列 2,3,4,5,7,8,9——这也是验证一棵树是否为合法 BST 的经典手段。A 是前序遍历（根-左-右）：5,3,2,4,8,7,9。C 是后序遍历（左-右-根）：2,4,3,7,9,8,5。D 不符合任何标准深度优先序列。延伸：层序（广度优先）需借助队列，得到 5,3,8,2,4,7,9。前端语境里 DOM diff 的节点复用、AST 的插件访问都依赖对树形遍历顺序的理解，虚拟 DOM 树的 patch 正是一棵递归遍历。",
+    "gapCheck": [
+      "易漏点：三种 DFS 的根节点位置——前序根在最前、中序根在中间、后序根在最后；左右子树内部规则递归套用",
+      "常见误区：把 BST 的中序有序当成所有二叉树的性质——只有满足左小右大约束的 BST 才成立",
+      "加分项：能写出迭代版中序（显式栈一路压左孩子）并说明层序遍历必须用队列、DOM/AST 遍历的对应关系"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.tree"
+      ],
+      "related": [
+        "fe.js.dsa.linear",
+        "fe.js.dsa.heap"
+      ],
+      "followUps": [
+        "不用递归，如何用栈实现中序遍历？空间复杂度是多少？",
+        "给定前序与中序序列，如何还原出唯一的二叉树？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "BST 中序遍历序列单选题"
+    },
+    "tags": [
+      "树",
+      "二叉树",
+      "BST",
+      "遍历"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-tree-0002",
+    "nodeId": "fe.js.dsa.tree",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：二叉搜索树（BST）若按数值递增顺序依次插入节点，会退化成一条链表，此时查找的时间复杂度从平均 O(log n) 退化为 O(n)；前端框架的 DOM diff 在对比两棵虚拟 DOM 树时，同层级节点也是按树结构递归比较，而不是跨层级随意移动节点。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确，整句分两半都成立。前半：BST 的效率依赖树高，理想平衡时树高为 log₂n，查找 O(log n)；递增插入时每个新节点都挂为上一个节点的右孩子，树高变成 n，结构等同链表，查找退化 O(n)，这正是 AVL、红黑树等平衡树存在的理由（通过旋转约束树高）。后半：Vue/React 的虚拟 DOM diff 都遵循「同层比较、类型不同直接替换」的策略，默认不做跨层级节点移动（跨层级移动按「卸载旧位置 + 挂载新位置」处理），把 O(n³) 的树编辑问题降为 O(n) 的同层递归，属于用工程假设换性能。两个知识点共同指向「树形结构的性能由树高与遍历策略决定」。",
+    "gapCheck": [
+      "易漏点：BST 的 O(log n) 是平衡前提下的平均复杂度，有序插入/极端偏斜会退化成 O(n) 链表",
+      "常见误区：以为框架 diff 会做最优树编辑（理论 O(n³)）——实际只做同层比较，跨层级移动等于重建",
+      "加分项：能说出红黑树/AVL 的旋转平衡手段，以及 key 在同层列表 diff 中帮助节点复用的作用"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.tree"
+      ],
+      "related": [
+        "fe.js.dsa.complexity",
+        "fe.js.dsa.heap"
+      ],
+      "followUps": [
+        "为什么列表渲染必须写稳定的 key？没有 key 时框架的 diff 退化成什么策略？",
+        "红黑树通过什么规则保证树高不超过 O(log n)？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "BST 退化与 DOM diff 同层比较判断题"
+    },
+    "tags": [
+      "树",
+      "BST",
+      "DOM-diff",
+      "判断题"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-heap-0001",
+    "nodeId": "fe.js.dsa.heap",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "热搜榜场景：每秒都有新词条热度涌入，需要在百万级词条中**实时维护热度最高的前 10 名（Top-10）**。下列方案中综合性能最优的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "每来一条数据就对全量百万数组调用一次 sort 降序，取前 10 个"
+      },
+      {
+        "key": "B",
+        "text": "维护一个容量为 10 的小顶堆：新元素比堆顶大则替换堆顶并下沉调整；堆中始终是当前 Top-10，整体约 O(n log 10)"
+      },
+      {
+        "key": "C",
+        "text": "用一个普通数组存全部词条，每次查询时遍历一遍手动挑 10 个最大值"
+      },
+      {
+        "key": "D",
+        "text": "用链表按热度有序插入，取前 10 个节点"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确，这是 Top-K 问题的标准答案。维护容量 K 的小顶堆（注意是小顶堆：堆顶是当前 Top-K 里最小的「守门员」），新元素只需与堆顶比一次：小于堆顶直接丢弃 O(1)，大于则替换堆顶并下沉 O(log K)；n 个元素总代价 O(n log K)，K=10 时 log K 是常数，空间仅 O(K)。A 的全量 sort 每次 O(n log n)，百万级数据每秒重排完全不可行。C 每次查询 O(n) 且只在查询时刻有效，无法实时维护。D 的有序链表插入定位是 O(n)，且链表随机比较远不如堆的下标调整高效。前端同类场景还有：定时器/任务的优先级调度（优先队列取最早到期任务）、消息列表置顶、监控系统保留最慢的 N 个请求。",
+    "gapCheck": [
+      "易漏点：Top-K 用的是小顶堆而非大顶堆——堆顶是 K 个候选里的最小值，方便新来的「守门员」快速比较淘汰",
+      "常见误区：张口就 sort 取前 K，忽视全量排序 O(n log n) 与流式数据下重复排序的灾难成本",
+      "加分项：能写出堆的数组下标映射（左孩子 2i+1、右孩子 2i+2）与下沉 siftDown 过程"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.heap"
+      ],
+      "related": [
+        "fe.js.dsa.sort",
+        "fe.js.dsa.complexity"
+      ],
+      "followUps": [
+        "如果 K 接近 n（比如要前 90%），小顶堆方案还是最优吗？",
+        "JS 没有内置堆，手写一个最小堆需要实现哪几个核心方法？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "Top-K 小顶堆方案选型单选题"
+    },
+    "tags": [
+      "堆",
+      "优先队列",
+      "Top-K",
+      "复杂度"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-heap-0002",
+    "nodeId": "fe.js.dsa.heap",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "堆基础填空：①用数组模拟完全二叉树时，下标为 i 的节点，其左孩子下标是 ______，右孩子下标是 ______；②插入新元素时先放到数组末尾再执行「______」（填上浮/下沉）调整，删除堆顶时用末尾元素顶替后执行「______」调整；③大小为 n 的堆，取堆顶的时间复杂度是 O(______)。",
+    "answer": {
+      "blanks": [
+        "2i+1",
+        "2i+2",
+        "上浮",
+        "下沉",
+        "1"
+      ],
+      "synonyms": {
+        "1": [
+          "O(1)",
+          "常数"
+        ],
+        "2i+1": [
+          "2*i+1",
+          "2i + 1"
+        ],
+        "2i+2": [
+          "2*i+2",
+          "2i + 2"
+        ],
+        "上浮": [
+          "bubbleUp",
+          "siftUp",
+          "上滤"
+        ],
+        "下沉": [
+          "bubbleDown",
+          "siftDown",
+          "下滤"
+        ]
+      }
+    },
+    "analysis": "①数组模拟堆的下标公式（0 基）：左孩子 2i+1、右孩子 2i+2，反推父节点为 Math.floor((i-1)/2)；若是 1 基数组则是 2i 与 2i+1，答题需看清下标约定。②插入走「上浮」：新元素放末尾后不断与父节点比较，违反堆序就交换，直到满足为止，路径长度即树高 O(log n)。删除堆顶走「下沉」：用末尾元素顶替堆顶（避免数组搬移产生空洞），再不断与较小（小顶堆）/较大（大顶堆）的孩子交换下沉。③堆顶恒为数组第 0 个元素，读取 O(1)；建堆为 O(n)，插入与删除为 O(log n)，这也是优先队列相比有序数组（插入 O(n)）的核心优势。",
+    "gapCheck": [
+      "易漏点：0 基与 1 基下标公式不同（2i+1/2i+2 vs 2i/2i+1），父节点反推公式 floor((i-1)/2)",
+      "常见误区：以为删堆顶是直接 shift 数组——那会 O(n) 搬移，标准做法是末尾顶替再下沉",
+      "加分项：能说出建堆为什么是 O(n) 而非 O(n log n)（按层求和的收敛级数）"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.heap"
+      ],
+      "related": [
+        "fe.js.dsa.tree",
+        "fe.js.dsa.sort"
+      ],
+      "followUps": [
+        "手写一个 MinHeap 类，insert/peek/pop 分别怎么实现？",
+        "堆排序为什么是不稳定排序？它和优先队列是什么关系？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "数组模拟堆下标与调整操作填空题"
+    },
+    "tags": [
+      "堆",
+      "填空题",
+      "数组模拟",
+      "优先队列"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-sort-0001",
+    "nodeId": "fe.js.dsa.sort",
+    "type": "judge",
+    "difficulty": 2,
+    "stem": "判断正误：排序的「稳定性」是指相等元素在排序前后相对顺序保持不变；对表格先按「销量」排序、再按「分类」排序的多列排序场景，使用稳定排序能保证同一分类内部仍保留之前的销量顺序，而不稳定排序可能破坏它。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。稳定性定义就是：key 相等的两个元素 a、b，若排序前 a 在 b 前，排序后 a 仍在 b 前。常见排序中冒泡、插入、归并是稳定的；选择、快速、堆排序天然不稳定（交换可能跨越相等元素）。多列排序正是稳定性的典型应用：多关键字排序可以逐关键字从次要到主要依次稳定排序，后一次排序不会冲掉前一次在相等 key 内建立的顺序——表格先排销量再排分类，稳定排序保证同分类内销量次序保留。补充两个工程事实：ES2019 起规范要求 Array.prototype.sort 稳定，现代 V8 对短数组用插入排序、长数组用 TimSort（归并+插入的混合稳定算法）；若使用不稳定算法又要保序，可在比较器里追加原始下标作为次级 key 人为稳定化。",
+    "gapCheck": [
+      "易漏点：稳定性只约束「相等 key」元素的相对次序，不影响不同 key 的排序正确性",
+      "常见误区：以为快排/选择排序是稳定的——它们的远距离交换会跨过相等元素；堆排序也不稳定",
+      "加分项：知道 ES2019 后 sort 稳定性入规范、V8 的 TimSort 路线，以及用原始下标做 tie-breaker 的人工稳定化技巧"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.sort"
+      ],
+      "related": [
+        "fe.js.dsa.complexity",
+        "fe.js.dsa.heap"
+      ],
+      "followUps": [
+        "如何给一个不稳定排序加下标 tie-breaker 使其稳定？",
+        "TimSort 为什么在「基本有序」的真实数据上特别快？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "排序稳定性与表格多列排序判断题"
+    },
+    "tags": [
+      "排序",
+      "稳定性",
+      "表格排序",
+      "判断题"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-sort-0002",
+    "nodeId": "fe.js.dsa.sort",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于经典排序算法与前端排序场景，下列说法**正确**的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "快速排序平均 O(n log n)、最坏 O(n²)（如对已排序数组选首元素为基准），归并排序最坏也是 O(n log n) 但需要 O(n) 额外空间"
+      },
+      {
+        "key": "B",
+        "text": "冒泡与插入排序都是 O(n²)，但插入排序在「基本有序」的数组上接近 O(n)，适合小规模或近乎有序的数据"
+      },
+      {
+        "key": "C",
+        "text": "前端表格点击列头排序直接调用原生 sort 即可，数据量再大也不会有性能问题"
+      },
+      {
+        "key": "D",
+        "text": "虚拟列表在数据预处理阶段排序一次，比每次渲染都重排更合理；排序的计算成本与渲染成本应当分开评估"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "B",
+        "D"
+      ]
+    },
+    "analysis": "A、B、D 正确。A 对比了两大 O(n log n) 主力：快排原地排序、常数级额外空间，但最坏 O(n²)，工程上用随机基准/三数取中/小数组切插入排序规避；归并最坏仍 O(n log n) 且稳定，代价是 O(n) 辅助空间（链表场景可 O(1)）。B 点明简单排序的适用面：插入排序每轮只在局部有序区找位置，数据近乎有序时内层循环几乎不移动元素，退化为 O(n)，这也是 TimSort 在小段上采用插入排序的原因。C 错：原生 sort 虽是 O(n log n)，但十万级以上数据在主线程同步排序会阻塞渲染造成卡顿，应放入 Web Worker 或分页/增量处理；比较器若每次做重计算（如 localeCompare 大字符串）常数因子也很大。D 正确体现工程分层：排序是数据层一次性成本，渲染是视图层反复成本，虚拟列表只负责窗口内渲染，预处理排序避免每次滚动重算。",
+    "gapCheck": [
+      "易漏点：快排最坏 O(n²) 的触发条件（基准选取差导致分区极度不均）；归并用空间换稳定与最坏复杂度保证",
+      "常见误区：认为 O(n²) 排序一无是处——插入排序在小规模/基本有序数据上常数极小，常作为快排的 base case",
+      "加分项：能讲 V8 TimSort 的混合策略、主线程排序卡顿与 Web Worker 下沉、虚拟列表数据/渲染成本分层"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.sort"
+      ],
+      "related": [
+        "fe.js.dsa.complexity",
+        "fe.js.dsa.heap",
+        "fe.js.dsa.linear"
+      ],
+      "followUps": [
+        "大数据量表格排序如何避免主线程卡顿？Web Worker 方案有什么数据传递成本？",
+        "手写一个快排，并说明如何用随机化基准规避最坏情况？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "经典排序复杂度与前端场景多选题"
+    },
+    "tags": [
+      "排序",
+      "快排",
+      "归并",
+      "复杂度",
+      "虚拟列表"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-complexity-0001",
+    "nodeId": "fe.js.dsa.complexity",
+    "type": "blank",
+    "difficulty": 2,
+    "stem": "复杂度填空（写大 O 形式，如 O(n)）：①长度为 n 的数组，按下标 `arr[i]` 取值是 O(______)，`arr.unshift(x)` 头部插入是 O(______)；②单层 for 循环遍历数组是 O(______)，嵌套两层且各自到 n 的循环是 O(______)；③用 Map 按键查找的平均复杂度是 O(______)。",
+    "answer": {
+      "blanks": [
+        "1",
+        "n",
+        "n",
+        "n²",
+        "1"
+      ],
+      "synonyms": {
+        "1": [
+          "O(1)",
+          "常数",
+          "O（1）"
+        ],
+        "n": [
+          "O(n)",
+          "线性",
+          "O（n）"
+        ],
+        "n²": [
+          "O(n²)",
+          "O(n^2)",
+          "O（n²）",
+          "n^2"
+        ]
+      }
+    },
+    "analysis": "①下标访问靠基址+偏移一次定位 O(1)；unshift 要把现有 n 个元素整体后移一位，O(n)——这也是高频前端坑：循环里反复 unshift/push 头部操作会把整体拖到 O(n²)。②单层循环与数据规模线性增长 O(n)；两层独立到 n 的嵌套循环执行 n×n 次 O(n²)，典型如朴素双循环冒泡排序。③Map 基于哈希表，平均查找 O(1)（最坏冲突退化 O(n)，面试答平均复杂度即可）。大 O 描述的是输入规模趋于无穷时的渐近上界，关注最高阶项、忽略常数与低阶项（如 3n²+5n 记 O(n²)）。前端落地：防抖节流降低的是执行频次而非单次复杂度，但选择 Map 而非数组 find 做查找表，是把 O(n) 降到 O(1) 的典型空间换时间。",
+    "gapCheck": [
+      "易漏点：unshift/splice 头部或中部操作是 O(n)（元素搬移），不是 O(1)；循环内反复调用会累乘成 O(n²)",
+      "常见误区：把 Map 查找说成绝对 O(1)——准确表述是平均 O(1)、最坏 O(n)，取决于哈希冲突",
+      "加分项：能区分时间与空间复杂度、最好/最坏/均摊口径，并举出空间换时间（缓存/查表）的前端实例"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.complexity"
+      ],
+      "related": [
+        "fe.js.dsa.linear",
+        "fe.js.dsa.hash"
+      ],
+      "followUps": [
+        "arr.push 的均摊 O(1) 是怎么来的？扩容那一次为什么不影响均摊结论？",
+        "把数组 find 替换成 Map 查表，时间与空间复杂度各自怎么变？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "常见 JS 操作与循环复杂度填空题"
+    },
+    "tags": [
+      "复杂度",
+      "大O",
+      "填空题",
+      "高频"
+    ]
+  },
+  {
+    "id": "Q-fe-js-dsa-complexity-0002",
+    "nodeId": "fe.js.dsa.complexity",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "求字符串 `s` 中「最长无重复字符子串」的长度（如 `'abba'` 得 2、`'abcabcbb'` 得 3）。下列方案中最优且复杂度描述**正确**的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "枚举所有子串并用 Set 判重，时间 O(n³)、空间 O(n)"
+      },
+      {
+        "key": "B",
+        "text": "滑动窗口 + Map 记录字符最新下标：右指针遍历，遇重复字符把左指针跳到历史下标+1，一次遍历完成，时间 O(n)、空间 O(k)（k 为字符集大小）"
+      },
+      {
+        "key": "C",
+        "text": "两层 for 循环 + 每次 indexOf 判重，时间 O(n²)，已是最优"
+      },
+      {
+        "key": "D",
+        "text": "先对字符串排序再找连续不同段，时间 O(n log n) 且结果正确"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "B"
+      ]
+    },
+    "analysis": "B 正确，这是滑动窗口（双指针）的标杆题。维护窗口 [left, right]：right 每轮右移一格，用 Map 记下每个字符最近一次出现的下标；若当前字符在 Map 中且其下标 ≥ left（落在窗口内才算重复），就把 left 跳到该下标+1，再更新 Map 与最大长度。每个字符至多进、出窗口一次，right 只前进不回溯，整体 O(n)；Map 大小受字符集约束 O(k)。A 的暴力枚举子串数 O(n²)、每个再 O(n) 判重，O(n³) 可行但远非最优。C 是 O(n²)（indexOf 还要再乘 n，实际接近 O(n³)）且「已是最优」错误。D 有原理性错误：排序会打乱字符的原始先后顺序，子串要求连续且保持原序，排序后求出的是子序列性质的东西，答案不正确。滑动窗口套路在前端可类比防抖的时间窗、日志限流的滚动窗口统计。",
+    "gapCheck": [
+      "易漏点：left 跳跃要取 Math.max(left, 历史下标+1)，否则遇到 'abba' 这类 case 左指针会回退导致窗口包含重复字符",
+      "常见误区：认为窗口收缩要用 while 逐个移——本题借助 Map 下标可直接跳转，但要校验历史下标是否仍在窗口内",
+      "加分项：能讲清双指针 O(n) 的本质（每元素常数次访问）、字符集空间 O(k)，并类比限流/防抖的时间窗思想"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.complexity"
+      ],
+      "related": [
+        "fe.js.dsa.hash",
+        "fe.js.dsa.linear"
+      ],
+      "followUps": [
+        "手写 lengthOfLongestSubstring，并解释 'abba' 这个用例为什么能检验 left 回退 bug？",
+        "滑动窗口还能解决哪些题（最长 K 个不同字符、最小覆盖子串）？它们的窗口收缩条件有何不同？"
+      ]
+    },
+    "openBookAllowed": true,
+    "source": {
+      "kind": "self-authored",
+      "note": "滑动窗口最长无重复子串复杂度单选题"
+    },
+    "tags": [
+      "复杂度",
+      "滑动窗口",
+      "双指针",
+      "高频"
+    ]
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.js.dsa.complexity",
+    "type": "multiple",
+    "difficulty": 3,
+    "stem": "关于时间/空间复杂度的口径与常见前端代码的复杂度判断，下列说法正确的有：",
+    "options": [
+      {
+        "key": "A",
+        "text": "动态数组的 push 是均摊 O(1)：多数时候 O(1)，触发扩容整块拷贝的那一次是 O(n)，用聚合分析把扩容成本摊到历次操作上"
+      },
+      {
+        "key": "B",
+        "text": "O(n log n) 一定比 O(n²) 快，所以对长度只有 8 的数组，归并排序也必然比插入排序耗时更短"
+      },
+      {
+        "key": "C",
+        "text": "递归算法的额外空间复杂度必须计入调用栈深度，单次递归函数体内若只开 O(1) 变量、深度为 n，空间复杂度仍是 O(n)"
+      },
+      {
+        "key": "D",
+        "text": "一段代码两层循环但内层循环总共只执行 n 次（如双指针同向扫描），整体时间复杂度是 O(n) 而不是 O(n²)"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A",
+        "C",
+        "D"
+      ]
+    },
+    "analysis": "A、C、D 正确。A 是均摊分析（amortized analysis）的经典案例：V8 的 JS 数组容量按比例增长，第 n 次扩容的 O(n) 拷贝被前 n-1 次廉价插入摊薄，长期平均每次 push 仍为常数级。C 考察空间复杂度的完整口径：除显式分配的数据结构外，调用栈本身占空间，深度 n 的递归即使每层只用常数变量，栈空间也是 O(n)——这也是尾调用优化（ES6 规范允许但主流引擎实际不保证）与迭代改写的意义。D 考察按实际执行次数而非循环层数估算：左右指针各只单调前进、元素最多被访问常数次，总操作数是 O(n)，嵌套的书写形式不决定复杂度。B 错误：大 O 描述 n 趋于无穷时的渐近增长，忽略常数因子与小规模效应；插入排序在小数组上常数极小、无递归与额外数组开销，V8 的 TimSort 正是对短段（默认约 32 元素以下）切换插入排序，「渐近更优」不等于「任意规模都更快」。",
+    "gapCheck": [
+      "易漏点：均摊 O(1) 与最坏 O(n) 并不矛盾，描述的是不同口径；扩容那次操作确实是线性成本。",
+      "常见误区：看见两层 for 就写 O(n²)，应按内层语句的总执行次数判断，双指针滑动窗口常是 O(n)。",
+      "排查线索：分析递归空间时把调用栈深度单列一项；对比算法时区分渐近复杂度与小数据量常数因子。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.complexity"
+      ],
+      "related": [
+        "fe.js.dsa.linear",
+        "fe.js.dsa.sort",
+        "fe.js.dsa.hash"
+      ],
+      "followUps": [
+        "为什么扩容按倍数增长而不是每次固定加一个容量？",
+        "尾调用优化为什么能把递归空间降到 O(1)，JS 引擎支持现状如何？",
+        "均摊、平均、最坏三种复杂度口径在哈希表上分别对应什么场景？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于渐近分析、均摊分析经典理论与 V8 数组实现语义编写"
+    },
+    "tags": [
+      "复杂度",
+      "均摊分析",
+      "空间复杂度",
+      "高频辨析"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0080"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.js.dsa.hash",
+    "type": "single",
+    "difficulty": 3,
+    "stem": "关于哈希冲突处理与 ES6 集合类型的语义，下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "开放寻址法发生冲突后按探测序列寻找下一个空位，删除元素时通常需要墓碑标记，否则后续探测链会断裂"
+      },
+      {
+        "key": "B",
+        "text": "链地址法把冲突元素挂到桶链表上，因此哈希表永远不会出现查找退化，任何情况下都是 O(1)"
+      },
+      {
+        "key": "C",
+        "text": "Set 判定重复使用严格相等 ===，所以 new Set([NaN, NaN]) 会得到两个 NaN 元素"
+      },
+      {
+        "key": "D",
+        "text": "WeakMap 支持 size 属性与 keys() 遍历，适合用来做普通的字典计数统计"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确：开放寻址（线性/二次探测、双重哈希）的所有数据都存于桶数组内，冲突后顺延探测；直接物理删除会让「原本探测到此处才找到的后继元素」失联，因此标准做法是放置墓碑（tombstone），查找时跳过墓碑继续探测、插入时可复用墓碑位。B 错误：链地址在所有键哈希到同一桶时链表长度为 n，查找退化到 O(n)；装填因子过高时无论哪种方案都会退化，需要 rehash 扩容维持均摊 O(1)。C 错误：Map/Set 使用 SameValueZero 算法比较键，它与 === 的差别正是 NaN 与 NaN 判等、且 +0/-0 视为相同，所以 Set 中两个 NaN 只保留一个。D 错误：WeakMap 的键必须是对象且为弱引用，键不可枚举、没有 size 与迭代方法，这是 GC 可随时回收条目所付出的代价；它的定位是给对象挂私有元数据（如私有数据、缓存关联），字典计数应使用 Map。",
+    "gapCheck": [
+      "易漏点：SameValueZero 让 NaN 可以作为 Map/Set 的键且彼此相等，这与 === 的 NaN 不自等不同。",
+      "常见误区：把哈希表 O(1) 绝对化，忽略冲突退化与装填因子触发 rehash 的最坏 O(n)。",
+      "排查线索：需要遍历/size/计数用 Map，需要随对象生命周期自动释放的关联数据用 WeakMap。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.hash"
+      ],
+      "related": [
+        "fe.js.dsa.complexity",
+        "fe.js.dsa.linear"
+      ],
+      "followUps": [
+        "SameValue、SameValueZero 与 === 三者的差异边界分别是什么？",
+        "WeakMap 的弱引用语义如何帮助避免内存泄漏？",
+        "线性探测的聚集（clustering）现象为什么会推动二次探测/双重哈希的设计？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于哈希表冲突处理理论与 ECMA-262 Map/Set/WeakMap 规范语义编写"
+    },
+    "tags": [
+      "哈希表",
+      "开放寻址",
+      "SameValueZero",
+      "WeakMap"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0081"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.js.dsa.heap",
+    "type": "judge",
+    "difficulty": 4,
+    "stem": "判断正误：把一个含 n 个元素的无序数组原地堆排序，若先调用 heapify 自底向上建堆再反复交换堆顶与末尾并下沉，整体仍是 O(n log n) 时间、O(1) 额外空间；其中建堆本身只有 O(n)，因为越靠近叶子的节点数量越多而所需下沉高度越小，按层求和的级数收敛于线性。",
+    "answer": {
+      "judge": true
+    },
+    "analysis": "正确。两个结论都成立。其一，自底向上建堆（Floyd heapify）从最后一个非叶节点向前逐个 siftDown：高度为 h 的层上节点最多约 n/2^(h+1) 个、每个下沉代价 O(h)，总代价 Σ h·n/2^h 是收敛级数，数学上界为 O(n)——这与「逐个 insert 建堆 O(n log n)」形成对比，区别在于 insert 走上浮、heapify 走下沉且利用了「大多数节点在底层、下沉距离短」的结构事实。其二，堆排序阶段执行 n-1 次「堆顶换到末尾 + 缩小堆范围 + 堆顶下沉」，每次下沉 O(log n)，排序主体 O(n log n)；数组原地复用、只用常数辅助变量，额外空间 O(1)。补充两个常考点：堆排序不稳定（末尾交换可能跨越相等元素）；建大顶堆得到升序输出，因为每次摘出的最大值被放到数组尾部。",
+    "gapCheck": [
+      "易漏点：建堆 O(n) 的结论只适用于自底向下沉式 heapify；逐个插入式建堆是 O(n log n)。",
+      "常见误区：想当然把建堆也按 n 个节点 × log n 高度估算，忽略按层加权后的级数收敛。",
+      "排查线索：判断堆排序稳定性时追踪堆顶与末尾的远距离交换；空间 O(1) 的前提是原地数组实现。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.heap"
+      ],
+      "related": [
+        "fe.js.dsa.sort",
+        "fe.js.dsa.tree",
+        "fe.js.dsa.complexity"
+      ],
+      "followUps": [
+        "为什么自底向上建堆比逐个插入建堆快，二者上浮/下沉路径差在哪？",
+        "堆排序既然 O(n log n) 且原地，为什么工程上快排更常用？",
+        "Top-K 用小顶堆、堆排序用大顶堆，这个对应关系如何统一理解？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于二叉堆建堆级数分析与堆排序经典算法语义编写"
+    },
+    "tags": [
+      "堆",
+      "建堆复杂度",
+      "堆排序",
+      "级数收敛"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0082"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.js.dsa.linear",
+    "type": "blank",
+    "difficulty": 3,
+    "stem": "线性结构与 JS 实现填空：①具备 LIFO「后进先出」特征、只在同一端进出的结构是 ______，具备 FIFO 特征、一端进另一端出的是 ______；②JS 中用数组模拟栈，push 配合 ______ 方法可保持 O(1) 弹栈；③V8 中连续、元素类型同质的数组走 ______（填紧凑/快元素模式），出现空洞或类型混杂后可能降级为字典模式，随机访问性能下降。",
+    "answer": {
+      "blanks": [
+        "栈（stack）",
+        "队列（queue）",
+        "pop",
+        "快元素（Packed Elements，紧凑元素）"
+      ],
+      "synonyms": {
+        "栈（stack）": [
+          "栈",
+          "stack",
+          "堆栈"
+        ],
+        "队列（queue）": [
+          "队列",
+          "queue"
+        ],
+        "pop": [
+          "pop()",
+          "Array.pop"
+        ],
+        "快元素（Packed Elements，紧凑元素）": [
+          "Packed Elements",
+          "快元素",
+          "紧凑元素",
+          "packed",
+          "Fast Elements"
+        ]
+      }
+    },
+    "analysis": "①栈只在栈顶操作（push/pop），函数调用栈、括号匹配、撤销重做、DFS 的显式实现都基于它；队列在队尾入队、队头出队（enqueue/dequeue），事件循环的任务队列、BFS 层序遍历、消息缓冲都是队列模型。②数组模拟栈用 push+pop，两者都作用于数组尾部，均摊 O(1)；若用 push+shift 模拟队列，shift 需要整体前移元素是 O(n)，工程上可用环形缓冲（头尾指针取模）或链表实现 O(1) 出队。③V8 对元素为连续同类型（PACKED_SMI/PACKED_DOUBLE/PACKED_ELEMENTS）的数组采用连续存储的 Fast Elements，下标访问走基址寻址；产生空洞（HOLEY）或类型降级后会切换更慢的元素处理路径，极度稀疏时进一步退化为基于哈希表的字典元素（Dictionary Elements），此时 arr[i] 不再是连续内存 O(1) 语义的快路径。",
+    "gapCheck": [
+      "易漏点：shift/unshift 作用于数组头部、触发整体搬移是 O(n)，模拟队列时不能想当然当作 O(1)。",
+      "常见误区：以为 JS 数组永远连续存储，稀疏空洞与类型混杂会让 V8 切换元素 Kind 甚至字典模式。",
+      "排查线索：遍历性能异常时检查数组是否出现 empty 洞、元素类型是否在 number/string/object 间混杂。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.linear"
+      ],
+      "related": [
+        "fe.js.dsa.complexity",
+        "fe.js.dsa.tree",
+        "fe.js.dsa.hash"
+      ],
+      "followUps": [
+        "如何用两个栈实现一个均摊 O(1) 的队列？",
+        "V8 的 PACKED 与 HOLEY Elements 在优化去优化上还有哪些连锁影响？",
+        "环形队列的取模判满条件为什么要浪费一个槽位或用计数法？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于栈/队列经典理论与 V8 Elements Kind 实现语义编写"
+    },
+    "tags": [
+      "栈",
+      "队列",
+      "V8元素模式",
+      "填空题"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0083"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.js.dsa.sort",
+    "type": "single",
+    "difficulty": 4,
+    "stem": "关于现代 V8 中 Array.prototype.sort 的实现与比较器语义，下列说法正确的是：",
+    "options": [
+      {
+        "key": "A",
+        "text": "V8 采用 TimSort：小数组（短 run）使用插入排序、大数组基于归并思想维护有序 run，并保证排序结果稳定；不传比较器时元素先被转换为字符串按 UTF-16 码元序列比较"
+      },
+      {
+        "key": "B",
+        "text": "V8 至今仍使用纯快速排序，且 [3, 20, 100].sort() 的结果是数值升序 [3, 20, 100]"
+      },
+      {
+        "key": "C",
+        "text": "比较器返回 true/false 即可决定顺序，返回正数负数没有区别"
+      },
+      {
+        "key": "D",
+        "text": "sort() 会返回一个排好序的全新数组，原数组保持不变"
+      }
+    ],
+    "answer": {
+      "keys": [
+        "A"
+      ]
+    },
+    "analysis": "A 正确。V8 自 2018 年起以 TimSort 取代旧的快排+插入混合实现：TimSort 是归并排序与插入排序的混合稳定算法，先扫描自然有序 run、短 run 用二分插入排序扩展，再按规则归并栈中的 run，对真实世界「部分有序」数据极快；ES2019 起稳定性被写入规范，现代引擎均满足。默认比较器不做数值排序，而是把元素 ToString 后按 UTF-16 码元字典序比较，所以 [3,20,100].sort() 得到 [100,20,3]，数值排序必须显式传 (a,b)=>a-b。B 两处皆错。C 错误：比较器必须返回数字，负数表示 a 在前、正数表示 b 在前、0 表示相对不变，返回布尔值会被隐式转成 0/1，导致排序结果错误且不稳定。D 错误：sort 是原地排序（in-place），返回的是同一个数组的引用，并不创建副本；需要不改原数组应先 slice()/toSorted()（ES2023 新增的非变异版本）。",
+    "gapCheck": [
+      "易漏点：无比较器时按字符串 UTF-16 码元排序，数字数组会出现 100 排在 20 前的经典错题。",
+      "常见误区：比较器返回布尔值；规范要求返回 Number，符号而非真假决定次序。",
+      "排查线索：需要不可变排序用 ES2023 的 toSorted()；依赖稳定性的多列排序仍建议显式加下标 tie-breaker 保底。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.sort"
+      ],
+      "related": [
+        "fe.js.dsa.complexity",
+        "fe.js.dsa.heap"
+      ],
+      "followUps": [
+        "TimSort 的 run 栈合并规则（galloping 模式）解决了什么输入下的性能问题？",
+        "toSorted/toReversed 等非变异数组方法还有哪几个，兼容性如何？",
+        "中文排序为什么应使用 Intl.Collator 而不是默认比较器？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于 ECMA-262 sort 规范、ES2019 稳定性要求与 V8 TimSort 实现语义编写"
+    },
+    "tags": [
+      "排序",
+      "TimSort",
+      "比较器",
+      "V8实现"
+    ],
+    "openBookAllowed": true,
+    "id": "Q-fe-fill-0084"
+  },
+  {
+    "g": 4,
+    "nodeId": "fe.js.dsa.tree",
+    "type": "short",
+    "difficulty": 4,
+    "stem": "给定一棵节点数为 n 的普通二叉树（节点结构 { value, left, right }），请回答：(1) 写出递归版前序、中序、后序遍历的统一骨架，并指出三者仅在哪一行代码的位置不同；(2) 给出不依赖递归的迭代版中序遍历思路与显式栈的变化过程；(3) 说明递归版与迭代版各自的时间复杂度、空间复杂度，以及在什么输入下递归版存在爆栈风险，工程上如何规避。",
+    "scoringPoints": [
+      {
+        "point": "递归骨架正确：终止条件 node 为空返回；前序 N-L-R、中序 L-N-R、后序 L-R-N，差异仅在访问节点（收集 value）相对两次递归调用的位置",
+        "weight": 3
+      },
+      {
+        "point": "迭代中序：栈 + current 指针，外层 current 非空或栈非空循环，一路压左孩子，弹栈访问后转向右子树，过程描述清晰",
+        "weight": 3
+      },
+      {
+        "point": "复杂度：时间均 O(n)（每节点常数次访问）；递归空间=调用栈 O(h)，迭代空间=显式栈 O(h)，h 为树高，最坏斜树 O(n)、平衡树 O(log n)",
+        "weight": 2
+      },
+      {
+        "point": "爆栈条件：树高逼近引擎调用栈上限（上万量级斜树）触发 RangeError；规避：迭代改写、Morris 遍历 O(1) 额外空间、或尾递归不适用时分批处理",
+        "weight": 2
+      }
+    ],
+    "answer": {
+      "ref": "参考骨架：(1) 统一递归骨架：function walk(node) { if (!node) return; /* 前序位置：out.push(node.value) */ walk(node.left); /* 中序位置：out.push(node.value) */ walk(node.right); /* 后序位置：out.push(node.value) */ }。三种 DFS 的控制流完全相同，唯一区别是「访问当前节点」这一行放在两次递归调用之前、之间还是之后：前序 N-L-R、中序 L-N-R、后序 L-R-N。(2) 迭代中序：const stack = []; let cur = root; while (cur || stack.length) { while (cur) { stack.push(cur); cur = cur.left; } cur = stack.pop(); out.push(cur.value); cur = cur.right; }。内层循环把当前节点到最左下的整条左链压栈；弹栈节点即「左子树已处理完」的节点，此刻访问正符合 L-N-R；随后把指针交给右子树重复同一过程。前序迭代可在压栈时先访问根、右孩子先入栈左孩子后入栈；后序迭代可用双栈或「根-右-左反转」技巧。(3) 时间复杂度两版都是 O(n)，每个节点进出常数次；空间复杂度都由树高 h 决定：递归版是调用栈 O(h)，迭代版是显式栈 O(h)，平衡树 h≈log n、斜树 h=n 即 O(n)。爆栈风险出现在极端不平衡输入（如递归插入有序数据形成的斜 BST、深层嵌套 DOM/AST），树高超过 JS 引擎调用栈容量（常见万级上下）抛 RangeError: Maximum call stack size exceeded。规避：改用上述显式栈迭代；要求 O(1) 额外空间可用 Morris 遍历，利用叶子空闲 right 指针做线索并在访问后还原；数据侧可先平衡化（AVL/红黑树思路）降低树高。"
+    },
+    "analysis": "本题把树遍历从「背三种顺序」升级为「统一骨架 + 迭代工程化 + 复杂度归因」。关键认知是三种 DFS 共享同一递归模板、仅访问位置不同，掌握这一点就不必死记六段代码。迭代中序的双 while（左链压栈→弹访→转右）是标准写法，候选人常犯的错误是只维护栈而丢失 current 指针导致死循环。复杂度层面要明确空间由树高而非节点数决定，且递归与迭代只是把系统栈换成用户栈、量级相同；真正能把空间降到 O(1) 的是 Morris 线索遍历。爆栈联系前端真实场景：深层 AST 处理、深嵌套评论树、递归组件数据拍平都可能命中。",
+    "gapCheck": [
+      "易漏点：三种 DFS 递归结构同构，差别仅是访问语句的位置；迭代中序必须同时维护栈与 current 指针。",
+      "常见误区：把遍历空间复杂度答成 O(n) 常数口径，准确表达是 O(h)，仅在最坏斜树时才等于 O(n)。",
+      "排查线索：RangeError 栈溢出先评估树高，显式栈迭代可解；极致空间约束再考虑 Morris 遍历的线索化方案。"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "fe.js.dsa.tree"
+      ],
+      "related": [
+        "fe.js.dsa.linear",
+        "fe.js.dsa.complexity",
+        "fe.js.dsa.heap"
+      ],
+      "followUps": [
+        "Morris 遍历如何利用叶子空闲指针把空间压到 O(1)，又如何在线索访问后还原树结构？",
+        "层序遍历为什么必须用队列而不能直接套用 DFS 栈？",
+        "递归处理深 AST 时除了改写迭代，还有哪些分片/调度手段避免阻塞主线程？"
+      ]
+    },
+    "source": {
+      "kind": "self-authored",
+      "note": "基于二叉树 DFS 经典算法、调用栈机制与 Morris 遍历理论编写"
+    },
+    "tags": [
+      "二叉树",
+      "遍历",
+      "显式栈",
+      "爆栈"
+    ],
+    "openBookAllowed": false,
+    "id": "Q-fe-fill-0085"
+  }
+]
