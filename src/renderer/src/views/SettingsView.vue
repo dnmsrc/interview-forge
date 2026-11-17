@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useForgeStore } from '../store'
-import type { EndpointConfig, TutorStatus } from '@shared/types'
+import type { EndpointConfig, TutorStatus, TutorCatalog, InferMode } from '@shared/types'
 import EndpointRow from '../components/EndpointRow.vue'
 import Icon from '../components/Icon.vue'
 import { useNaiveTheme } from '../lib/theme'
@@ -28,12 +28,29 @@ const endpointOptions = computed(() => eps.value.map((e) => ({ value: e.id, labe
 const testAll = () => { void store.testAllEndpoints() }
 const window_open = (p?: string) => { if (p) void ipc.app.reveal(p) }
 
-/* ---- 内置答疑小模型（CPU 推理，显存恒 0）：状态轮询 + 手动预热/卸载 ---- */
+/* ---- 内置答疑小模型：状态轮询 + 推理模式 + 模型/运行时清单 ---- */
 const tutor = ref<TutorStatus | null>(null)
+const catalog = ref<TutorCatalog | null>(null)
 const tutorLogs = ref<string[]>([])
 const tutorBusy = ref('')
 let tutorTimer: ReturnType<typeof setInterval> | null = null
 const tutorReady = computed(() => tutor.value?.state === 'ready')
+/** 三档推理模式；auto 由主进程按真实显存判定，不让用户猜 */
+const inferModes: { id: InferMode; label: string }[] = [
+  { id: 'auto', label: '自动（按显存判定）' },
+  { id: 'gpu', label: '强制 GPU' },
+  { id: 'cpu', label: '强制 CPU' }
+]
+/** 实际后端：GPU 时带层数，让「到底跑在卡上还是 CPU 上」一眼可见 */
+const inferBackendText = computed(() => {
+  const s = tutor.value
+  if (!s) return '—'
+  return s.backend === 'cpu' ? 'CPU（零显存）' : `${s.backend.toUpperCase()}（${s.gpuLayers} 层上卡）`
+})
+const gpuText = computed(() => {
+  const g = tutor.value?.gpu
+  return g ? `${g.name} · 空闲 ${g.freeMb} MB / 总 ${g.totalMb} MB` : '未检测到 NVIDIA 显卡'
+})
 const tutorStateText = computed(() => {
   const s = tutor.value
   if (!s) return '状态未知'
@@ -50,6 +67,23 @@ const tutorIdleText = computed(() => {
 const tutorForced = computed(() => !!routing.value.tutorEndpointId)
 async function refreshTutor() {
   try { tutor.value = await ipc.ai.tutorStatus() } catch { /* 旧主进程没有该通道时静默 */ }
+  try { catalog.value = await ipc.ai.tutorCatalog() } catch { catalog.value = null }
+}
+async function setInferMode(mode: InferMode) {
+  tutorBusy.value = 'mode'
+  try {
+    tutor.value = await ipc.ai.tutorSetMode(mode)
+    await refreshTutor()
+    toast.ok(`推理模式已切换为「${inferModes.find((m) => m.id === mode)?.label ?? mode}」，下次加载时生效`)
+  } catch (e: any) { toast.err(String(e?.message ?? e)) } finally { tutorBusy.value = '' }
+}
+async function setModel(id: string) {
+  tutorBusy.value = 'model'
+  try {
+    tutor.value = await ipc.ai.tutorSetModel(id)
+    await refreshTutor()
+    toast.ok('模型已切换，下次加载时生效')
+  } catch (e: any) { toast.err(String(e?.message ?? e)) } finally { tutorBusy.value = '' }
 }
 async function startTutor() {
   tutorBusy.value = 'start'
@@ -60,7 +94,7 @@ async function startTutor() {
 }
 async function stopTutor() {
   tutorBusy.value = 'stop'
-  try { await ipc.ai.tutorStop(); toast.ok('已卸载，内存已归还（显存本来就没占用）') } catch (e: any) { toast.err(String(e?.message ?? e)) } finally { tutorBusy.value = ''; await refreshTutor() }
+  try { await ipc.ai.tutorStop(); toast.ok('已卸载，内存已归还') } catch (e: any) { toast.err(String(e?.message ?? e)) } finally { tutorBusy.value = ''; await refreshTutor() }
 }
 async function loadTutorLog() {
   try { tutorLogs.value = await ipc.ai.tutorLog(30) } catch { tutorLogs.value = [] }
@@ -255,7 +289,7 @@ onUnmounted(() => { if (tutorTimer) { clearInterval(tutorTimer); tutorTimer = nu
     <section class="card rise" style="--i:3">
       <div class="panel-head">
         <h3><Icon name="brain" :size="16" class="hd-ic" /> 本地答疑模型</h3>
-        <span class="desc">内置 Qwen3.5-4B · CPU 推理 · 显存 0 MB</span>
+        <span class="desc">{{ tutor?.mode === 'auto' ? '自动判定后端' : tutor?.mode === 'gpu' ? '强制 GPU' : '强制 CPU' }} · {{ inferBackendText }}</span>
         <span class="grow" />
         <span class="pill" :class="tutorReady ? 'ok' : (tutor && (!tutor.modelExists || !tutor.binExists || tutor.state === 'error')) ? 'bad' : 'info'" data-testid="tutor-state">
           <Icon :name="tutorReady ? 'check' : 'alert'" :size="12" /> {{ tutorStateText }}
@@ -263,9 +297,7 @@ onUnmounted(() => { if (tutorTimer) { clearInterval(tutorTimer); tutorTimer = nu
       </div>
 
       <div class="tiny muted ep-hint wrap-any">
-        答疑、追问、「我不会」讲解默认走这个内置小模型：<b>纯 CPU 推理，不占显卡显存</b>，
-        所以不会和 Strata 大模型、ComfyUI 抢卡；不使用时进程自动退出，第一次用到时约 3-6 秒加载。
-        云端端点保持原样：判分、题库更新仍走云端，对本地回答不满意时也能一键换云端重答。
+        答疑、追问、「我不会」讲解默认走这个内置小模型。默认<b>自动选择后端</b>：检测到 NVIDIA 显卡且显存足够就全量上卡（推荐 Vulkan 运行时，仅 36 MB，NVIDIA/AMD/Intel 通用），显存不够则纯 CPU（零显存占用，不和 Strata / ComfyUI 抢卡）。不使用时进程自动退出，首次加载约 3-6 秒。
       </div>
 
       <div class="path-list">
@@ -274,8 +306,26 @@ onUnmounted(() => { if (tutorTimer) { clearInterval(tutorTimer); tutorTimer = nu
           <span class="tiny grow wrap-any">{{ tutorStateText }}<template v-if="tutorIdleText"> · {{ tutorIdleText }}</template></span>
         </div>
         <div class="kv path-row">
-          <span class="micro faint path-k shrink">资源</span>
-          <span class="tiny grow">显存 <b>0 MB</b>（CPU 推理）· 端口 {{ tutor?.port ?? '—' }} · {{ tutor?.threads ?? '—' }} 线程 · 上下文 {{ tutor?.ctx ?? '—' }}</span>
+          <span class="micro faint path-k shrink">显卡</span>
+          <span class="tiny grow wrap-any">{{ gpuText }}</span>
+        </div>
+        <div class="kv path-row">
+          <span class="micro faint path-k shrink">实际推理</span>
+          <span class="tiny grow"><b>{{ inferBackendText }}</b> · {{ tutor?.threads ?? '—' }} 线程 · 上下文 {{ tutor?.ctx ?? '—' }} · 端口 {{ tutor?.port ?? '—' }}</span>
+        </div>
+        <div class="kv path-row">
+          <span class="micro faint path-k shrink">推理模式</span>
+          <span class="row grow" style="gap:6px;flex-wrap:wrap">
+            <n-button
+              v-for="m in inferModes" :key="m.id" size="tiny"
+              :type="tutor?.mode === m.id ? 'primary' : 'default'" :disabled="!!tutorBusy"
+              :data-testid="'tutor-mode-' + m.id" @click="setInferMode(m.id)"
+            >{{ m.label }}</n-button>
+          </span>
+        </div>
+        <div class="kv path-row">
+          <span class="micro faint path-k shrink">判定理由</span>
+          <span class="tiny grow wrap-any faint">{{ tutor?.reason ?? '—' }}</span>
         </div>
         <div class="kv path-row">
           <span class="micro faint path-k shrink">模型</span>
@@ -293,6 +343,40 @@ onUnmounted(() => { if (tutorTimer) { clearInterval(tutorTimer); tutorTimer = nu
         </div>
       </div>
 
+      <!-- 模型与运行时分发：不下模型也能先看到「该下哪个、多大、下了没」 -->
+      <template v-if="catalog">
+        <div class="section-title">可选模型</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <div v-for="m in catalog.models" :key="m.id" class="kv" style="min-width:240px;flex:1;gap:4px">
+            <span class="tiny"><b>{{ m.label }}</b> <span class="faint">{{ m.params }} · {{ m.quant }} · {{ m.sizeMb }} MB</span></span>
+            <span class="micro faint wrap-any">{{ m.note }}</span>
+            <span class="row" style="gap:6px">
+              <span class="pill" :class="m.ready ? 'ok' : 'bad'">{{ m.ready ? '已下载' : '未下载' }}</span>
+              <span v-if="m.selected" class="pill ok">使用中</span>
+              <n-button v-else size="tiny" :disabled="!!tutorBusy" @click="setModel(m.id)">用这个</n-button>
+            </span>
+          </div>
+        </div>
+
+        <div class="section-title">推理运行时</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap">
+          <div v-for="r in catalog.runtimes" :key="r.id" class="kv" style="min-width:240px;flex:1;gap:4px">
+            <span class="tiny"><b>{{ r.label }}</b> <span class="faint">{{ r.sizeMb }} MB</span></span>
+            <span class="micro faint wrap-any">{{ r.note }}</span>
+            <span class="pill" :class="r.ready ? 'ok' : 'bad'">{{ r.ready ? '已就绪' : '未下载' }}</span>
+          </div>
+        </div>
+        <div class="tiny muted wrap-any" style="margin-top:6px">
+          推荐后端：<b>{{ catalog.recommendBackend === 'cpu' ? 'CPU' : catalog.recommendBackend.toUpperCase() }}</b> —— {{ catalog.recommendReason }}
+        </div>
+        <div class="kv path-row" style="margin-top:6px">
+          <span class="micro faint path-k shrink">补下载</span>
+          <button class="path-copy ellip" type="button" :title="'点击复制命令：' + catalog.fetchHint" @click="copyPath(catalog.fetchHint)">
+            <Icon name="copy" :size="13" /> <span class="ellip">{{ catalog.fetchHint }}</span>
+          </button>
+        </div>
+      </template>
+
       <div class="row rt-acts">
         <n-button size="small" type="primary" :loading="tutorBusy === 'start'" :disabled="!!tutorBusy || (tutor?.state === 'ready')" data-testid="tutor-start" @click="startTutor">
           <template #icon><Icon name="zap" :size="14" /></template>{{ tutorReady ? '已就绪' : '立即加载' }}
@@ -303,7 +387,7 @@ onUnmounted(() => { if (tutorTimer) { clearInterval(tutorTimer); tutorTimer = nu
         <n-button size="small" quaternary @click="loadTutorLog">
           <template #icon><Icon name="refresh" :size="13" /></template>日志
         </n-button>
-        <span class="tiny faint grow">{{ tutor?.modelExists && tutor?.binExists ? (tutorReady ? tutorIdleText : '') : '缺文件时运行 npm run tutor:fetch 自动下载（约 2.6 GB）' }}</span>
+        <span class="tiny faint grow">{{ tutor?.modelExists && tutor?.binExists ? (tutorReady ? tutorIdleText : '') : '缺依赖时按上面的「补下载」命令拉取' }}</span>
       </div>
 
       <template v-if="tutorLogs.length">

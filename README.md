@@ -80,9 +80,24 @@ npm run tutor:fetch
 
 > 模型目录必须是**纯 ASCII 路径**：Windows 下 llama.cpp 读不了含中文的路径。
 
-### 推理模式
+### 推理模式与运行时
 
-默认**自动检测**：发现可用 NVIDIA GPU 且显存足够时全量上卡（`--n-gpu-layers 99`），否则退回纯 CPU（`--n-gpu-layers 0`，零显存占用）。也可以在设置里强制指定 CPU / GPU。
+默认**自动判定**：检测到 NVIDIA 显卡且空闲显存足够就全量上卡（`--n-gpu-layers 99`），否则退回纯 CPU（`--n-gpu-layers 0`，零显存占用）。设置页可在「自动 / 强制 GPU / 强制 CPU」之间切换，并直接显示**判定理由**（为什么走了这条路）。
+
+GPU 后端提供两种运行时，体积差 19 倍但能力接近：
+
+| 运行时 | 体积 | 适用 |
+| --- | --- | --- |
+| **Vulkan**（推荐） | 36 MB | NVIDIA / AMD / Intel 通用，不需要装 CUDA 运行时 |
+| CUDA | 305 MB + 373 MB cudart | 仅 NVIDIA，追求极限吞吐时才值得这个体积 |
+| CPU | 24 MB | 零显存占用，所有机器可用 |
+
+```bash
+npm run tutor:fetch -- --runtime=vulkan   # 下载 Vulkan 运行时（36MB）
+npm run tutor:fetch -- --runtime=cuda     # 下载 CUDA 运行时（约 678MB）
+```
+
+设置页会列出可选模型（4B 主力 / 1.7B 轻量）、各运行时是否就绪，并在缺依赖时给出**可复制的补下载命令**。
 
 参考速度（i7-13700KF 纯 CPU，Q4_K_M）：约 13–17 tok/s。一道短答题的完整回答通常在 4–16 秒。
 

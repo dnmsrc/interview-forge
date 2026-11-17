@@ -189,7 +189,10 @@ export const impl = {
     async tutorStatus() { return tutorSvc.tutorStatus() },
     async tutorStart() { return tutorSvc.ensureTutor() },
     async tutorStop() { tutorSvc.stopTutor('ui'); return tutorSvc.tutorStatus() },
-    async tutorLog(limit) { return tutorSvc.tutorLogTail(limit ?? 60) }
+    async tutorLog(limit) { return tutorSvc.tutorLogTail(limit ?? 60) },
+    async tutorSetMode(mode) { tutorSvc.writeInferConfig({ mode }); return tutorSvc.tutorStatus() },
+    async tutorSetModel(modelId) { tutorSvc.writeInferConfig({ modelId }); return tutorSvc.tutorStatus() },
+    async tutorCatalog() { return tutorSvc.tutorCatalog() }
   },
 
   // R20 游戏化：XP/等级、streak、徽章墙、章节 Boss、庆祝事件

@@ -234,13 +234,38 @@ export interface EndpointConfig {
 
 /** 内置答疑小模型（llama.cpp CPU 推理）的运行状态。vramMb 恒为 0：该端点不从显卡分配显存 */
 export type TutorState = 'idle' | 'starting' | 'ready' | 'error'
+
+/** 推理模式：auto 由代码按显存判定，cpu/gpu 是用户强制 */
+export type InferMode = 'auto' | 'cpu' | 'gpu'
+/** 实际生效的推理后端；vulkan 是 GPU 方案的默认项（运行时仅 36MB） */
+export type InferBackend = 'cpu' | 'vulkan' | 'cuda'
+
+export interface GpuInfo {
+  name: string
+  totalMb: number
+  freeMb: number
+}
+
 export interface TutorStatus {
   state: TutorState
-  vramMb: 0
+  /** 用户选择的模式 */
+  mode: InferMode
+  /** 实际生效的后端（可能与 mode 不同：选了 gpu 但没下运行时会回落 cpu） */
+  backend: InferBackend
+  /** 实际加载到显卡的层数，0 表示纯 CPU */
+  gpuLayers: number
+  /** 显卡信息；没有可用 NVIDIA 显卡时为 null */
+  gpu: GpuInfo | null
+  /** 当前模式选定的理由（给用户看，而不是让人猜为什么走 CPU） */
+  reason: string
+  /** 显存总量 MB（无 GPU 时 0），保留此字段兼容旧前端 */
+  vramMb: number
   port: number
   pid?: number
   modelPath: string
   modelExists: boolean
+  /** 当前有效的模型 id（注册表里的） */
+  modelId: string
   binPath: string
   binExists: boolean
   ctx: number
@@ -251,6 +276,36 @@ export interface TutorStatus {
   lastError?: string
   /** state=ready 时距自动卸载还剩多少毫秒 */
   idleLeftMs?: number
+}
+
+/** 运行时分发项（CPU / Vulkan / CUDA），供设置页展示「要不要下、下了多大」 */
+export interface TutorRuntimeInfo {
+  id: InferBackend
+  label: string
+  sizeMb: number
+  note: string
+  ready: boolean
+}
+
+export interface TutorModelInfo {
+  id: string
+  label: string
+  params: string
+  quant: string
+  sizeMb: number
+  note: string
+  ready: boolean
+  selected: boolean
+}
+
+/** 设置页「本地模型与推理」区块一次拿全的数据 */
+export interface TutorCatalog {
+  models: TutorModelInfo[]
+  runtimes: TutorRuntimeInfo[]
+  recommendBackend: InferBackend
+  recommendReason: string
+  /** 缺什么时直接可复制的补下载命令（前端展示，无需自己做下载协议） */
+  fetchHint: string
 }
 
 export interface AppSettings {

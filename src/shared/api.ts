@@ -1,4 +1,4 @@
-import type { ExamSpec, GradeResult, TeachingResult, ProbeTurn, QaResult, EndpointConfig, AppSettings, DailyPlan, DashboardSummary, GraphNode, NodeDetail, QuestionRow, VariantLite, TutorStatus } from './types'
+import type { ExamSpec, GradeResult, TeachingResult, ProbeTurn, QaResult, EndpointConfig, AppSettings, DailyPlan, DashboardSummary, GraphNode, NodeDetail, QuestionRow, VariantLite, TutorStatus, TutorCatalog, InferMode } from './types'
 import type { RelationType } from './relations'
 
 /* ---------- 知识体系（knowledge / knowledge_fts）DTO：与 services/knowledge.ts 的返回结构一一对应 ---------- */
@@ -129,7 +129,7 @@ export const API_METHODS: Record<string, string[]> = {
   dashboard: ['summary', 'wrongNotes'],
   knowledge: ['get', 'search', 'status', 'sync', 'saveDraft', 'generate', 'generateBatch'],
   explain: ['run', 'history', 'followups', 'tutor'],
-  ai: ['endpoints', 'saveEndpoints', 'test', 'usage', 'byTask', 'errors', 'tutorStatus', 'tutorStart', 'tutorStop', 'tutorLog'],
+  ai: ['endpoints', 'saveEndpoints', 'test', 'usage', 'byTask', 'errors', 'tutorStatus', 'tutorStart', 'tutorStop', 'tutorLog', 'tutorSetMode', 'tutorSetModel', 'tutorCatalog'],
   settings: ['all', 'get', 'set'],
   game: ['overview', 'badges', 'events', 'drainEvents', 'bosses', 'chapters', 'reportExplorer']
 }
@@ -286,6 +286,12 @@ export interface ForgeApi {
     tutorStop(): Promise<TutorStatus>
     /** 最近运行日志，用于排查「模型没下载 / 端口被占 / 加载失败」 */
     tutorLog(limit?: number): Promise<string[]>
+    /** 切换推理模式：auto 按显存实测判定，cpu/gpu 是用户强制 */
+    tutorSetMode(mode: InferMode): Promise<TutorStatus>
+    /** 切换使用的模型（注册表 id） */
+    tutorSetModel(modelId: string): Promise<TutorStatus>
+    /** 模型与运行时清单 + 推荐后端 + 缺依赖时的补下载命令 */
+    tutorCatalog(): Promise<TutorCatalog>
   }
   settings: {
     all(): Promise<AppSettings>
