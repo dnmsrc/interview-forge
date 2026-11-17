@@ -1,8 +1,7 @@
-import { randomUUID } from 'node:crypto'
-import { all, get, run, settingGet, settingSet } from '../db'
-import { dueQuestionIds, hydrateQuestions, variantIdsOfNode, recordAttempt, todayDueCount, globalMixRatio } from './srs'
-import { gradeAnswer, questionOf } from './grading'
-import { applyUnlock, loadNodes, mustMasterGap } from './graph'
+import { all, get, run, settingGet } from '../db'
+import { dueQuestionIds, hydrateQuestions, variantIdsOfNode, todayDueCount, globalMixRatio } from './srs'
+import { mustMasterGap } from './graph'
+import { masteryDistribution } from './mastery'
 import type { DailyPlan, DashboardSummary, QuestionRow } from '../../shared/types'
 
 const dayStr = (d = new Date()) => d.toISOString().slice(0, 10)
@@ -31,7 +30,7 @@ export function buildDailyPlan(): DailyPlan {
         AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.question_id=q.id)
         AND (COALESCE(m.forced_unlock,0)=1 OR n.level<=2 OR NOT EXISTS (
               SELECT 1 FROM edges e JOIN node_mastery pm ON pm.node_id=e.from_id
-              WHERE e.to_id=n.id AND e.type='prereq' AND COALESCE(pm.lit,0)=0 AND COALESCE(pm.forced_unlock,0)=0 AND COALESCE(pm.answered,0)>0))
+              WHERE e.to_id=n.id AND e.type='advance' AND COALESCE(pm.lit,0)=0 AND COALESCE(pm.forced_unlock,0)=0 AND COALESCE(pm.answered,0)>0))
       ORDER BY q.difficulty ASC, RANDOM() LIMIT ?`, [rest]).map((r) => r.id) : []
   const fresh = hydrateQuestions(freshIds.filter((id) => !picked.has(id)))
   return {
@@ -60,68 +59,6 @@ export function currentStreak(): number {
   return streak
 }
 
-// ---------------- 摸底测试（分板块小摸底，自适应上下探） ----------------
-
-interface PlacementSession { domain: string; asked: { qid: string; scale4: number }[]; level: number; finished: boolean }
-const sessions = new Map<string, PlacementSession>()
-
-export function startPlacement(domain: string): { sessionId: string; item: QuestionRow | null; hint: string } {
-  const id = randomUUID().slice(0, 8)
-  sessions.set(id, { domain, asked: [], level: 2.5, finished: false })
-  return { sessionId: id, ...nextPlacementItem(id) }
-}
-export function nextPlacementItem(sessionId: string): { item: QuestionRow | null; hint: string } {
-  const s = sessions.get(sessionId)
-  if (!s || s.finished) return { item: null, hint: '本轮摸底已结束' }
-  const round = s.asked.length
-  if (round >= 8) { finishPlacement(sessionId); return { item: null, hint: '题量足够，本轮摸底已结束' } }
-  s.level = Math.max(1, Math.min(4.6, s.level))
-  const lo = Math.max(1, Math.floor(s.level)), hi = Math.min(5, Math.ceil(s.level))
-  const used = s.asked.map((a) => a.qid)
-  const row = all<{ id: string }>(`SELECT q.id FROM questions q WHERE q.status='active' AND q.parent_id IS NULL
-      AND substr(q.node_id,1,instr(q.node_id,'.')-1)=? AND q.difficulty BETWEEN ? AND ?
-      AND q.id NOT IN (${used.length ? used.map(() => '?').join(',') : "''"}) 
-      ORDER BY RANDOM() LIMIT 1`, [s.domain, lo, hi, ...used])[0]
-  if (!row) { finishPlacement(sessionId); return { item: null, hint: '该板块题库不足，摸底提前结束' } }
-  const [item] = hydrateQuestions([row.id])
-  return { item: item ?? null, hint: `摸底进度 ${round}/8（当前难度约 ${s.level.toFixed(1)}）` }
-}
-export async function submitPlacement(sessionId: string, qid: string, answer: unknown) {
-  const s = sessions.get(sessionId)
-  if (!s) throw new Error('摸底会话已过期')
-  const q = questionOf(qid)
-  if (!q) throw new Error('题目不存在')
-  let scale4 = 0
-  try { scale4 = (await gradeAnswer(q, { qid, answer, mode: 'placement' })).scale4 } catch { scale4 = 0 }
-  s.asked.push({ qid, scale4 })
-  recordAttempt({ qid, mode: 'placement', answer, scale4, gradingKind: 'auto' })
-  s.level = Math.max(1, Math.min(4.6, s.level + (scale4 >= 3 ? 0.9 : scale4 >= 2 ? 0.35 : scale4 >= 1 ? -0.4 : -1.1)))
-  if (s.asked.length >= 8) { s.finished = true; finishPlacement(sessionId) }
-  return { scale4, nextLevel: Number(s.level.toFixed(1)), finished: s.finished }
-}
-function finishPlacement(sessionId: string) {
-  const s = sessions.get(sessionId)
-  if (!s || !s.asked.length) return
-  const avg = s.asked.reduce((a, b) => a + b.scale4, 0) / s.asked.length
-  const pct = Math.round((avg / 3) * 100)
-  run(`INSERT INTO placement(domain,scale4,pct,detail,created_at) VALUES(?,?,?,?,datetime('now','localtime'))`,
-    [s.domain, avg, pct, JSON.stringify(s.asked)])
-  const nodes = applyUnlock(loadNodes(s.domain)).filter((n) => n.level >= 3)
-  const starts = nodes.filter((n) => (n.level === 3 || n.level === 4) && !n.lit && !n.locked).slice(0, 10)
-    .map((n) => ({ id: n.id, title: n.title, level: n.level }))
-  s.finished = true
-  settingSet(`placement.last.${s.domain}`, { pct, scale4: avg, starts, at: new Date().toISOString() })
-}
-export function placementResults() {
-  return all<any>(`SELECT domain,scale4,pct,created_at,detail FROM placement ORDER BY created_at DESC`).reduce((acc: any, r) => {
-    if (!acc[r.domain]) acc[r.domain] = { domain: r.domain, pct: r.pct, scale4: r.scale4, at: r.created_at, starts: settingGet<any>(`placement.last.${r.domain}`)?.starts ?? [] }
-    return acc
-  }, {})
-}
-export function placementHistory(limit = 30) {
-  return all(`SELECT id,domain,scale4,pct,created_at FROM placement ORDER BY id DESC LIMIT ?`, [limit])
-}
-
 // ---------------- 数据面板 ----------------
 
 export function dashboardSummary(): DashboardSummary {
@@ -131,6 +68,8 @@ export function dashboardSummary(): DashboardSummary {
     litNodes: get<{ n: number }>(`SELECT COUNT(*) n FROM node_mastery WHERE lit=1`)?.n ?? 0,
     ...mustMasterGap()
   }
+  // 四态分布（点亮 ≠ 掌握）：让用户看见「已掌握」与「已生疏」，而不是只有一条单调上涨的点亮曲线
+  const stateDist = masteryDistribution()
   const domainTitles: Record<string, string> = { fe: '前端', be: '后端', cs: '公共基础', ai: 'AI Agent', eng: '工程难题' }
   const mastery = Object.keys(domainTitles).map((domain) => {
     const row = get<{ total: number; lit: number; avg: number }>(`SELECT COUNT(*) total,
@@ -160,7 +99,7 @@ export function dashboardSummary(): DashboardSummary {
   const base = Math.round(((recentAvg ?? 0) * 0.55 + litRatio * 100 * 0.45))
   return {
     totals: { ...totals, mustMaster: totals.total ?? 0, mustMasterLit: totals.lit ?? 0 },
-    mastery, accuracyTrend, typeStats, topWrong, aiUsage, examHistory: examHistoryRows,
+    mastery, stateDist, accuracyTrend, typeStats, topWrong, aiUsage, examHistory: examHistoryRows,
     streak: currentStreak(), dueNow: todayDueCount(),
     interviewBand: {
       low: Math.max(0, base - 10), high: Math.min(100, base + 12),

@@ -5,9 +5,12 @@ import QuestionBody from '../components/QuestionBody.vue'
 import Icon from '../components/Icon.vue'
 import { TYPE_LABEL, TYPE_ICON_NAME, DOMAIN_LABEL, toast, fmtClock, pctColor, renderMd, dialog, typePillClass, softOf, lineOf } from '../lib/ui'
 import { useForgeStore } from '../store'
+import { useGameStore } from '../game-store'
+import CelebrationModal from '../components/CelebrationModal.vue'
 import { ipc } from '../lib/ipc'
 
 const store = useForgeStore()
+const game = useGameStore()
 type Phase = 'setup' | 'running' | 'grading' | 'report'
 const phase = ref<Phase>('setup')
 const templates = ref<{ id: string; title: string; spec: ExamSpec }[]>([])
@@ -190,6 +193,8 @@ async function reallySubmit() {
       phase.value = 'report'
       void store.loadPlan()
       void store.loadDash()
+      // 游戏化：本场考试的聚合 XP/徽章/Boss 庆祝事件
+      void game.syncAfterSettle()
     }
   }, 900)
 }
@@ -488,6 +493,7 @@ onBeforeUnmount(() => { stopTimer(); if (draftTimer) clearTimeout(draftTimer) })
         </details>
       </div>
     </section>
+    <CelebrationModal />
   </div>
 </template>
 

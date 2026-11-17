@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useForgeStore } from '../store'
-import type { EndpointConfig } from '@shared/types'
+import type { EndpointConfig, TutorStatus } from '@shared/types'
 import EndpointRow from '../components/EndpointRow.vue'
 import Icon from '../components/Icon.vue'
 import { useNaiveTheme } from '../lib/theme'
@@ -13,7 +13,7 @@ const store = useForgeStore()
    它内部已持久化到 localStorage('forge.ui.theme') 并同步 html[data-theme]，这里不重写 */
 const { themeMode, isDark, set: setTheme, cycle: cycleTheme } = useNaiveTheme()
 const eps = ref<EndpointConfig[]>([])
-const routing = ref<{ fastEndpointId: string | null; strongEndpointId: string | null }>({ fastEndpointId: null, strongEndpointId: null })
+const routing = ref<{ fastEndpointId: string | null; strongEndpointId: string | null; tutorEndpointId: string | null }>({ fastEndpointId: null, strongEndpointId: null, tutorEndpointId: null })
 const learning = ref({ desiredRetention: 0.9, globalMixRatio: 0.35, dailyTarget: 20, strictTiming: true, autoWeekUpdate: false, reminderOnLaunch: true })
 const testing = ref('')
 const usage = ref<any>({})
@@ -27,6 +27,44 @@ const health = computed(() => store.aiHealth)
 const endpointOptions = computed(() => eps.value.map((e) => ({ value: e.id, label: e.label })))
 const testAll = () => { void store.testAllEndpoints() }
 const window_open = (p?: string) => { if (p) void ipc.app.reveal(p) }
+
+/* ---- 内置答疑小模型（CPU 推理，显存恒 0）：状态轮询 + 手动预热/卸载 ---- */
+const tutor = ref<TutorStatus | null>(null)
+const tutorLogs = ref<string[]>([])
+const tutorBusy = ref('')
+let tutorTimer: ReturnType<typeof setInterval> | null = null
+const tutorReady = computed(() => tutor.value?.state === 'ready')
+const tutorStateText = computed(() => {
+  const s = tutor.value
+  if (!s) return '状态未知'
+  if (!s.modelExists) return '模型未下载'
+  if (!s.binExists) return '运行时缺失'
+  return ({ idle: '已卸载 · 用时自动加载', starting: '正在加载…', ready: '就绪', error: '异常' } as Record<string, string>)[s.state] ?? s.state
+})
+const tutorIdleText = computed(() => {
+  const ms = tutor.value?.idleLeftMs
+  if (typeof ms !== 'number') return ''
+  const m = Math.ceil(ms / 60000)
+  return m > 0 ? `${m} 分钟后自动卸载` : '即将自动卸载'
+})
+const tutorForced = computed(() => !!routing.value.tutorEndpointId)
+async function refreshTutor() {
+  try { tutor.value = await ipc.ai.tutorStatus() } catch { /* 旧主进程没有该通道时静默 */ }
+}
+async function startTutor() {
+  tutorBusy.value = 'start'
+  try {
+    const r = await ipc.ai.tutorStart()
+    if (r.ok) toast.ok(r.message); else toast.err(r.message)
+  } catch (e: any) { toast.err(String(e?.message ?? e)) } finally { tutorBusy.value = ''; await refreshTutor() }
+}
+async function stopTutor() {
+  tutorBusy.value = 'stop'
+  try { await ipc.ai.tutorStop(); toast.ok('已卸载，内存已归还（显存本来就没占用）') } catch (e: any) { toast.err(String(e?.message ?? e)) } finally { tutorBusy.value = ''; await refreshTutor() }
+}
+async function loadTutorLog() {
+  try { tutorLogs.value = await ipc.ai.tutorLog(30) } catch { tutorLogs.value = [] }
+}
 
 /* ---- 纯展示 computed（外观节 + 端点路由概览）---- */
 const THEME_MODES = [
@@ -46,12 +84,14 @@ const fastResolvedName = computed(() => pickById(routing.value.fastEndpointId) |
 const strongResolvedName = computed(() => pickById(routing.value.strongEndpointId) || enabledEps.value.find((e) => e.role === 'strong')?.label || enabledEps.value[0]?.label || '未配置')
 const fastForced = computed(() => !!routing.value.fastEndpointId)
 const strongForced = computed(() => !!routing.value.strongEndpointId)
+const tutorResolvedName = computed(() => pickById(routing.value.tutorEndpointId) || enabledEps.value.find((e) => e.role === 'tutor')?.label || enabledEps.value.find((e) => e.role === 'fast')?.label || '未配置')
 
 async function boot() {
   await store.boot()
   const s = store.settings!
   eps.value = JSON.parse(JSON.stringify(s.endpoints))
-  routing.value = { ...s.routing }
+  // 老库的 ai.routing 里没有 tutorEndpointId，补一个 null（null = 按 role 自动挑，即走内置本地模型）
+  routing.value = { ...s.routing, tutorEndpointId: (s.routing as any).tutorEndpointId ?? null }
   learning.value = {
     desiredRetention: s.desiredRetention, globalMixRatio: s.globalMixRatio, dailyTarget: s.dailyTarget,
     strictTiming: s.strictTiming, autoWeekUpdate: s.autoWeekUpdate, reminderOnLaunch: s.reminderOnLaunch
@@ -116,7 +156,14 @@ function resetThemePref() {
   try { localStorage.removeItem('forge.ui.theme') } catch { /* 沙箱下 localStorage 可能不可写，忽略 */ }
   location.reload()
 }
-onMounted(async () => { await boot(); await loadUsage() })
+onMounted(async () => {
+  await boot()
+  await loadUsage()
+  await refreshTutor()
+  // 状态只有 4 态且带倒计时，5s 轮询足够；页面卸载时清掉，避免后台空转
+  tutorTimer = setInterval(() => { void refreshTutor() }, 5000)
+})
+onUnmounted(() => { if (tutorTimer) { clearInterval(tutorTimer); tutorTimer = null } })
 </script>
 
 <template>
@@ -151,7 +198,7 @@ onMounted(async () => { await boot(); await loadUsage() })
 
       <div class="tiny muted ep-hint wrap-any">
         建议至少配两个：<b>快模型</b>用于讲解/追问（便宜、要快），<b>强模型</b>用于主观题判分与题库生成（准、可信）。
-        DeepSeek 填 <code>https://api.deepseek.com/v1</code> + <code>deepseek-chat</code> / <code>deepseek-reasoner</code>；本地 Ollama 填 <code>http://127.0.0.1:11434/v1</code> 并勾选「本机」。
+        DeepSeek 填 <code>https://api.deepseek.com/v1</code> + <code>deepseek-chat</code> / <code>deepseek-reasoner</code>；本机 Strata 填 <code>http://127.0.0.1:1234/v1</code> + <code>qwen</code> 并勾选「本机」（Ollama 则用 <code>http://127.0.0.1:11434/v1</code>）。启动方式见 <code>docs/ops/local-model-service.md</code>。
       </div>
 
       <div v-if="!eps.length" class="empty">
@@ -189,6 +236,11 @@ onMounted(async () => { await boot(); await loadUsage() })
           <n-select v-model:value="routing.strongEndpointId" size="small" clearable placeholder="自动按 role 选" :options="endpointOptions" />
           <span class="micro faint rt-resolved">实际会走：<b>{{ strongResolvedName }}</b><span v-if="!strongForced">（自动挑选）</span><span v-else>（已指定）</span></span>
         </label>
+        <label class="fld">
+          <span class="fld-l">答疑 / 追问 / 私教（默认本地小模型）</span>
+          <n-select v-model:value="routing.tutorEndpointId" size="small" clearable placeholder="自动：优先内置本地模型" :options="endpointOptions" data-testid="route-tutor" />
+          <span class="micro faint rt-resolved">实际会走：<b>{{ tutorResolvedName }}</b><span v-if="!tutorForced">（自动挑选）</span><span v-else>（已指定）</span></span>
+        </label>
       </div>
 
       <div class="row rt-acts">
@@ -199,8 +251,69 @@ onMounted(async () => { await boot(); await loadUsage() })
       </div>
     </section>
 
-    <!-- ===== 3. 本地数据 ===== -->
+    <!-- ===== 3. 本地答疑模型（内置小模型，CPU 推理，显存 0）===== -->
     <section class="card rise" style="--i:3">
+      <div class="panel-head">
+        <h3><Icon name="brain" :size="16" class="hd-ic" /> 本地答疑模型</h3>
+        <span class="desc">内置 Qwen3.5-4B · CPU 推理 · 显存 0 MB</span>
+        <span class="grow" />
+        <span class="pill" :class="tutorReady ? 'ok' : (tutor && (!tutor.modelExists || !tutor.binExists || tutor.state === 'error')) ? 'bad' : 'info'" data-testid="tutor-state">
+          <Icon :name="tutorReady ? 'check' : 'alert'" :size="12" /> {{ tutorStateText }}
+        </span>
+      </div>
+
+      <div class="tiny muted ep-hint wrap-any">
+        答疑、追问、「我不会」讲解默认走这个内置小模型：<b>纯 CPU 推理，不占显卡显存</b>，
+        所以不会和 Strata 大模型、ComfyUI 抢卡；不使用时进程自动退出，第一次用到时约 3-6 秒加载。
+        云端端点保持原样：判分、题库更新仍走云端，对本地回答不满意时也能一键换云端重答。
+      </div>
+
+      <div class="path-list">
+        <div class="kv path-row">
+          <span class="micro faint path-k shrink">状态</span>
+          <span class="tiny grow wrap-any">{{ tutorStateText }}<template v-if="tutorIdleText"> · {{ tutorIdleText }}</template></span>
+        </div>
+        <div class="kv path-row">
+          <span class="micro faint path-k shrink">资源</span>
+          <span class="tiny grow">显存 <b>0 MB</b>（CPU 推理）· 端口 {{ tutor?.port ?? '—' }} · {{ tutor?.threads ?? '—' }} 线程 · 上下文 {{ tutor?.ctx ?? '—' }}</span>
+        </div>
+        <div class="kv path-row">
+          <span class="micro faint path-k shrink">模型</span>
+          <button class="path-copy ellip" type="button" :title="'点击复制路径：' + (tutor?.modelPath ?? '')" @click="copyPath(tutor?.modelPath)">
+            <Icon name="copy" :size="13" /> <span class="ellip">{{ tutor?.modelPath ?? '—' }}</span>
+          </button>
+          <span class="pill" :class="tutor?.modelExists ? 'ok' : 'bad'">{{ tutor?.modelExists ? '已就位' : '缺失' }}</span>
+        </div>
+        <div class="kv path-row">
+          <span class="micro faint path-k shrink">运行时</span>
+          <button class="path-copy ellip" type="button" :title="'点击复制路径：' + (tutor?.binPath ?? '')" @click="copyPath(tutor?.binPath)">
+            <Icon name="copy" :size="13" /> <span class="ellip">{{ tutor?.binPath || '—' }}</span>
+          </button>
+          <span class="pill" :class="tutor?.binExists ? 'ok' : 'bad'">{{ tutor?.binExists ? 'llama.cpp' : '缺失' }}</span>
+        </div>
+      </div>
+
+      <div class="row rt-acts">
+        <n-button size="small" type="primary" :loading="tutorBusy === 'start'" :disabled="!!tutorBusy || (tutor?.state === 'ready')" data-testid="tutor-start" @click="startTutor">
+          <template #icon><Icon name="zap" :size="14" /></template>{{ tutorReady ? '已就绪' : '立即加载' }}
+        </n-button>
+        <n-button size="small" :loading="tutorBusy === 'stop'" :disabled="!!tutorBusy || !tutorReady" @click="stopTutor">
+          <template #icon><Icon name="close" :size="14" /></template>立即卸载
+        </n-button>
+        <n-button size="small" quaternary @click="loadTutorLog">
+          <template #icon><Icon name="refresh" :size="13" /></template>日志
+        </n-button>
+        <span class="tiny faint grow">{{ tutor?.modelExists && tutor?.binExists ? (tutorReady ? tutorIdleText : '') : '缺文件时运行 npm run tutor:fetch 自动下载（约 2.6 GB）' }}</span>
+      </div>
+
+      <template v-if="tutorLogs.length">
+        <div class="section-title">最近日志</div>
+        <pre class="err-pre tiny tutor-log">{{ tutorLogs.join('\n') }}</pre>
+      </template>
+    </section>
+
+    <!-- ===== 4. 本地数据 ===== -->
+    <section class="card rise" style="--i:4">
       <div class="panel-head">
         <h3><Icon name="folder" :size="16" class="hd-ic" /> 本地数据</h3>
         <span class="desc">题库是真源，SQLite 只是缓存</span>
@@ -241,8 +354,8 @@ onMounted(async () => { await boot(); await loadUsage() })
       </div>
     </section>
 
-    <!-- ===== 4. 外观（新增节，全部复用 lib/theme.ts）===== -->
-    <section class="card rise" style="--i:4">
+    <!-- ===== 5. 外观（新增节，全部复用 lib/theme.ts）===== -->
+    <section class="card rise" style="--i:5">
       <div class="panel-head">
         <h3><Icon name="sun" :size="16" class="hd-ic" /> 外观</h3>
         <span class="desc">即时生效，只存在本机</span>
@@ -284,8 +397,8 @@ onMounted(async () => { await boot(); await loadUsage() })
       </div>
     </section>
 
-    <!-- ===== 5. 学习算法参数 ===== -->
-    <section class="card rise" style="--i:5">
+    <!-- ===== 6. 学习算法参数 ===== -->
+    <section class="card rise" style="--i:6">
       <div class="panel-head">
         <h3><Icon name="brain" :size="16" class="hd-ic" /> 学习算法参数</h3>
         <span class="desc">FSRS 排期与组卷口径</span>
@@ -327,8 +440,8 @@ onMounted(async () => { await boot(); await loadUsage() })
       </div>
     </section>
 
-    <!-- ===== 6. AI 用量与故障 ===== -->
-    <section class="card rise" style="--i:6">
+    <!-- ===== 7. AI 用量与故障 ===== -->
+    <section class="card rise" style="--i:7">
       <div class="panel-head">
         <h3><Icon name="chart" :size="16" class="hd-ic" /> AI 用量与故障</h3>
         <span class="desc">近 7 天</span>
@@ -434,6 +547,7 @@ onMounted(async () => { await boot(); await loadUsage() })
 .err summary:hover { background: color-mix(in oklab, var(--bad) 6%, transparent) }
 .err[open] summary { border-bottom: 1px solid var(--border) }
 .err-pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: var(--sp-3); margin: 0; background: var(--surface); color: var(--text-dim); max-height: 260px; overflow: auto }
+.tutor-log { margin-top: 6px; max-height: 220px }
 
 @media (max-width: 720px) {
   .rt-grid, .ap-grid, .lm-grid, .g2 { grid-template-columns: minmax(0, 1fr) }

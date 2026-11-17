@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync, existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { app } from 'electron'
-import { DDL_STATEMENTS, SCHEMA_VERSION } from '../shared/schema.mjs'
+import { DDL_STATEMENTS, MIGRATION_STATEMENTS, SCHEMA_VERSION } from '../shared/schema.mjs'
 import { seedDatabase } from '../../scripts/seed-core.mjs'
 
 /**
@@ -25,28 +25,52 @@ let _db: DatabaseSync | null = null
 export let seedStats: any = null
 
 /** 全部业务表（重建缓存时按依赖倒序 drop） */
-const ALL_TABLES = ['attempts', 'srs', 'node_mastery', 'exam_questions', 'exams', 'bank_versions',
-  'dirty_reports', 'ai_log', 'checkins', 'placement', 'questions', 'edges', 'nodes', 'settings', 'meta']
+/**
+ * 两类表必须分开处理，否则每次升 schema 就把用户的学习数据一起清空：
+ * - DERIVED：content/ 的派生缓存，随时可 DROP + 重新 seed（nodes/edges/questions/版本快照）。
+ * - USER：用户与 AI 产生的真实数据，DROP 就等于丢进度/丢已花钱生成的内容，
+ *   只能用 MIGRATION_STATEMENTS 加列演进（attempts、srs、node_mastery、knowledge 系列、ai_explain 等）。
+ */
+const DERIVED_TABLES = ['questions', 'edges', 'nodes', 'bank_versions', 'dirty_reports', 'question_index']
+const USER_TABLES = ['attempts', 'srs', 'node_mastery', 'exam_questions', 'exams', 'checkins',
+  'placement', 'placement_session', 'placement_turn', 'settings', 'meta', 'ai_log', 'knowledge', 'knowledge_fts', 'knowledge_sources', 'ai_explain',
+  'game_stats', 'game_badges', 'game_events']
+
+/** 逐条执行加列迁移；重复执行时 SQLite 抛 duplicate column，只容忍这一种，其余照报错 */
+function runMigrations(db: DatabaseSync) {
+  let added = 0
+  for (const stmt of MIGRATION_STATEMENTS) {
+    try { db.exec(stmt); added++ } catch (e: any) {
+      if (!/duplicate column name/i.test(String(e?.message))) throw e
+    }
+  }
+  if (added) console.warn(`[db] 已补齐 ${added} 个新增列`)
+}
 
 export function initDatabase(dir = resolveDataDir()) {
   mkdirSync(dir, { recursive: true })
   const db = new DatabaseSync(join(dir, 'app.db'))
   db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=4000;`)
 
-  // 结构版本校验：SQLite 只是 content/ 的缓存，版本对不上就整库重建，
-  // 免去一堆 ALTER 迁移；题库真源与 AI 生成内容都在 JSON 文件里，重建不丢东西（进度会重算）。
+  // 结构版本校验：只有 content/ 的派生缓存在版本对不上时整表重建（seed 会重灌），
+  // 用户数据表一律保留并走 ALTER 迁移。之前这里是"版本不符就 DROP 全库"，
+  // 结果是加一张新表就把用户的答题记录、间隔重复与掌握度全部清零。
   let oldVersion: string | undefined
   try {
     oldVersion = (db.prepare(`SELECT value FROM meta WHERE key='schema_version'`).get() as { value: string } | undefined)?.value
   } catch { /* 首次运行，还没有 meta */ }
   for (const stmt of DDL_STATEMENTS) db.exec(stmt)
   if (oldVersion && oldVersion !== String(SCHEMA_VERSION)) {
-    console.warn(`[db] schema_version ${oldVersion} → ${SCHEMA_VERSION}，重建缓存表`)
+    console.warn(`[db] schema_version ${oldVersion} → ${SCHEMA_VERSION}：重建派生缓存表（用户数据保留）`)
     db.exec('PRAGMA foreign_keys=OFF')
-    for (const t of ALL_TABLES) db.exec(`DROP TABLE IF EXISTS ${t}`)
+    // FTS 虚拟表要先于主表删除，触发器也一并清掉，避免 external-content 索引悬空
+    db.exec(`DROP TABLE IF EXISTS knowledge_fts`)
+    db.exec(`DROP TABLE IF EXISTS question_fts`)
+    for (const t of DERIVED_TABLES) db.exec(`DROP TABLE IF EXISTS ${t}`)
     for (const stmt of DDL_STATEMENTS) db.exec(stmt)
     db.exec('PRAGMA foreign_keys=ON; VACUUM;')
   }
+  runMigrations(db)
   db.prepare(`INSERT INTO meta(key,value) VALUES('schema_version',?)
     ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(String(SCHEMA_VERSION))
 

@@ -10,6 +10,21 @@ import { scale4ToPct } from '../../shared/schema.mjs'
 import type { Question, VariantLite } from '../../shared/types'
 
 /**
+ * 出题/变体生成时注入该考点已收录的知识正文（契约 §4）。
+ * 关键约束写进 prompt：只能用材料里的事实，不许引入材料外的 API/版本号，
+ * 这样题目与知识体系互相印证，而不是让模型凭印象出题。
+ * knowledge 表可能在旧库/测试库里不存在，try 降级为空串。
+ */
+function knowledgeDigestFor(nodeId: string, maxChars = 3600): string {
+  try {
+    const row = get<{ body_md: string; confidence: string }>(
+      `SELECT body_md,confidence FROM knowledge WHERE node_id=?`, [nodeId])
+    if (!row?.body_md) return ''
+    return `\n【该考点已收录的知识正文，事实以此为准，不得引入材料外的 API/版本号；置信度 ${row.confidence}】\n${row.body_md.slice(0, maxChars)}\n`
+  } catch { return '' }
+}
+
+/**
  * 题库即文件：content/**.json 是唯一真源，SQLite 只是缓存。
  * 更新 = 快照 → AI 产出 → 改写 json → 重建库；回滚 = 还原快照 → 重建库。
  */
@@ -203,22 +218,35 @@ async function webDigest(query: string): Promise<string> {
 export interface UpdateResult { ok: boolean; added: number; revised: number; retired: number; report: any; error?: string }
 
 export async function updateBank(opts: UpdateOptions = {}): Promise<UpdateResult> {
-  const gaps = coverageGaps(opts.domains ?? [], opts.perNodeTarget ?? 3)
-  const targets = [...gaps.empty, ...gaps.thin].slice(0, opts.maxNodes ?? 12)
+  const perTarget = opts.perNodeTarget ?? 3
+  const gaps = coverageGaps(opts.domains ?? [], perTarget)
+  // 三类缺口都要处理：empty 补到目标数、thin 补足差额、noSubjective 补主观题。
+  // 之前只取 empty+thin，导致「题量够但全是客观题」的节点永远被判为达标，
+  // UI 上「缺主观题」计数清零不了，点更新也只返回"覆盖已达标"。
+  const targets = [
+    ...gaps.empty.map((g) => ({ ...g, mode: 'fill' as const })),
+    ...gaps.thin.map((g) => ({ ...g, mode: 'topup' as const })),
+    ...(gaps.noSubjective ?? []).map((g) => ({ ...g, mode: 'subjective' as const })),
+  ].slice(0, opts.maxNodes ?? 12)
   const before = snapshotDir()
   const report: any = { added: [], revised: [], retired: [], notes: [] }
-  if (!targets.length) { rmSync(before, { recursive: true, force: true }); return { ok: true, added: 0, revised: 0, retired: 0, report: { message: '覆盖已达标，无需更新', gaps: { empty: gaps.empty.length, thin: gaps.thin.length } } } }
+  if (!targets.length) { rmSync(before, { recursive: true, force: true }); return { ok: true, added: 0, revised: 0, retired: 0, report: { message: '覆盖已达标，无需更新', gaps: { empty: gaps.empty.length, thin: gaps.thin.length, noSubjective: gaps.noSubjective?.length ?? 0 } } } }
 
   const digest = opts.digest || (await webDigest(`${new Date().getFullYear()} 面试题 ${targets[0]?.title ?? ''} 最新考点`))
   let added = 0
   for (const t of targets) {
-    const need = Math.max(1, (opts.perNodeTarget ?? 3) - t.total)
+    const need = t.mode === 'subjective' ? 1 : Math.max(1, perTarget - t.total)
     try {
       const { data } = await chatJson<any>({
         task: 'bank_update', role: 'strong', refType: 'node', refId: t.id, maxTokens: 3000,
+        // 本机模型输出 2-3 千 token 常超过 90 秒；默认超时会让整节点白跑（ai_log 里全是超时）
+        timeoutMs: 150000,
         system: `你是面试题库编者。要求：题干像真实面试官口吻、必须能通过官方文档验证、禁止编造 API 与版本号；每题必须有 analysis（含错项为什么错）、gapCheck（易漏点）、knowledgeLinks（含 followUps 追问方向）；主观题必须给 scoringPoints 与 answer.ref。只输出 JSON。`,
         user: `知识点：${t.title}（节点 id：${t.id}）
-现有题量 ${t.total}，已有题型：${t.types || '无'}。请补 ${need} 道题，题型从 single/multiple/judge/blank/short/essay/code 里按该知识点特点选择（同一节点别全是选择题）。
+现有题量 ${t.total}，已有题型：${t.types || '无'}。${t.mode === 'subjective'
+  ? `本节点题量已达标，但${t.types}里没有任何主观题。请只补 ${need} 道主观题（short 简答 / essay 论述 / code 代码，按该知识点特点选一种），必须给 scoringPoints（判分要点清单）与 answer.ref（参考答案要点）。`
+  : `请补 ${need} 道题，题型从 single/multiple/judge/blank/short/essay/code 里按该知识点特点选择（同一节点别全是选择题）。`}
+${knowledgeDigestFor(t.id)}
 ${digest ? `\n【联网检索到的近期讨论，仅供判断考点热度，不得当作事实来源】\n${digest}\n` : ''}
 ${opts.note ? `【额外要求】${opts.note}` : ''}
 输出 {"questions":[{"id":"留空由系统生成","nodeId":"${t.id}","type":"single","difficulty":2,"stem":"…","options":[{"key":"A","text":"…"}],"answer":{"keys":["A"]},"scoringPoints":[],"analysis":"…","gapCheck":["…"],"knowledgeLinks":{"prereq":[],"related":[],"followUps":["…"]},"resources":[{"title":"…","digest":"…"}],"source":{"kind":"self-authored","note":"bank_update"}}]}
@@ -243,13 +271,24 @@ ${opts.note ? `【额外要求】${opts.note}` : ''}
 function normalizeNewQuestion(q: any, nodeId: string, i: number): Question {
   const prefix = nodeId.replace(/\./g, '-').slice(0, 26)
   const suffix = Math.random().toString(36).slice(2, 6)
-  return {
+  const out: any = {
     ...q, nodeId, type: q.type, difficulty: Math.max(1, Math.min(5, Number(q.difficulty) || 2)),
     id: `Q-${prefix}-${suffix}${i}`, openBookAllowed: q.openBookAllowed !== false,
     source: { kind: q.source?.kind ?? 'self-authored', note: q.source?.note ?? 'bank_update 自动生成', retrievedAt: new Date().toISOString().slice(0, 10) },
     tags: q.tags ?? ['自动生成'], status: 'active',
     meta: { created: new Date().toISOString().slice(0, 10), version: 1, history: [] }
-  } as Question
+  }
+  // 主观题兜底：本地小模型常漏 scoringPoints / answer.ref，缺了会被 validate 拦下，
+  // 这里用解析文本与最低判分骨架补齐，保证「可判分」这一契约底线不被 AI 输出打断。
+  if (['short', 'essay', 'code'].includes(q.type)) {
+    if (!Array.isArray(out.scoringPoints) || !out.scoringPoints.length) {
+      out.scoringPoints = ['结论正确且给出机制', '覆盖关键边界或失败场景', '能联系相关考点延伸']
+    }
+    if (!out.answer?.ref && !out.answer?.code) {
+      out.answer = { ...(out.answer ?? {}), ref: String(q.analysis ?? '').trim() || '要点见题目解析' }
+    }
+  }
+  return out as Question
 }
 
 function appendQuestionsToNodeFile(target: { id: string; stack: string; topic: string }, list: Question[]) {
@@ -267,7 +306,9 @@ export async function addGeneratedVariants(qid: string, n = 2): Promise<{ ok: bo
   const node = get<{ title: string }>(`SELECT title FROM nodes WHERE id=?`, [q.nodeId])
   const existing = [q.stem, ...(q.variants ?? []).map((v) => v.stem)]
   try {
-    const fresh = await genVariants(q, existing, node?.title ?? q.nodeId, n)
+    // 知识正文随变体生成一起注入：同考点的变体必须能在已收录材料里找到事实依据
+    const kb = knowledgeDigestFor(q.nodeId, 3200)
+    const fresh = await genVariants(q, existing, node?.title ?? q.nodeId, n, { knowledgeMd: kb })
     if (!fresh.length) return { ok: false, added: 0, error: '模型未产出可用变体' }
     appendVariantsToFile(q, fresh)
     reloadContent()
@@ -280,11 +321,13 @@ export async function addGeneratedVariants(qid: string, n = 2): Promise<{ ok: bo
 
 /** 同节点内题干几乎相同且题量充足的题，自动下架其一（不花 AI） */
 function autoRetireDuplicates(): string[] {
-  const dup = all<{ keep: string; drop: string }>(`SELECT MIN(q.id) keep, MAX(q.id) drop FROM questions q
+  // 注意：别名不能用 keep/drop —— drop 是 SQLite 关键字，会让整条语句
+  // 报 near "drop": syntax error，导致每次 bank.update 走到这里必炸。
+  const dup = all<{ keep_id: string; drop_id: string }>(`SELECT MIN(q.id) keep_id, MAX(q.id) drop_id FROM questions q
     WHERE q.parent_id IS NULL AND q.status='active'
     GROUP BY q.node_id, LOWER(REPLACE(REPLACE(json_extract(q.data,'$.stem'),' ',''),'。',''))
     HAVING COUNT(*)>1`)
-  const ids = dup.map((d) => d.drop).filter(Boolean)
+  const ids = dup.map((d) => d.drop_id).filter(Boolean)
   for (const id of ids) {
     const q = questionOf(id)
     if (q) { try { applyPatchToQuestionFile(id, { ...q, status: 'retired', source: { ...q.source, note: '题干与同节点其他题重复，自动下架' } }) } catch { /* ignore */ } }

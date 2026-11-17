@@ -74,7 +74,7 @@ const refAnswerHtml = computed(() => {
     <!-- 单选 / 多选 -->
     <template v-if="isObjChoice">
       <div v-for="o in q.options" :key="o.key" class="opt"
-        :class="{ sel: sel.includes(o.key), right: revealed && q.answer?.keys?.includes(o.key), wrong: revealed && sel.includes(o.key) && !q.answer?.keys?.includes(o.key) }"
+        :class="{ sel: sel.includes(o.key), right: revealed && q.answer?.keys?.includes(o.key), wrong: revealed && sel.includes(o.key) && !q.answer?.keys?.includes(o.key), 'is-disabled': disabled }"
         @click="pick(o.key)">
         <span class="key">{{ o.key }}.</span>
         <span class="txt" v-html="renderInline(o.text)" />

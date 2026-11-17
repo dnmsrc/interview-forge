@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useForgeStore } from './store'
 import Icon from './components/Icon.vue'
 import CommandPalette from './components/CommandPalette.vue'
+import RiseHost from './components/RiseHost.vue'
 import { useNaiveTheme } from './lib/theme'
 
 const store = useForgeStore()
@@ -12,7 +13,9 @@ const theme = useNaiveTheme()
 
 const items = [
   { to: '/', title: '今日', icon: 'flame', desc: '按记忆曲线排好的当日任务' },
-  { to: '/practice', title: '练习模式', icon: 'pen', desc: '答题 · AI 批改 · 追问式教学' },
+  { to: '/placement', title: '入门摸底', icon: 'brain', desc: '沿前置链循序渐进，定位你的知识缺口' },
+  { to: '/practice', title: '练习模式', icon: 'pen', desc: '随机抽题 · AI 批改 · 追问式教学' },
+  { to: '/mistakes', title: '错题本', icon: 'alert', desc: '实时汇总答错的题，专攻薄弱点' },
   { to: '/exam', title: '闭卷考试', icon: 'timer', desc: '限时全真模拟与复盘' },
   { to: '/graph', title: '知识图谱', icon: 'graph', desc: '考点依赖网与掌握度地图' },
   { to: '/dashboard', title: '数据面板', icon: 'chart', desc: '正确率趋势与薄弱点画像' },
@@ -80,7 +83,7 @@ watch(
         <nav class="nav" aria-label="主导航">
           <div class="nav-label">训练</div>
           <RouterLink
-            v-for="(i, n) in items.slice(0, 4)" :key="i.to" :to="i.to" custom v-slot="{ navigate, isExactActive }"
+            v-for="(i, n) in items.slice(0, 5)" :key="i.to" :to="i.to" custom v-slot="{ navigate, isExactActive }"
           >
             <a :href="i.to" class="nav-item" :class="{ on: isExactActive }" @click="navigate" :title="rail ? i.title : ''">
               <span class="ic"><Icon :name="i.icon" :size="17" /></span>
@@ -89,7 +92,7 @@ watch(
             </a>
           </RouterLink>
           <div class="nav-label">洞察</div>
-          <RouterLink v-for="i in items.slice(4)" :key="i.to" :to="i.to" custom v-slot="{ navigate, isExactActive }">
+          <RouterLink v-for="i in items.slice(5)" :key="i.to" :to="i.to" custom v-slot="{ navigate, isExactActive }">
             <a :href="i.to" class="nav-item" :class="{ on: isExactActive }" @click="navigate" :title="rail ? i.title : ''">
               <span class="ic"><Icon :name="i.icon" :size="17" /></span>
               <span class="lbl">{{ i.title }}</span>
@@ -143,10 +146,19 @@ watch(
             <Icon name="refresh" :size="17" />
           </button>
         </header>
-        <!-- 不用 <transition mode="out-in">：dev HMR 替换路由组件时 leave 钩子会悬挂，
-             新组件永不 enter → 整页 opacity:0「白屏」（实测踩过坑）。改用 CSS 进入动画 -->
-        <div class="view-host" :key="route.path">
-          <RouterView />
+        <!-- 切页必须保留页面状态：之前外层 div 上的 :key="route.path" 会把整棵子树销毁重建，
+             于是「只是点一下左侧菜单」练习队列就重新抽题、图谱重新 fitView、考试回到未答状态。
+             改成 KeepAlive + 每个路由一个实例（key 仍在，但由 KeepAlive 缓存），进入动画交给 .rise。
+             数据新鲜度由各自的 onActivated 负责（Home / Dashboard / Graph）。
+             不用 <transition mode="out-in">：dev HMR 替换路由组件时 leave 钩子会悬挂 → 整页 opacity:0「白屏」。 -->
+        <div class="view-host">
+          <RouterView v-slot="{ Component, route: r }">
+            <KeepAlive :max="7">
+              <RiseHost :key="r.path">
+                <component :is="Component" />
+              </RiseHost>
+            </KeepAlive>
+          </RouterView>
         </div>
       </div>
     </div>

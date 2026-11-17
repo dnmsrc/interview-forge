@@ -1,5 +1,6 @@
 import { all, get, run, settingGet } from '../db'
 import { scale4ToPct } from '../../shared/schema.mjs'
+import { applyPushWeights, recomputeNodeMastery } from './mastery'
 import type { QuestionRow } from '../../shared/types'
 
 /**
@@ -111,6 +112,10 @@ function updateMastery(qid: string, scale4: number) {
        ON CONFLICT(node_id) DO UPDATE SET scale4=excluded.scale4,lit=excluded.lit,needs_work=excluded.needs_work,
          answered=excluded.answered,correct=excluded.correct,last_practice=excluded.last_practice`,
     [q.node_id, next, lit, answered > 0 && !lit ? 1 : 0, answered, correct, nowStr()])
+  // 点亮只是「做过」，不等于掌握；四态（未接触/学习中/已掌握/已生疏）由状态机聚合判定，
+  // 再把状态翻译成推送权重（掌握的多推、生疏的提前推）。见 services/mastery.ts。
+  recomputeNodeMastery(q.node_id)
+  applyPushWeights(q.node_id)
 }
 
 // ---------------- 队列与到期 ----------------
@@ -118,21 +123,26 @@ function updateMastery(qid: string, scale4: number) {
 export const todayDueCount = (): number =>
   (get<{ n: number }>(`SELECT COUNT(*) n FROM srs WHERE due IS NOT NULL AND due<=? AND state>=0`, [dayStr()])?.n ?? 0)
 
-export function dueQuestionIds(limit = 50): string[] {
+export function dueQuestionIds(limit = 50, nodeIds?: string[]): string[] {
+  // 定向练习（图谱「练这个考点」/练习页按节点过滤）时，到期题也只能来自指定节点，
+  // 否则全局到期队列会把别的考点的题混进来，违背「我只练这一个」的预期。
+  const scope = nodeIds?.length ? `AND q.node_id IN (${nodeIds.map(() => '?').join(',')})` : ''
   const rows = all<{ id: string }>(`SELECT q.id FROM srs s JOIN questions q ON q.id=s.question_id
-    WHERE q.status='active' AND s.due IS NOT NULL AND s.due<=?
-    ORDER BY s.weight DESC, s.due ASC, s.avg_score ASC LIMIT ?`, [dayStr(), limit])
+    WHERE q.status='active' AND s.due IS NOT NULL AND s.due<=? ${scope}
+    ORDER BY s.weight DESC, s.due ASC, s.avg_score ASC LIMIT ?`,
+    [dayStr(), ...(nodeIds ?? []), limit])
   return rows.map((r) => r.id)
 }
 
 /** 已通过知识点的旧题（用于巩固混入），按薄弱程度排序 */
-export function reviewCandidateIds(limit = 30, domains: string[] = []): string[] {
+export function reviewCandidateIds(limit = 30, domains: string[] = [], nodeIds?: string[]): string[] {
   const dom = domains.length ? `AND substr(q.node_id,1,instr(q.node_id,'.')-1) IN (${domains.map(() => '?').join(',')})` : ''
+  const scope = nodeIds?.length ? `AND q.node_id IN (${nodeIds.map(() => '?').join(',')})` : ''
   const rows = all<{ id: string }>(`SELECT q.id FROM questions q
     JOIN node_mastery m ON m.node_id=q.node_id
-    WHERE q.status='active' AND q.parent_id IS NULL AND m.lit=1 ${dom}
+    WHERE q.status='active' AND q.parent_id IS NULL AND m.lit=1 ${dom} ${scope}
     ORDER BY m.scale4 ASC, (SELECT MAX(id) FROM attempts a WHERE a.question_id=q.id) ASC
-    LIMIT ?`, [...(domains.length ? domains : []), limit])
+    LIMIT ?`, [...(domains.length ? domains : []), ...(nodeIds ?? []), limit])
   return rows.map((r) => r.id)
 }
 
@@ -154,10 +164,13 @@ export function setNodeWeight(nodeId: string, weight: number) {
 export function hydrateQuestions(ids: string[]): QuestionRow[] {
   if (!ids.length) return []
   const ph = ids.map(() => '?').join(',')
-  const rows = all<QuestionRow>(`SELECT q.*, n.title nodeTitle, m.lit mastery_lit, m.needs_work mastery_needs, m.scale4 mastery_scale
-    FROM questions q LEFT JOIN nodes n ON n.id=q.node_id
-    LEFT JOIN node_mastery m ON m.node_id=q.node_id
-    WHERE q.id IN (${ph})`, ids)
+  // 一并带出考点能力要求（nodes.summary）与四态：题目卡要在作答前告诉用户「这题考到什么深度、自己处于哪一态」
+  const rows = all<QuestionRow>(`SELECT q.*, n.title nodeTitle, n.summary nodeSummary,
+       m.lit mastery_lit, m.needs_work mastery_needs, m.scale4 mastery_scale,
+       COALESCE(m.mastery_level,0) mastery_level, COALESCE(m.stale,0) stale
+     FROM questions q LEFT JOIN nodes n ON n.id=q.node_id
+     LEFT JOIN node_mastery m ON m.node_id=q.node_id
+     WHERE q.id IN (${ph})`, ids)
   return rows.map((r) => ({ ...r, q: safeParse(r.data) }))
 }
 export function safeParse(s: string): any { try { return JSON.parse(s) } catch { return {} } }

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { all, get, run, tx, settingGet } from '../db'
 import { hydrateQuestions, recordAttempt } from './srs'
 import { gradeAnswer, questionOf } from './grading'
+import { recordExam } from './game'
 import { scale4ToPct } from '../../shared/schema.mjs'
 import type { ExamSpec, ExamSummary, AiExamReport, QuestionRow } from '../../shared/types'
 
@@ -159,6 +160,10 @@ export async function submitExam(id: string): Promise<ExamSummary> {
   run(`UPDATE exams SET status='done', total=?, self_est=?, ai_report=? WHERE id=?`,
     [total, selfEst, JSON.stringify(report), id])
   gradingState.set(id, { status: 'done', done: rows.length, total: rows.length })
+  // 游戏化聚合结算：一场考试只推进一次打卡、发一条聚合 XP（失败不影响成绩落库）
+  try {
+    recordExam(results.filter((r) => r.verdict !== '未作答').map((r) => ({ qid: r.qid, scale4: r.scale4 })))
+  } catch (e: any) { console.warn('[game] 考试结算失败（不影响成绩）：', e?.message) }
   return examSummary(id)!
 }
 

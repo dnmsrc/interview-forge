@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onActivated, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useForgeStore } from '../store'
 import Icon from '../components/Icon.vue'
@@ -77,6 +77,8 @@ function exportWrongBook() {
 }
 function goPractice(nodeId?: string) { void router.push({ path: '/practice', query: nodeId ? { node: nodeId } : {} }) }
 onMounted(load)
+// KeepAlive：切回本页时重新拉，保证刚答完的题立刻反映到图表上
+onActivated(load)
 </script>
 
 <template>
@@ -105,6 +107,28 @@ onMounted(load)
         <div class="foot">考点 {{ dash?.totals.nodes }} 个</div>
       </div>
     </div>
+
+    <!-- ===== 掌握四态：点亮只是「做过」，这张卡回答「到底学会没、有没有忘」 ===== -->
+    <section v-if="dash?.stateDist" class="card rise" style="--i:3.5">
+      <header class="panel-head">
+        <h3><Icon name="graph" :size="16" class="hd-ic" /> 考点掌握分布</h3>
+        <span class="grow" />
+        <span class="micro faint">近 30 天新掌握 <b style="color:var(--ok)">{{ dash.stateDist.recentlyMastered }}</b> 个</span>
+      </header>
+      <div class="mastery-bar" role="img" :aria-label="`未接触 ${dash.stateDist.untouched}，学习中 ${dash.stateDist.learning}，已掌握 ${dash.stateDist.mastered}，已生疏 ${dash.stateDist.stale}`">
+        <i class="mb-untouched" :style="{ flex: dash.stateDist.untouched || 0.001 }" :title="`未接触 ${dash.stateDist.untouched}`" />
+        <i class="mb-learning" :style="{ flex: dash.stateDist.learning || 0.001 }" :title="`学习中 ${dash.stateDist.learning}`" />
+        <i class="mb-mastered" :style="{ flex: dash.stateDist.mastered || 0.001 }" :title="`已掌握 ${dash.stateDist.mastered}`" />
+        <i class="mb-stale" :style="{ flex: dash.stateDist.stale || 0.001 }" :title="`已生疏 ${dash.stateDist.stale}`" />
+      </div>
+      <div class="mastery-legend">
+        <span><i class="dot mb-untouched" />未接触 {{ dash.stateDist.untouched }}</span>
+        <span><i class="dot mb-learning" />学习中 {{ dash.stateDist.learning }}</span>
+        <span><i class="dot mb-mastered" />已掌握 {{ dash.stateDist.mastered }}</span>
+        <span><i class="dot mb-stale" />已生疏 ↺ {{ dash.stateDist.stale }}</span>
+        <span v-if="dash.stateDist.stale" class="stale-warn">有 {{ dash.stateDist.stale }} 个考点已降回队列，其中必考 {{ dash.stateDist.mustStale }} 个，建议优先复习</span>
+      </div>
+    </section>
 
     <!-- ===== 两张图 ===== -->
     <div class="grid g2 stretch">
@@ -249,4 +273,14 @@ onMounted(load)
 .sum-meta { white-space: nowrap; flex: 0 0 auto }
 @media (max-width: 900px) { .sum-meta { display: none } }
 .acc-body .fb { margin-top: 10px }
+/* 掌握四态堆叠条：与图谱节点同一套语义色，用户在两处看到的颜色含义完全一致 */
+.mastery-bar { display: flex; height: 14px; border-radius: var(--r-pill); overflow: hidden; background: var(--surface-3); margin: 12px 0 10px }
+.mastery-bar i { display: block; height: 100% }
+.mb-untouched { background: var(--text-faint); opacity: .55 }
+.mb-learning { background: var(--warn) }
+.mb-mastered { background: var(--ok) }
+.mb-stale { background: var(--hot) }
+.mastery-legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: var(--fs-xs); color: var(--text-dim) }
+.mastery-legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: var(--r-sm); margin-right: 5px; vertical-align: -1px }
+.mastery-legend .stale-warn { color: var(--hot); font-weight: 600 }
 </style>

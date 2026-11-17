@@ -14,6 +14,12 @@ const versions = ref<any[]>([])
 const dirty = ref<any[]>([])
 const updating = ref(false)
 const updateOpts = reactive({ domains: [] as string[], perNodeTarget: 3, maxNodes: 8, note: '' })
+/* ---- 讲义补齐（knowledge.generateBatch）：与题库补题并列的第二条 AI 生产线 ---- */
+const kbDomain = ref('')
+const kbLimit = ref(6)
+const kbBusy = ref(false)
+const kbNote = ref('')
+const kbStatus = ref<any>(null)
 const validateOut = ref('')
 const domainOpts = Object.entries(DOMAIN_LABEL).map(([value, label]) => ({ value, label }))
 
@@ -71,6 +77,7 @@ async function load() {
   gaps.value = await ipc.bank.gaps({ perNodeTarget: updateOpts.perNodeTarget })
   versions.value = await ipc.bank.versions(30)
   dirty.value = await ipc.dirty.list(40)
+  try { kbStatus.value = await ipc.knowledge.status() } catch { kbStatus.value = null }
   void store.loadBank()
 }
 async function runUpdate() {
@@ -82,6 +89,26 @@ async function runUpdate() {
     else toast.note(`更新完成：新增 ${r.added} 题`, `${r.report?.message ?? (r.report?.added ?? []).map((a: any) => a.node).join('、')}；下架重复 ${r.retired} 题。已存快照，可一键回滚。`)
     await load()
   } catch (e: any) { toast.noteError('更新异常', String(e?.message ?? e)) } finally { updating.value = false }
+}
+/** 讲义批量补齐：抓官方源→AI 起草→八小节闸门→写 content/knowledge→增量入索引 */
+const KB_TALLY_LABEL: Record<string, string> = {
+  written: '写入', stale: '未过闸', 'no-official': '无官方源', 'fetch-thin': '来源不足',
+  'skip-exists': '已存在', 'no-endpoint': '未配端点', 'sources-only': '仅来源', dry: '预览', error: '出错'
+}
+async function runKbBatch() {
+  kbBusy.value = true
+  kbNote.value = ''
+  toast.info(`讲义补齐中：最多处理 ${kbLimit.value} 个缺失考点，串行生成、每篇约 2-4 分钟，请保持页面打开`)
+  try {
+    const r = await ipc.knowledge.generateBatch({ domain: kbDomain.value || undefined, limit: kbLimit.value })
+    const t = r.tally ?? {}
+    const bad = Object.entries(t).filter(([k]) => k !== 'written').map(([k, v]) => `${KB_TALLY_LABEL[k] ?? k} ${v}`).join('，')
+    const w = t.written ?? 0
+    kbNote.value = `本轮结果：写入 ${w} 篇${bad ? `；其余：${bad}` : ''}${r.results?.[0]?.flags?.length ? `（示例未过闸原因：${r.results[0].flags.join('；')}）` : ''}`
+    if (w > 0) toast.ok(`讲义已写入 ${w} 篇，抽屉里立即可读`)
+    else toast.warn(`未写入新讲义${bad ? `：${bad}` : ''}`)
+    await load()
+  } catch (e: any) { toast.noteError('讲义补齐异常', String(e?.message ?? e)) } finally { kbBusy.value = false }
 }
 async function rollback(id: string) {
   const r = await ipc.bank.rollback(id)
@@ -229,6 +256,23 @@ onMounted(async () => { await load(); loading.value = false })
         <span class="grow" />
         <span class="tiny faint">快模型讲解、强模型判分：端点在「设置」里配</span>
       </div>
+
+      <hr class="hr" />
+
+      <!-- 讲义补齐：题目有了还要有可读的讲义，第二个 AI 批量入口（管道同 kb-build CLI） -->
+      <div class="row upd-acts">
+        <span class="fld-l">讲义补齐</span>
+        <n-select v-model:value="kbDomain" size="small" style="width:132px"
+          :options="[{ value: '', label: '全部板块' }, ...domainOpts]" />
+        <span class="fld-l">篇数</span>
+        <n-input-number v-model:value="kbLimit" class="num" size="small" :min="1" :max="30" style="width:92px" />
+        <n-button type="primary" secondary :loading="kbBusy" data-testid="bank-kb-batch" @click="runKbBatch">
+          <template #icon><Icon name="book" :size="15" /></template>AI 批量补齐讲义
+        </n-button>
+        <span class="grow" />
+        <span class="tiny faint">已收录 {{ kbStatus?.total ?? '?' }} 篇 · 缺 {{ kbStatus?.missingBody ?? '?' }} 个考点 · 串行生成，每篇约 2-4 分钟</span>
+      </div>
+      <p v-if="kbNote" class="tiny faint" style="margin-top:6px">{{ kbNote }}</p>
 
       <pre v-if="validateOut" class="out tiny num" :class="{ bad: /error/i.test(validateOut) }">{{ validateOut }}</pre>
     </section>

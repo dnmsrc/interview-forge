@@ -3,15 +3,22 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { resolveDataDir, contentRoot, settingGet, settingSet, reloadContent, get } from './db'
-import type { ForgeApi } from '../shared/api'
+import type { ForgeApi, ExplainRunResult, TutorChatResult } from '../shared/api'
 import type { AppSettings } from '../shared/types'
 import * as graphSvc from './services/graph'
 import * as practiceSvc from './services/practice'
 import * as examSvc from './services/exam'
 import * as insightsSvc from './services/insights'
+import * as placementSvc from './services/placement'
+import * as mistakesSvc from './services/mistakes'
 import * as bankSvc from './services/bank'
+import * as knowledgeSvc from './services/knowledge'
+import * as kbDraftSvc from './services/kb-draft'
+import * as explainSvc from './services/explain'
 import * as srsSvc from './services/srs'
+import * as gameSvc from './services/game'
 import * as aiSvc from './ai/gateway'
+import * as tutorSvc from './ai/tutor-model'
 import * as tasksSvc from './ai/tasks'
 import { questionOf } from './services/grading'
 
@@ -84,7 +91,8 @@ export const impl = {
     async genVariant(qid, n) { return bankSvc.addGeneratedVariants(qid, n ?? 2) },
     async stats() { return practiceSvc.practiceStats() },
     async history(qid, limit) { return practiceSvc.answerHistory(qid, limit) },
-    async setSetting(key, value) { practiceSvc.setPracticeSetting(key, value) }
+    async setSetting(key, value) { practiceSvc.setPracticeSetting(key, value) },
+    async markGuessed(qid) { return practiceSvc.markGuessed(qid) }
   },
 
   exam: {
@@ -102,11 +110,22 @@ export const impl = {
   },
 
   placement: {
-    async start(domain) { return insightsSvc.startPlacement(domain) },
-    async next(sessionId) { return insightsSvc.nextPlacementItem(sessionId) },
-    async submit(sessionId, qid, answer) { return insightsSvc.submitPlacement(sessionId, qid, answer) },
-    async results() { return insightsSvc.placementResults() },
-    async history(limit) { return insightsSvc.placementHistory(limit) }
+    async start(domain, opts?) { return placementSvc.startPlacement(domain, opts ?? {}) },
+    async next(sessionId) { return placementSvc.nextPlacementItem(sessionId) },
+    async submit(sessionId, qid, answer, opts) { return placementSvc.submitPlacement(sessionId, qid, answer, opts ?? {}) },
+    async resume(domain?) { return placementSvc.resumePlacement(domain) ?? null },
+    async turns(sessionId) { return placementSvc.placementTurns(sessionId) },
+    async results() { return placementSvc.placementResults() },
+    async history(limit) { return placementSvc.placementHistory(limit) },
+    async gaps(domain?) { return placementSvc.placementGaps(domain) },
+    async interpretGap(note, nodeId) { return placementSvc.interpretGapNote(note, nodeId) }
+  },
+
+  mistakes: {
+    async list(opts) { return mistakesSvc.mistakeList(opts ?? {}) },
+    async detail(qid) { return mistakesSvc.mistakeDetail(qid) },
+    async remove(qid) { return mistakesSvc.removeMistake(qid) },
+    async clear(domain?) { return mistakesSvc.clearMistakes(domain) }
   },
 
   daily: {
@@ -127,20 +146,68 @@ export const impl = {
     async wrongNotes(limit, domain) { return insightsSvc.wrongNoteList(limit, domain) }
   },
 
+  knowledge: {
+    async get(nodeId) { return knowledgeSvc.getKnowledge(nodeId) },
+    async search(q, limit) { return knowledgeSvc.searchKnowledge(q, limit) },
+    async status() { return knowledgeSvc.knowledgeStatus() },
+    async sync(opts) { return knowledgeSvc.syncFromFiles(opts ?? {}) },
+    async saveDraft(nodeId, md, relPath) { return knowledgeSvc.saveKnowledgeDraft(nodeId, md, relPath) },
+    async generate(nodeId, opts) { return kbDraftSvc.generateKnowledge(nodeId, opts ?? {}) },
+    async generateBatch(opts) { return kbDraftSvc.generateKnowledgeBatch(opts ?? {}) }
+  },
+
+  // AI 通俗解析：正文看完仍不懂时的「换个说法」，缓存与降级都在服务里做完
+  explain: {
+    async run(nodeId, ask?, style?, opts?): Promise<ExplainRunResult> {
+      const r = await explainSvc.explainNode({ nodeId, ask: ask ?? null, style: style ?? 'easier', questionId: opts?.questionId ?? null })
+      // 服务侧无端点分支的 error 是宽 string（网关异常兜底），IPC 边界收窄成契约里的判别联合
+      if ('error' in r) return { error: 'no-endpoint', message: r.message ?? '尚未配置可用的 AI 端点' }
+      return r
+    },
+    async history(nodeId, limit) { return explainSvc.explainHistory(nodeId, limit) },
+    async followups() { return explainSvc.EXPLAIN_FOLLOWUPS },
+    // R22 受限多轮辅导：history 为前端回传的对话上下文，服务端做作用域护栏与前置引导
+    async tutor(nodeId, question, history, opts): Promise<TutorChatResult> {
+      const r = await explainSvc.tutorChat({
+        nodeId, question: String(question ?? ''),
+        history: Array.isArray(history) ? history : [],
+        questionId: opts?.questionId ?? null,
+        role: opts?.role === 'strong' ? 'strong' : 'tutor'
+      })
+      if ('error' in r) return { error: 'no-endpoint', message: r.message ?? '尚未配置可用的 AI 端点' }
+      return r
+    }
+  },
+
   ai: {
     async endpoints() { return aiSvc.endpoints() },
     async saveEndpoints(list) { aiSvc.saveEndpoints(list) },
     async test(cfg) { return aiSvc.testEndpoint(cfg) },
     async usage(days) { return aiSvc.usageSummary(days) },
     async byTask(days) { return aiSvc.usageByTask(days) },
-    async errors(limit) { return aiSvc.recentAiErrors(limit) }
+    async errors(limit) { return aiSvc.recentAiErrors(limit) },
+    async tutorStatus() { return tutorSvc.tutorStatus() },
+    async tutorStart() { return tutorSvc.ensureTutor() },
+    async tutorStop() { tutorSvc.stopTutor('ui'); return tutorSvc.tutorStatus() },
+    async tutorLog(limit) { return tutorSvc.tutorLogTail(limit ?? 60) }
+  },
+
+  // R20 游戏化：XP/等级、streak、徽章墙、章节 Boss、庆祝事件
+  game: {
+    async overview() { return gameSvc.gameOverview() },
+    async badges(domain) { return gameSvc.badgeWall(domain ?? 'fe') },
+    async events() { return gameSvc.drainEvents(false) },
+    async drainEvents() { return gameSvc.drainEvents(true) },
+    async bosses(domain) { return gameSvc.listBosses(domain ?? 'fe') },
+    async chapters(domain) { return gameSvc.chapterProgress(domain ?? 'fe') },
+    async reportExplorer(visitedChapterIds) { return gameSvc.reportExplorer(visitedChapterIds ?? []) }
   },
 
   settings: {
     async all(): Promise<AppSettings> {
       return {
         endpoints: aiSvc.endpoints(),
-        routing: settingGet('ai.routing') ?? { fastEndpointId: null, strongEndpointId: null },
+        routing: settingGet('ai.routing') ?? { fastEndpointId: null, strongEndpointId: null, tutorEndpointId: null },
         desiredRetention: settingGet<number>('srs.desiredRetention') ?? 0.9,
         globalMixRatio: settingGet<number>('srs.globalMixRatio') ?? 0.35,
         dailyTarget: settingGet<number>('practice.dailyTarget') ?? 20,

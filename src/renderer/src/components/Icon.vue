@@ -24,6 +24,8 @@ const P: Record<string, string[]> = {
   close: ['M18 6 6 18M6 6l12 12'],
   play: ['m6 4 14 8-14 8Z'],
   arrowRight: ['M5 12h14', 'm13 6 6 6-6 6'],
+  arrowLeft: ['M19 12H5', 'm11 18-6-6 6-6'],
+  flag: ['M4 22V4', 'M4 4h13l-2 4 2 4H4'],
   panelLeft: ['M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z', 'M10 4v16'],
   sparkles: ['M12 3.5 13.6 8 18 9.5 13.6 11 12 15.5 10.4 11 6 9.5 10.4 8Z', 'M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8Z'],
   book: ['M4 4h10a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3Z', 'M17 20h3V7a3 3 0 0 0-3-3h-3'],
@@ -36,7 +38,8 @@ const P: Record<string, string[]> = {
   clock: ['M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z', 'M12 7v5l3.5 2'],
   zap: ['m13 2-9 12h7l-1 8 9-12h-7Z'],
   route: ['M6 19a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm12-10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z', 'M15 6h-3a3 3 0 0 0-3 3v.5', 'M9 16.5h3a3 3 0 0 0 3-3V9'],
-  external: ['M14 4h6v6', 'M20 4 11 13', 'M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5']
+  external: ['M14 4h6v6', 'M20 4 11 13', 'M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5'],
+  lock: ['M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z', 'M8 11V8a4 4 0 0 1 8 0v3', 'M12 15v2']
 }
 const props = withDefaults(defineProps<{ name: string; size?: number | string; stroke?: number }>(), { size: 18, stroke: 1.7 })
 

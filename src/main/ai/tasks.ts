@@ -88,7 +88,8 @@ ${lastAnswer || '（空白）'}
 }
 
 // ---------- 4. 就地答疑 ----------
-export async function qaExplain(q: Question, nodeTitle: string, question: string, prior: { role: string; content: string }[] = [], opts: { endpointId?: string } = {}): Promise<QaResult> {
+/** role 可显式指定：默认走内置答疑小模型（tutor），用户对本地回答不满意时可传 'strong' 换云端重答 */
+export async function qaExplain(q: Question, nodeTitle: string, question: string, prior: { role: string; content: string }[] = [], opts: { endpointId?: string; role?: 'tutor' | 'strong' } = {}): Promise<QaResult> {
   const ctx = prior.length ? prior.slice(-6).map((p) => `${p.role}: ${p.content}`).join('\n') : ''
   const user = `我正在练习一道面试题，知识点是「${nodeTitle}」。
 ${qDigest(q)}
@@ -102,12 +103,15 @@ ${question}
 }
 
 // ---------- 5. 变体生成 ----------
-export async function genVariants(q: Question, existingStems: string[], nodeTitle: string, n = 2, opts: { endpointId?: string } = {}): Promise<VariantLite[]> {
+export async function genVariants(q: Question, existingStems: string[], nodeTitle: string, n = 2, opts: { endpointId?: string; knowledgeMd?: string } = {}): Promise<VariantLite[]> {
   const avoid = existingStems.length ? `\n已有题干（不得雷同，也不得只改数字标点）：\n${existingStems.map((s) => '- ' + s.slice(0, 90)).join('\n')}` : ''
   const angles = '换业务场景 / 换问法角度 / 增加约束条件 / 反向问法（这样做会怎样）/ 追问延伸'
+  const kb = opts.knowledgeMd
+    ? `\n【该考点已收录的知识正文，变体只能考材料里的事实，不许引入材料外的 API/版本号】\n${opts.knowledgeMd.slice(0, 3200)}\n`
+    : ''
   const base = { ...q, variants: undefined }
   const user = `知识点：${nodeTitle}
-${qDigest(base)}${avoid}
+${qDigest(base)}${kb}${avoid}
 
 请出 ${n} 道**同一考点**的变体题，改写手法只能从下列里选并标注：${angles}。
 保持题型与难度接近（可有小幅波动）。客观题必须给唯一正确答案与错项设计说明，主观题必须给 scoringPoints。输出 JSON：

@@ -32,6 +32,21 @@
   --cyan: #0e7490;
   --hot: #c2410c;
 
+  /* R19 关系本体 9 类语义色（与 shared/relations.ts 的 hex 兜底同源，浅色） */
+  --rel-advance: #5e6ad2;   /* 进阶：品牌紫蓝 */
+  --rel-depend: #c2410c;    /* 依存：地基橙 */
+  --rel-apply: #157f3d;     /* 应用：实战绿 */
+  --rel-evolve: #a16207;    /* 演化：琥珀 */
+  --rel-parallel: #0e7490;  /* 平行：青 */
+  --rel-contrast: #d1242f;  /* 对比：红 */
+  --rel-analogy: #7c3aed;   /* 类比：紫 */
+  --rel-verify: #b5851f;    /* 印证：金 */
+  --rel-relate: #8b949e;    /* 关联：灰 */
+
+  /* 世界地图章节氛围色（HSL 基色在组件内用 color-mix 派生） */
+  --world-fog: rgba(139, 148, 158, .14);
+  --world-path: rgba(94, 106, 210, .35);
+
   /* 间距刻度（4px baseline） */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px;
   --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
@@ -98,6 +113,20 @@ html[data-theme="dark"] {
   --purple: #a78bfa;
   --cyan: #34b3c7;
   --hot: #f0883e;
+
+  /* R19 关系本体 9 类语义色（深色） */
+  --rel-advance: #7b83eb;
+  --rel-depend: #f0883e;
+  --rel-apply: #3fb950;
+  --rel-evolve: #d29922;
+  --rel-parallel: #34b3c7;
+  --rel-contrast: #f85149;
+  --rel-analogy: #a78bfa;
+  --rel-verify: #e3b341;
+  --rel-relate: #6b7686;
+
+  --world-fog: rgba(107, 118, 134, .16);
+  --world-path: rgba(123, 131, 235, .4);
 
   --sh-1: 0 1px 2px rgba(0, 0, 0, .5);
   --sh-2: 0 2px 4px -2px rgba(0, 0, 0, .5), 0 6px 18px -6px rgba(0, 0, 0, .6);
@@ -394,6 +423,10 @@ textarea.code, input.code { font-family: var(--mono) !important; font-size: 13px
 }
 .opt:hover { border-color: color-mix(in oklab, var(--accent) 40%, var(--border)); background: color-mix(in oklab, var(--accent) 4%, var(--surface)); transform: translateY(-1px) }
 .opt:active { transform: scale(.995) }
+/* 回看只读：禁用 hover 抬升与指针手型，明确告诉用户答案不可改（点击仍由 pick() 的 disabled 拦截兜底） */
+.opt.is-disabled { cursor: default; opacity: .92 }
+.opt.is-disabled:hover { transform: none; border-color: var(--border); background: var(--surface) }
+.opt.is-disabled.sel:hover { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 9%, var(--surface)) }
 .opt.sel { border-color: var(--accent); background: color-mix(in oklab, var(--accent) 9%, var(--surface)); box-shadow: var(--ring-soft) }
 .opt.right { border-color: color-mix(in oklab, var(--ok) 60%, transparent); background: color-mix(in oklab, var(--ok) 10%, var(--surface)) }
 .opt.wrong { border-color: color-mix(in oklab, var(--bad) 55%, transparent); background: color-mix(in oklab, var(--bad) 8%, var(--surface)) }
@@ -453,6 +486,23 @@ textarea.code, input.code { font-family: var(--mono) !important; font-size: 13px
 .gn-l4.locked .t { color: var(--text-faint) }
 .gn-l4.locked { background: repeating-linear-gradient(135deg, var(--surface) 0 8px, var(--surface-2) 8px 16px) }
 .gn-l4.must:not(.lit) { border-left: 4px solid var(--purple) }
+/* ---------- 掌握四态（services/mastery.ts）：未接触/学习中/已掌握/已生疏 ----------
+   颜色只用已主题化的 token，深浅模式都能区分；生疏态额外加虚线描边+角标，
+   不依赖单一颜色通道（红绿色弱用户也能靠线型和 ↺ 识别）。 */
+.gn-l4.st-mastered { border-color: color-mix(in oklab, var(--ok) 60%, transparent); background: linear-gradient(180deg, color-mix(in oklab, var(--ok) 12%, transparent), var(--surface)) }
+.gn-l4.st-learning { border-color: color-mix(in oklab, var(--warn) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklab, var(--warn) 10%, transparent), var(--surface)) }
+.gn-l4.st-stale { border: 1.5px dashed var(--hot); background: linear-gradient(180deg, color-mix(in oklab, var(--hot) 12%, transparent), var(--surface)) }
+.gn-l4.st-stale .t { color: var(--hot) }
+.gn .stale-flag { margin-left: 5px; color: var(--hot); font-weight: 700; font-size: var(--fs-sm) }
+.gn .stale-txt { color: var(--hot); font-weight: 600 }
+.state-pill.st-mastered { background: color-mix(in oklab, var(--ok) 13%, transparent); color: var(--ok); border-color: color-mix(in oklab, var(--ok) 30%, transparent) }
+.state-pill.st-learning { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); border-color: color-mix(in oklab, var(--warn) 32%, transparent) }
+.state-pill.st-stale { background: color-mix(in oklab, var(--hot) 13%, transparent); color: var(--hot); border-color: color-mix(in oklab, var(--hot) 32%, transparent) }
+.state-pill.st-untouched { background: color-mix(in oklab, var(--text-dim) 11%, transparent); color: var(--text-dim); border-color: color-mix(in oklab, var(--text-dim) 26%, transparent) }
+.legend i.lg.st-untouched { background: var(--text-faint) }
+.legend i.lg.st-learning { background: var(--warn) }
+.legend i.lg.st-mastered { background: var(--ok) }
+.legend i.lg.st-stale { background: var(--hot); outline: 1px dashed var(--hot); outline-offset: 1px }
 .gn .dots { display: flex; gap: var(--sp-1); align-items: center; margin-top: 6px; font-size: 10.5px }
 .gn .dots i { width: 9px; height: 9px; border-radius: 50% }
 .gn .due { color: var(--hot) }
@@ -491,6 +541,77 @@ textarea.code, input.code { font-family: var(--mono) !important; font-size: 13px
 .graph-wrap .vue-flow__controls { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); box-shadow: var(--sh-2); overflow: hidden }
 .graph-wrap .vue-flow__controls-button { background: transparent; border-bottom: 1px solid var(--border); color: var(--text-dim); fill: currentColor }
 .graph-wrap .vue-flow__controls-button:hover { background: var(--surface-3); color: var(--accent-2) }
+
+/* ---------- R17 学习路线泳道（roadmap 视图） ---------- */
+/* VueFlow 节点外层默认靠内容撑开，统一给泳道三类节点定宽，内部卡片 width:100% 填满 */
+.graph-wrap .vue-flow__node-lane-title,
+.graph-wrap .vue-flow__node-lane-head,
+.graph-wrap .vue-flow__node-lane-card { width: 252px }
+.graph-wrap .lane-head, .graph-wrap .lane-card, .graph-wrap .lane-title { width: 100%; box-sizing: border-box }
+
+/* 阶段列头：虚拟节点，随画布缩放平移；点彩表达该阶段整体进度 */
+.lane-title { display: flex; align-items: baseline; gap: 8px; padding: 4px 6px 10px; border-bottom: 2px solid var(--border-2); }
+.lane-title-name { font-size: var(--fs-sm); font-weight: 700; color: var(--text); letter-spacing: .01em }
+.lane-title-prog { margin-left: auto; font-size: var(--fs-xs); color: var(--text-faint); font-variant-numeric: tabular-nums }
+
+/* 泳道模块头 */
+.lane-head {
+  background: var(--surface); border: 1.5px solid var(--border-2);
+  border-radius: var(--r-lg); padding: 10px 12px; box-shadow: var(--sh-1); cursor: pointer;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast) var(--ease-out);
+}
+.lane-head:hover { box-shadow: var(--sh-3); transform: translateY(-1px) }
+.lane-head.sel { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 20%, transparent) }
+.lane-head-row { display: flex; align-items: center; gap: 8px }
+.lane-head-name { font-size: var(--fs-base); font-weight: 680; color: var(--text); line-height: 1.3 }
+.lane-head .bar { height: 6px; margin: 8px 0 6px; background: var(--surface-3); border-radius: var(--r-pill); overflow: hidden }
+.lane-head .bar i { display: block; height: 100%; border-radius: var(--r-pill); background: linear-gradient(90deg, var(--accent), color-mix(in oklab, var(--purple) 55%, var(--accent))); transition: width var(--dur-slow) var(--ease-out) }
+.lane-head-meta { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-faint) }
+.lane-head-meta .exp { margin-left: auto; color: var(--accent-2); font-weight: 600 }
+
+/* 泳道关卡（L4） */
+.lane-card {
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: var(--r-md); padding: 9px 12px; box-shadow: var(--sh-1); cursor: pointer; position: relative;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast) var(--ease-out);
+}
+.lane-card:hover { box-shadow: var(--sh-3); transform: translateX(2px) }
+.lane-card.sel { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 20%, transparent) }
+.lane-card-top { display: flex; align-items: center; gap: 8px }
+.lane-card-title { flex: 1; font-size: var(--fs-sm); font-weight: 600; color: var(--text); line-height: 1.35 }
+.lane-card-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 10.5px; color: var(--text-faint) }
+.lane-card-meta .due { color: var(--hot) }
+.lane-card-meta .fresh { color: var(--accent-2) }
+.lane-card-meta .needb { color: var(--warn) }
+.lane-card-meta .stale-txt { color: var(--hot); font-weight: 600 }
+.lane-card-meta .lock-txt { color: var(--text-faint) }
+.lane-card.locked { background: repeating-linear-gradient(135deg, var(--surface) 0 8px, var(--surface-2) 8px 16px) }
+.lane-card.locked .lane-card-title { color: var(--text-faint) }
+.lane-card.must:not(.lit) { border-left: 4px solid var(--purple) }
+/* 五态左边色条 + 状态圆点（沿用 mastery 语义色，明暗自适应） */
+.lane-state-dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 50%; background: var(--text-faint) }
+.lane-card.st-mastered { border-color: color-mix(in oklab, var(--ok) 55%, transparent); background: linear-gradient(180deg, color-mix(in oklab, var(--ok) 11%, transparent), var(--surface)) }
+.lane-card.st-mastered .lane-state-dot { background: var(--ok) }
+.lane-card.st-learning { border-color: color-mix(in oklab, var(--warn) 50%, transparent); background: linear-gradient(180deg, color-mix(in oklab, var(--warn) 10%, transparent), var(--surface)) }
+.lane-card.st-learning .lane-state-dot { background: var(--warn) }
+.lane-card.st-stale { border: 1.5px dashed var(--hot); background: linear-gradient(180deg, color-mix(in oklab, var(--hot) 11%, transparent), var(--surface)) }
+.lane-card.st-stale .lane-state-dot { background: var(--hot) }
+.lane-head.st-mastered { border-color: color-mix(in oklab, var(--ok) 45%, var(--border-2)) }
+.lane-head.st-learning { border-color: color-mix(in oklab, var(--warn) 45%, var(--border-2)) }
+.lane-head.st-stale { border-style: dashed; border-color: var(--hot) }
+/* 学习边界：「下一步推荐」关卡，呼吸高亮 + 推荐图标，一眼看出该学哪 */
+.lane-card.next-rec {
+  border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent), var(--sh-2);
+  animation: next-pulse 2.2s var(--ease-out) infinite;
+}
+.lane-card.next-rec .next-ic { color: var(--accent); flex: 0 0 auto }
+@keyframes next-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 16%, transparent), var(--sh-1) }
+  50% { box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent) 8%, transparent), var(--sh-2) }
+}
+.lane-badge { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: var(--r-pill); flex: 0 0 auto }
+.lane-badge.must { color: var(--purple); background: color-mix(in oklab, var(--purple) 13%, transparent); border: 1px solid color-mix(in oklab, var(--purple) 30%, transparent) }
+@media (prefers-reduced-motion: reduce) { .lane-card.next-rec { animation: none } }
 
 /* ---------- 10. Charts ---------- */
 svg text { font-family: inherit }
