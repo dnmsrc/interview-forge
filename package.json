@@ -1,17 +1,44 @@
 {
   "name": "interview-forge",
   "version": "0.1.0",
-  "private": true,
-  "description": "面试熔炉 · Electron + Vue 面试训练客户端（练习/闭卷/知识图谱/FSRS 巩固/AI 批改与题库演进）",
+  "private": false,
+  "description": "面试熔炉 · 完全本地的面试训练客户端：题库练习/闭卷考试/知识图谱/FSRS 间隔重复/带引用校验的本地 AI 私教",
+  "license": "MIT",
   "main": "./out/main/index.js",
   "author": "harry",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dnmsrc/interview-forge.git"
+  },
+  "homepage": "https://github.com/dnmsrc/interview-forge#readme",
+  "bugs": {
+    "url": "https://github.com/dnmsrc/interview-forge/issues"
+  },
+  "keywords": [
+    "electron",
+    "vue3",
+    "typescript",
+    "interview",
+    "flashcards",
+    "fsrs",
+    "spaced-repetition",
+    "knowledge-graph",
+    "sqlite",
+    "fts5",
+    "llama.cpp",
+    "local-llm",
+    "rag"
+  ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "start": "electron-vite preview",
     "build": "electron-vite build",
     "seed": "node scripts/seed.mjs",
     "qa": "node scripts/qa/regress.mjs",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json"
+    "kb:index": "node scripts/kb-index.mjs",
+    "kb:build": "node scripts/kb-build.mjs",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
+    "tutor:fetch": "node scripts/tutor-fetch.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

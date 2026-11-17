@@ -9,3 +9,23 @@ data/electron-userData/
 .DS_Store
 *.log
 .env
+
+# ---------- 大文件：模型与推理运行时绝不入库 ----------
+# 本地模型按需下载（见 README「本地模型」），仓库只保留代码与题库内容。
+# 模型默认放在项目外（D:/model/forge-tutor 或 ~/.forge-tutor），这里只是兜底。
+*.gguf
+*.gguf.part
+*.bin
+*.safetensors
+llama/
+
+# ---------- 构建缓存 ----------
+*.tsbuildinfo
+
+# ---------- 误创建的临时文件 ----------
+# Windows 下 `node xxx 2>nul` 会真的生成一个名为 nul 的文件
+nul
+
+# ---------- 本地快照 / 临时探针 ----------
+snapshots/
+scripts/.tmp-rag/
