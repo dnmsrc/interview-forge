@@ -1,0 +1,675 @@
+{
+  "id": "cs-design",
+  "version": 3,
+  "domain": "cs",
+  "cumulative": false,
+  "title": "算法范式与系统设计：从排序到削峰",
+  "emoji": "🧩",
+  "tagline": "5 关：排序/二分/回溯/DP → 双指针/滑窗/贪心分治 → 容量估算 → 缓存与分片 → MQ 去重与削峰。",
+  "stack": [
+    "数据结构与算法",
+    "系统设计"
+  ],
+  "intro": "这个项目横跨两侧：左边是算法范式（排序、二分、回溯、DP、双指针、滑窗、贪心分治），右边是系统设计（容量估算、缓存模式、分片、ID 生成、消息去重、削峰）。它们看起来是两类题，但底层是同一种能力：在高频计算与高频请求里找到「可以单调、可以复用、可以摊销」的那条线。",
+  "outcome": "你能写出稳定归并与二分边界、回溯与 DP 模板，也能把「QPS 多少、要几台机器、缓存怎么一致」讲成可计算的数字。",
+  "levels": [
+    {
+      "id": "lv1",
+      "title": "排序与二分：稳定性的代价与边界的方向",
+      "emoji": "🔤",
+      "xp": 45,
+      "goal": "实现 mergeSort(arr, cmp) 稳定归并排序、lowerBound/upperBound 二分边界，再用回溯写 permute/subsets/nQueens，用 DP 写 lis/editDistance/coinChange。",
+      "why": "排序与二分是面试里最容易被「看起来对」骗过的两块：归并排序写对了但合并时取右侧就不再稳定；二分写 < 还是 <= 决定返回「第一个 >=」还是「第一个 >」。这两处各差一个符号，答案就完全不同。回溯和 DP 则是「暴力如何剪枝」与「重复子问题如何复用」的两条主线。",
+      "nodes": [
+        "cs.algo.sort",
+        "cs.algo.sort.binary-search",
+        "cs.algo.sort.quick-merge-heap",
+        "cs.algo.paradigm",
+        "cs.algo.paradigm.backtracking",
+        "cs.algo.paradigm.dynamic-programming"
+      ],
+      "thinking": [
+        {
+          "title": "稳定性是合并策略的直接后果",
+          "md": "归并排序稳定，是因为合并两个有序段时，**相等时先取左侧**。如果写成「相等取右侧」，排序结果依然正确，但相等元素的相对顺序被打乱——这就是「稳定」与「正确」的区别。\n\n快速排序天然不稳定（partition 交换会跨越相等元素），堆排序也不稳定（堆顶与末尾交换）。所以「要稳定就用归并」不是偏好，是机制差异。"
+        },
+        {
+          "title": "二分的两个边界只差一个比较符",
+          "md": "`lowerBound`：找第一个 `arr[i] >= target`，收缩条件 `arr[mid] < target` 时 `lo = mid + 1`。\n`upperBound`：找第一个 `arr[i] > target`，收缩条件改成 `arr[mid] <= target`。\n\n两者都返回「插入位置」，所以 `upperBound - lowerBound = target 出现次数`。记住这个恒等式，边界就不会写反。"
+        },
+        {
+          "title": "回溯 = 选择 + 撤销；DP = 状态 + 转移",
+          "md": "回溯的模板是 `做选择 → 递归 → 撤销选择`，剪枝靠「used 数组 / 起始下标 / 行列斜线集合」。N 皇后用三个集合把冲突检查降到 O(1)。\n\nDP 的关键是先想清楚「状态是什么、转移从哪来」：LIS 的状态是「以 i 结尾的最长长度」；编辑距离的状态是「a 前 i 个字符变成 b 前 j 个字符的代价」；零钱兑换的状态是「凑出金额 i 的最少硬币数」。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "比较函数的三值语义",
+          "md": "`cmp(a, b) < 0` 表示 a 排在 b 前面；`= 0` 表示相等；`> 0` 表示 a 排后面。\n\n归并里用 `cmp(right, left) < 0` 判断「右侧是否严格更小」——严格才取右侧，等于就取左侧，稳定性就是这么保住的。"
+        },
+        {
+          "title": "二分为什么用 lo < hi 而不是 lo <= hi",
+          "md": "本关两个函数都用「左闭右开」区间 `[lo, hi)`，循环条件 `lo < hi`，结束时 `lo === hi` 就是答案位置。\n\n如果写成闭区间 `[lo, hi]` 且 `lo <= hi`，就必须处理好 `hi = mid - 1` 的越界和终止条件，否则会死循环。两套写法都对，混用才出错。"
+        },
+        {
+          "title": "DP 的两条路：自顶向下记忆化 vs 自底向上递推",
+          "md": "本关用自底向上：先填边界（`dp[i][0] = i`），再按依赖顺序填表。优点是不会有递归栈开销，缺点是必须想清楚遍历顺序。\n\n自顶向下记忆化更贴近「暴力搜索 + 缓存」，写起来直观但状态多时容易爆栈。面试里说清「状态定义 + 转移方程 + 边界 + 遍历顺序」四件事即可。"
+        }
+      ],
+      "api": [
+        {
+          "name": "mergeSort / lowerBound / upperBound",
+          "sig": "mergeSort(arr, cmp?) => any[]；lowerBound(arr, target) => number；upperBound(arr, target) => number",
+          "args": "arr 是待排序数组（二分要求已升序）；cmp 可选，默认数值升序。",
+          "returns": "排序后的新数组（不修改入参）；二分返回插入位置下标。",
+          "example": "mergeSort([3,1,2])        // [1,2,3]\nlowerBound([1,2,2,3], 2)  // 1\nupperBound([1,2,2,3], 2)  // 3"
+        },
+        {
+          "name": "permute / subsets / nQueens",
+          "sig": "permute(nums) => any[][]；subsets(nums) => any[][]；nQueens(n) => number",
+          "args": "nums 是互不相同的元素；n 是棋盘边长。",
+          "returns": "所有排列 / 所有子集 / 解的个数。",
+          "example": "permute([1,2,3]).length  // 6\nnQueens(8)               // 92"
+        },
+        {
+          "name": "lis / editDistance / coinChange",
+          "sig": "lis(nums) => number；editDistance(a, b) => number；coinChange(coins, amount) => number",
+          "args": "nums 是整数序列；a/b 是字符串；coins 是硬币面额数组，amount 是目标金额。",
+          "returns": "LIS 长度；编辑距离；最少硬币数（无解 -1）。",
+          "example": "lis([10,9,2,5,3,7,101,18])  // 4\neditDistance(\"horse\",\"ros\") // 3\ncoinChange([1,2,5],11)      // 3"
+        }
+      ],
+      "usage": "// 二分边界的业务用法：\n//   分页去重：按 id 找第一个 > lastId 的位置\n//   区间统计：upperBound(x) - lowerBound(x) = x 的出现次数\n//   版本回滚：找第一个 >= 目标版本的下标",
+      "hints": [
+        "第 1 步：合并时 if (cmp(right[j], left[i]) < 0) 取右侧，否则取左侧——严格小于才取右。",
+        "第 2 步：permute 用 used；subsets 用起始下标；nQueens 用 cols / row-c / row+c 三个集合。",
+        "第 3 步：先写边界再写转移；coinChange 用 Infinity 表示不可达，最后判 Infinity。"
+      ],
+      "concepts": [
+        {
+          "title": "快排 vs 归并 vs 堆排的取舍",
+          "md": "快排平均 O(n log n)、原地、缓存友好，但最坏 O(n^2)（可用三数取中/随机化缓解），不稳定；归并稳定、最坏也 O(n log n)，但需要 O(n) 额外空间；堆排原地、最坏 O(n log n)，但常数大且不稳定。\n\n工程上：需要稳定（比如按多字段排序）用归并/TimSort；内存敏感用快排；要最坏保证用堆排。JS 的 `Array.prototype.sort` 规范不要求稳定，但 V8 从 7.0 起是稳定排序（TimSort）。"
+        },
+        {
+          "title": "回溯的时间复杂度怎么估",
+          "md": "全排列 O(n·n!)（n! 个结果，每个结果拷贝 O(n)）；子集 O(n·2^n)；N 皇后 O(n!)，因为每行只放一个且列冲突剪枝。\n\n面试里不要只说「指数级」，要说清楚「解空间多大、每个解拷贝多少」。剪枝能把常数降下来，但不改变量级。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "稳定归并 + 二分左右边界",
+          "think": "归并的重点在合并：相等取左才稳定。二分的重点在收缩条件：< 还是 <= 决定左边界还是右边界。两者都是「一个符号决定语义」的典型。",
+          "hint": "归并：cmp(right[j], left[i]) < 0 才 push right[j]；二分：左边界用 arr[mid] < target，右边界用 arr[mid] <= target。",
+          "code": "function mergeSort(arr, cmp) {\n  const c = cmp || ((a, b) => a - b)\n  if (arr.length <= 1) return arr.slice()\n  const mid = arr.length >> 1\n  const left = mergeSort(arr.slice(0, mid), c)\n  const right = mergeSort(arr.slice(mid), c)\n  const out = []\n  let i = 0\n  let j = 0\n  while (i < left.length && j < right.length) {\n    if (c(right[j], left[i]) < 0) out.push(right[j++])\n    else out.push(left[i++])\n  }\n  while (i < left.length) out.push(left[i++])\n  while (j < right.length) out.push(right[j++])\n  return out\n}\n\nfunction lowerBound(arr, target) {\n  let lo = 0\n  let hi = arr.length\n  while (lo < hi) {\n    const mid = (lo + hi) >> 1\n    if (arr[mid] < target) lo = mid + 1\n    else hi = mid\n  }\n  return lo\n}\n\nfunction upperBound(arr, target) {\n  let lo = 0\n  let hi = arr.length\n  while (lo < hi) {\n    const mid = (lo + hi) >> 1\n    if (arr[mid] <= target) lo = mid + 1\n    else hi = mid\n  }\n  return lo\n}",
+          "test": "{\n  check('归并排序结果正确', () => {\n    same(mergeSort([3, 1, 2, 5, 4]), [1, 2, 3, 4, 5])\n    same(mergeSort([]), [])\n  })\n  check('归并排序是稳定的：相等元素保持原相对顺序', () => {\n    const items = [{ k: 1, id: 'a' }, { k: 1, id: 'b' }, { k: 0, id: 'c' }]\n    const sorted = mergeSort(items, (x, y) => x.k - y.k)\n    same(sorted.map((x) => x.id), ['c', 'a', 'b'], '合并时相等取左侧才是稳定')\n  })\n  check('lowerBound 找第一个 >= target 的下标', () => {\n    same(lowerBound([1, 2, 2, 3], 2), 1)\n    same(lowerBound([1, 2, 2, 3], 4), 4)\n  })\n  check('upperBound 找第一个 > target 的下标', () => {\n    same(upperBound([1, 2, 2, 3], 2), 3)\n    same(upperBound([1, 2, 2, 3], 0), 0)\n  })\n  check('空数组 / 全大于 / 全小于的边界', () => {\n    same(lowerBound([], 5), 0)\n    same(upperBound([5, 6], 1), 0)\n    same(lowerBound([5, 6], 9), 2)\n  })\n}",
+          "diag": [
+            "合并时相等取了右侧（cmp <= 0 或先 push right），排序结果对但不稳定。",
+            "归并递归没有对 arr.length <= 1 的基线返回，无限递归。",
+            "lowerBound 用了 arr[mid] <= target，变成了右边界。",
+            "upperBound 用了 arr[mid] < target，变成了左边界。",
+            "二分 hi 初始化成 arr.length - 1 却用 while (lo < hi)，最后一个元素被漏掉。"
+          ]
+        },
+        {
+          "n": 2,
+          "title": "回溯：全排列、子集、N 皇后",
+          "think": "三个题共用「做选择 → 递归 → 撤销」。区别只在「如何避免重复」：排列用 used 数组，子集用起始下标，皇后用三个冲突集合。",
+          "hint": "out.push(path.slice()) 必须拷贝，否则后续 pop 会把已存的结果改掉。",
+          "code": "function mergeSort(arr, cmp) {\n  const c = cmp || ((a, b) => a - b)\n  if (arr.length <= 1) return arr.slice()\n  const mid = arr.length >> 1\n  const left = mergeSort(arr.slice(0, mid), c)\n  const right = mergeSort(arr.slice(mid), c)\n  const out = []\n  let i = 0\n  let j = 0\n  while (i < left.length && j < right.length) {\n    if (c(right[j], left[i]) < 0) out.push(right[j++])\n    else out.push(left[i++])\n  }\n  while (i < left.length) out.push(left[i++])\n  while (j < right.length) out.push(right[j++])\n  return out\n}\n\nfunction lowerBound(arr, target) {\n  let lo = 0\n  let hi = arr.length\n  while (lo < hi) {\n    const mid = (lo + hi) >> 1\n    if (arr[mid] < target) lo = mid + 1\n    else hi = mid\n  }\n  return lo\n}\n\nfunction upperBound(arr, target) {\n  let lo = 0\n  let hi = arr.length\n  while (lo < hi) {\n    const mid = (lo + hi) >> 1\n    if (arr[mid] <= target) lo = mid + 1\n    else hi = mid\n  }\n  return lo\n}\n\nfunction permute(nums) {\n  const out = []\n  const used = new Array(nums.length).fill(false)\n  const path = []\n  const dfs = () => {\n    if (path.length === nums.length) { out.push(path.slice()); return }\n    for (let i = 0; i < nums.length; i++) {\n      if (used[i]) continue\n      used[i] = true\n      path.push(nums[i])\n      dfs()\n      path.pop()\n      used[i] = false\n    }\n  }\n  dfs()\n  return out\n}\n\nfunction subsets(nums) {\n  const out = []\n  const dfs = (start, path) => {\n    out.push(path.slice())\n    for (let i = start; i < nums.length; i++) {\n      path.push(nums[i])\n      dfs(i + 1, path)\n      path.pop()\n    }\n  }\n  dfs(0, [])\n  return out\n}\n\nfunction nQueens(n) {\n  let count = 0\n  const cols = new Set()\n  const diag1 = new Set()\n  const diag2 = new Set()\n  const place = (row) => {\n    if (row === n) { count++; return }\n    for (let c = 0; c < n; c++) {\n      if (cols.has(c) || diag1.has(row - c) || diag2.has(row + c)) continue\n      cols.add(c); diag1.add(row - c); diag2.add(row + c)\n      place(row + 1)\n      cols.delete(c); diag1.delete(row - c); diag2.delete(row + c)\n    }\n  }\n  place(0)\n  return count\n}",
+          "test": "{\n  check('全排列：n=3 得到 6 个排列且包含原序', () => {\n    const out = permute([1, 2, 3])\n    same(out.length, 6)\n    ok(out.some((p) => p.join(',') === '1,2,3'))\n    ok(out.every((p) => p.length === 3))\n  })\n  check('全排列的元素取自输入且不重复使用', () => {\n    const out = permute(['a', 'b'])\n    same(out.length, 2)\n    same(out.slice().sort().join('|'), 'a,b|b,a')\n  })\n  check('子集：n=3 得到 8 个且包含空集与全集', () => {\n    const out = subsets([1, 2, 3])\n    same(out.length, 8)\n    ok(out.some((s) => s.length === 0))\n    ok(out.some((s) => s.join(',') === '1,2,3'))\n  })\n  check('N 皇后：4 皇后有 2 个解', () => {\n    same(nQueens(4), 2)\n  })\n  check('N 皇后：8 皇后有 92 个解，1 皇后有 1 个解', () => {\n    same(nQueens(8), 92)\n    same(nQueens(1), 1)\n  })\n}",
+          "diag": [
+            "out.push(path) 存了引用，最后所有结果都变成同一个空数组。",
+            "permute 忘了 used 数组，同一个元素被重复选。",
+            "subsets 用从 0 开始的循环（不是 start），产生重复子集且数量暴涨。",
+            "nQueens 只检查了列冲突，没检查两条斜线（row-c / row+c）。",
+            "递归返回后忘了撤销（path.pop / used[i] = false），下一分支状态是脏的。"
+          ]
+        },
+        {
+          "n": 3,
+          "title": "DP：LIS、编辑距离、零钱兑换",
+          "think": "三个题分别代表「单序列线性 DP」「双序列二维 DP」「完全背包」。写之前先说清状态定义和边界，再写转移。",
+          "hint": "LIS 外层 i 内层 j < i；编辑距离先填第 0 行/列；零钱兑换外层金额内层面额（完全背包）。",
+          "code": "function mergeSort(arr, cmp) {\n  const c = cmp || ((a, b) => a - b)\n  if (arr.length <= 1) return arr.slice()\n  const mid = arr.length >> 1\n  const left = mergeSort(arr.slice(0, mid), c)\n  const right = mergeSort(arr.slice(mid), c)\n  const out = []\n  let i = 0\n  let j = 0\n  while (i < left.length && j < right.length) {\n    if (c(right[j], left[i]) < 0) out.push(right[j++])\n    else out.push(left[i++])\n  }\n  while (i < left.length) out.push(left[i++])\n  while (j < right.length) out.push(right[j++])\n  return out\n}\n\nfunction lowerBound(arr, target) {\n  let lo = 0\n  let hi = arr.length\n  while (lo < hi) {\n    const mid = (lo + hi) >> 1\n    if (arr[mid] < target) lo = mid + 1\n    else hi = mid\n  }\n  return lo\n}\n\nfunction upperBound(arr, target) {\n  let lo = 0\n  let hi = arr.length\n  while (lo < hi) {\n    const mid = (lo + hi) >> 1\n    if (arr[mid] <= target) lo = mid + 1\n    else hi = mid\n  }\n  return lo\n}\n\nfunction permute(nums) {\n  const out = []\n  const used = new Array(nums.length).fill(false)\n  const path = []\n  const dfs = () => {\n    if (path.length === nums.length) { out.push(path.slice()); return }\n    for (let i = 0; i < nums.length; i++) {\n      if (used[i]) continue\n      used[i] = true\n      path.push(nums[i])\n      dfs()\n      path.pop()\n      used[i] = false\n    }\n  }\n  dfs()\n  return out\n}\n\nfunction subsets(nums) {\n  const out = []\n  const dfs = (start, path) => {\n    out.push(path.slice())\n    for (let i = start; i < nums.length; i++) {\n      path.push(nums[i])\n      dfs(i + 1, path)\n      path.pop()\n    }\n  }\n  dfs(0, [])\n  return out\n}\n\nfunction nQueens(n) {\n  let count = 0\n  const cols = new Set()\n  const diag1 = new Set()\n  const diag2 = new Set()\n  const place = (row) => {\n    if (row === n) { count++; return }\n    for (let c = 0; c < n; c++) {\n      if (cols.has(c) || diag1.has(row - c) || diag2.has(row + c)) continue\n      cols.add(c); diag1.add(row - c); diag2.add(row + c)\n      place(row + 1)\n      cols.delete(c); diag1.delete(row - c); diag2.delete(row + c)\n    }\n  }\n  place(0)\n  return count\n}\n\nfunction lis(nums) {\n  if (!nums.length) return 0\n  const dp = new Array(nums.length).fill(1)\n  for (let i = 1; i < nums.length; i++) {\n    for (let j = 0; j < i; j++) {\n      if (nums[j] < nums[i]) dp[i] = Math.max(dp[i], dp[j] + 1)\n    }\n  }\n  return Math.max.apply(null, dp)\n}\n\nfunction editDistance(a, b) {\n  const m = a.length\n  const n = b.length\n  const dp = []\n  for (let i = 0; i <= m; i++) dp.push(new Array(n + 1).fill(0))\n  for (let i = 0; i <= m; i++) dp[i][0] = i\n  for (let j = 0; j <= n; j++) dp[0][j] = j\n  for (let i = 1; i <= m; i++) {\n    for (let j = 1; j <= n; j++) {\n      dp[i][j] = a[i - 1] === b[j - 1]\n        ? dp[i - 1][j - 1]\n        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])\n    }\n  }\n  return dp[m][n]\n}\n\nfunction coinChange(coins, amount) {\n  const dp = new Array(amount + 1).fill(Infinity)\n  dp[0] = 0\n  for (let i = 1; i <= amount; i++) {\n    for (const c of coins) {\n      if (i >= c && dp[i - c] + 1 < dp[i]) dp[i] = dp[i - c] + 1\n    }\n  }\n  return dp[amount] === Infinity ? -1 : dp[amount]\n}",
+          "test": "{\n  check('LIS：最长递增子序列长度', () => {\n    same(lis([10, 9, 2, 5, 3, 7, 101, 18]), 4)\n  })\n  check('LIS：空数组与全递减', () => {\n    same(lis([]), 0)\n    same(lis([5, 4, 3]), 1)\n  })\n  check('编辑距离：horse → ros 是 3', () => {\n    same(editDistance('horse', 'ros'), 3)\n  })\n  check('编辑距离：完全相同是 0，一边为空是另一边长度', () => {\n    same(editDistance('abc', 'abc'), 0)\n    same(editDistance('', 'abc'), 3)\n  })\n  check('零钱兑换：有解取最少，无解返回 -1', () => {\n    same(coinChange([1, 2, 5], 11), 3)\n    same(coinChange([2], 3), -1)\n    same(coinChange([1], 0), 0)\n  })\n}",
+          "diag": [
+            "LIS 用 dp[i] = max(dp) 而不是 max(dp[j] + 1)，把「以 i 结尾」写成了「前 i 个」。",
+            "编辑距离忘了初始化 dp[i][0] = i 与 dp[0][j] = j。",
+            "编辑距离转移用了 min 的两个分支，漏掉替换代价 dp[i-1][j-1]。",
+            "coinChange 外层用面额内层用金额（变成 0-1 背包，硬币不能重复用）。",
+            "coinChange 无解时返回 Infinity 而不是 -1。"
+          ]
+        }
+      ],
+      "skeleton": "function mergeSort(arr, cmp) {\n  // TODO: 递归拆分 + 合并（相等取左，保证稳定）\n  throw new Error('mergeSort 还没实现')\n}\n\nfunction lowerBound(arr, target) {\n  // TODO: 第一个 >= target 的下标\n  throw new Error('lowerBound 还没实现')\n}\n\nfunction upperBound(arr, target) {\n  // TODO: 第一个 > target 的下标\n  throw new Error('upperBound 还没实现')\n}\n\nfunction permute(nums) {\n  // TODO: 回溯 + used\n  throw new Error('permute 还没实现')\n}\n\nfunction subsets(nums) {\n  // TODO: 回溯 + 起始下标\n  throw new Error('subsets 还没实现')\n}\n\nfunction nQueens(n) {\n  // TODO: 逐行放置 + 列/两条斜线冲突集\n  throw new Error('nQueens 还没实现')\n}\n\nfunction lis(nums) {\n  // TODO: dp[i] = 以 i 结尾的最长递增子序列\n  throw new Error('lis 还没实现')\n}\n\nfunction editDistance(a, b) {\n  // TODO: 二维 DP，边界先填\n  throw new Error('editDistance 还没实现')\n}\n\nfunction coinChange(coins, amount) {\n  // TODO: 完全背包，Infinity 表示不可达\n  throw new Error('coinChange 还没实现')\n}",
+      "solution": "function mergeSort(arr, cmp) {\n  const c = cmp || ((a, b) => a - b)\n  if (arr.length <= 1) return arr.slice()\n  const mid = arr.length >> 1\n  const left = mergeSort(arr.slice(0, mid), c)\n  const right = mergeSort(arr.slice(mid), c)\n  const out = []\n  let i = 0\n  let j = 0\n  while (i < left.length && j < right.length) {\n    if (c(right[j], left[i]) < 0) out.push(right[j++])\n    else out.push(left[i++])\n  }\n  while (i < left.length) out.push(left[i++])\n  while (j < right.length) out.push(right[j++])\n  return out\n}\n\nfunction lowerBound(arr, target) {\n  let lo = 0\n  let hi = arr.length\n  while (lo < hi) {\n    const mid = (lo + hi) >> 1\n    if (arr[mid] < target) lo = mid + 1\n    else hi = mid\n  }\n  return lo\n}\n\nfunction upperBound(arr, target) {\n  let lo = 0\n  let hi = arr.length\n  while (lo < hi) {\n    const mid = (lo + hi) >> 1\n    if (arr[mid] <= target) lo = mid + 1\n    else hi = mid\n  }\n  return lo\n}\n\nfunction permute(nums) {\n  const out = []\n  const used = new Array(nums.length).fill(false)\n  const path = []\n  const dfs = () => {\n    if (path.length === nums.length) { out.push(path.slice()); return }\n    for (let i = 0; i < nums.length; i++) {\n      if (used[i]) continue\n      used[i] = true\n      path.push(nums[i])\n      dfs()\n      path.pop()\n      used[i] = false\n    }\n  }\n  dfs()\n  return out\n}\n\nfunction subsets(nums) {\n  const out = []\n  const dfs = (start, path) => {\n    out.push(path.slice())\n    for (let i = start; i < nums.length; i++) {\n      path.push(nums[i])\n      dfs(i + 1, path)\n      path.pop()\n    }\n  }\n  dfs(0, [])\n  return out\n}\n\nfunction nQueens(n) {\n  let count = 0\n  const cols = new Set()\n  const diag1 = new Set()\n  const diag2 = new Set()\n  const place = (row) => {\n    if (row === n) { count++; return }\n    for (let c = 0; c < n; c++) {\n      if (cols.has(c) || diag1.has(row - c) || diag2.has(row + c)) continue\n      cols.add(c); diag1.add(row - c); diag2.add(row + c)\n      place(row + 1)\n      cols.delete(c); diag1.delete(row - c); diag2.delete(row + c)\n    }\n  }\n  place(0)\n  return count\n}\n\nfunction lis(nums) {\n  if (!nums.length) return 0\n  const dp = new Array(nums.length).fill(1)\n  for (let i = 1; i < nums.length; i++) {\n    for (let j = 0; j < i; j++) {\n      if (nums[j] < nums[i]) dp[i] = Math.max(dp[i], dp[j] + 1)\n    }\n  }\n  return Math.max.apply(null, dp)\n}\n\nfunction editDistance(a, b) {\n  const m = a.length\n  const n = b.length\n  const dp = []\n  for (let i = 0; i <= m; i++) dp.push(new Array(n + 1).fill(0))\n  for (let i = 0; i <= m; i++) dp[i][0] = i\n  for (let j = 0; j <= n; j++) dp[0][j] = j\n  for (let i = 1; i <= m; i++) {\n    for (let j = 1; j <= n; j++) {\n      dp[i][j] = a[i - 1] === b[j - 1]\n        ? dp[i - 1][j - 1]\n        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])\n    }\n  }\n  return dp[m][n]\n}\n\nfunction coinChange(coins, amount) {\n  const dp = new Array(amount + 1).fill(Infinity)\n  dp[0] = 0\n  for (let i = 1; i <= amount; i++) {\n    for (const c of coins) {\n      if (i >= c && dp[i - c] + 1 < dp[i]) dp[i] = dp[i - c] + 1\n    }\n  }\n  return dp[amount] === Infinity ? -1 : dp[amount]\n}",
+      "finalCode": "function mergeSort(arr, cmp) {\n  const c = cmp || ((a, b) => a - b)\n  if (arr.length <= 1) return arr.slice()\n  const mid = arr.length >> 1\n  const left = mergeSort(arr.slice(0, mid), c)\n  const right = mergeSort(arr.slice(mid), c)\n  const out = []\n  let i = 0\n  let j = 0\n  while (i < left.length && j < right.length) {\n    if (c(right[j], left[i]) < 0) out.push(right[j++])\n    else out.push(left[i++])\n  }\n  while (i < left.length) out.push(left[i++])\n  while (j < right.length) out.push(right[j++])\n  return out\n}\n\nfunction lowerBound(arr, target) {\n  let lo = 0\n  let hi = arr.length\n  while (lo < hi) {\n    const mid = (lo + hi) >> 1\n    if (arr[mid] < target) lo = mid + 1\n    else hi = mid\n  }\n  return lo\n}\n\nfunction upperBound(arr, target) {\n  let lo = 0\n  let hi = arr.length\n  while (lo < hi) {\n    const mid = (lo + hi) >> 1\n    if (arr[mid] <= target) lo = mid + 1\n    else hi = mid\n  }\n  return lo\n}\n\nfunction permute(nums) {\n  const out = []\n  const used = new Array(nums.length).fill(false)\n  const path = []\n  const dfs = () => {\n    if (path.length === nums.length) { out.push(path.slice()); return }\n    for (let i = 0; i < nums.length; i++) {\n      if (used[i]) continue\n      used[i] = true\n      path.push(nums[i])\n      dfs()\n      path.pop()\n      used[i] = false\n    }\n  }\n  dfs()\n  return out\n}\n\nfunction subsets(nums) {\n  const out = []\n  const dfs = (start, path) => {\n    out.push(path.slice())\n    for (let i = start; i < nums.length; i++) {\n      path.push(nums[i])\n      dfs(i + 1, path)\n      path.pop()\n    }\n  }\n  dfs(0, [])\n  return out\n}\n\nfunction nQueens(n) {\n  let count = 0\n  const cols = new Set()\n  const diag1 = new Set()\n  const diag2 = new Set()\n  const place = (row) => {\n    if (row === n) { count++; return }\n    for (let c = 0; c < n; c++) {\n      if (cols.has(c) || diag1.has(row - c) || diag2.has(row + c)) continue\n      cols.add(c); diag1.add(row - c); diag2.add(row + c)\n      place(row + 1)\n      cols.delete(c); diag1.delete(row - c); diag2.delete(row + c)\n    }\n  }\n  place(0)\n  return count\n}\n\nfunction lis(nums) {\n  if (!nums.length) return 0\n  const dp = new Array(nums.length).fill(1)\n  for (let i = 1; i < nums.length; i++) {\n    for (let j = 0; j < i; j++) {\n      if (nums[j] < nums[i]) dp[i] = Math.max(dp[i], dp[j] + 1)\n    }\n  }\n  return Math.max.apply(null, dp)\n}\n\nfunction editDistance(a, b) {\n  const m = a.length\n  const n = b.length\n  const dp = []\n  for (let i = 0; i <= m; i++) dp.push(new Array(n + 1).fill(0))\n  for (let i = 0; i <= m; i++) dp[i][0] = i\n  for (let j = 0; j <= n; j++) dp[0][j] = j\n  for (let i = 1; i <= m; i++) {\n    for (let j = 1; j <= n; j++) {\n      dp[i][j] = a[i - 1] === b[j - 1]\n        ? dp[i - 1][j - 1]\n        : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])\n    }\n  }\n  return dp[m][n]\n}\n\nfunction coinChange(coins, amount) {\n  const dp = new Array(amount + 1).fill(Infinity)\n  dp[0] = 0\n  for (let i = 1; i <= amount; i++) {\n    for (const c of coins) {\n      if (i >= c && dp[i - c] + 1 < dp[i]) dp[i] = dp[i - c] + 1\n    }\n  }\n  return dp[amount] === Infinity ? -1 : dp[amount]\n}",
+      "tests": "{\n  check('归并排序结果正确', () => {\n    same(mergeSort([3, 1, 2, 5, 4]), [1, 2, 3, 4, 5])\n    same(mergeSort([]), [])\n  })\n  check('归并排序是稳定的：相等元素保持原相对顺序', () => {\n    const items = [{ k: 1, id: 'a' }, { k: 1, id: 'b' }, { k: 0, id: 'c' }]\n    const sorted = mergeSort(items, (x, y) => x.k - y.k)\n    same(sorted.map((x) => x.id), ['c', 'a', 'b'], '合并时相等取左侧才是稳定')\n  })\n  check('lowerBound 找第一个 >= target 的下标', () => {\n    same(lowerBound([1, 2, 2, 3], 2), 1)\n    same(lowerBound([1, 2, 2, 3], 4), 4)\n  })\n  check('upperBound 找第一个 > target 的下标', () => {\n    same(upperBound([1, 2, 2, 3], 2), 3)\n    same(upperBound([1, 2, 2, 3], 0), 0)\n  })\n  check('空数组 / 全大于 / 全小于的边界', () => {\n    same(lowerBound([], 5), 0)\n    same(upperBound([5, 6], 1), 0)\n    same(lowerBound([5, 6], 9), 2)\n  })\n}\n{\n  check('全排列：n=3 得到 6 个排列且包含原序', () => {\n    const out = permute([1, 2, 3])\n    same(out.length, 6)\n    ok(out.some((p) => p.join(',') === '1,2,3'))\n    ok(out.every((p) => p.length === 3))\n  })\n  check('全排列的元素取自输入且不重复使用', () => {\n    const out = permute(['a', 'b'])\n    same(out.length, 2)\n    same(out.slice().sort().join('|'), 'a,b|b,a')\n  })\n  check('子集：n=3 得到 8 个且包含空集与全集', () => {\n    const out = subsets([1, 2, 3])\n    same(out.length, 8)\n    ok(out.some((s) => s.length === 0))\n    ok(out.some((s) => s.join(',') === '1,2,3'))\n  })\n  check('N 皇后：4 皇后有 2 个解', () => {\n    same(nQueens(4), 2)\n  })\n  check('N 皇后：8 皇后有 92 个解，1 皇后有 1 个解', () => {\n    same(nQueens(8), 92)\n    same(nQueens(1), 1)\n  })\n}\n{\n  check('LIS：最长递增子序列长度', () => {\n    same(lis([10, 9, 2, 5, 3, 7, 101, 18]), 4)\n  })\n  check('LIS：空数组与全递减', () => {\n    same(lis([]), 0)\n    same(lis([5, 4, 3]), 1)\n  })\n  check('编辑距离：horse → ros 是 3', () => {\n    same(editDistance('horse', 'ros'), 3)\n  })\n  check('编辑距离：完全相同是 0，一边为空是另一边长度', () => {\n    same(editDistance('abc', 'abc'), 0)\n    same(editDistance('', 'abc'), 3)\n  })\n  check('零钱兑换：有解取最少，无解返回 -1', () => {\n    same(coinChange([1, 2, 5], 11), 3)\n    same(coinChange([2], 3), -1)\n    same(coinChange([1], 0), 0)\n  })\n}"
+    },
+    {
+      "id": "lv2",
+      "title": "双指针与滑动窗口：把 O(n^2) 降成 O(n)",
+      "emoji": "👉",
+      "xp": 45,
+      "goal": "实现 twoSumSorted/threeSum（碰撞双指针）、lengthOfLongestSubstring/minWindow（滑动窗口）、canJump（贪心）与 countInversions（归并分治）。",
+      "why": "「能不能再快一点」是算法面试最常见的追问。双指针和滑动窗口的共同前提是**单调性**：数组有序时两指针可以相向逼近；窗口内状态随右移单调变化时左指针只需往前。识别出单调性，O(n^2) 就变成 O(n)；识别不出，写了模板也会错。",
+      "nodes": [
+        "cs.algo.paradigm.greedy-divide",
+        "cs.algo.paradigm.two-pointer-window"
+      ],
+      "thinking": [
+        {
+          "title": "双指针的正确性建立在「有序」上",
+          "md": "两数之和的有序版：`sum < target` 说明左指针太小，只能右移；`sum > target` 说明右指针太大，只能左移。每一步都排除掉一行/一列，所以 O(n)。\n\n三数之和是在外层固定一个数，内层退化成两数之和；难点不在算法，在**去重**：外层跳过相同值，内层命中后跳过相同值。"
+        },
+        {
+          "title": "滑动窗口的三要素：窗口、条件、收缩时机",
+          "md": "窗口用 `[left, right]` 表示，`right` 每步扩张，当条件被破坏（或满足）时收缩 `left`。\n\n最长无重复子串：窗口内「无重复」是条件，遇到重复字符就收缩到重复位置之后。最小覆盖子串：窗口内「覆盖 t」是条件，覆盖后尽量收缩左边界取最短。一个是「不满足就收缩」，一个是「满足了才收缩」，方向相反但结构相同。"
+        },
+        {
+          "title": "贪心与分治的分界",
+          "md": "跳跃游戏是贪心：维护「当前能到的最远位置」，每步只关心最远能到哪，不需要回头。正确性依赖「能到 i 就一定能到 i 之前的所有位置」这个单调性。\n\n逆序对是分治：把数组拆成两半分别统计，再统计「跨越中点」的逆序对——归并时右边元素出列，就说明它比左边剩余所有元素都小，一次性加 `mid - i + 1`。这是「分而治之 + 合并时结算」的经典。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "三数之和的去重为什么容易写错",
+          "md": "输入排序后，`[-1,-1,2]` 和 `[-1,2,-1]` 会重复。去重有两层：外层 `i` 处跳过与前一个相同的值；内层命中后 `lo++ / hi--` 时跳过相同值。\n\n少任何一层都会出现重复三元组；多写一层（比如外层用 Set）可能丢失合法组合。测试里 `[0,0,0,0]` 只能得到 `[[0,0,0]]`。"
+        },
+        {
+          "title": "滑动窗口的复杂度为什么是 O(n)",
+          "md": "`right` 单调右移 n 次，`left` 也最多右移 n 次，合计 O(n)。\n\n关键前提是「left 不回退」。如果收缩时把 left 往回拨，就退化成 O(n^2)。这也是为什么窗口类题目必须保证「条件随窗口扩张单调变化」。"
+        },
+        {
+          "title": "逆序对与稳定排序的关系",
+          "md": "归并求逆序对时，`arr[i] <= arr[j]` 取左侧——这个「相等取左」正是稳定归并的写法，同时也保证相等元素不产生逆序对（逆序对是严格大于）。\n\n所以逆序对数 = 冒泡排序的交换次数 = 让数组有序所需的最少相邻交换次数。"
+        }
+      ],
+      "api": [
+        {
+          "name": "twoSumSorted / threeSum",
+          "sig": "twoSumSorted(nums, target) => [number, number] | null；threeSum(nums) => number[][]",
+          "args": "nums 是整数数组（twoSumSorted 要求已升序）；target 是目标和。",
+          "returns": "两数之和返回下标对或 null；三数之和返回所有和为 0 的不重复三元组。",
+          "example": "twoSumSorted([2,7,11,15], 9)  // [0,1]\nthreeSum([-1,0,1,2,-1,-4])   // [[-1,-1,2],[-1,0,1]]"
+        },
+        {
+          "name": "lengthOfLongestSubstring / minWindow",
+          "sig": "lengthOfLongestSubstring(s) => number；minWindow(s, t) => string",
+          "args": "s 是主串，t 是目标串。",
+          "returns": "最长无重复子串长度；覆盖 t 的最短子串（无解空串）。",
+          "example": "lengthOfLongestSubstring(\"abcabcbb\")  // 3\nminWindow(\"ADOBECODEBANC\", \"ABC\")     // \"BANC\""
+        },
+        {
+          "name": "canJump / countInversions",
+          "sig": "canJump(nums) => boolean；countInversions(nums) => number",
+          "args": "nums 是非负整数数组（跳跃步长）/ 整数数组（逆序对）。",
+          "returns": "能否到达最后一个下标；逆序对总数。",
+          "example": "canJump([2,3,1,1,4])      // true\ncountInversions([2,4,1,3,5]) // 3"
+        }
+      ],
+      "usage": "// 滑窗在工程里的影子：\n//   限流：固定时间窗内请求数（窗口 = 时间）\n//   日志去重：滑动时间去重窗口\n//   指标聚合：滚动平均 / 滚动 P99\n// 双指针在工程里的影子：\n//   有序数组的合并（归并排序、时间线合并）\n//   有序链表找中点（快慢指针）",
+      "hints": [
+        "第 1 步：twoSum 用 lo/hi 碰撞；threeSum 外层固定 i，内层 lo/hi，命中后双指针都跳过重复。",
+        "第 2 步：无重复子串用 Map 记录字符最后位置；minWindow 用 need/window 两个计数 + have 计数满足的种类数。",
+        "第 3 步：canJump 只维护 reach；countInversions 在 merge 里用 mid - i + 1 结算跨段逆序对。"
+      ],
+      "concepts": [
+        {
+          "title": "为什么滑动窗口不能处理负数（某些题）",
+          "md": "「和 ≥ target 的最短子数组」这种题，如果数组有负数，窗口和不再随右移单调增，left 就不该单调右移——必须换前缀和 + 单调队列。\n\n面试里先问「数组是否全正」就是在确认这个前提。"
+        },
+        {
+          "title": "分治的合并代价决定复杂度",
+          "md": "归并求逆序对的合并是 O(n)，递归 T(n)=2T(n/2)+O(n) → O(n log n)。如果把合并写成 O(n^2)（比如两重循环数跨段对），整体就退化成 O(n^2)。\n\n所以「分治能不能降复杂度」取决于合并那一步是否比暴力更省。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "碰撞双指针与三数之和去重",
+          "think": "两数之和先写对指针移动方向，再三数之和：外层固定 + 内层两数 + 两层去重。去重的时机比逻辑更容易错。",
+          "hint": "threeSum 外层 i>0 且 nums[i]===nums[i-1] 时 continue；内层命中后 while 跳过相同值再 lo++/hi--。",
+          "code": "function twoSumSorted(nums, target) {\n  let lo = 0\n  let hi = nums.length - 1\n  while (lo < hi) {\n    const sum = nums[lo] + nums[hi]\n    if (sum === target) return [lo, hi]\n    if (sum < target) lo++\n    else hi--\n  }\n  return null\n}\n\nfunction threeSum(nums) {\n  const sorted = nums.slice().sort((a, b) => a - b)\n  const out = []\n  for (let i = 0; i < sorted.length - 2; i++) {\n    if (i > 0 && sorted[i] === sorted[i - 1]) continue\n    let lo = i + 1\n    let hi = sorted.length - 1\n    while (lo < hi) {\n      const sum = sorted[i] + sorted[lo] + sorted[hi]\n      if (sum === 0) {\n        out.push([sorted[i], sorted[lo], sorted[hi]])\n        while (lo < hi && sorted[lo] === sorted[lo + 1]) lo++\n        while (lo < hi && sorted[hi] === sorted[hi - 1]) hi--\n        lo++\n        hi--\n      } else if (sum < 0) {\n        lo++\n      } else {\n        hi--\n      }\n    }\n  }\n  return out\n}",
+          "test": "{\n  check('两数之和（有序）：命中返回两个下标', () => {\n    same(twoSumSorted([2, 7, 11, 15], 9), [0, 1])\n    same(twoSumSorted([1, 2, 3, 4], 7), [2, 3])\n  })\n  check('两数之和（有序）：无解返回 null，单元素也返回 null', () => {\n    same(twoSumSorted([1, 2, 3], 100), null)\n    same(twoSumSorted([5], 5), null)\n  })\n  check('三数之和：经典输入得到去重的三元组', () => {\n    same(threeSum([-1, 0, 1, 2, -1, -4]), [[-1, -1, 2], [-1, 0, 1]])\n  })\n  check('三数之和：重复元素不会产生重复三元组', () => {\n    same(threeSum([0, 0, 0, 0]), [[0, 0, 0]])\n  })\n  check('三数之和：无解返回空数组', () => {\n    same(threeSum([1, 2, 3]), [])\n  })\n}",
+          "diag": [
+            "sum < target 时右指针左移（方向反了，越移越远）。",
+            "threeSum 没有排序，双指针前提不成立。",
+            "外层没跳过重复的 i，[-1,-1,2] 出现两次。",
+            "内层命中后没跳过重复 lo/hi，重复三元组。",
+            "threeSum 用 Set 存字符串去重但顺序没归一，同一组合被当成不同。"
+          ]
+        },
+        {
+          "n": 2,
+          "title": "滑动窗口：最长无重复与最小覆盖",
+          "think": "最长无重复是「破坏条件才收缩」；最小覆盖是「满足条件才收缩」。两个模板一样，只是收缩时机相反。",
+          "hint": "无重复：last.get(ch) >= left 才更新 left；minWindow：have === need.size 时收缩并记录最短。",
+          "code": "function twoSumSorted(nums, target) {\n  let lo = 0\n  let hi = nums.length - 1\n  while (lo < hi) {\n    const sum = nums[lo] + nums[hi]\n    if (sum === target) return [lo, hi]\n    if (sum < target) lo++\n    else hi--\n  }\n  return null\n}\n\nfunction threeSum(nums) {\n  const sorted = nums.slice().sort((a, b) => a - b)\n  const out = []\n  for (let i = 0; i < sorted.length - 2; i++) {\n    if (i > 0 && sorted[i] === sorted[i - 1]) continue\n    let lo = i + 1\n    let hi = sorted.length - 1\n    while (lo < hi) {\n      const sum = sorted[i] + sorted[lo] + sorted[hi]\n      if (sum === 0) {\n        out.push([sorted[i], sorted[lo], sorted[hi]])\n        while (lo < hi && sorted[lo] === sorted[lo + 1]) lo++\n        while (lo < hi && sorted[hi] === sorted[hi - 1]) hi--\n        lo++\n        hi--\n      } else if (sum < 0) {\n        lo++\n      } else {\n        hi--\n      }\n    }\n  }\n  return out\n}\n\nfunction lengthOfLongestSubstring(s) {\n  const last = new Map()\n  let left = 0\n  let best = 0\n  for (let right = 0; right < s.length; right++) {\n    const ch = s[right]\n    if (last.has(ch) && last.get(ch) >= left) left = last.get(ch) + 1\n    last.set(ch, right)\n    if (right - left + 1 > best) best = right - left + 1\n  }\n  return best\n}\n\nfunction minWindow(s, t) {\n  if (!t.length) return ''\n  const need = new Map()\n  for (const ch of t) need.set(ch, (need.get(ch) || 0) + 1)\n  const window = new Map()\n  let have = 0\n  let left = 0\n  let bestLen = Infinity\n  let bestStart = 0\n\n  for (let right = 0; right < s.length; right++) {\n    const ch = s[right]\n    window.set(ch, (window.get(ch) || 0) + 1)\n    if (need.has(ch) && window.get(ch) === need.get(ch)) have++\n\n    while (have === need.size) {\n      if (right - left + 1 < bestLen) {\n        bestLen = right - left + 1\n        bestStart = left\n      }\n      const leftCh = s[left]\n      window.set(leftCh, window.get(leftCh) - 1)\n      if (need.has(leftCh) && window.get(leftCh) < need.get(leftCh)) have--\n      left++\n    }\n  }\n\n  return bestLen === Infinity ? '' : s.slice(bestStart, bestStart + bestLen)\n}",
+          "test": "{\n  check('最长无重复子串：混合串', () => {\n    same(lengthOfLongestSubstring('abcabcbb'), 3)\n  })\n  check('最长无重复子串：全重复 / 空串', () => {\n    same(lengthOfLongestSubstring('bbbbb'), 1)\n    same(lengthOfLongestSubstring(''), 0)\n  })\n  check('最小覆盖子串：经典输入', () => {\n    same(minWindow('ADOBECODEBANC', 'ABC'), 'BANC')\n  })\n  check('最小覆盖子串：无解返回空串', () => {\n    same(minWindow('abc', 'xyz'), '')\n  })\n  check('最小覆盖子串：s 恰好等于 t', () => {\n    same(minWindow('a', 'a'), 'a')\n  })\n}",
+          "diag": [
+            "无重复子串里 last.get(ch) 没有判断 >= left，收缩到窗口外导致 left 回退。",
+            "best 更新放在收缩循环外，窗口内有重复时也记了长度。",
+            "minWindow 的 have 用「字符出现次数总和」而不是「已满足的种类数」，条件永远不成立。",
+            "minWindow 收缩时没有同步减少 window 计数，have 卡住不降。",
+            "minWindow 记住的是长度而不是起点，最后切片错误。"
+          ]
+        },
+        {
+          "n": 3,
+          "title": "贪心跳跃与分治逆序对",
+          "think": "跳跃游戏的关键是「reach 只增不减」；逆序对的关键是「合并时一次性结算跨段对数」。",
+          "hint": "canJump 先判 i > reach 返回 false，再更新 reach；countInversions 里 arr[i] > arr[j] 时 inv += mid - i + 1。",
+          "code": "function twoSumSorted(nums, target) {\n  let lo = 0\n  let hi = nums.length - 1\n  while (lo < hi) {\n    const sum = nums[lo] + nums[hi]\n    if (sum === target) return [lo, hi]\n    if (sum < target) lo++\n    else hi--\n  }\n  return null\n}\n\nfunction threeSum(nums) {\n  const sorted = nums.slice().sort((a, b) => a - b)\n  const out = []\n  for (let i = 0; i < sorted.length - 2; i++) {\n    if (i > 0 && sorted[i] === sorted[i - 1]) continue\n    let lo = i + 1\n    let hi = sorted.length - 1\n    while (lo < hi) {\n      const sum = sorted[i] + sorted[lo] + sorted[hi]\n      if (sum === 0) {\n        out.push([sorted[i], sorted[lo], sorted[hi]])\n        while (lo < hi && sorted[lo] === sorted[lo + 1]) lo++\n        while (lo < hi && sorted[hi] === sorted[hi - 1]) hi--\n        lo++\n        hi--\n      } else if (sum < 0) {\n        lo++\n      } else {\n        hi--\n      }\n    }\n  }\n  return out\n}\n\nfunction lengthOfLongestSubstring(s) {\n  const last = new Map()\n  let left = 0\n  let best = 0\n  for (let right = 0; right < s.length; right++) {\n    const ch = s[right]\n    if (last.has(ch) && last.get(ch) >= left) left = last.get(ch) + 1\n    last.set(ch, right)\n    if (right - left + 1 > best) best = right - left + 1\n  }\n  return best\n}\n\nfunction minWindow(s, t) {\n  if (!t.length) return ''\n  const need = new Map()\n  for (const ch of t) need.set(ch, (need.get(ch) || 0) + 1)\n  const window = new Map()\n  let have = 0\n  let left = 0\n  let bestLen = Infinity\n  let bestStart = 0\n\n  for (let right = 0; right < s.length; right++) {\n    const ch = s[right]\n    window.set(ch, (window.get(ch) || 0) + 1)\n    if (need.has(ch) && window.get(ch) === need.get(ch)) have++\n\n    while (have === need.size) {\n      if (right - left + 1 < bestLen) {\n        bestLen = right - left + 1\n        bestStart = left\n      }\n      const leftCh = s[left]\n      window.set(leftCh, window.get(leftCh) - 1)\n      if (need.has(leftCh) && window.get(leftCh) < need.get(leftCh)) have--\n      left++\n    }\n  }\n\n  return bestLen === Infinity ? '' : s.slice(bestStart, bestStart + bestLen)\n}\n\nfunction canJump(nums) {\n  let reach = 0\n  for (let i = 0; i < nums.length; i++) {\n    if (i > reach) return false\n    if (i + nums[i] > reach) reach = i + nums[i]\n  }\n  return true\n}\n\nfunction countInversions(nums) {\n  const arr = nums.slice()\n\n  const merge = (l, mid, r) => {\n    const tmp = []\n    let i = l\n    let j = mid + 1\n    let inv = 0\n    while (i <= mid && j <= r) {\n      if (arr[i] <= arr[j]) {\n        tmp.push(arr[i++])\n      } else {\n        inv += mid - i + 1\n        tmp.push(arr[j++])\n      }\n    }\n    while (i <= mid) tmp.push(arr[i++])\n    while (j <= r) tmp.push(arr[j++])\n    for (let k = 0; k < tmp.length; k++) arr[l + k] = tmp[k]\n    return inv\n  }\n\n  const sort = (l, r) => {\n    if (l >= r) return 0\n    const mid = (l + r) >> 1\n    return sort(l, mid) + sort(mid + 1, r) + merge(l, mid, r)\n  }\n\n  return sort(0, arr.length - 1)\n}",
+          "test": "{\n  check('跳跃游戏：能到达终点', () => {\n    same(canJump([2, 3, 1, 1, 4]), true)\n  })\n  check('跳跃游戏：0 挡住去路', () => {\n    same(canJump([3, 2, 1, 0, 4]), false)\n    same(canJump([0]), true, '只有一个元素时已经在终点')\n  })\n  check('逆序对：混合数组', () => {\n    same(countInversions([2, 4, 1, 3, 5]), 3)\n  })\n  check('逆序对：已排序是 0，完全逆序是 n(n-1)/2', () => {\n    same(countInversions([1, 2, 3, 4]), 0)\n    same(countInversions([5, 4, 3, 2, 1]), 10)\n  })\n  check('逆序对：不修改入参数组', () => {\n    const input = [3, 1, 2]\n    countInversions(input)\n    same(input, [3, 1, 2])\n  })\n}",
+          "diag": [
+            "canJump 的 reach 没取 max，遇到小步长时覆盖了大步长。",
+            "canJump 先更新 reach 再判 i > reach，0 挡路的情况判不出来。",
+            "countInversions 直接改了入参数组（没有 slice 拷贝）。",
+            "合并时右边出列没有累加 mid - i + 1，只数了 1 个逆序对。",
+            "merge 写完后没有把 tmp 写回 arr，上层统计用的还是旧数据。"
+          ]
+        }
+      ],
+      "skeleton": "function twoSumSorted(nums, target) {\n  // TODO: lo/hi 碰撞双指针\n  throw new Error('twoSumSorted 还没实现')\n}\n\nfunction threeSum(nums) {\n  // TODO: 排序 + 外层固定 + 内层双指针 + 两层去重\n  throw new Error('threeSum 还没实现')\n}\n\nfunction lengthOfLongestSubstring(s) {\n  // TODO: 滑动窗口 + 字符最后位置\n  throw new Error('lengthOfLongestSubstring 还没实现')\n}\n\nfunction minWindow(s, t) {\n  // TODO: need/window 计数 + have 种类数 + 收缩取最短\n  throw new Error('minWindow 还没实现')\n}\n\nfunction canJump(nums) {\n  // TODO: 贪心维护最远可达\n  throw new Error('canJump 还没实现')\n}\n\nfunction countInversions(nums) {\n  // TODO: 归并分治，合并时结算\n  throw new Error('countInversions 还没实现')\n}",
+      "solution": "function twoSumSorted(nums, target) {\n  let lo = 0\n  let hi = nums.length - 1\n  while (lo < hi) {\n    const sum = nums[lo] + nums[hi]\n    if (sum === target) return [lo, hi]\n    if (sum < target) lo++\n    else hi--\n  }\n  return null\n}\n\nfunction threeSum(nums) {\n  const sorted = nums.slice().sort((a, b) => a - b)\n  const out = []\n  for (let i = 0; i < sorted.length - 2; i++) {\n    if (i > 0 && sorted[i] === sorted[i - 1]) continue\n    let lo = i + 1\n    let hi = sorted.length - 1\n    while (lo < hi) {\n      const sum = sorted[i] + sorted[lo] + sorted[hi]\n      if (sum === 0) {\n        out.push([sorted[i], sorted[lo], sorted[hi]])\n        while (lo < hi && sorted[lo] === sorted[lo + 1]) lo++\n        while (lo < hi && sorted[hi] === sorted[hi - 1]) hi--\n        lo++\n        hi--\n      } else if (sum < 0) {\n        lo++\n      } else {\n        hi--\n      }\n    }\n  }\n  return out\n}\n\nfunction lengthOfLongestSubstring(s) {\n  const last = new Map()\n  let left = 0\n  let best = 0\n  for (let right = 0; right < s.length; right++) {\n    const ch = s[right]\n    if (last.has(ch) && last.get(ch) >= left) left = last.get(ch) + 1\n    last.set(ch, right)\n    if (right - left + 1 > best) best = right - left + 1\n  }\n  return best\n}\n\nfunction minWindow(s, t) {\n  if (!t.length) return ''\n  const need = new Map()\n  for (const ch of t) need.set(ch, (need.get(ch) || 0) + 1)\n  const window = new Map()\n  let have = 0\n  let left = 0\n  let bestLen = Infinity\n  let bestStart = 0\n\n  for (let right = 0; right < s.length; right++) {\n    const ch = s[right]\n    window.set(ch, (window.get(ch) || 0) + 1)\n    if (need.has(ch) && window.get(ch) === need.get(ch)) have++\n\n    while (have === need.size) {\n      if (right - left + 1 < bestLen) {\n        bestLen = right - left + 1\n        bestStart = left\n      }\n      const leftCh = s[left]\n      window.set(leftCh, window.get(leftCh) - 1)\n      if (need.has(leftCh) && window.get(leftCh) < need.get(leftCh)) have--\n      left++\n    }\n  }\n\n  return bestLen === Infinity ? '' : s.slice(bestStart, bestStart + bestLen)\n}\n\nfunction canJump(nums) {\n  let reach = 0\n  for (let i = 0; i < nums.length; i++) {\n    if (i > reach) return false\n    if (i + nums[i] > reach) reach = i + nums[i]\n  }\n  return true\n}\n\nfunction countInversions(nums) {\n  const arr = nums.slice()\n\n  const merge = (l, mid, r) => {\n    const tmp = []\n    let i = l\n    let j = mid + 1\n    let inv = 0\n    while (i <= mid && j <= r) {\n      if (arr[i] <= arr[j]) {\n        tmp.push(arr[i++])\n      } else {\n        inv += mid - i + 1\n        tmp.push(arr[j++])\n      }\n    }\n    while (i <= mid) tmp.push(arr[i++])\n    while (j <= r) tmp.push(arr[j++])\n    for (let k = 0; k < tmp.length; k++) arr[l + k] = tmp[k]\n    return inv\n  }\n\n  const sort = (l, r) => {\n    if (l >= r) return 0\n    const mid = (l + r) >> 1\n    return sort(l, mid) + sort(mid + 1, r) + merge(l, mid, r)\n  }\n\n  return sort(0, arr.length - 1)\n}",
+      "finalCode": "function twoSumSorted(nums, target) {\n  let lo = 0\n  let hi = nums.length - 1\n  while (lo < hi) {\n    const sum = nums[lo] + nums[hi]\n    if (sum === target) return [lo, hi]\n    if (sum < target) lo++\n    else hi--\n  }\n  return null\n}\n\nfunction threeSum(nums) {\n  const sorted = nums.slice().sort((a, b) => a - b)\n  const out = []\n  for (let i = 0; i < sorted.length - 2; i++) {\n    if (i > 0 && sorted[i] === sorted[i - 1]) continue\n    let lo = i + 1\n    let hi = sorted.length - 1\n    while (lo < hi) {\n      const sum = sorted[i] + sorted[lo] + sorted[hi]\n      if (sum === 0) {\n        out.push([sorted[i], sorted[lo], sorted[hi]])\n        while (lo < hi && sorted[lo] === sorted[lo + 1]) lo++\n        while (lo < hi && sorted[hi] === sorted[hi - 1]) hi--\n        lo++\n        hi--\n      } else if (sum < 0) {\n        lo++\n      } else {\n        hi--\n      }\n    }\n  }\n  return out\n}\n\nfunction lengthOfLongestSubstring(s) {\n  const last = new Map()\n  let left = 0\n  let best = 0\n  for (let right = 0; right < s.length; right++) {\n    const ch = s[right]\n    if (last.has(ch) && last.get(ch) >= left) left = last.get(ch) + 1\n    last.set(ch, right)\n    if (right - left + 1 > best) best = right - left + 1\n  }\n  return best\n}\n\nfunction minWindow(s, t) {\n  if (!t.length) return ''\n  const need = new Map()\n  for (const ch of t) need.set(ch, (need.get(ch) || 0) + 1)\n  const window = new Map()\n  let have = 0\n  let left = 0\n  let bestLen = Infinity\n  let bestStart = 0\n\n  for (let right = 0; right < s.length; right++) {\n    const ch = s[right]\n    window.set(ch, (window.get(ch) || 0) + 1)\n    if (need.has(ch) && window.get(ch) === need.get(ch)) have++\n\n    while (have === need.size) {\n      if (right - left + 1 < bestLen) {\n        bestLen = right - left + 1\n        bestStart = left\n      }\n      const leftCh = s[left]\n      window.set(leftCh, window.get(leftCh) - 1)\n      if (need.has(leftCh) && window.get(leftCh) < need.get(leftCh)) have--\n      left++\n    }\n  }\n\n  return bestLen === Infinity ? '' : s.slice(bestStart, bestStart + bestLen)\n}\n\nfunction canJump(nums) {\n  let reach = 0\n  for (let i = 0; i < nums.length; i++) {\n    if (i > reach) return false\n    if (i + nums[i] > reach) reach = i + nums[i]\n  }\n  return true\n}\n\nfunction countInversions(nums) {\n  const arr = nums.slice()\n\n  const merge = (l, mid, r) => {\n    const tmp = []\n    let i = l\n    let j = mid + 1\n    let inv = 0\n    while (i <= mid && j <= r) {\n      if (arr[i] <= arr[j]) {\n        tmp.push(arr[i++])\n      } else {\n        inv += mid - i + 1\n        tmp.push(arr[j++])\n      }\n    }\n    while (i <= mid) tmp.push(arr[i++])\n    while (j <= r) tmp.push(arr[j++])\n    for (let k = 0; k < tmp.length; k++) arr[l + k] = tmp[k]\n    return inv\n  }\n\n  const sort = (l, r) => {\n    if (l >= r) return 0\n    const mid = (l + r) >> 1\n    return sort(l, mid) + sort(mid + 1, r) + merge(l, mid, r)\n  }\n\n  return sort(0, arr.length - 1)\n}",
+      "tests": "{\n  check('两数之和（有序）：命中返回两个下标', () => {\n    same(twoSumSorted([2, 7, 11, 15], 9), [0, 1])\n    same(twoSumSorted([1, 2, 3, 4], 7), [2, 3])\n  })\n  check('两数之和（有序）：无解返回 null，单元素也返回 null', () => {\n    same(twoSumSorted([1, 2, 3], 100), null)\n    same(twoSumSorted([5], 5), null)\n  })\n  check('三数之和：经典输入得到去重的三元组', () => {\n    same(threeSum([-1, 0, 1, 2, -1, -4]), [[-1, -1, 2], [-1, 0, 1]])\n  })\n  check('三数之和：重复元素不会产生重复三元组', () => {\n    same(threeSum([0, 0, 0, 0]), [[0, 0, 0]])\n  })\n  check('三数之和：无解返回空数组', () => {\n    same(threeSum([1, 2, 3]), [])\n  })\n}\n{\n  check('最长无重复子串：混合串', () => {\n    same(lengthOfLongestSubstring('abcabcbb'), 3)\n  })\n  check('最长无重复子串：全重复 / 空串', () => {\n    same(lengthOfLongestSubstring('bbbbb'), 1)\n    same(lengthOfLongestSubstring(''), 0)\n  })\n  check('最小覆盖子串：经典输入', () => {\n    same(minWindow('ADOBECODEBANC', 'ABC'), 'BANC')\n  })\n  check('最小覆盖子串：无解返回空串', () => {\n    same(minWindow('abc', 'xyz'), '')\n  })\n  check('最小覆盖子串：s 恰好等于 t', () => {\n    same(minWindow('a', 'a'), 'a')\n  })\n}\n{\n  check('跳跃游戏：能到达终点', () => {\n    same(canJump([2, 3, 1, 1, 4]), true)\n  })\n  check('跳跃游戏：0 挡住去路', () => {\n    same(canJump([3, 2, 1, 0, 4]), false)\n    same(canJump([0]), true, '只有一个元素时已经在终点')\n  })\n  check('逆序对：混合数组', () => {\n    same(countInversions([2, 4, 1, 3, 5]), 3)\n  })\n  check('逆序对：已排序是 0，完全逆序是 n(n-1)/2', () => {\n    same(countInversions([1, 2, 3, 4]), 0)\n    same(countInversions([5, 4, 3, 2, 1]), 10)\n  })\n  check('逆序对：不修改入参数组', () => {\n    const input = [3, 1, 2]\n    countInversions(input)\n    same(input, [3, 1, 2])\n  })\n}"
+    },
+    {
+      "id": "lv3",
+      "title": "容量估算与缓存模式：把「大概够用」算成数字",
+      "emoji": "📐",
+      "xp": 50,
+      "goal": "实现 estimateCapacity 容量估算（QPS/存储/机器数）、classifyConsistency 与 quorumPlan（CP/AP 与法定人数）、createStore 三种缓存读写模式的模拟。",
+      "why": "系统设计面试的第一问通常是「这个系统要几台机器、存多少数据」。答不出来不是不会算，而是没把 DAU、QPS、峰值系数、副本、保留期这几个量串起来。第二问是「缓存怎么和库保持一致」——cache-aside / write-through / write-behind 三种模式的差异，用「写几次库、什么时候读到旧值」就能说清楚。",
+      "nodes": [
+        "cs.design.capacity",
+        "cs.design.capacity.ddia-tradeoff",
+        "cs.design.capacity.estimation",
+        "cs.design.cache",
+        "cs.design.cache.consistency",
+        "cs.design.cache.pattern"
+      ],
+      "thinking": [
+        {
+          "title": "容量估算是一条乘法链",
+          "md": "`DAU × 人均请求 ÷ 86400` 得到平均 QPS；乘峰值系数得到峰值 QPS；`DAU × 写入次数 × 每条大小 × 保留天数 × 副本数` 得到存储。\n\n面试里真正拉开差距的是「量级感」：10 万 DAU 大概几十 QPS，1000 万 DAU 是几百到几千 QPS，1 亿 DAU 才需要上百台机器。把数字算出来，架构选择才有依据。"
+        },
+        {
+          "title": "CAP 不是三选二，是「分区发生时二选一」",
+          "md": "没有网络分区时，C 和 A 可以同时满足（CA）。一旦分区发生，跨地域的写要么拒绝（CP：保一致，牺牲可用），要么接受但可能读到旧值（AP：保可用，牺牲强一致）。\n\n所以面试里正确的说法是：「这个业务能容忍分区期间不可用 → CP；不能 → AP」，而不是「CAP 只能选两个」。"
+        },
+        {
+          "title": "三种缓存模式的差异只有两句话",
+          "md": "cache-aside：读未命中回填，写「更新库 + 删缓存」；\nwrite-through：写「更新库 + 更新缓存」，读永远命中；\nwrite-behind：写只更新缓存并标记脏，异步批量落库。\n\n一致性：write-through 最强（同步），aside 次之（删缓存有窗口），write-behind 最弱（落库前宕机会丢数据）。性能反过来：write-behind 最快，write-through 最慢。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "为什么存储要乘副本数",
+          "md": "三副本意味着同一份数据物理存三份，成本直接 ×3。面试里如果忘了乘副本，估算会少一半以上。\n\n同理，如果算的是「热数据内存缓存」，还要乘上缓存副本和索引开销（通常按 1.2~1.5 倍估）。"
+        },
+        {
+          "title": "法定人数：R + W > N 才有强一致",
+          "md": "N 是副本数，R 是读需要确认的副本数，W 是写需要确认的副本数。`R + W > N` 保证读集合与写集合至少有一个交集，所以一定能读到最新写。\n\n常见配置：N=3、W=2、R=2（强一致）；N=3、W=1、R=1（最终一致，快但可能旧）。"
+        },
+        {
+          "title": "cache-aside 的经典坑：先删缓存还是先更库",
+          "md": "推荐「先更库、再删缓存」：如果先删缓存再更库，删完到更库之间的读请求会把旧值重新回填，造成长期不一致。\n\n即使按推荐顺序，仍有「删缓存失败」「读写并发」的窗口，所以极端场景要靠延迟双删或 binlog 订阅兜底。"
+        }
+      ],
+      "api": [
+        {
+          "name": "estimateCapacity",
+          "sig": "estimateCapacity(p) => { avgReadQps, avgWriteQps, peakQps, storageGb, servers }",
+          "args": "p: { dau, readsPerUserPerDay, writesPerUserPerDay, peakFactor, writeBytes, retentionDays, replicas, qpsPerServer }",
+          "returns": "各 QPS 与存储按向上取整；servers = ceil(peakQps / qpsPerServer)。",
+          "example": "estimateCapacity({ dau: 1e6, readsPerUserPerDay: 10, writesPerUserPerDay: 1, peakFactor: 3, writeBytes: 1000, retentionDays: 365, replicas: 3, qpsPerServer: 2000 })"
+        },
+        {
+          "name": "classifyConsistency / quorumPlan",
+          "sig": "classifyConsistency({ strongConsistency, multiRegion }) => { mode, reason }；quorumPlan(n, consistency) => { r, w, ok }",
+          "args": "consistency 取 \"strong\" 或 \"eventual\"；n 是副本数。",
+          "returns": "mode 为 CP/AP/CA；ok 表示 R+W>N 是否成立。",
+          "example": "classifyConsistency({ strongConsistency: true, multiRegion: true }).mode  // \"CP\"\nquorumPlan(3, \"strong\")  // { r: 2, w: 2, ok: true }"
+        },
+        {
+          "name": "createStore",
+          "sig": "createStore(mode) => { write(k, v), read(k), flush(), dbGet(k), stats() }",
+          "args": "mode 取 \"aside\" | \"write-through\" | \"write-behind\"。",
+          "returns": "模拟对象；stats 返回 { dbWrites, cacheHits, cacheMisses }。",
+          "example": "const s = createStore(\"write-behind\")\ns.write(\"k\", \"v2\")\ns.dbGet(\"k\")   // 旧值\ns.flush()\ns.dbGet(\"k\")   // \"v2\""
+        }
+      ],
+      "usage": "// 面试答题模板（容量估算）：\n//   1) 假设 DAU 与人均请求 → 平均 QPS\n//   2) 峰值系数 2~5 → 峰值 QPS\n//   3) 每条数据大小 × 写入量 × 保留期 × 副本 → 存储\n//   4) 单机承载（通常 1k~5k QPS 视业务）→ 机器数\n//   5) 留 30%~50% buffer，说明扩容方式",
+      "hints": [
+        "第 1 步：分母统一用 86400；峰值用原始浮点乘系数再 ceil（不要先 ceil 再乘）。",
+        "第 2 步：mode 只看 multiRegion 与 strongConsistency 两个布尔；quorum 的 majority = floor(n/2)+1。",
+        "第 3 步：aside 写「落库 + 删缓存」，write-through 写「落库 + 写缓存」，write-behind 只写缓存 + dirty 集合。"
+      ],
+      "concepts": [
+        {
+          "title": "估算里最容易漏的三项",
+          "md": "① 副本数（存储 ×N）；② 峰值系数（通常 2~5，直播/秒杀更高）；③ 索引与元数据开销（按 20%~50% 加）。\n\n还有一项常被忽略：**冷热分层**。真正要放内存的只有热数据（可能 5%~10%），其余落盘或对象存储，成本差一个数量级。"
+        },
+        {
+          "title": "缓存一致性为什么没有「完美方案」",
+          "md": "因为「更新数据库」和「失效缓存」是两个独立操作，中间必然有时间窗口；跨服务调用还可能失败。\n\n工程上的选择是「把窗口压到业务可接受」：延迟双删（删 → 延迟 → 再删）、订阅 binlog 异步失效、或干脆用 write-through 牺牲写性能换一致性。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "容量估算：从 DAU 推到机器数",
+          "think": "先分别算读写平均 QPS，再合并乘峰值系数；存储单独一条链。注意「先 ceil 再乘」会放大误差，要用原始值算完再 ceil。",
+          "hint": "peakQps 用未取整的平均值相加后乘 peakFactor；storageGb 除以 1024^3。",
+          "code": "function estimateCapacity(p) {\n  const avgReadQps = Math.ceil((p.dau * p.readsPerUserPerDay) / 86400)\n  const avgWriteQps = Math.ceil((p.dau * p.writesPerUserPerDay) / 86400)\n  const peakQps = Math.ceil(((p.dau * p.readsPerUserPerDay) / 86400 + (p.dau * p.writesPerUserPerDay) / 86400) * p.peakFactor)\n  const bytes = p.dau * p.writesPerUserPerDay * p.writeBytes * p.retentionDays * p.replicas\n  const storageGb = Math.ceil(bytes / (1024 * 1024 * 1024))\n  const servers = Math.ceil(peakQps / p.qpsPerServer)\n  return { avgReadQps, avgWriteQps, peakQps, storageGb, servers }\n}",
+          "test": "{\n  check('百万 DAU 的读写 QPS 与峰值', () => {\n    const r = estimateCapacity({\n      dau: 1000000, readsPerUserPerDay: 10, writesPerUserPerDay: 1,\n      peakFactor: 3, writeBytes: 1000, retentionDays: 365, replicas: 3, qpsPerServer: 2000\n    })\n    same(r.avgReadQps, 116, '1e6×10/86400=115.74 → 向上取整')\n    same(r.avgWriteQps, 12)\n    same(r.peakQps, 382, '峰值用未取整的平均值：(115.74+11.57)×3=381.9')\n  })\n  check('存储量按 DAU×写入×字节×天数×副本计算', () => {\n    const r = estimateCapacity({\n      dau: 1000000, readsPerUserPerDay: 0, writesPerUserPerDay: 1,\n      peakFactor: 1, writeBytes: 1000, retentionDays: 365, replicas: 3, qpsPerServer: 1000\n    })\n    same(r.storageGb, 1020, '1e6×1000×365×3 bytes ≈ 1019.8 GiB')\n  })\n  check('保留天数翻倍，存储翻倍', () => {\n    const base = { dau: 1024, readsPerUserPerDay: 0, writesPerUserPerDay: 1, peakFactor: 1, writeBytes: 1024 * 1024, retentionDays: 1024, replicas: 1, qpsPerServer: 1000 }\n    const a = estimateCapacity(base)\n    const b = estimateCapacity({ ...base, retentionDays: 2048 })\n    same(a.storageGb, 1024, '恰好 1 TiB')\n    same(b.storageGb, a.storageGb * 2)\n  })\n  check('单机 QPS 减半，机器数翻倍', () => {\n    const p = { dau: 8640000, readsPerUserPerDay: 1, writesPerUserPerDay: 0, peakFactor: 1, writeBytes: 0, retentionDays: 1, replicas: 1, qpsPerServer: 50 }\n    const a = estimateCapacity(p)\n    const b = estimateCapacity({ ...p, qpsPerServer: 25 })\n    same(a.avgReadQps, 100)\n    same(a.servers, 2)\n    same(b.servers, 4)\n  })\n  check('零写入的读密集场景存储为 0', () => {\n    const r = estimateCapacity({ dau: 1000, readsPerUserPerDay: 5, writesPerUserPerDay: 0, peakFactor: 2, writeBytes: 100, retentionDays: 30, replicas: 1, qpsPerServer: 100 })\n    same(r.storageGb, 0)\n    same(r.avgWriteQps, 0)\n  })\n}",
+          "diag": [
+            "平均值先 ceil 再相加乘峰值，峰值偏高（116+12=128×3=384 而不是 382）。",
+            "存储忘了乘副本数或保留天数。",
+            "servers 用平均 QPS 而不是峰值 QPS 算，机器数少一半。",
+            "storageGb 除以 1000^3（GB）却按 GiB 命名，结果偏大约 7%。",
+            "分母写成 864000（少一个 0），QPS 大 10 倍。"
+          ]
+        },
+        {
+          "n": 2,
+          "title": "CAP 判定与法定人数",
+          "think": "CAP 判定先看「有没有分区」（单地域没有），再看「业务能不能容忍陈旧」。法定人数就是一条不等式 R+W>N。",
+          "hint": "multiRegion 为 false 直接 CA；majority = Math.floor(n/2)+1。",
+          "code": "function estimateCapacity(p) {\n  const avgReadQps = Math.ceil((p.dau * p.readsPerUserPerDay) / 86400)\n  const avgWriteQps = Math.ceil((p.dau * p.writesPerUserPerDay) / 86400)\n  const peakQps = Math.ceil(((p.dau * p.readsPerUserPerDay) / 86400 + (p.dau * p.writesPerUserPerDay) / 86400) * p.peakFactor)\n  const bytes = p.dau * p.writesPerUserPerDay * p.writeBytes * p.retentionDays * p.replicas\n  const storageGb = Math.ceil(bytes / (1024 * 1024 * 1024))\n  const servers = Math.ceil(peakQps / p.qpsPerServer)\n  return { avgReadQps, avgWriteQps, peakQps, storageGb, servers }\n}\n\nfunction classifyConsistency(s) {\n  if (!s.multiRegion) {\n    return { mode: 'CA', reason: '单地域没有网络分区，一致性和可用性可以同时要' }\n  }\n  if (s.strongConsistency) {\n    return { mode: 'CP', reason: '强一致（转账/库存）在分区时宁可拒绝也不返回错数据' }\n  }\n  return { mode: 'AP', reason: '可容忍短时陈旧（feed/点赞/计数器），分区时优先保证可用' }\n}\n\nfunction quorumPlan(n, consistency) {\n  if (consistency === 'strong') {\n    const majority = Math.floor(n / 2) + 1\n    return { r: majority, w: majority, ok: majority + majority > n }\n  }\n  return { r: 1, w: 1, ok: 1 + 1 <= n }\n}",
+          "test": "{\n  check('多地域 + 强一致 → CP', () => {\n    const r = classifyConsistency({ strongConsistency: true, multiRegion: true })\n    same(r.mode, 'CP')\n  })\n  check('多地域 + 可容忍陈旧 → AP', () => {\n    const r = classifyConsistency({ strongConsistency: false, multiRegion: true })\n    same(r.mode, 'AP')\n  })\n  check('单地域不存在分区问题 → CA', () => {\n    same(classifyConsistency({ strongConsistency: true, multiRegion: false }).mode, 'CA')\n    same(classifyConsistency({ strongConsistency: false, multiRegion: false }).mode, 'CA')\n  })\n  check('强一致法定人数：n=3 时 R=W=2，R+W>N', () => {\n    const q = quorumPlan(3, 'strong')\n    same([q.r, q.w, q.ok], [2, 2, true])\n    const q5 = quorumPlan(5, 'strong')\n    same([q5.r, q5.w, q5.ok], [3, 3, true])\n  })\n  check('最终一致允许 R+W<=N（读写各 1 即可）', () => {\n    const q = quorumPlan(3, 'eventual')\n    same([q.r, q.w], [1, 1])\n  })\n}",
+          "diag": [
+            "单地域也返回 CP/AP（把 CAP 当成永远三选二）。",
+            "强一致与可陈旧的分支反了（可陈旧返回 CP）。",
+            "majority 用 Math.ceil(n/2)（n=3 时得 2 没问题，n=5 时得 3 也没问题，但 n=4 会错）。",
+            "quorum 的 ok 用 >= 而不是 >，R+W=N 被当成强一致。",
+            "最终一致也返回 majority，读写都要多数派，延迟高。"
+          ]
+        },
+        {
+          "n": 3,
+          "title": "三种缓存读写模式",
+          "think": "把「写」的三条路径和「读」的一条路径分开实现，再让 stats 计数。write-behind 的关键是 dirty 集合与 flush 时机。",
+          "hint": "aside 写：db.set + cache.delete；write-through：db.set + cache.set；write-behind：cache.set + dirty.add。",
+          "code": "function estimateCapacity(p) {\n  const avgReadQps = Math.ceil((p.dau * p.readsPerUserPerDay) / 86400)\n  const avgWriteQps = Math.ceil((p.dau * p.writesPerUserPerDay) / 86400)\n  const peakQps = Math.ceil(((p.dau * p.readsPerUserPerDay) / 86400 + (p.dau * p.writesPerUserPerDay) / 86400) * p.peakFactor)\n  const bytes = p.dau * p.writesPerUserPerDay * p.writeBytes * p.retentionDays * p.replicas\n  const storageGb = Math.ceil(bytes / (1024 * 1024 * 1024))\n  const servers = Math.ceil(peakQps / p.qpsPerServer)\n  return { avgReadQps, avgWriteQps, peakQps, storageGb, servers }\n}\n\nfunction classifyConsistency(s) {\n  if (!s.multiRegion) {\n    return { mode: 'CA', reason: '单地域没有网络分区，一致性和可用性可以同时要' }\n  }\n  if (s.strongConsistency) {\n    return { mode: 'CP', reason: '强一致（转账/库存）在分区时宁可拒绝也不返回错数据' }\n  }\n  return { mode: 'AP', reason: '可容忍短时陈旧（feed/点赞/计数器），分区时优先保证可用' }\n}\n\nfunction quorumPlan(n, consistency) {\n  if (consistency === 'strong') {\n    const majority = Math.floor(n / 2) + 1\n    return { r: majority, w: majority, ok: majority + majority > n }\n  }\n  return { r: 1, w: 1, ok: 1 + 1 <= n }\n}\n\nfunction createStore(mode) {\n  const db = new Map()\n  const cache = new Map()\n  const dirty = new Set()\n  const counters = { dbWrites: 0, cacheHits: 0, cacheMisses: 0 }\n\n  const write = (key, value) => {\n    if (mode === 'aside') {\n      db.set(key, value)\n      counters.dbWrites++\n      cache.delete(key)\n      return\n    }\n    if (mode === 'write-through') {\n      db.set(key, value)\n      counters.dbWrites++\n      cache.set(key, value)\n      return\n    }\n    cache.set(key, value)\n    dirty.add(key)\n  }\n\n  const read = (key) => {\n    if (cache.has(key)) {\n      counters.cacheHits++\n      return cache.get(key)\n    }\n    counters.cacheMisses++\n    const value = db.get(key)\n    if (value !== undefined) cache.set(key, value)\n    return value\n  }\n\n  const flush = () => {\n    for (const key of dirty) {\n      db.set(key, cache.get(key))\n      counters.dbWrites++\n    }\n    dirty.clear()\n    return counters.dbWrites\n  }\n\n  return {\n    write,\n    read,\n    flush,\n    dbGet: (key) => db.get(key),\n    stats: () => ({ dbWrites: counters.dbWrites, cacheHits: counters.cacheHits, cacheMisses: counters.cacheMisses })\n  }\n}",
+          "test": "{\n  check('cache-aside：未命中回填，二次读取命中', () => {\n    const s = createStore('aside')\n    same(s.read('u1'), undefined)\n    s.write('u1', 'alice')\n    same(s.read('u1'), 'alice')\n    same(s.read('u1'), 'alice')\n    same(s.stats(), { dbWrites: 1, cacheHits: 1, cacheMisses: 2 })\n  })\n  check('cache-aside：写后缓存失效，下一次读拿到新值', () => {\n    const s = createStore('aside')\n    s.write('k', 'v1')\n    s.read('k')\n    s.write('k', 'v2')\n    same(s.read('k'), 'v2')\n  })\n  check('write-through：写同时落库与缓存，读直接命中且是新值', () => {\n    const s = createStore('write-through')\n    s.write('k', 'v1')\n    same(s.read('k'), 'v1')\n    same(s.dbGet('k'), 'v1')\n    same(s.stats().dbWrites, 1)\n    same(s.stats().cacheHits, 1)\n  })\n  check('write-behind：先写缓存，flush 之前数据库还是旧值', () => {\n    const s = createStore('write-behind')\n    s.write('k', 'v1')\n    s.flush()\n    s.write('k', 'v2')\n    same(s.read('k'), 'v2', '缓存里是新值')\n    same(s.dbGet('k'), 'v1', '数据库还没收到 v2')\n    s.flush()\n    same(s.dbGet('k'), 'v2', 'flush 之后才落库')\n  })\n  check('三种模式的 dbWrites 计数不同', () => {\n    const aside = createStore('aside')\n    aside.write('a', 1); aside.write('b', 2)\n    const wt = createStore('write-through')\n    wt.write('a', 1); wt.write('b', 2)\n    const wb = createStore('write-behind')\n    wb.write('a', 1); wb.write('b', 2)\n    same(aside.stats().dbWrites, 2)\n    same(wt.stats().dbWrites, 2)\n    same(wb.stats().dbWrites, 0, '写回模式下写入发生在 flush')\n  })\n}",
+          "diag": [
+            "aside 写只更新库没删缓存，之后一直读到旧值。",
+            "write-through 只更新缓存没落库，宕机丢数据。",
+            "write-behind 在 write 时就落库了（退化成 write-through，失去批量优势）。",
+            "flush 之后没清 dirty，重复落库。",
+            "read 未命中回填时把 undefined 也写进缓存（缓存了「不存在」但没有 TTL）。"
+          ]
+        }
+      ],
+      "skeleton": "function estimateCapacity(p) {\n  // TODO: 平均读写 QPS、峰值、存储、机器数\n  throw new Error('estimateCapacity 还没实现')\n}\n\nfunction classifyConsistency(s) {\n  // TODO: 单地域 CA；多地域按 strongConsistency 分 CP/AP\n  throw new Error('classifyConsistency 还没实现')\n}\n\nfunction quorumPlan(n, consistency) {\n  // TODO: 强一致 majority；最终一致 1/1\n  throw new Error('quorumPlan 还没实现')\n}\n\nfunction createStore(mode) {\n  // TODO: aside / write-through / write-behind 三种读写路径 + flush\n  throw new Error('createStore 还没实现')\n}",
+      "solution": "function estimateCapacity(p) {\n  const avgReadQps = Math.ceil((p.dau * p.readsPerUserPerDay) / 86400)\n  const avgWriteQps = Math.ceil((p.dau * p.writesPerUserPerDay) / 86400)\n  const peakQps = Math.ceil(((p.dau * p.readsPerUserPerDay) / 86400 + (p.dau * p.writesPerUserPerDay) / 86400) * p.peakFactor)\n  const bytes = p.dau * p.writesPerUserPerDay * p.writeBytes * p.retentionDays * p.replicas\n  const storageGb = Math.ceil(bytes / (1024 * 1024 * 1024))\n  const servers = Math.ceil(peakQps / p.qpsPerServer)\n  return { avgReadQps, avgWriteQps, peakQps, storageGb, servers }\n}\n\nfunction classifyConsistency(s) {\n  if (!s.multiRegion) {\n    return { mode: 'CA', reason: '单地域没有网络分区，一致性和可用性可以同时要' }\n  }\n  if (s.strongConsistency) {\n    return { mode: 'CP', reason: '强一致（转账/库存）在分区时宁可拒绝也不返回错数据' }\n  }\n  return { mode: 'AP', reason: '可容忍短时陈旧（feed/点赞/计数器），分区时优先保证可用' }\n}\n\nfunction quorumPlan(n, consistency) {\n  if (consistency === 'strong') {\n    const majority = Math.floor(n / 2) + 1\n    return { r: majority, w: majority, ok: majority + majority > n }\n  }\n  return { r: 1, w: 1, ok: 1 + 1 <= n }\n}\n\nfunction createStore(mode) {\n  const db = new Map()\n  const cache = new Map()\n  const dirty = new Set()\n  const counters = { dbWrites: 0, cacheHits: 0, cacheMisses: 0 }\n\n  const write = (key, value) => {\n    if (mode === 'aside') {\n      db.set(key, value)\n      counters.dbWrites++\n      cache.delete(key)\n      return\n    }\n    if (mode === 'write-through') {\n      db.set(key, value)\n      counters.dbWrites++\n      cache.set(key, value)\n      return\n    }\n    cache.set(key, value)\n    dirty.add(key)\n  }\n\n  const read = (key) => {\n    if (cache.has(key)) {\n      counters.cacheHits++\n      return cache.get(key)\n    }\n    counters.cacheMisses++\n    const value = db.get(key)\n    if (value !== undefined) cache.set(key, value)\n    return value\n  }\n\n  const flush = () => {\n    for (const key of dirty) {\n      db.set(key, cache.get(key))\n      counters.dbWrites++\n    }\n    dirty.clear()\n    return counters.dbWrites\n  }\n\n  return {\n    write,\n    read,\n    flush,\n    dbGet: (key) => db.get(key),\n    stats: () => ({ dbWrites: counters.dbWrites, cacheHits: counters.cacheHits, cacheMisses: counters.cacheMisses })\n  }\n}",
+      "finalCode": "function estimateCapacity(p) {\n  const avgReadQps = Math.ceil((p.dau * p.readsPerUserPerDay) / 86400)\n  const avgWriteQps = Math.ceil((p.dau * p.writesPerUserPerDay) / 86400)\n  const peakQps = Math.ceil(((p.dau * p.readsPerUserPerDay) / 86400 + (p.dau * p.writesPerUserPerDay) / 86400) * p.peakFactor)\n  const bytes = p.dau * p.writesPerUserPerDay * p.writeBytes * p.retentionDays * p.replicas\n  const storageGb = Math.ceil(bytes / (1024 * 1024 * 1024))\n  const servers = Math.ceil(peakQps / p.qpsPerServer)\n  return { avgReadQps, avgWriteQps, peakQps, storageGb, servers }\n}\n\nfunction classifyConsistency(s) {\n  if (!s.multiRegion) {\n    return { mode: 'CA', reason: '单地域没有网络分区，一致性和可用性可以同时要' }\n  }\n  if (s.strongConsistency) {\n    return { mode: 'CP', reason: '强一致（转账/库存）在分区时宁可拒绝也不返回错数据' }\n  }\n  return { mode: 'AP', reason: '可容忍短时陈旧（feed/点赞/计数器），分区时优先保证可用' }\n}\n\nfunction quorumPlan(n, consistency) {\n  if (consistency === 'strong') {\n    const majority = Math.floor(n / 2) + 1\n    return { r: majority, w: majority, ok: majority + majority > n }\n  }\n  return { r: 1, w: 1, ok: 1 + 1 <= n }\n}\n\nfunction createStore(mode) {\n  const db = new Map()\n  const cache = new Map()\n  const dirty = new Set()\n  const counters = { dbWrites: 0, cacheHits: 0, cacheMisses: 0 }\n\n  const write = (key, value) => {\n    if (mode === 'aside') {\n      db.set(key, value)\n      counters.dbWrites++\n      cache.delete(key)\n      return\n    }\n    if (mode === 'write-through') {\n      db.set(key, value)\n      counters.dbWrites++\n      cache.set(key, value)\n      return\n    }\n    cache.set(key, value)\n    dirty.add(key)\n  }\n\n  const read = (key) => {\n    if (cache.has(key)) {\n      counters.cacheHits++\n      return cache.get(key)\n    }\n    counters.cacheMisses++\n    const value = db.get(key)\n    if (value !== undefined) cache.set(key, value)\n    return value\n  }\n\n  const flush = () => {\n    for (const key of dirty) {\n      db.set(key, cache.get(key))\n      counters.dbWrites++\n    }\n    dirty.clear()\n    return counters.dbWrites\n  }\n\n  return {\n    write,\n    read,\n    flush,\n    dbGet: (key) => db.get(key),\n    stats: () => ({ dbWrites: counters.dbWrites, cacheHits: counters.cacheHits, cacheMisses: counters.cacheMisses })\n  }\n}",
+      "tests": "{\n  check('百万 DAU 的读写 QPS 与峰值', () => {\n    const r = estimateCapacity({\n      dau: 1000000, readsPerUserPerDay: 10, writesPerUserPerDay: 1,\n      peakFactor: 3, writeBytes: 1000, retentionDays: 365, replicas: 3, qpsPerServer: 2000\n    })\n    same(r.avgReadQps, 116, '1e6×10/86400=115.74 → 向上取整')\n    same(r.avgWriteQps, 12)\n    same(r.peakQps, 382, '峰值用未取整的平均值：(115.74+11.57)×3=381.9')\n  })\n  check('存储量按 DAU×写入×字节×天数×副本计算', () => {\n    const r = estimateCapacity({\n      dau: 1000000, readsPerUserPerDay: 0, writesPerUserPerDay: 1,\n      peakFactor: 1, writeBytes: 1000, retentionDays: 365, replicas: 3, qpsPerServer: 1000\n    })\n    same(r.storageGb, 1020, '1e6×1000×365×3 bytes ≈ 1019.8 GiB')\n  })\n  check('保留天数翻倍，存储翻倍', () => {\n    const base = { dau: 1024, readsPerUserPerDay: 0, writesPerUserPerDay: 1, peakFactor: 1, writeBytes: 1024 * 1024, retentionDays: 1024, replicas: 1, qpsPerServer: 1000 }\n    const a = estimateCapacity(base)\n    const b = estimateCapacity({ ...base, retentionDays: 2048 })\n    same(a.storageGb, 1024, '恰好 1 TiB')\n    same(b.storageGb, a.storageGb * 2)\n  })\n  check('单机 QPS 减半，机器数翻倍', () => {\n    const p = { dau: 8640000, readsPerUserPerDay: 1, writesPerUserPerDay: 0, peakFactor: 1, writeBytes: 0, retentionDays: 1, replicas: 1, qpsPerServer: 50 }\n    const a = estimateCapacity(p)\n    const b = estimateCapacity({ ...p, qpsPerServer: 25 })\n    same(a.avgReadQps, 100)\n    same(a.servers, 2)\n    same(b.servers, 4)\n  })\n  check('零写入的读密集场景存储为 0', () => {\n    const r = estimateCapacity({ dau: 1000, readsPerUserPerDay: 5, writesPerUserPerDay: 0, peakFactor: 2, writeBytes: 100, retentionDays: 30, replicas: 1, qpsPerServer: 100 })\n    same(r.storageGb, 0)\n    same(r.avgWriteQps, 0)\n  })\n}\n{\n  check('多地域 + 强一致 → CP', () => {\n    const r = classifyConsistency({ strongConsistency: true, multiRegion: true })\n    same(r.mode, 'CP')\n  })\n  check('多地域 + 可容忍陈旧 → AP', () => {\n    const r = classifyConsistency({ strongConsistency: false, multiRegion: true })\n    same(r.mode, 'AP')\n  })\n  check('单地域不存在分区问题 → CA', () => {\n    same(classifyConsistency({ strongConsistency: true, multiRegion: false }).mode, 'CA')\n    same(classifyConsistency({ strongConsistency: false, multiRegion: false }).mode, 'CA')\n  })\n  check('强一致法定人数：n=3 时 R=W=2，R+W>N', () => {\n    const q = quorumPlan(3, 'strong')\n    same([q.r, q.w, q.ok], [2, 2, true])\n    const q5 = quorumPlan(5, 'strong')\n    same([q5.r, q5.w, q5.ok], [3, 3, true])\n  })\n  check('最终一致允许 R+W<=N（读写各 1 即可）', () => {\n    const q = quorumPlan(3, 'eventual')\n    same([q.r, q.w], [1, 1])\n  })\n}\n{\n  check('cache-aside：未命中回填，二次读取命中', () => {\n    const s = createStore('aside')\n    same(s.read('u1'), undefined)\n    s.write('u1', 'alice')\n    same(s.read('u1'), 'alice')\n    same(s.read('u1'), 'alice')\n    same(s.stats(), { dbWrites: 1, cacheHits: 1, cacheMisses: 2 })\n  })\n  check('cache-aside：写后缓存失效，下一次读拿到新值', () => {\n    const s = createStore('aside')\n    s.write('k', 'v1')\n    s.read('k')\n    s.write('k', 'v2')\n    same(s.read('k'), 'v2')\n  })\n  check('write-through：写同时落库与缓存，读直接命中且是新值', () => {\n    const s = createStore('write-through')\n    s.write('k', 'v1')\n    same(s.read('k'), 'v1')\n    same(s.dbGet('k'), 'v1')\n    same(s.stats().dbWrites, 1)\n    same(s.stats().cacheHits, 1)\n  })\n  check('write-behind：先写缓存，flush 之前数据库还是旧值', () => {\n    const s = createStore('write-behind')\n    s.write('k', 'v1')\n    s.flush()\n    s.write('k', 'v2')\n    same(s.read('k'), 'v2', '缓存里是新值')\n    same(s.dbGet('k'), 'v1', '数据库还没收到 v2')\n    s.flush()\n    same(s.dbGet('k'), 'v2', 'flush 之后才落库')\n  })\n  check('三种模式的 dbWrites 计数不同', () => {\n    const aside = createStore('aside')\n    aside.write('a', 1); aside.write('b', 2)\n    const wt = createStore('write-through')\n    wt.write('a', 1); wt.write('b', 2)\n    const wb = createStore('write-behind')\n    wb.write('a', 1); wb.write('b', 2)\n    same(aside.stats().dbWrites, 2)\n    same(wt.stats().dbWrites, 2)\n    same(wb.stats().dbWrites, 0, '写回模式下写入发生在 flush')\n  })\n}"
+    },
+    {
+      "id": "lv4",
+      "title": "缓存防护、分片与 ID：三个必答的工程题",
+      "emoji": "🛡️",
+      "xp": 50,
+      "goal": "实现 guardPlan/addJitter（缓存穿透/击穿/雪崩的策略与 TTL 抖动）、shardOf/createRing（取模 vs 一致性哈希）、createSnowflake/routeQuery（雪花 ID 与读写分离路由）。",
+      "why": "「缓存怎么防穿透」「分片怎么扩容」「分布式 ID 怎么生成」是后端面试的三道必答题。它们的共同点是：**答案不难，难在说清楚代价**。布隆过滤器有误判，一致性哈希有数据倾斜，雪花 ID 依赖时钟，读写分离有一致性延迟。这个关卡把每种方案的代价都做成可断言的行为。",
+      "nodes": [
+        "cs.design.cache.problems",
+        "cs.design.sharding",
+        "cs.design.sharding.id-gen",
+        "cs.design.sharding.readwrite"
+      ],
+      "thinking": [
+        {
+          "title": "三大缓存问题的区分点",
+          "md": "**穿透**：查不存在的数据，请求直接打到库（恶意攻击）。解法是布隆过滤器提前拦截 + 空值缓存。\n**击穿**：热点 key 过期瞬间，大量请求同时打库。解法是互斥锁/单飞，只让一个请求回源。\n**雪崩**：大量 key 同时过期或缓存集群挂掉。解法是 TTL 抖动 + 多级缓存 + 熔断降级。\n\n三个问题的共同结果是「请求打穿到数据库」，但触发条件不同，所以解法不能互换。"
+        },
+        {
+          "title": "为什么取模分片扩缩容会迁移大量数据",
+          "md": "`hash % n` 在 n 变化时，几乎所有 key 的余数都会变。3 → 4 大约迁移 2/3 的数据。\n\n一致性哈希把「取模」换成「环上找后继」，加一个节点只影响它和前一个节点之间的区间，理论迁移量是 1/n。代价是实现复杂、需要虚拟节点解决数据倾斜。"
+        },
+        {
+          "title": "雪花 ID 的三段结构与时钟依赖",
+          "md": "`时间戳 | 机器号 | 序列号`：时间戳保证趋势递增，机器号防冲突，序列号撑同毫秒并发（12 位 = 4096/ms）。\n\n它的代价是**强依赖时钟**：时钟回拨会产生重复 ID。工程上要么等待回拨恢复，要么用「历史最大时间戳」兜底，要么换号段模式（Leaf-segment）。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "布隆过滤器为什么会误判",
+          "md": "多个哈希函数映射到位数组，判断「不存在」是准确的（位为 0 一定不存在），判断「存在」可能误判（位被别的 key 置 1 了）。\n\n所以布隆过滤器只能挡「确定不存在」的请求，挡不住误判的那部分——它降低穿透比例，但不能完全消除。"
+        },
+        {
+          "title": "一致性哈希的数据倾斜与虚拟节点",
+          "md": "节点少时，环上的区间大小不均，导致某个节点承载过多 key。虚拟节点让每个物理节点在环上占多个位置，区间被切得更碎，分布更均匀。\n\n本关测试用「最大最小桶差」来衡量均匀度：虚拟节点从 1 增加到 80，差值应该明显变小。"
+        },
+        {
+          "title": "读写分离的一致性延迟从哪来",
+          "md": "主库写成功后，binlog 异步传到从库再重放，中间有毫秒到秒级延迟。这期间读从库会读到旧值。\n\n解决：写后短时间内的读强制走主库（会话粘滞）、或等待从库位点追上（semi-sync）、或对强一致读加 `preferPrimary`。"
+        }
+      ],
+      "api": [
+        {
+          "name": "guardPlan / addJitter",
+          "sig": "guardPlan(problem) => string[]；addJitter(ttlMs, ratio, rand) => number",
+          "args": "problem 取 \"penetration\" | \"breakdown\" | \"avalanche\"；ratio 是抖动比例，rand ∈ [0, 1)。",
+          "returns": "策略名数组；抖动后的 TTL。",
+          "example": "guardPlan(\"breakdown\")        // [\"singleflight\", ...]\naddJitter(1000, 0.2, 0.5)     // 1000"
+        },
+        {
+          "name": "shardOf / createRing",
+          "sig": "shardOf(key, shards) => number；createRing(nodes, vnodes) => { locate(key), nodes() }",
+          "args": "shards 是分片数；nodes 是节点名数组；vnodes 是每个节点的虚拟节点数。",
+          "returns": "分片下标；环对象。",
+          "example": "shardOf(\"user:42\", 8)  // 0..7\ncreateRing([\"a\",\"b\",\"c\"], 50).locate(\"k1\")  // \"a\"/\"b\"/\"c\""
+        },
+        {
+          "name": "createSnowflake / routeQuery",
+          "sig": "createSnowflake({ workerId, now }) => { next(), parse(id) }；routeQuery(query) => { target, reason }",
+          "args": "now 是返回毫秒时间戳的函数（便于测试）；query: { sql, preferPrimary?, replicaHealthy? }。",
+          "returns": "next 返回 { ms, workerId, seq, id }；routeQuery 返回 primary/replica。",
+          "example": "createSnowflake({ workerId: 1, now: () => 100 }).next().id  // \"100-1-0\""
+        }
+      ],
+      "usage": "// 排查线上缓存问题的话术：\n//   QPS 打满 + 大量空结果 → 穿透，看布隆过滤器是否漏配\n//   某个热点 key 过期瞬间 RT 飙升 → 击穿，看是否用了 singleflight\n//   整点大量 key 同时失效 → 雪崩，看 TTL 是否加了抖动",
+      "hints": [
+        "第 1 步：策略表用对象映射；addJitter 的 factor = 1 - ratio + rand*ratio*2。",
+        "第 2 步：fnv1a 用 Math.imul 防溢出；环上用二分找第一个 >= hash 的点。",
+        "第 3 步：雪花同毫秒 seq+1，溢出时 ms+1；routeQuery 先判写操作再判读偏好。"
+      ],
+      "concepts": [
+        {
+          "title": "为什么缓存要「删」而不是「更新」",
+          "md": "cache-aside 下如果写时更新缓存，两个并发写可能以错误顺序落缓存（后到的写反而先更新），留下脏数据。\n\n删缓存把「值」的竞争变成「失效」的竞争，最终由下一次读回源统一——代价是那次读会 miss。所以「删」比「更新」更安全，但要多一次回源。"
+        },
+        {
+          "title": "号段模式 vs 雪花模式",
+          "md": "雪花：本地生成、趋势递增、无需网络，但依赖时钟且 ID 较长（64 位）。\n号段（Leaf-segment）：从数据库取一个区间（如 1000 个）缓存在内存，用完再取，不依赖时钟，但依赖 DB 且 ID 不连续。\n\n美团 Leaf、百度 UidGenerator 都是这两种思路的组合。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "三大问题的策略与 TTL 抖动",
+          "think": "先把「问题 → 策略」的映射写对（这是面试口径），再实现抖动函数：TTL 在 ±ratio 区间内随机，避免同一时刻集体过期。",
+          "hint": "factor = 1 - ratio + rand * ratio * 2；rand=0 取下界，rand=0.5 取原值，rand→1 取上界。",
+          "code": "const GUARD_TABLE = {\n  penetration: ['bloom-filter', 'null-cache', 'request-validate'],\n  breakdown: ['singleflight', 'mutex-lock', 'hot-key-never-expire'],\n  avalanche: ['ttl-jitter', 'multi-level-cache', 'circuit-breaker', 'warm-up']\n}\n\nfunction guardPlan(problem) {\n  const plan = GUARD_TABLE[problem]\n  if (!plan) throw new Error('未知的缓存问题: ' + problem)\n  return plan.slice()\n}\n\nfunction addJitter(ttlMs, ratio, rand) {\n  const factor = 1 - ratio + rand * ratio * 2\n  return Math.round(ttlMs * factor)\n}",
+          "test": "{\n  check('缓存穿透：布隆过滤器 + 空值缓存', () => {\n    const plan = guardPlan('penetration')\n    ok(plan.includes('bloom-filter'))\n    ok(plan.includes('null-cache'))\n  })\n  check('缓存击穿：singleflight / 互斥锁', () => {\n    const plan = guardPlan('breakdown')\n    ok(plan.includes('singleflight'))\n    ok(plan.includes('mutex-lock'))\n  })\n  check('缓存雪崩：TTL 抖动 + 多级缓存 + 熔断', () => {\n    const plan = guardPlan('avalanche')\n    ok(plan.includes('ttl-jitter'))\n    ok(plan.includes('multi-level-cache'))\n    ok(plan.includes('circuit-breaker'))\n  })\n  check('addJitter 在 [ttl×(1-ratio), ttl×(1+ratio)] 内抖动', () => {\n    same(addJitter(1000, 0.2, 0), 800)\n    same(addJitter(1000, 0.2, 0.5), 1000)\n    same(addJitter(1000, 0.2, 0.999), 1200)\n  })\n  check('未知的缓存问题要抛错（不能静默返回空策略）', () => {\n    throws(() => guardPlan('unknown'))\n  })\n}",
+          "diag": [
+            "把穿透和击穿的策略写反（穿透给 mutex，击穿给布隆过滤器）。",
+            "雪崩漏了 ttl-jitter（最常见的一条）。",
+            "addJitter 只加不减（TTL 永远变长），过期时间不再分散在两侧。",
+            "抖动用了 Math.random 而不是注入的 rand，测试不可复现。",
+            "未知问题返回空数组而不是抛错，调用方会静默失效。"
+          ]
+        },
+        {
+          "n": 2,
+          "title": "取模分片与一致性哈希",
+          "think": "先实现一个稳定的字符串哈希（FNV-1a），再分别做取模和环。环的关键是「二分找第一个 >= hash 的点，找不到就回到 0」。",
+          "hint": "Math.imul(hash, 0x01000193) 保证 32 位乘法不溢出；points 排序后二分。",
+          "code": "const GUARD_TABLE = {\n  penetration: ['bloom-filter', 'null-cache', 'request-validate'],\n  breakdown: ['singleflight', 'mutex-lock', 'hot-key-never-expire'],\n  avalanche: ['ttl-jitter', 'multi-level-cache', 'circuit-breaker', 'warm-up']\n}\n\nfunction guardPlan(problem) {\n  const plan = GUARD_TABLE[problem]\n  if (!plan) throw new Error('未知的缓存问题: ' + problem)\n  return plan.slice()\n}\n\nfunction addJitter(ttlMs, ratio, rand) {\n  const factor = 1 - ratio + rand * ratio * 2\n  return Math.round(ttlMs * factor)\n}\n\nfunction fnv1a(str) {\n  let hash = 0x811c9dc5\n  for (let i = 0; i < str.length; i++) {\n    hash ^= str.charCodeAt(i)\n    hash = Math.imul(hash, 0x01000193) >>> 0\n  }\n  return hash >>> 0\n}\n\nfunction shardOf(key, shards) {\n  return fnv1a(key) % shards\n}\n\nfunction createRing(nodes, vnodes) {\n  const points = []\n  for (const node of nodes) {\n    for (let i = 0; i < vnodes; i++) {\n      points.push({ hash: fnv1a(node + '#' + i), node })\n    }\n  }\n  points.sort((a, b) => a.hash - b.hash)\n\n  return {\n    locate(key) {\n      const hash = fnv1a(key)\n      let lo = 0\n      let hi = points.length\n      while (lo < hi) {\n        const mid = (lo + hi) >> 1\n        if (points[mid].hash < hash) lo = mid + 1\n        else hi = mid\n      }\n      return points[lo % points.length].node\n    },\n    nodes() { return points.map((p) => p.node) }\n  }\n}",
+          "test": "{\n  check('取模分片：结果稳定且在范围内', () => {\n    const a = shardOf('user:42', 8)\n    same(a, shardOf('user:42', 8))\n    ok(a >= 0 && a < 8)\n  })\n  check('取模扩缩容：节点数变化时大部分 key 迁移', () => {\n    const keys = []\n    for (let i = 0; i < 300; i++) keys.push('k' + i)\n    let moved = 0\n    for (const k of keys) if (shardOf(k, 3) !== shardOf(k, 4)) moved++\n    ok(moved > 150, '取模扩容通常迁移 50% 以上，实际 ' + moved + ' / 300')\n  })\n  check('一致性哈希：加节点只迁移一部分 key', () => {\n    const before = createRing(['a', 'b', 'c'], 50)\n    const after = createRing(['a', 'b', 'c', 'd'], 50)\n    let moved = 0\n    for (let i = 0; i < 300; i++) {\n      const k = 'k' + i\n      if (before.locate(k) !== after.locate(k)) moved++\n    }\n    ok(moved > 0 && moved < 120, '理论上约 1/4 迁移，实际 ' + moved + ' / 300')\n  })\n  check('同一个 key 在环上定位稳定', () => {\n    const ring = createRing(['n1', 'n2', 'n3'], 20)\n    same(ring.locate('order:1001'), ring.locate('order:1001'))\n  })\n  check('虚拟节点让分布更均匀', () => {\n    const count = (vnodes) => {\n      const ring = createRing(['n1', 'n2', 'n3'], vnodes)\n      const bucket = { n1: 0, n2: 0, n3: 0 }\n      for (let i = 0; i < 600; i++) bucket[ring.locate('k' + i)]++\n      return [bucket.n1, bucket.n2, bucket.n3]\n    }\n    const few = count(1)\n    const many = count(80)\n    const spread = (arr) => Math.max.apply(null, arr) - Math.min.apply(null, arr)\n    ok(spread(many) < spread(few), '虚拟节点多时分布更均匀：' + spread(few) + ' → ' + spread(many))\n  })\n}",
+          "diag": [
+            "哈希直接用 charCodeAt 相加，分布严重不均且碰撞高。",
+            "乘法用 * 而不是 Math.imul，超过 2^53 后精度丢失。",
+            "环定位找不到时返回 undefined 而不是绕回第一个点。",
+            "虚拟节点哈希用同一个值（node 不带 #i），所有虚拟节点重合。",
+            "二分条件写成 <= 导致命中点被跳过。"
+          ]
+        },
+        {
+          "n": 3,
+          "title": "雪花 ID 与读写分离路由",
+          "think": "雪花的关键是「同毫秒 seq++、溢出时借用下一毫秒」；路由的关键是「写一定走主库、读默认走从库但可降级」。",
+          "hint": "seq = (seq + 1) & 0xfff；seq 归 0 时 lastMs+1；routeQuery 先判 insert/update/delete。",
+          "code": "const GUARD_TABLE = {\n  penetration: ['bloom-filter', 'null-cache', 'request-validate'],\n  breakdown: ['singleflight', 'mutex-lock', 'hot-key-never-expire'],\n  avalanche: ['ttl-jitter', 'multi-level-cache', 'circuit-breaker', 'warm-up']\n}\n\nfunction guardPlan(problem) {\n  const plan = GUARD_TABLE[problem]\n  if (!plan) throw new Error('未知的缓存问题: ' + problem)\n  return plan.slice()\n}\n\nfunction addJitter(ttlMs, ratio, rand) {\n  const factor = 1 - ratio + rand * ratio * 2\n  return Math.round(ttlMs * factor)\n}\n\nfunction fnv1a(str) {\n  let hash = 0x811c9dc5\n  for (let i = 0; i < str.length; i++) {\n    hash ^= str.charCodeAt(i)\n    hash = Math.imul(hash, 0x01000193) >>> 0\n  }\n  return hash >>> 0\n}\n\nfunction shardOf(key, shards) {\n  return fnv1a(key) % shards\n}\n\nfunction createRing(nodes, vnodes) {\n  const points = []\n  for (const node of nodes) {\n    for (let i = 0; i < vnodes; i++) {\n      points.push({ hash: fnv1a(node + '#' + i), node })\n    }\n  }\n  points.sort((a, b) => a.hash - b.hash)\n\n  return {\n    locate(key) {\n      const hash = fnv1a(key)\n      let lo = 0\n      let hi = points.length\n      while (lo < hi) {\n        const mid = (lo + hi) >> 1\n        if (points[mid].hash < hash) lo = mid + 1\n        else hi = mid\n      }\n      return points[lo % points.length].node\n    },\n    nodes() { return points.map((p) => p.node) }\n  }\n}\n\nfunction createSnowflake(opts) {\n  const workerId = opts.workerId\n  const now = opts.now || (() => 0)\n  let lastMs = -1\n  let seq = 0\n\n  return {\n    next() {\n      const ms = now()\n      if (ms === lastMs) {\n        seq = (seq + 1) & 0xfff\n        if (seq === 0) {\n          lastMs = ms + 1\n          return { ms: lastMs, workerId, seq: 0, id: lastMs + '-' + workerId + '-0' }\n        }\n      } else {\n        seq = 0\n        lastMs = ms\n      }\n      return { ms, workerId, seq, id: ms + '-' + workerId + '-' + seq }\n    },\n    parse(id) {\n      const parts = String(id).split('-')\n      return { ms: Number(parts[0]), workerId: Number(parts[1]), seq: Number(parts[2]) }\n    }\n  }\n}\n\nfunction routeQuery(query) {\n  const sql = String(query.sql || '').trim().toLowerCase()\n  const isWrite = /^(insert|update|delete|replace)/.test(sql)\n  if (isWrite) return { target: 'primary', reason: '写操作必须走主库' }\n  if (query.preferPrimary) return { target: 'primary', reason: '要求强一致读，绕过从库延迟' }\n  if (query.replicaHealthy === false) return { target: 'primary', reason: '从库不可用，降级到主库' }\n  return { target: 'replica', reason: '普通读走从库分担压力' }\n}",
+          "test": "{\n  check('雪花 ID：时钟前进时序号归零', () => {\n    let t = 1000\n    const sf = createSnowflake({ workerId: 7, now: () => t })\n    const a = sf.next()\n    t = 1001\n    const b = sf.next()\n    same([a.ms, a.seq], [1000, 0])\n    same([b.ms, b.seq], [1001, 0])\n  })\n  check('雪花 ID：同一毫秒内序号递增', () => {\n    const sf = createSnowflake({ workerId: 3, now: () => 5000 })\n    const a = sf.next()\n    const b = sf.next()\n    const c = sf.next()\n    same([a.seq, b.seq, c.seq], [0, 1, 2])\n    same(a.ms, b.ms)\n  })\n  check('雪花 ID：可以从 id 解析回时间戳与机器号', () => {\n    let t = 777\n    const sf = createSnowflake({ workerId: 12, now: () => t })\n    const one = sf.next()\n    const parsed = sf.parse(one.id)\n    same([parsed.ms, parsed.workerId, parsed.seq], [777, 12, 0])\n  })\n  check('雪花 ID：不同机器号在同一毫秒不冲突', () => {\n    const a = createSnowflake({ workerId: 1, now: () => 100 })\n    const b = createSnowflake({ workerId: 2, now: () => 100 })\n    notSame(a.next().id, b.next().id)\n  })\n  check('读写分离：写走主库，读走从库，从库故障回主库', () => {\n    same(routeQuery({ sql: 'insert into t values (1)' }).target, 'primary')\n    same(routeQuery({ sql: 'update t set x=1' }).target, 'primary')\n    same(routeQuery({ sql: 'select * from t' }).target, 'replica')\n    same(routeQuery({ sql: 'select * from t', preferPrimary: true }).target, 'primary')\n    same(routeQuery({ sql: 'select * from t', replicaHealthy: false }).target, 'primary')\n  })\n}",
+          "diag": [
+            "同毫秒没有 seq++，同一毫秒内生成重复 ID。",
+            "seq 溢出后没有推进毫秒，直接归零造成重复。",
+            "id 拼接顺序与 parse 不一致（ms/worker/seq 错位）。",
+            "routeQuery 只匹配 select 前缀，with/explain 等读语句被当成写。",
+            "从库故障时没有降级到主库，读请求全部失败。"
+          ]
+        }
+      ],
+      "skeleton": "function guardPlan(problem) {\n  // TODO: penetration/breakdown/avalanche 三张策略表\n  throw new Error('guardPlan 还没实现')\n}\n\nfunction addJitter(ttlMs, ratio, rand) {\n  // TODO: TTL 在 ±ratio 内抖动\n  throw new Error('addJitter 还没实现')\n}\n\nfunction shardOf(key, shards) {\n  // TODO: 稳定哈希后取模\n  throw new Error('shardOf 还没实现')\n}\n\nfunction createRing(nodes, vnodes) {\n  // TODO: 虚拟节点 + 排序 + 二分定位\n  throw new Error('createRing 还没实现')\n}\n\nfunction createSnowflake(opts) {\n  // TODO: 时间戳 + 机器号 + 序列号\n  throw new Error('createSnowflake 还没实现')\n}\n\nfunction routeQuery(query) {\n  // TODO: 写走主库；读走从库，可降级\n  throw new Error('routeQuery 还没实现')\n}",
+      "solution": "const GUARD_TABLE = {\n  penetration: ['bloom-filter', 'null-cache', 'request-validate'],\n  breakdown: ['singleflight', 'mutex-lock', 'hot-key-never-expire'],\n  avalanche: ['ttl-jitter', 'multi-level-cache', 'circuit-breaker', 'warm-up']\n}\n\nfunction guardPlan(problem) {\n  const plan = GUARD_TABLE[problem]\n  if (!plan) throw new Error('未知的缓存问题: ' + problem)\n  return plan.slice()\n}\n\nfunction addJitter(ttlMs, ratio, rand) {\n  const factor = 1 - ratio + rand * ratio * 2\n  return Math.round(ttlMs * factor)\n}\n\nfunction fnv1a(str) {\n  let hash = 0x811c9dc5\n  for (let i = 0; i < str.length; i++) {\n    hash ^= str.charCodeAt(i)\n    hash = Math.imul(hash, 0x01000193) >>> 0\n  }\n  return hash >>> 0\n}\n\nfunction shardOf(key, shards) {\n  return fnv1a(key) % shards\n}\n\nfunction createRing(nodes, vnodes) {\n  const points = []\n  for (const node of nodes) {\n    for (let i = 0; i < vnodes; i++) {\n      points.push({ hash: fnv1a(node + '#' + i), node })\n    }\n  }\n  points.sort((a, b) => a.hash - b.hash)\n\n  return {\n    locate(key) {\n      const hash = fnv1a(key)\n      let lo = 0\n      let hi = points.length\n      while (lo < hi) {\n        const mid = (lo + hi) >> 1\n        if (points[mid].hash < hash) lo = mid + 1\n        else hi = mid\n      }\n      return points[lo % points.length].node\n    },\n    nodes() { return points.map((p) => p.node) }\n  }\n}\n\nfunction createSnowflake(opts) {\n  const workerId = opts.workerId\n  const now = opts.now || (() => 0)\n  let lastMs = -1\n  let seq = 0\n\n  return {\n    next() {\n      const ms = now()\n      if (ms === lastMs) {\n        seq = (seq + 1) & 0xfff\n        if (seq === 0) {\n          lastMs = ms + 1\n          return { ms: lastMs, workerId, seq: 0, id: lastMs + '-' + workerId + '-0' }\n        }\n      } else {\n        seq = 0\n        lastMs = ms\n      }\n      return { ms, workerId, seq, id: ms + '-' + workerId + '-' + seq }\n    },\n    parse(id) {\n      const parts = String(id).split('-')\n      return { ms: Number(parts[0]), workerId: Number(parts[1]), seq: Number(parts[2]) }\n    }\n  }\n}\n\nfunction routeQuery(query) {\n  const sql = String(query.sql || '').trim().toLowerCase()\n  const isWrite = /^(insert|update|delete|replace)/.test(sql)\n  if (isWrite) return { target: 'primary', reason: '写操作必须走主库' }\n  if (query.preferPrimary) return { target: 'primary', reason: '要求强一致读，绕过从库延迟' }\n  if (query.replicaHealthy === false) return { target: 'primary', reason: '从库不可用，降级到主库' }\n  return { target: 'replica', reason: '普通读走从库分担压力' }\n}",
+      "finalCode": "const GUARD_TABLE = {\n  penetration: ['bloom-filter', 'null-cache', 'request-validate'],\n  breakdown: ['singleflight', 'mutex-lock', 'hot-key-never-expire'],\n  avalanche: ['ttl-jitter', 'multi-level-cache', 'circuit-breaker', 'warm-up']\n}\n\nfunction guardPlan(problem) {\n  const plan = GUARD_TABLE[problem]\n  if (!plan) throw new Error('未知的缓存问题: ' + problem)\n  return plan.slice()\n}\n\nfunction addJitter(ttlMs, ratio, rand) {\n  const factor = 1 - ratio + rand * ratio * 2\n  return Math.round(ttlMs * factor)\n}\n\nfunction fnv1a(str) {\n  let hash = 0x811c9dc5\n  for (let i = 0; i < str.length; i++) {\n    hash ^= str.charCodeAt(i)\n    hash = Math.imul(hash, 0x01000193) >>> 0\n  }\n  return hash >>> 0\n}\n\nfunction shardOf(key, shards) {\n  return fnv1a(key) % shards\n}\n\nfunction createRing(nodes, vnodes) {\n  const points = []\n  for (const node of nodes) {\n    for (let i = 0; i < vnodes; i++) {\n      points.push({ hash: fnv1a(node + '#' + i), node })\n    }\n  }\n  points.sort((a, b) => a.hash - b.hash)\n\n  return {\n    locate(key) {\n      const hash = fnv1a(key)\n      let lo = 0\n      let hi = points.length\n      while (lo < hi) {\n        const mid = (lo + hi) >> 1\n        if (points[mid].hash < hash) lo = mid + 1\n        else hi = mid\n      }\n      return points[lo % points.length].node\n    },\n    nodes() { return points.map((p) => p.node) }\n  }\n}\n\nfunction createSnowflake(opts) {\n  const workerId = opts.workerId\n  const now = opts.now || (() => 0)\n  let lastMs = -1\n  let seq = 0\n\n  return {\n    next() {\n      const ms = now()\n      if (ms === lastMs) {\n        seq = (seq + 1) & 0xfff\n        if (seq === 0) {\n          lastMs = ms + 1\n          return { ms: lastMs, workerId, seq: 0, id: lastMs + '-' + workerId + '-0' }\n        }\n      } else {\n        seq = 0\n        lastMs = ms\n      }\n      return { ms, workerId, seq, id: ms + '-' + workerId + '-' + seq }\n    },\n    parse(id) {\n      const parts = String(id).split('-')\n      return { ms: Number(parts[0]), workerId: Number(parts[1]), seq: Number(parts[2]) }\n    }\n  }\n}\n\nfunction routeQuery(query) {\n  const sql = String(query.sql || '').trim().toLowerCase()\n  const isWrite = /^(insert|update|delete|replace)/.test(sql)\n  if (isWrite) return { target: 'primary', reason: '写操作必须走主库' }\n  if (query.preferPrimary) return { target: 'primary', reason: '要求强一致读，绕过从库延迟' }\n  if (query.replicaHealthy === false) return { target: 'primary', reason: '从库不可用，降级到主库' }\n  return { target: 'replica', reason: '普通读走从库分担压力' }\n}",
+      "tests": "{\n  check('缓存穿透：布隆过滤器 + 空值缓存', () => {\n    const plan = guardPlan('penetration')\n    ok(plan.includes('bloom-filter'))\n    ok(plan.includes('null-cache'))\n  })\n  check('缓存击穿：singleflight / 互斥锁', () => {\n    const plan = guardPlan('breakdown')\n    ok(plan.includes('singleflight'))\n    ok(plan.includes('mutex-lock'))\n  })\n  check('缓存雪崩：TTL 抖动 + 多级缓存 + 熔断', () => {\n    const plan = guardPlan('avalanche')\n    ok(plan.includes('ttl-jitter'))\n    ok(plan.includes('multi-level-cache'))\n    ok(plan.includes('circuit-breaker'))\n  })\n  check('addJitter 在 [ttl×(1-ratio), ttl×(1+ratio)] 内抖动', () => {\n    same(addJitter(1000, 0.2, 0), 800)\n    same(addJitter(1000, 0.2, 0.5), 1000)\n    same(addJitter(1000, 0.2, 0.999), 1200)\n  })\n  check('未知的缓存问题要抛错（不能静默返回空策略）', () => {\n    throws(() => guardPlan('unknown'))\n  })\n}\n{\n  check('取模分片：结果稳定且在范围内', () => {\n    const a = shardOf('user:42', 8)\n    same(a, shardOf('user:42', 8))\n    ok(a >= 0 && a < 8)\n  })\n  check('取模扩缩容：节点数变化时大部分 key 迁移', () => {\n    const keys = []\n    for (let i = 0; i < 300; i++) keys.push('k' + i)\n    let moved = 0\n    for (const k of keys) if (shardOf(k, 3) !== shardOf(k, 4)) moved++\n    ok(moved > 150, '取模扩容通常迁移 50% 以上，实际 ' + moved + ' / 300')\n  })\n  check('一致性哈希：加节点只迁移一部分 key', () => {\n    const before = createRing(['a', 'b', 'c'], 50)\n    const after = createRing(['a', 'b', 'c', 'd'], 50)\n    let moved = 0\n    for (let i = 0; i < 300; i++) {\n      const k = 'k' + i\n      if (before.locate(k) !== after.locate(k)) moved++\n    }\n    ok(moved > 0 && moved < 120, '理论上约 1/4 迁移，实际 ' + moved + ' / 300')\n  })\n  check('同一个 key 在环上定位稳定', () => {\n    const ring = createRing(['n1', 'n2', 'n3'], 20)\n    same(ring.locate('order:1001'), ring.locate('order:1001'))\n  })\n  check('虚拟节点让分布更均匀', () => {\n    const count = (vnodes) => {\n      const ring = createRing(['n1', 'n2', 'n3'], vnodes)\n      const bucket = { n1: 0, n2: 0, n3: 0 }\n      for (let i = 0; i < 600; i++) bucket[ring.locate('k' + i)]++\n      return [bucket.n1, bucket.n2, bucket.n3]\n    }\n    const few = count(1)\n    const many = count(80)\n    const spread = (arr) => Math.max.apply(null, arr) - Math.min.apply(null, arr)\n    ok(spread(many) < spread(few), '虚拟节点多时分布更均匀：' + spread(few) + ' → ' + spread(many))\n  })\n}\n{\n  check('雪花 ID：时钟前进时序号归零', () => {\n    let t = 1000\n    const sf = createSnowflake({ workerId: 7, now: () => t })\n    const a = sf.next()\n    t = 1001\n    const b = sf.next()\n    same([a.ms, a.seq], [1000, 0])\n    same([b.ms, b.seq], [1001, 0])\n  })\n  check('雪花 ID：同一毫秒内序号递增', () => {\n    const sf = createSnowflake({ workerId: 3, now: () => 5000 })\n    const a = sf.next()\n    const b = sf.next()\n    const c = sf.next()\n    same([a.seq, b.seq, c.seq], [0, 1, 2])\n    same(a.ms, b.ms)\n  })\n  check('雪花 ID：可以从 id 解析回时间戳与机器号', () => {\n    let t = 777\n    const sf = createSnowflake({ workerId: 12, now: () => t })\n    const one = sf.next()\n    const parsed = sf.parse(one.id)\n    same([parsed.ms, parsed.workerId, parsed.seq], [777, 12, 0])\n  })\n  check('雪花 ID：不同机器号在同一毫秒不冲突', () => {\n    const a = createSnowflake({ workerId: 1, now: () => 100 })\n    const b = createSnowflake({ workerId: 2, now: () => 100 })\n    notSame(a.next().id, b.next().id)\n  })\n  check('读写分离：写走主库，读走从库，从库故障回主库', () => {\n    same(routeQuery({ sql: 'insert into t values (1)' }).target, 'primary')\n    same(routeQuery({ sql: 'update t set x=1' }).target, 'primary')\n    same(routeQuery({ sql: 'select * from t' }).target, 'replica')\n    same(routeQuery({ sql: 'select * from t', preferPrimary: true }).target, 'primary')\n    same(routeQuery({ sql: 'select * from t', replicaHealthy: false }).target, 'primary')\n  })\n}"
+    },
+    {
+      "id": "lv5",
+      "title": "消息去重、延迟投递与削峰：MQ 的三件正事",
+      "emoji": "📨",
+      "xp": 50,
+      "goal": "实现 createDeduper（幂等去重窗口）、createDelayQueue（延迟消息按到期时间投递）、createTokenBucket/createLeakyBucket（令牌桶与漏桶限流）。",
+      "why": "MQ 在面试里几乎只被问三件事：**怎么保证不重复消费、怎么实现延迟消息、怎么削峰**。它们背后是三个不同的数据结构：去重是「带窗口的集合」，延迟消息是「按时间排序的队列」，削峰是「令牌桶或漏桶」。写出这三个结构，再谈「至少一次投递 + 消费端幂等」就站得住了。",
+      "nodes": [
+        "cs.design.mq-dedup",
+        "cs.design.mq-dedup.delay",
+        "cs.design.mq-dedup.idempotent",
+        "cs.design.mq-dedup.peak-shaving"
+      ],
+      "thinking": [
+        {
+          "title": "去重窗口为什么必须有「窗口」",
+          "md": "如果永久记住所有 messageId，内存无限增长；如果只记最近一段时间，超过窗口的重复消息会被再次消费。\n\n实际系统用「业务唯一键 + 状态机」而不是全量 messageId：比如订单状态从「待支付」到「已支付」只能成功一次，用数据库唯一索引/乐观锁兜底，去重窗口只是减少无效写。"
+        },
+        {
+          "title": "延迟消息的两种实现",
+          "md": "① 定时扫描：消息表存 `deliver_at`，定时任务扫到期记录（简单但精度取决于扫描频率）；② 时间轮/延迟队列：按到期时间排序，到点投递（精度高，内存占用与消息数成正比）。\n\nRocketMQ 用固定延迟级别（1s/5s/10s...），Kafka 没有原生延迟消息（要靠外部调度）。本关的 createDelayQueue 是②的最小模型。"
+        },
+        {
+          "title": "令牌桶 vs 漏桶：一个允许突发，一个不允许",
+          "md": "令牌桶按固定速率放令牌，桶里攒着令牌 → **允许短时突发**（攒了 100 个令牌就能瞬间放 100 个请求）。\n\n漏桶按固定速率漏水，请求进桶排队 → **输出恒定平滑**，不允许突发。\n\n所以「秒杀入口」用令牌桶（允许一定突发），「下游保护」用漏桶（平滑压力）。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "至少一次投递 + 消费端幂等 = 事实上的恰好一次",
+          "md": "MQ 的投递语义通常是 at-least-once：网络抖动、ack 丢失都会导致重投。要做到「恰好一次消费」，只能靠消费端幂等。\n\n幂等的三种实现：① 唯一键（数据库唯一索引）；② 状态机（只允许特定状态迁移）；③ 去重表/Redis SETNX（带 TTL）。本关的 createDeduper 是③的模型。"
+        },
+        {
+          "title": "削峰填谷的完整链路",
+          "md": "入口限流（令牌桶）→ MQ 缓冲 → 消费端按能力匀速拉取 → 下游按峰值扩容。\n\n只做入口限流不够：MQ 积压到一定阈值要告警，否则「削峰」变成「延迟爆炸」。所以还要有积压监控和死信队列。"
+        }
+      ],
+      "api": [
+        {
+          "name": "createDeduper",
+          "sig": "createDeduper(windowMs) => { accept(key, now), size() }",
+          "args": "windowMs 是去重窗口；now 是调用方传入的时间戳。",
+          "returns": "accept 返回 true（首次/窗口外）或 false（窗口内重复）；size 返回记录数。",
+          "example": "const d = createDeduper(1000)\nd.accept(\"msg-1\", 0)   // true\nd.accept(\"msg-1\", 10)  // false"
+        },
+        {
+          "name": "createDelayQueue",
+          "sig": "createDelayQueue() => { add(msg, delayMs, now), poll(now), size() }",
+          "args": "msg 是任意消息；delayMs 是延迟毫秒；now 是当前时间。",
+          "returns": "poll 返回所有到期消息（按到期时间、同到期按插入顺序）。",
+          "example": "const q = createDelayQueue()\nq.add(\"a\", 100, 0)\nq.poll(100)  // [\"a\"]"
+        },
+        {
+          "name": "createTokenBucket / createLeakyBucket",
+          "sig": "createTokenBucket({ capacity, refillPerMs, now }) => { allow(), available() }；createLeakyBucket({ capacity, drainPerMs, now }) => { offer(), level() }",
+          "args": "capacity 是桶容量；refillPerMs / drainPerMs 是每毫秒补充/排出的令牌数。",
+          "returns": "allow/offer 返回是否放行；available/level 返回当前水位。",
+          "example": "const b = createTokenBucket({ capacity: 3, refillPerMs: 0.01, now: () => t })\nb.allow()  // true"
+        }
+      ],
+      "usage": "// 秒杀链路：\n//   网关令牌桶（允许突发）→ 请求入 MQ → 消费端漏桶（平滑下游）→ 库存扣减（幂等 + 唯一索引）\n// 延迟队列的典型场景：\n//   订单 30 分钟未支付自动取消、外卖超时提醒、重试退避",
+      "hints": [
+        "第 1 步：Map 存 key → 首次时间；now - last < windowMs 才算窗口内。",
+        "第 2 步：add 存 { message, due, seq }；poll 过滤 + 按 due/seq 排序 + 移除。",
+        "第 3 步：令牌桶先 refill 再扣；漏桶先 drain 再判断 level+1 > capacity。"
+      ],
+      "concepts": [
+        {
+          "title": "为什么延迟消息不能靠「消费端 sleep」",
+          "md": "消费端 sleep 会占住线程/连接，消息在 MQ 里已经被投递（ack 之前），积压和重投都会出问题；而且 sleep 不精确、重启后丢失。\n\n正确做法是消息在 broker/调度层等待，到点才投递。"
+        },
+        {
+          "title": "限流的四种算法与适用场景",
+          "md": "固定窗口：简单但临界点会双倍放行；滑动窗口：精确但有状态开销；漏桶：恒定输出，适合保护下游；令牌桶：允许突发，适合入口。\n\n工程上常用「令牌桶 + 并发数限制 + 熔断」组合，单靠一种算法挡不住所有场景。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "幂等去重：带窗口的键集合",
+          "think": "这一步只做「窗口内去重」：记录每个 key 首次出现的时间，窗口内再来就拒绝。窗口外的重复视为新一轮（真实系统会用业务状态机兜底）。",
+          "hint": "now - last < windowMs 才算重复；边界相等应放行（左闭右开）。",
+          "code": "function createDeduper(windowMs) {\n  const seen = new Map()\n\n  return {\n    accept(key, now) {\n      const last = seen.get(key)\n      if (last !== undefined && now - last < windowMs) return false\n      seen.set(key, now)\n      return true\n    },\n    size() { return seen.size }\n  }\n}",
+          "test": "{\n  check('首次出现的消息被接受，重复消息被拒绝', () => {\n    const d = createDeduper(1000)\n    same(d.accept('msg-1', 0), true)\n    same(d.accept('msg-1', 10), false)\n  })\n  check('超过去重窗口后，同一条消息可以再次被接受', () => {\n    const d = createDeduper(1000)\n    same(d.accept('msg-1', 0), true)\n    same(d.accept('msg-1', 999), false)\n    same(d.accept('msg-1', 1000), true, '窗口边界按左闭右开处理')\n  })\n  check('不同业务键互不影响', () => {\n    const d = createDeduper(1000)\n    d.accept('order:1', 0)\n    same(d.accept('order:2', 0), true)\n    same(d.accept('order:1', 0), false)\n  })\n  check('size 反映当前记录数', () => {\n    const d = createDeduper(1000)\n    same(d.size(), 0)\n    d.accept('a', 0)\n    d.accept('b', 0)\n    same(d.size(), 2)\n  })\n  check('同一 key 短时间内反复来，只放行第一次', () => {\n    const d = createDeduper(500)\n    let accepted = 0\n    for (let i = 0; i < 5; i++) if (d.accept('pay:9001', 100 + i)) accepted++\n    same(accepted, 1)\n  })\n}",
+          "diag": [
+            "用 Set 存 key 但不记时间，永远无法过期，内存无限增长。",
+            "比较用 <= 而不是 <，窗口边界那一毫秒的重复被放行。",
+            "accept 先 set 再判断，永远返回 true。",
+            "没有清理过期记录，size 只增不减。",
+            "key 用了消息内容而不是业务唯一键，同一业务的两条不同消息也被去重。"
+          ]
+        },
+        {
+          "n": 2,
+          "title": "延迟队列：按到期时间投递",
+          "think": "add 时算好 due，poll 时取所有 due <= now 的，按 due 升序、同 due 按插入顺序。移除要用 indexOf 找到原对象再 splice。",
+          "hint": "sort((a,b) => a.due - b.due || a.seq - b.seq)；取到后从 items 移除，避免重复投递。",
+          "code": "function createDeduper(windowMs) {\n  const seen = new Map()\n\n  return {\n    accept(key, now) {\n      const last = seen.get(key)\n      if (last !== undefined && now - last < windowMs) return false\n      seen.set(key, now)\n      return true\n    },\n    size() { return seen.size }\n  }\n}\n\nfunction createDelayQueue() {\n  const items = []\n  let seq = 0\n\n  return {\n    add(message, delayMs, now) {\n      items.push({ message, due: now + delayMs, seq: seq++ })\n    },\n    poll(now) {\n      const due = items\n        .filter((item) => item.due <= now)\n        .sort((a, b) => a.due - b.due || a.seq - b.seq)\n      for (const item of due) {\n        const idx = items.indexOf(item)\n        if (idx >= 0) items.splice(idx, 1)\n      }\n      return due.map((item) => item.message)\n    },\n    size() { return items.length }\n  }\n}",
+          "test": "{\n  check('未到期的消息不会被取出', () => {\n    const q = createDelayQueue()\n    q.add('a', 100, 0)\n    same(q.poll(99), [])\n  })\n  check('到期后按插入的消息原样取出', () => {\n    const q = createDelayQueue()\n    q.add('a', 100, 0)\n    same(q.poll(100), ['a'])\n    same(q.poll(200), [], '取过一次就没了')\n  })\n  check('多条消息按到期时间升序取出', () => {\n    const q = createDelayQueue()\n    q.add('late', 300, 0)\n    q.add('early', 100, 0)\n    q.add('mid', 200, 0)\n    same(q.poll(1000), ['early', 'mid', 'late'])\n  })\n  check('同一到期时间按插入顺序取出', () => {\n    const q = createDelayQueue()\n    q.add('first', 50, 0)\n    q.add('second', 50, 0)\n    same(q.poll(50), ['first', 'second'])\n  })\n  check('没有消息时 poll 返回空数组', () => {\n    const q = createDelayQueue()\n    same(q.poll(1000), [])\n  })\n}",
+          "diag": [
+            "poll 用 === now 判断到期，早到期但没被取走的消息丢了。",
+            "取到后没从队列移除，下次 poll 又投一次（重复消费）。",
+            "排序只按 due，同 due 时顺序取决于 V8 的 sort 稳定性（不该依赖）。",
+            "due 用 delayMs 而不是 now + delayMs，所有消息立刻到期。",
+            "items 用对象键存而不是数组，无法保序。"
+          ]
+        },
+        {
+          "n": 3,
+          "title": "令牌桶与漏桶",
+          "think": "两个桶都是「按时间补充/排出 + 判断水位」。令牌桶允许攒令牌（突发），漏桶不允许攒请求（平滑）。",
+          "hint": "令牌桶：tokens = min(capacity, tokens + Δt*rate)；漏桶：level = max(0, level - Δt*rate)。",
+          "code": "function createDeduper(windowMs) {\n  const seen = new Map()\n\n  return {\n    accept(key, now) {\n      const last = seen.get(key)\n      if (last !== undefined && now - last < windowMs) return false\n      seen.set(key, now)\n      return true\n    },\n    size() { return seen.size }\n  }\n}\n\nfunction createDelayQueue() {\n  const items = []\n  let seq = 0\n\n  return {\n    add(message, delayMs, now) {\n      items.push({ message, due: now + delayMs, seq: seq++ })\n    },\n    poll(now) {\n      const due = items\n        .filter((item) => item.due <= now)\n        .sort((a, b) => a.due - b.due || a.seq - b.seq)\n      for (const item of due) {\n        const idx = items.indexOf(item)\n        if (idx >= 0) items.splice(idx, 1)\n      }\n      return due.map((item) => item.message)\n    },\n    size() { return items.length }\n  }\n}\n\nfunction createTokenBucket(opts) {\n  const capacity = opts.capacity\n  const refillPerMs = opts.refillPerMs\n  const now = opts.now\n  let tokens = capacity\n  let last = now()\n\n  const refill = () => {\n    const t = now()\n    if (t > last) {\n      tokens = Math.min(capacity, tokens + (t - last) * refillPerMs)\n      last = t\n    }\n  }\n\n  return {\n    allow() {\n      refill()\n      if (tokens >= 1) {\n        tokens -= 1\n        return true\n      }\n      return false\n    },\n    available() {\n      refill()\n      return tokens\n    }\n  }\n}\n\nfunction createLeakyBucket(opts) {\n  const capacity = opts.capacity\n  const drainPerMs = opts.drainPerMs\n  const now = opts.now\n  let level = 0\n  let last = now()\n\n  const drain = () => {\n    const t = now()\n    if (t > last) {\n      level = Math.max(0, level - (t - last) * drainPerMs)\n      last = t\n    }\n  }\n\n  return {\n    offer() {\n      drain()\n      if (level + 1 > capacity) return false\n      level += 1\n      return true\n    },\n    level() {\n      drain()\n      return level\n    }\n  }\n}",
+          "test": "{\n  check('令牌桶：容量内连续请求全部放行', () => {\n    let t = 0\n    const b = createTokenBucket({ capacity: 3, refillPerMs: 0.01, now: () => t })\n    same([b.allow(), b.allow(), b.allow()], [true, true, true])\n  })\n  check('令牌桶：令牌耗尽后拒绝，时间流逝后恢复', () => {\n    let t = 0\n    const b = createTokenBucket({ capacity: 2, refillPerMs: 0.001, now: () => t })\n    b.allow(); b.allow()\n    same(b.allow(), false, '两个令牌都花完了')\n    t = 1000\n    same(b.allow(), true, '1 秒补 1 个令牌')\n  })\n  check('令牌桶：补充不会超过容量上限', () => {\n    let t = 0\n    const b = createTokenBucket({ capacity: 2, refillPerMs: 1, now: () => t })\n    t = 100000\n    same(b.available(), 2, '再久也只有 capacity 个')\n  })\n  check('漏桶：短时突发超过容量会被拒绝', () => {\n    let t = 0\n    const bucket = createLeakyBucket({ capacity: 2, drainPerMs: 0.001, now: () => t })\n    same([bucket.offer(), bucket.offer(), bucket.offer()], [true, true, false])\n  })\n  check('漏桶：水位随时间匀速下降', () => {\n    let t = 0\n    const bucket = createLeakyBucket({ capacity: 10, drainPerMs: 0.01, now: () => t })\n    bucket.offer(); bucket.offer(); bucket.offer()\n    same(bucket.level(), 3)\n    t = 200\n    same(bucket.level(), 1, '200ms 排掉 2 个')\n  })\n}",
+          "diag": [
+            "令牌桶补充时没取 min(capacity)，无限攒令牌。",
+            "只在初始化时 refill 一次，之后时间流逝不补。",
+            "漏桶判断写成 level > capacity（差一），容量 2 时第 3 个才拒绝。",
+            "漏桶 level 没做 max(0)，长时间空闲后变成负数。",
+            "Δt 用 now() 差值但 last 没更新，同一时刻重复补充。"
+          ]
+        }
+      ],
+      "skeleton": "function createDeduper(windowMs) {\n  // TODO: Map 记录 key 首次时间，窗口内拒绝\n  throw new Error('createDeduper 还没实现')\n}\n\nfunction createDelayQueue() {\n  // TODO: add 算 due；poll 取到期并按 due/seq 排序\n  throw new Error('createDelayQueue 还没实现')\n}\n\nfunction createTokenBucket(opts) {\n  // TODO: 按时间补充令牌，≥1 才放行\n  throw new Error('createTokenBucket 还没实现')\n}\n\nfunction createLeakyBucket(opts) {\n  // TODO: 按时间排水，未满才接收\n  throw new Error('createLeakyBucket 还没实现')\n}",
+      "solution": "function createDeduper(windowMs) {\n  const seen = new Map()\n\n  return {\n    accept(key, now) {\n      const last = seen.get(key)\n      if (last !== undefined && now - last < windowMs) return false\n      seen.set(key, now)\n      return true\n    },\n    size() { return seen.size }\n  }\n}\n\nfunction createDelayQueue() {\n  const items = []\n  let seq = 0\n\n  return {\n    add(message, delayMs, now) {\n      items.push({ message, due: now + delayMs, seq: seq++ })\n    },\n    poll(now) {\n      const due = items\n        .filter((item) => item.due <= now)\n        .sort((a, b) => a.due - b.due || a.seq - b.seq)\n      for (const item of due) {\n        const idx = items.indexOf(item)\n        if (idx >= 0) items.splice(idx, 1)\n      }\n      return due.map((item) => item.message)\n    },\n    size() { return items.length }\n  }\n}\n\nfunction createTokenBucket(opts) {\n  const capacity = opts.capacity\n  const refillPerMs = opts.refillPerMs\n  const now = opts.now\n  let tokens = capacity\n  let last = now()\n\n  const refill = () => {\n    const t = now()\n    if (t > last) {\n      tokens = Math.min(capacity, tokens + (t - last) * refillPerMs)\n      last = t\n    }\n  }\n\n  return {\n    allow() {\n      refill()\n      if (tokens >= 1) {\n        tokens -= 1\n        return true\n      }\n      return false\n    },\n    available() {\n      refill()\n      return tokens\n    }\n  }\n}\n\nfunction createLeakyBucket(opts) {\n  const capacity = opts.capacity\n  const drainPerMs = opts.drainPerMs\n  const now = opts.now\n  let level = 0\n  let last = now()\n\n  const drain = () => {\n    const t = now()\n    if (t > last) {\n      level = Math.max(0, level - (t - last) * drainPerMs)\n      last = t\n    }\n  }\n\n  return {\n    offer() {\n      drain()\n      if (level + 1 > capacity) return false\n      level += 1\n      return true\n    },\n    level() {\n      drain()\n      return level\n    }\n  }\n}",
+      "finalCode": "function createDeduper(windowMs) {\n  const seen = new Map()\n\n  return {\n    accept(key, now) {\n      const last = seen.get(key)\n      if (last !== undefined && now - last < windowMs) return false\n      seen.set(key, now)\n      return true\n    },\n    size() { return seen.size }\n  }\n}\n\nfunction createDelayQueue() {\n  const items = []\n  let seq = 0\n\n  return {\n    add(message, delayMs, now) {\n      items.push({ message, due: now + delayMs, seq: seq++ })\n    },\n    poll(now) {\n      const due = items\n        .filter((item) => item.due <= now)\n        .sort((a, b) => a.due - b.due || a.seq - b.seq)\n      for (const item of due) {\n        const idx = items.indexOf(item)\n        if (idx >= 0) items.splice(idx, 1)\n      }\n      return due.map((item) => item.message)\n    },\n    size() { return items.length }\n  }\n}\n\nfunction createTokenBucket(opts) {\n  const capacity = opts.capacity\n  const refillPerMs = opts.refillPerMs\n  const now = opts.now\n  let tokens = capacity\n  let last = now()\n\n  const refill = () => {\n    const t = now()\n    if (t > last) {\n      tokens = Math.min(capacity, tokens + (t - last) * refillPerMs)\n      last = t\n    }\n  }\n\n  return {\n    allow() {\n      refill()\n      if (tokens >= 1) {\n        tokens -= 1\n        return true\n      }\n      return false\n    },\n    available() {\n      refill()\n      return tokens\n    }\n  }\n}\n\nfunction createLeakyBucket(opts) {\n  const capacity = opts.capacity\n  const drainPerMs = opts.drainPerMs\n  const now = opts.now\n  let level = 0\n  let last = now()\n\n  const drain = () => {\n    const t = now()\n    if (t > last) {\n      level = Math.max(0, level - (t - last) * drainPerMs)\n      last = t\n    }\n  }\n\n  return {\n    offer() {\n      drain()\n      if (level + 1 > capacity) return false\n      level += 1\n      return true\n    },\n    level() {\n      drain()\n      return level\n    }\n  }\n}",
+      "tests": "{\n  check('首次出现的消息被接受，重复消息被拒绝', () => {\n    const d = createDeduper(1000)\n    same(d.accept('msg-1', 0), true)\n    same(d.accept('msg-1', 10), false)\n  })\n  check('超过去重窗口后，同一条消息可以再次被接受', () => {\n    const d = createDeduper(1000)\n    same(d.accept('msg-1', 0), true)\n    same(d.accept('msg-1', 999), false)\n    same(d.accept('msg-1', 1000), true, '窗口边界按左闭右开处理')\n  })\n  check('不同业务键互不影响', () => {\n    const d = createDeduper(1000)\n    d.accept('order:1', 0)\n    same(d.accept('order:2', 0), true)\n    same(d.accept('order:1', 0), false)\n  })\n  check('size 反映当前记录数', () => {\n    const d = createDeduper(1000)\n    same(d.size(), 0)\n    d.accept('a', 0)\n    d.accept('b', 0)\n    same(d.size(), 2)\n  })\n  check('同一 key 短时间内反复来，只放行第一次', () => {\n    const d = createDeduper(500)\n    let accepted = 0\n    for (let i = 0; i < 5; i++) if (d.accept('pay:9001', 100 + i)) accepted++\n    same(accepted, 1)\n  })\n}\n{\n  check('未到期的消息不会被取出', () => {\n    const q = createDelayQueue()\n    q.add('a', 100, 0)\n    same(q.poll(99), [])\n  })\n  check('到期后按插入的消息原样取出', () => {\n    const q = createDelayQueue()\n    q.add('a', 100, 0)\n    same(q.poll(100), ['a'])\n    same(q.poll(200), [], '取过一次就没了')\n  })\n  check('多条消息按到期时间升序取出', () => {\n    const q = createDelayQueue()\n    q.add('late', 300, 0)\n    q.add('early', 100, 0)\n    q.add('mid', 200, 0)\n    same(q.poll(1000), ['early', 'mid', 'late'])\n  })\n  check('同一到期时间按插入顺序取出', () => {\n    const q = createDelayQueue()\n    q.add('first', 50, 0)\n    q.add('second', 50, 0)\n    same(q.poll(50), ['first', 'second'])\n  })\n  check('没有消息时 poll 返回空数组', () => {\n    const q = createDelayQueue()\n    same(q.poll(1000), [])\n  })\n}\n{\n  check('令牌桶：容量内连续请求全部放行', () => {\n    let t = 0\n    const b = createTokenBucket({ capacity: 3, refillPerMs: 0.01, now: () => t })\n    same([b.allow(), b.allow(), b.allow()], [true, true, true])\n  })\n  check('令牌桶：令牌耗尽后拒绝，时间流逝后恢复', () => {\n    let t = 0\n    const b = createTokenBucket({ capacity: 2, refillPerMs: 0.001, now: () => t })\n    b.allow(); b.allow()\n    same(b.allow(), false, '两个令牌都花完了')\n    t = 1000\n    same(b.allow(), true, '1 秒补 1 个令牌')\n  })\n  check('令牌桶：补充不会超过容量上限', () => {\n    let t = 0\n    const b = createTokenBucket({ capacity: 2, refillPerMs: 1, now: () => t })\n    t = 100000\n    same(b.available(), 2, '再久也只有 capacity 个')\n  })\n  check('漏桶：短时突发超过容量会被拒绝', () => {\n    let t = 0\n    const bucket = createLeakyBucket({ capacity: 2, drainPerMs: 0.001, now: () => t })\n    same([bucket.offer(), bucket.offer(), bucket.offer()], [true, true, false])\n  })\n  check('漏桶：水位随时间匀速下降', () => {\n    let t = 0\n    const bucket = createLeakyBucket({ capacity: 10, drainPerMs: 0.01, now: () => t })\n    bucket.offer(); bucket.offer(); bucket.offer()\n    same(bucket.level(), 3)\n    t = 200\n    same(bucket.level(), 1, '200ms 排掉 2 个')\n  })\n}"
+    }
+  ]
+}
