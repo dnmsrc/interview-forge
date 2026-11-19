@@ -49,13 +49,13 @@ node scripts/project-coverage.mjs --check --min=100   # 覆盖率门槛（CI 用
 应用内也有一份同口径的总览：项目列表页顶部的「知识图谱覆盖」条，点击展开未收编清单。
 主进程与服务脚本共用 `src/shared/project-coverage.mjs`，不允许出现第二套口径。
 
-## 4. 补齐路线
+## 4. 补齐结果（已收口）
 
-现状（2026-11）：9 个项目、33 关映射后覆盖 **25 / 402（6.2%）**。剩下的 377 个知识点要靠新项目承接，
-粗略估：每关 3~5 个知识点 → 还需要 **70~100 关 / 25~35 个新项目**。这是几十个内容批次的工作量，
-必须一批一批来，每批都要过构建、覆盖率可见上升、在真实应用里点一遍。
+现状（2026-11-20）：**34 个项目 / 120 关，覆盖 402 / 402（100%）**，缺口清零。
+起点是 9 个项目 / 33 关、覆盖 25 / 402（6.2%），中间按「一个 stack 一个项目、一个 topic 一章关」切了 25 个新项目，
+分 6 个内容批次推进，每批都跑了 `project:build` + `project:coverage` + 真实应用点检。
 
-建项目的原则：
+建项目的原则（沿用）：
 
 1. **一个 stack 一个项目**（fe.vue / fe.js / cs.algo …），项目内按 topic 分章，一章 1~3 关；超过 30 个知识点的 stack（fe.vue 48、cs.algo 25）拆成两个项目；
 2. 每关 3~5 个知识点，优先吃 mustMaster；
@@ -64,28 +64,20 @@ node scripts/project-coverage.mjs --check --min=100   # 覆盖率门槛（CI 用
    例如 Redis 过期策略写成过期字典 + 惰性/定期删除的模拟器，而不是连真 Redis；
 5. 每关仍然遵守 v3 硬规则（分阶段、每步答案过本步不过下一步、骨架必红），不因为「覆盖」而放松质量线。
 
-分批推进，每批完成后跑一遍 `project:build` + `project-coverage`，覆盖率必须可见上升；
-每批都要在真实应用里点一遍（关卡网格、章节、筛选、跑一关），不允许「内容进了库但 UI 撑不住」。
+覆盖到 100% 之后，维护口径不变：新增/删除图谱节点后重跑 `project:plan -- --write` 重算缺口，
+再按批次补内容；覆盖率低于 100% 时 `project-coverage --check` 会失败（CI 门槛）。
 
-## 5. 当前批次（补齐全量流水线）
+## 5. 交付记录（分批）
 
-**进度（2026-11-21 凌晨）**：20 个项目 / 69 关，覆盖 **175 / 402（43.5%）**；AI 域与后端域 100%，公共基础域 47.5%。
-本轮新增：be-python（4 关 21 知识点 / 55 check）、cs-algo（3 关 12 / 45）、cs-design（5 关 22 / 75）、cs-os（3 关 14 / 45）。
-累计已完成：ai-tools、ai-memory、ai-eval、be-java、be-micro、be-mysql、be-python、cs-algo、cs-design、cs-os。
-
-剩余 227 个知识点、16 个项目：cs 域 4 个（devops/net/seceq/seceq-2）、fe 域 11 个、eng-warstory。
-每个项目按「规划 → 写内容 → project-build 全绿 → project-audit → 覆盖率上升 → UI 回归 → 提交」推进。
-
-2026-11 起把剩余缺口切成 **24 个项目 / 83 关**，规划文件在 `data/project-plan.json`
-（`npm run project:plan -- --write` 可重算，图谱增删后要重跑）。
-
-| 分组 | 项目 | 关数 | 覆盖 |
+| 批次 | 项目 | 关 / 知识点 / check | 覆盖 |
 | --- | --- | --- | --- |
-| ai | ai-eval、ai-memory、ai-tools | 8 | ai 33（100%） |
-| be | be-java、be-micro、be-mysql、be-python | 13 | be 75（100%） |
-| cs | cs-algo、cs-design、cs-os（已完成） | 11 | cs 57/120（47.5%） |
-| fe | fe-vue、fe-vue-2、fe-vue-3、fe-js、fe-browser、fe-network、fe-css、fe-build、fe-perf、fe-eco、fe-uniapp、fe-electron | 33 | fe 151 |
-| eng | eng-warstory | 4 | eng 13 |
+| 1 | ai-tools、ai-memory、ai-eval | 9 / 33 / — | ai 33（100%） |
+| 2 | be-java、be-micro、be-mysql | 12 / 26 / — | be 部分 |
+| 3 | be-python、cs-algo、cs-design | 12 / 41 / — | be 100% / cs 47% |
+| 4 | cs-os、cs-devops、cs-net、eng-warstory | 15 / 60 / 201 | cs 91% / eng 100% |
+| 5 | cs-seceq、cs-seceq-2、fe-js | 9 / 41 / 105 | cs 100% / fe 14% |
+| 6 | fe-browser、fe-css、fe-electron、fe-network、fe-perf | 18 / 82 / 314 | fe 61% |
+| 7 | fe-vue、fe-vue-2、fe-vue-3 | 11 / 52 / 169 | fe 100%（402/402） |
 
 生产流程（每个项目走一遍）：
 

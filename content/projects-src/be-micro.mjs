@@ -247,9 +247,21 @@ function decideGC(spec) {
       ]
     }
   ],
-  skeleton: `function loadClass(chain, name, opts) { throw new Error('还没实现') }
-function markReachable(roots, graph) { throw new Error('还没实现') }
-function decideGC(spec) { throw new Error('还没实现') }`,
+  skeleton: `// 类加载不止一条链：bootstrap → ext → app → 自定义，父优先、找不到才往下问
+function loadClass(chain, name, opts) {
+  // TODO: 从链头开始找，命中即返回来源；父优先（双亲委派）与破坏委派的开关
+  throw new Error('loadClass 还没实现')
+}
+
+function markReachable(roots, graph) {
+  // TODO: 从 GC Roots（栈帧、静态字段、JNI 引用）出发做可达性遍历
+  throw new Error('markReachable 还没实现')
+}
+
+function decideGC(spec) {
+  // TODO: 依据可达性 + 引用类型（强 / 软 / 弱 / 虚）决定回收时机
+  throw new Error('decideGC 还没实现')
+}`,
   solution: `function loadClass(chain, name, opts = {}) {
   const { parentFirst = true } = opts
   const order = parentFirst ? chain : [...chain].reverse()
@@ -589,11 +601,31 @@ function classifyCAP(spec) {
       ]
     }
   ],
-  skeleton: `function pickByWeight(items, counter) { throw new Error('还没实现') }
-function pickService(services, path) { throw new Error('还没实现') }
-function breakerStep(prev, event) { throw new Error('还没实现') }
-function compensatePlan(steps, executedCount) { throw new Error('还没实现') }
-function classifyCAP(spec) { throw new Error('还没实现') }`,
+  skeleton: `// 微服务三件套：负载均衡、熔断、分布式事务补偿
+function pickByWeight(items, counter) {
+  // TODO: 平滑加权轮询，别用简单取模（权重会失真）
+  throw new Error('pickByWeight 还没实现')
+}
+
+function pickService(services, path) {
+  // TODO: 按标签 / 路径前缀筛出候选，再交给 pickByWeight
+  throw new Error('pickService 还没实现')
+}
+
+function breakerStep(prev, event) {
+  // TODO: closed → open → half-open 三态迁移，含计数窗口与冷却期
+  throw new Error('breakerStep 还没实现')
+}
+
+function compensatePlan(steps, executedCount) {
+  // TODO: 已执行成功的步骤按逆序生成补偿动作，跳过失败的那一步
+  throw new Error('compensatePlan 还没实现')
+}
+
+function classifyCAP(spec) {
+  // TODO: 按一致性与可用性取舍给系统归类（CP / AP / 折中）
+  throw new Error('classifyCAP 还没实现')
+}`,
   solution: `function pickByWeight(items, counter) {
   const total = items.reduce((a, x) => a + x.weight, 0)
   const slot = counter % total
@@ -965,9 +997,22 @@ function consumeOnce(processed, msgId, handler) {
       ]
     }
   ],
-  skeleton: `class RedisLock { constructor() { throw new Error('还没实现') } }
-function retryDelay(attempt, opts) { throw new Error('还没实现') }
-function consumeOnce(processed, msgId, handler) { throw new Error('还没实现') }`,
+  skeleton: `class RedisLock {
+  // TODO: SET NX PX 加锁、Lua 校验 owner 再删（不能直接 del）、续期看门狗
+  constructor() {
+    throw new Error('RedisLock 还没实现')
+  }
+}
+
+function retryDelay(attempt, opts) {
+  // TODO: 指数退避 + 抖动 + 上限，避免雪崩式重试
+  throw new Error('retryDelay 还没实现')
+}
+
+function consumeOnce(processed, msgId, handler) {
+  // TODO: 幂等表：已处理过就直接返回，没处理过执行后落库
+  throw new Error('consumeOnce 还没实现')
+}`,
   solution: `class RedisLock {
   constructor() {
     this.store = new Map()

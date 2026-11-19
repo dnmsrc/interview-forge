@@ -1016,9 +1016,22 @@ class StringPool {
       ]
     }
   ],
-  skeleton: `function simulateArrayList(initialCapacity, adds) { throw new Error('还没实现') }
-function resolveOverload(methods, argTypes) { throw new Error('还没实现') }
-class StringPool { constructor() { throw new Error('还没实现') } }`,
+  skeleton: `function simulateArrayList(initialCapacity, adds) {
+  // TODO: 扩容阈值 = 容量 × 0.75，扩容后容量 ×1.5（不是 ×2）
+  throw new Error('simulateArrayList 还没实现')
+}
+
+function resolveOverload(methods, argTypes) {
+  // TODO: 先精确匹配，再按拓宽 / 装箱就近选，多个候选取最具体
+  throw new Error('resolveOverload 还没实现')
+}
+
+class StringPool {
+  constructor() {
+    // TODO: intern 表 + 字符串常量池命中统计
+    throw new Error('StringPool 还没实现')
+  }
+}`,
   solution: `function simulateArrayList(initialCapacity, adds) {
   let capacity = initialCapacity > 0 ? initialCapacity : 0
   let size = 0
@@ -1504,12 +1517,17 @@ function chooseRejectPolicy(spec) {
       ]
     }
   ],
-  skeleton: `function createPool(spec) { throw new Error('还没实现') }
-function submit(pool, task) { throw new Error('还没实现') }
-class ReentrantLockSim { constructor() { throw new Error('还没实现') } }
-function recommendPoolSize(spec) { throw new Error('还没实现') }
-function recommendQueueSize(spec) { throw new Error('还没实现') }
-function chooseRejectPolicy(spec) { throw new Error('还没实现') }`,
+  skeleton: `// 线程池与锁：池化不是「越多越快」，参数都要有推导
+function createPool(spec) { throw new Error('createPool 还没实现') }
+function submit(pool, task) { throw new Error('submit 还没实现') }
+class ReentrantLockSim {
+  // TODO: 可重入计数 + 等待队列 + 公平 / 非公平策略
+  constructor() { throw new Error('ReentrantLockSim 还没实现') }
+}
+// 推荐值：CPU 密集 ≈ 核数 + 1；IO 密集 ≈ 核数 × (1 + 等待 / 计算)
+function recommendPoolSize(spec) { throw new Error('recommendPoolSize 还没实现') }
+function recommendQueueSize(spec) { throw new Error('recommendQueueSize 还没实现') }
+function chooseRejectPolicy(spec) { throw new Error('chooseRejectPolicy 还没实现') }`,
   solution: `function createPool(spec) {
   const { core, queueSize, max, reject = 'abort' } = spec
   return { core, queueSize, max, reject, workers: 0, extra: 0, queue: [] }

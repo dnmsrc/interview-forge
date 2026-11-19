@@ -389,7 +389,11 @@ const LV1 = {
     }
   ],
   skeleton: `function createRouter(allowed) {
-  // TODO: 白名单匹配（含前缀通配）、FIFO 队列、drain 清空
+  // 进程边界：渲染进程只能通过白名单通道跟主进程说话。
+  // TODO 第 1 步：通道名精确匹配 + 前缀通配（win:*），未授权直接拒绝
+  // TODO 第 2 步：FIFO 队列与 drain（把积压消息按序交给 handler）
+  // TODO 第 3 步：窗口状态机与 IPC bus（requestId 配对、handler 抛错转 E_REMOTE、超时）
+  // 另需 createWindowFSM / createIpcBus 两个工厂
   throw new Error('createRouter 还没实现')
 }`,
   solution: L1C3,
@@ -789,7 +793,11 @@ const LV2 = {
     }
   ],
   skeleton: `function parseCsp(header) {
-  // TODO: 按分号拆指令，再按空白拆源列表
+  // CSP 是「分号分指令、空白分源」的两级结构，指令名大小写不敏感。
+  // TODO 第 1 步：解析成 { 'default-src': ['self', ...] } 的形状
+  // TODO 第 2 步：checkCsp 判定某资源是否放行（含 nonce / hash 与 unsafe-inline 的强弱）
+  // TODO 第 3 步：rateSecurity 组合开关评级、decideUpdate 版本比较与差分包决策
+  // 另需 checkCsp / rateSecurity / decideUpdate
   throw new Error('parseCsp 还没实现')
 }`,
   solution: L2C3,
@@ -1178,7 +1186,11 @@ const LV3 = {
     }
   ],
   skeleton: `function isLegalChild(parent, child) {
-  // TODO: 空元素、p 的短语限制、a 嵌套、列表与表格的子元素规则
+  // HTML 的内容模型不是「能嵌就能嵌」。
+  // TODO 第 1 步：空元素集合、p 里禁块级、a 不能嵌 a、ul / table 的子元素规则
+  // TODO 第 2 步：validateField 约束校验优先级（required → pattern → 长度 → 数值 → step）
+  // TODO 第 3 步：serializeForm 提交序列化（disabled / 未勾选不提交、多选重复 name）
+  // 另需 validateField / serializeForm
   throw new Error('isLegalChild 还没实现')
 }`,
   solution: L3C3,

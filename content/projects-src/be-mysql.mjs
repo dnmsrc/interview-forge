@@ -365,10 +365,26 @@ function orderGuarantee(spec) {
       ]
     }
   ],
-  skeleton: `function chooseMQ(spec) { throw new Error('还没实现') }
-function deliveryGuarantee(spec) { throw new Error('还没实现') }
-function partitionOf(key, partitions) { throw new Error('还没实现') }
-function orderGuarantee(spec) { throw new Error('还没实现') }`,
+  skeleton: `// 选型与投递语义：消息队列不是「发出去就完了」
+function chooseMQ(spec) {
+  // TODO: 按吞吐、顺序、延迟、生态给 Kafka / RabbitMQ / RocketMQ 打分
+  throw new Error('chooseMQ 还没实现')
+}
+
+function deliveryGuarantee(spec) {
+  // TODO: 生产 / 消费两侧各自可能丢在哪，组合出 at-most / at-least / exactly-once
+  throw new Error('deliveryGuarantee 还没实现')
+}
+
+function partitionOf(key, partitions) {
+  // TODO: 稳定分区：同一 key 永远落到同一分区，注意负数哈希
+  throw new Error('partitionOf 还没实现')
+}
+
+function orderGuarantee(spec) {
+  // TODO: 单分区有序、跨分区无序；全局有序只能靠单分区或额外序号
+  throw new Error('orderGuarantee 还没实现')
+}`,
   solution: `function chooseMQ(spec) {
   const { throughputPerSec = 0, routingComplexity = 'low', needReplay = false, needOrdered = false } = spec
   if (throughputPerSec >= 100000 || needReplay) return 'kafka'
@@ -643,10 +659,26 @@ function detectDeadlock(waitsFor) {
       ]
     }
   ],
-  skeleton: `function bplusTreeHeight(rows, fanout) { throw new Error('还没实现') }
-function leftPrefixMatch(indexCols, queryCols, opts) { throw new Error('还没实现') }
-function canSee(spec) { throw new Error('还没实现') }
-function detectDeadlock(waitsFor) { throw new Error('还没实现') }`,
+  skeleton: `// 索引与并发：结构决定高度，隔离级别决定可见性
+function bplusTreeHeight(rows, fanout) {
+  // TODO: 三层估算：非叶子页能放多少键、叶子页能放多少行
+  throw new Error('bplusTreeHeight 还没实现')
+}
+
+function leftPrefixMatch(indexCols, queryCols, opts) {
+  // TODO: 最左前缀：从第一列连续匹配，范围条件之后的列用不上索引
+  throw new Error('leftPrefixMatch 还没实现')
+}
+
+function canSee(spec) {
+  // TODO: 按隔离级别 + MVCC 版本链判定某事务能否看到某行某版本
+  throw new Error('canSee 还没实现')
+}
+
+function detectDeadlock(waitsFor) {
+  // TODO: 等待图找环，返回构成环的事务序列
+  throw new Error('detectDeadlock 还没实现')
+}`,
   solution: `function bplusTreeHeight(rows, fanout) {
   if (rows <= 1) return 1
   return Math.max(1, Math.ceil(Math.log(rows) / Math.log(fanout)))
@@ -1021,13 +1053,15 @@ function mapRow(row, mapping) {
       ]
     }
   ],
-  skeleton: `function applyRelayLog(state, events, fromPos) { throw new Error('还没实现') }
-function replicationLagMs(masterPos, slavePos, msPerEvent) { throw new Error('还没实现') }
-function addDecimalStrings(parts) { throw new Error('还没实现') }
-function roundHalfUp(value, scale) { throw new Error('还没实现') }
-function jdbcTypeOf(value) { throw new Error('还没实现') }
-function snakeToCamel(name) { throw new Error('还没实现') }
-function mapRow(row, mapping) { throw new Error('还没实现') }`,
+  skeleton: `// 复制与类型映射：binlog 重放 + JDBC 精度问题
+function applyRelayLog(state, events, fromPos) { throw new Error('applyRelayLog 还没实现') }
+function replicationLagMs(masterPos, slavePos, msPerEvent) { throw new Error('replicationLagMs 还没实现') }
+// 金额用字符串算，别用浮点：精度必须在十进制上完成
+function addDecimalStrings(parts) { throw new Error('addDecimalStrings 还没实现') }
+function roundHalfUp(value, scale) { throw new Error('roundHalfUp 还没实现') }
+function jdbcTypeOf(value) { throw new Error('jdbcTypeOf 还没实现') }
+function snakeToCamel(name) { throw new Error('snakeToCamel 还没实现') }
+function mapRow(row, mapping) { throw new Error('mapRow 还没实现') }`,
   solution: `function applyRelayLog(state, events, fromPos) {
   const pending = events.filter((e) => e.pos > fromPos).sort((a, b) => a.pos - b.pos)
   const applied = [...state.applied]

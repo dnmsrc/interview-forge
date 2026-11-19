@@ -967,7 +967,11 @@ const LV1 = {
     }
   ],
   skeleton: `function createFrameLoop(opts) {
-  // TODO: 三级失效位 + flush 流水线 + run 的事件循环 + dispatch 的 INP
+  // 主线程模型：JS 执行与渲染共用一条线程。
+  // TODO 第 1 步：三级失效位（几何 / 外观 / 仅合成）与 flush 的 layout → paint → composite
+  // TODO 第 2 步：run 的事件循环：宏任务 → 清空微任务（递归同轮）→ 一帧最多渲染一次
+  // TODO 第 3 步：dispatch 把长任务切片让出，统计排队与首绘时间算 INP
+  // 返回 { invalidate, run, dispatch, stats }
   throw new Error('createFrameLoop 还没实现')
 }`,
   solution: `function createFrameLoop(opts) {

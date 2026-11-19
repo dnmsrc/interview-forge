@@ -334,8 +334,12 @@ const LV1 = {
     }
   ],
   skeleton: `function createLoop() {
-  // TODO: nextTick 队列、Promise 微任务队列、定时器列表、immediate 批次；
-  // advance(ms) 推进时钟并跑一轮：timers → 微任务 → check
+  // 环境模型：单线程 + 事件循环，所有时间由调用方传入。
+  // TODO 第 1 步：nextTick 队列与 Promise 微任务队列（同一轮清空，递归也同轮）
+  // TODO 第 2 步：定时器列表 + advance(ms) 推进时钟，按到期时间排序执行
+  // TODO 第 3 步：setImmediate / check 阶段批次，以及每轮的执行顺序
+  // 顺序：timers → 微任务（全部清空）→ check → 下一轮
+  // 返回 { nextTick, setTimeout, setImmediate, advance, run }
   throw new Error('createLoop 还没实现')
 }`,
   solution: `function createLoop() {
@@ -751,8 +755,11 @@ const LV2 = {
     }
   ],
   skeleton: `function createRunner() {
-  // TODO: 任务表 + 就绪队列 + 等待表；spawn / step / run / tick
-  // 提示：yield 表示让出，yield { wait: ms } 表示挂起到 now + ms
+  // 协程调度：任务表 + 就绪队列 + 等待表。
+  // TODO 第 1 步：spawn 建任务、step 单步推进、yield 让出
+  // TODO 第 2 步：yield { wait: ms } 挂起到 now + ms，到点回到就绪队列
+  // TODO 第 3 步：run 批量推进 + tick 生成时间线，含超时与完成态
+  // 提示：yield 表示让出，yield { wait: ms } 表示挂起
   throw new Error('createRunner 还没实现')
 }`,
   solution: `function createRunner() {
@@ -1849,8 +1856,11 @@ function createMvc() {
     }
   ],
   skeleton: `function createMvc() {
-  // TODO: 路由表 + 拦截器链 + 异常处理器；
-  // handle 的流程：pre 正序 → 路由匹配 → handler → post 逆序 → after 逆序（必执行）
+  // 请求生命周期：pre 正序 → 路由匹配 → handler → post 逆序 → after 逆序（必执行）
+  // TODO 第 1 步：路由表（方法 + 路径模板 → handler，含路径参数提取）
+  // TODO 第 2 步：拦截器链的进入 / 退出顺序与短路规则
+  // TODO 第 3 步：异常处理器与 after 的兜底执行（无论成败都要跑）
+  // 返回 { use, route, handle }
   throw new Error('createMvc 还没实现')
 }`,
   solution: `function matchPath(pattern, path) {
