@@ -14,7 +14,7 @@
  *
  * 用法：node scripts/project-plan.mjs [--write]
  */
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const root = join(import.meta.dirname, '..')
@@ -224,5 +224,10 @@ for (const p of finalPlan) {
 
 if (process.argv.includes('--write')) {
   writeFileSync(join(root, 'data', 'project-plan.json'), `${JSON.stringify(finalPlan, null, 2)}\n`, 'utf8')
-  console.log(`\n已写出 data/project-plan.json`)
+  // 同时按项目拆成 data/plans/<slug>.json：内容作者只读自己那一份，不用从 26 个项目里翻
+  mkdirSync(join(root, 'data', 'plans'), { recursive: true })
+  for (const p of finalPlan) {
+    writeFileSync(join(root, 'data', 'plans', `${p.slug}.json`), `${JSON.stringify(p, null, 2)}\n`, 'utf8')
+  }
+  console.log(`\n已写出 data/project-plan.json 与 data/plans/（${finalPlan.length} 份）`)
 }

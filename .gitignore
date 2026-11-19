@@ -35,4 +35,4 @@ nul
 
 # ---------- 本地快照 / 临时探针 ----------
 snapshots/
-scripts/.tmp-rag/
+scripts/.tmp-rag/data/plans/
