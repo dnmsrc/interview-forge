@@ -1,0 +1,1466 @@
+/**
+ * cs-seceq —— 系统与安全工程五关：IO 模型、Linux 故障排查、Web 攻击面、认证授权、密码学。
+ * 分配见 data/plans/cs-seceq.json；全部是可算的纯函数，时钟/随机数由调用方注入。
+ */
+
+/* ============================================================ 第 1 关测试 */
+const L1S1 = `{
+  check('读事件与写事件分别被收集', () => {
+    const rs = pollReady([{ fd: 3, mask: 1 }, { fd: 4, mask: 4 }])
+    same(rs.length, 2)
+    same(rs[0], { fd: 3, readable: true, writable: false, et: false })
+    same(rs[1], { fd: 4, readable: false, writable: true, et: false })
+  })
+  check('同一 fd 读写都就绪时两个标记都为 true', () => {
+    const rs = pollReady([{ fd: 5, mask: 5 }])
+    same(rs[0].readable, true)
+    same(rs[0].writable, true)
+  })
+  check('budget 限制每轮处理的事件数，防止一个 fd 饿死其他', () => {
+    const rs = pollReady([{ fd: 1, mask: 1 }, { fd: 2, mask: 1 }, { fd: 3, mask: 1 }], 2)
+    same(rs.map((x) => x.fd), [1, 2])
+  })
+  check('mask 为 0 的 fd 不返回（没有就绪事件）', () => {
+    same(pollReady([{ fd: 9, mask: 0 }, { fd: 10, mask: 1 }]).map((x) => x.fd), [10])
+  })
+  check('空事件列表返回空数组，而不是 null', () => {
+    same(pollReady([]), [])
+    same(pollReady(null), [])
+  })
+}`
+
+const L1S2 = `{
+  check('read + write：2 次 CPU 拷贝 + 2 次 DMA = 4 次搬运', () => {
+    same(copyCount({ path: 'read-write' }), { cpuCopies: 2, dmaCopies: 2, total: 4 })
+  })
+  check('sendfile：0 次 CPU 拷贝，数据在内核内直传', () => {
+    const r = copyCount({ path: 'sendfile' })
+    same(r.cpuCopies, 0)
+    same(r.total, 2)
+  })
+  check('splice：同样绕开用户态', () => {
+    same(copyCount({ path: 'splice' }).cpuCopies, 0)
+  })
+  check('mmap + write：省掉一次 CPU 拷贝，但不是零拷贝', () => {
+    const r = copyCount({ path: 'mmap-write' })
+    same(r.cpuCopies, 1)
+    same(r.total, 3)
+  })
+  check('未知路径抛错，不静默按 0 次拷贝处理', () => {
+    throws(() => copyCount({ path: 'magic' }))
+    throws(() => copyCount({}))
+  })
+}`
+
+const L1S3 = `{
+  check('十万连接 → epoll（事件驱动，不按连接开线程）', () => {
+    same(pickIoModel({ conns: 100000 }).model, 'epoll')
+  })
+  check('单连接 → 阻塞模型最简单、延迟最低', () => {
+    same(pickIoModel({ conns: 1 }).model, 'blocking')
+  })
+  check('少量连接 + 已有事件循环 → poll 够用且跨平台', () => {
+    same(pickIoModel({ conns: 8, eventLoop: true }).model, 'poll')
+  })
+  check('需要内核完成通知 → io_uring（提交与收割分离）', () => {
+    same(pickIoModel({ conns: 64, completionBased: true }).model, 'io-uring')
+  })
+  check('连接数为负直接抛错', () => {
+    throws(() => pickIoModel({ conns: -1 }))
+  })
+}`
+
+/* ============================================================ 第 1 关代码 */
+const L1C1 = `const READABLE = 1
+const WRITABLE = 4
+
+function pollReady(events, budget) {
+  const limit = budget === undefined ? Infinity : budget
+  const out = []
+  for (const e of events || []) {
+    if (out.length >= limit) break
+    const mask = e.mask || 0
+    const readable = (mask & READABLE) === READABLE
+    const writable = (mask & WRITABLE) === WRITABLE
+    // 两种标记都没有：这个 fd 上没有就绪事件，不能返回给调用方
+    if (!readable && !writable) continue
+    out.push({ fd: e.fd, readable, writable, et: e.et === true })
+  }
+  return out
+}`
+
+const L1C2 = `${L1C1}
+
+// 一次 read+write 的搬运次数是固定的：DMA 进内核、CPU 拷到用户、CPU 拷回内核、DMA 出网卡
+const COPY_PROFILES = {
+  'read-write': { cpu: 2, dma: 2 },
+  sendfile: { cpu: 0, dma: 2 },   // 内核直接把页缓存交给网卡，用户态完全不参与
+  splice: { cpu: 0, dma: 2 },     // 通过管道在两个 fd 之间搬，仍然不落用户态
+  'mmap-write': { cpu: 1, dma: 2 } // 用 mmap 映射页缓存，省掉「内核→用户」那一次
+}
+
+function copyCount(req) {
+  const p = COPY_PROFILES[(req || {}).path]
+  if (!p) throw new Error('未知传输路径: ' + (req || {}).path)
+  return { cpuCopies: p.cpu, dmaCopies: p.dma, total: p.cpu + p.dma }
+}`
+
+const L1C3 = `${L1C2}
+
+function pickIoModel(req) {
+  const r = req || {}
+  const conns = r.conns === undefined ? 0 : r.conns
+  if (!(conns >= 0)) throw new Error('conns 必须是非负数')
+
+  if (r.completionBased) {
+    return { model: 'io-uring', reason: '内核完成通知：提交与收割分离，适合高 IOPS 且不想为每个事件付系统调用' }
+  }
+  if (conns >= 1000) {
+    return { model: 'epoll', reason: '连接数大：事件驱动 + O(1) 回调，避免每连接一线程的内存与切换成本' }
+  }
+  if (conns > 1 && r.eventLoop) {
+    return { model: 'poll', reason: '连接数中等且已有事件循环：poll 实现简单、跨平台，没必要上 epoll' }
+  }
+  return { model: 'blocking', reason: '连接数很少：阻塞模型代码最短、延迟最低，用事件驱动反而增加复杂度' }
+}`
+
+/* ============================================================ 第 1 关 */
+const LV1 = {
+  id: 'lv1',
+  title: 'IO 模型：epoll 收了什么、零拷贝省了哪几次',
+  emoji: '🔌',
+  xp: 50,
+  goal: '实现 pollReady 从就绪事件里收集可读/可写 fd 并支持 budget 限流，copyCount 数清四种传输路径的 CPU/DMA 拷贝次数，pickIoModel 在阻塞、poll、epoll、io_uring 之间给出选型。',
+  why: '「epoll 为什么快」背答案是「O(1) 事件回调」，但面试官接着问「它到底返回什么」「LT 和 ET 差在哪」「sendfile 省了几次拷贝」时，背过的人就卡住了。这一关把三个最常被含糊过去的点算成数字：一次事件循环处理几个 fd、一次传输搬几次内存、多少连接才值得上 epoll。',
+  nodes: ['cs.os.io', 'cs.os.io.epoll', 'cs.os.io.models', 'cs.os.io.zero-copy'],
+  thinking: [
+    {
+      title: 'epoll 返回的是「就绪列表」，不是「所有 fd」',
+      md: '`epoll_wait` 填的是一个数组，里面只有**这次真正就绪**的 fd 和事件掩码。所以上层必须按 mask 判断可读还是可写，而不是拿到 fd 就直接 read——对不可读的 fd 调 read 会阻塞或返回 EAGAIN。\n\nbudget 的意义在真实服务器里很实际：一次 wait 返回 1000 个事件，如果挨个处理到底，尾部的连接会被饿死。所以 nginx 用 `events` 配置限制单次处理量，处理完一轮再回到 wait。'
+    },
+    {
+      title: '零拷贝省的是 CPU 拷贝，不是 DMA',
+      md: 'read + write 的经典路径是 4 次搬运：磁盘 DMA 到页缓存、CPU 拷到用户缓冲区、CPU 拷回 socket 缓冲区、DMA 发到网卡。sendfile 把中间两次 CPU 拷贝去掉，只剩 2 次 DMA。\n\n所以「零拷贝」是营销词：DMA 还是两次，只是 CPU 不再参与。它的收益在大文件传输上最明显——省掉的是内存带宽和 CPU 周期，不是磁盘/网卡的物理搬运。'
+    },
+    {
+      title: '选型的真正变量是「连接数 × 每连接状态」',
+      md: '连接少时阻塞模型最省事；连接上千后每连接一线程的栈（默认 8MB 虚拟内存）和切换成本就压不住了，必须事件驱动；连接上万还要考虑 accept 惊群、fd 上限、TIME_WAIT 回收。\n\nio_uring 不是「更快的 epoll」，它解决的是「每次 IO 都要系统调用」的问题：提交队列和完成队列都在共享内存里，一次 enter 可以提交一批。适合高 IOPS 的存储场景，不是所有服务都该换。'
+    }
+  ],
+  prereq: [
+    {
+      title: '水平触发与边缘触发的差别',
+      md: 'LT（水平触发）：只要 fd 还有数据没读完，下次 wait 还会返回它。ET（边缘触发）：状态变化时才通知一次，没读完也不再提醒，所以必须配合非阻塞 fd 循环读到 EAGAIN。\n\nET 的收益是减少重复事件、减少系统调用；代价是写错就丢数据。这也是为什么很多库默认 LT——正确性优先于那点性能。'
+    },
+    {
+      title: '为什么阻塞 IO 在高并发下会崩',
+      md: '每个阻塞连接占一个线程：线程栈、内核调度实体、上下文切换都要钱。1 万连接就是 1 万个线程，光栈的虚拟内存就 80GB，切换开销把 CPU 打满。\n\n事件驱动的本质是「用一次系统调用问一批 fd 谁就绪」，把「等待」从线程转移到内核。所以 epoll 的扩展性是「不为等待付线程成本」，而不是「IO 更快」。'
+    }
+  ],
+  api: [
+    {
+      name: 'pollReady',
+      sig: 'pollReady(events, budget?) => [{ fd, readable, writable, et }]',
+      args: 'events: [{ fd, mask, et? }]，mask 是位掩码（1 = 可读，4 = 可写）；budget 是单轮最多返回多少个。',
+      returns: '按传入顺序返回就绪项；mask 为 0 的项被跳过；budget 截断。',
+      example: 'pollReady([{ fd: 3, mask: 1 }, { fd: 4, mask: 4 }], 1)\n// [{ fd: 3, readable: true, writable: false, et: false }]'
+    },
+    {
+      name: 'copyCount',
+      sig: 'copyCount({ path }) => { cpuCopies, dmaCopies, total }',
+      args: 'path 取 read-write / sendfile / splice / mmap-write。',
+      returns: 'CPU 拷贝次数、DMA 拷贝次数与总数；未知路径抛错。',
+      example: 'copyCount({ path: "sendfile" })   // { cpuCopies: 0, dmaCopies: 2, total: 2 }'
+    },
+    {
+      name: 'pickIoModel',
+      sig: 'pickIoModel({ conns, eventLoop?, completionBased? }) => { model, reason }',
+      args: 'conns ≥ 0；eventLoop 表示已有事件循环；completionBased 表示需要内核完成通知。',
+      returns: 'model 取 blocking / poll / epoll / io-uring。',
+      example: 'pickIoModel({ conns: 100000 }).model   // "epoll"'
+    }
+  ],
+  usage: '// 事件循环里的一轮：\nconst ready = pollReady(epollEvents, 512)\nfor (const ev of ready) {\n  if (ev.readable) onReadable(ev.fd)\n  if (ev.writable) onWritable(ev.fd)\n}\n// 文件服务器选型：\nconst plan = pickIoModel({ conns: 20000 })\n// plan.model === "epoll" → 用 epoll + 非阻塞 fd，而不是每连接一线程\n// 大文件下发：sendfile 省两次 CPU 拷贝，但注意它不能加工内容（压缩/加密要回退到用户态）',
+  hints: [
+    '第 1 步：按位与判 mask（1 可读、4 可写）；没有就绪标记就 continue；budget 用 out.length 判断。',
+    '第 2 步：建一张路径到 cpu/dma 次数的表；sendfile 与 splice 的 cpu 都是 0，别漏了 DMA。',
+    '第 3 步：判断顺序是 completionBased > conns ≥ 1000 > eventLoop > 默认阻塞。'
+  ],
+  concepts: [
+    {
+      title: 'Reactor 与 Proactor 的分界',
+      md: 'Reactor 是「就绪了你自己读」：epoll 通知可读，应用调 read。Proactor 是「读完了告诉你」：io_uring 提交 read，完成队列里拿结果。\n\nReactor 的读操作仍要一次系统调用；Proactor 把这次调用也省了。所以高 IOPS 场景 Proactor 优势明显，但编程模型更复杂（缓冲区生命周期、提交/完成队列配对）。'
+    },
+    {
+      title: '零拷贝在什么场景反而不该用',
+      md: 'sendfile 只能原样发文件内容：要压缩、要加密、要改响应头，就得回到用户态处理，零拷贝的收益消失。\n\n另外小文件用 sendfile 的收益被系统调用和元数据开销吃掉，反而不如直接 read/write。所以「零拷贝」是给大文件、静态资源、代理转发用的，不是通用优化。'
+    }
+  ],
+  stages: [
+    {
+      n: 1,
+      title: '收集本轮就绪的 fd',
+      think: '第一步只做「事件收集」：把 epoll_wait 返回的原始事件翻译成上层能直接用的布尔标记。为什么先做它？因为后面所有 IO 模型讨论都建立在这个循环上，先让一轮事件跑通。',
+      hint: '用位掩码 1 和 4 判断 readable/writable；mask 为 0 的项跳过；budget 用已收集数量截断。',
+      code: L1C1,
+      test: L1S1,
+      diag: [
+        '只判断了 mask === 1，读写同时就绪的 fd 被漏掉。',
+        '把 mask 当布尔值用，writable 永远 false。',
+        'budget 判断放在 push 之后，实际多返回一个。',
+        'mask 为 0 的 fd 也返回了，上层 read 会拿到 EAGAIN。',
+        '空输入没兜底，直接遍历 null 抛错。'
+      ]
+    },
+    {
+      n: 2,
+      title: '数清一次传输的拷贝次数',
+      think: '有了事件循环，下一步看数据怎么搬。拷贝次数是「零拷贝」讨论里唯一不会被话术糊弄的量，先把它变成一张确定的表。',
+      hint: '四种路径各一组 cpu/dma 常量；total 是两者相加；未知路径抛错而不是返回 0。',
+      code: L1C2,
+      test: L1S2,
+      diag: [
+        '把 read+write 算成 2 次（漏了 CPU 与 DMA 的分工）。',
+        'sendfile 的 dmaCopies 写成 0（DMA 仍然要两次）。',
+        'splice 按普通 read/write 算，零拷贝白讲。',
+        'mmap-write 当成完全零拷贝（CPU 仍有一次拷贝）。',
+        '未知路径静默返回 0，错误被吞掉。'
+      ]
+    },
+    {
+      n: 3,
+      title: 'IO 模型选型判定',
+      think: '最后一步把「多少连接用什么模型」变成可执行规则。判断顺序很重要：完成通知是能力约束，连接数是成本约束，事件循环是工程约束。',
+      hint: '先判 completionBased，再判 conns ≥ 1000，再判 conns > 1 且有 eventLoop，最后默认 blocking。',
+      code: L1C3,
+      test: L1S3,
+      diag: [
+        '先判连接数再判完成通知，io_uring 场景被 epoll 抢走。',
+        '阈值写成 conns > 1000，正好 1000 个连接被分到 poll。',
+        'eventLoop 分支没有要求 conns > 1，单连接也被判成 poll。',
+        '默认分支返回 undefined 或抛错，缺字段时没有兜底。',
+        '没有校验 conns 非负，负数被当成正常输入。'
+      ]
+    }
+  ],
+  skeleton: `function pollReady(events, budget) {
+  // TODO: 按 mask 位判断就绪，支持 budget 截断
+  throw new Error('pollReady 还没实现')
+}
+
+function copyCount(req) {
+  // TODO: 四种传输路径的 CPU / DMA 拷贝次数
+  throw new Error('copyCount 还没实现')
+}
+
+function pickIoModel(req) {
+  // TODO: 连接数 / 事件循环 / 完成通知 → 模型
+  throw new Error('pickIoModel 还没实现')
+}`,
+  solution: L1C3,
+  finalCode: L1C3,
+  tests: `${L1S1}\n${L1S2}\n${L1S3}`
+}
+
+/* ============================================================ 第 2 关测试 */
+const L2S1 = `{
+  check('0o100644 → 普通文件，权限 644', () => {
+    const r = describeInode({ mode: 0o100644, links: 1, size: 120 })
+    same(r.type, 'file')
+    same(r.perms, '644')
+    same(r.size, 120)
+  })
+  check('0o040755 → 目录，权限 755', () => {
+    const r = describeInode({ mode: 0o040755, links: 2, size: 4096 })
+    same(r.type, 'dir')
+    same(r.perms, '755')
+  })
+  check('0o120777 → 软链接（不是普通文件）', () => {
+    same(describeInode({ mode: 0o120777, links: 1, size: 7 }).type, 'symlink')
+  })
+  check('硬链接数大于 1 才算共享 inode', () => {
+    same(describeInode({ mode: 0o100644, links: 3, size: 1 }).shared, true)
+    same(describeInode({ mode: 0o100644, links: 1, size: 1 }).shared, false)
+  })
+  check('未知类型或非法 mode 抛错', () => {
+    throws(() => describeInode({ mode: 0o060000, links: 1, size: 0 }))
+    throws(() => describeInode({ mode: 0, links: 1, size: 0 }))
+  })
+}`
+
+const L2S2 = `{
+  check('RUNNING + SIGSTOP → STOPPED', () => {
+    same(nextState('RUNNING', 'SIGSTOP'), 'STOPPED')
+  })
+  check('STOPPED + SIGCONT → RUNNABLE（不能直接回到 RUNNING）', () => {
+    same(nextState('STOPPED', 'SIGCONT'), 'RUNNABLE')
+  })
+  check('RUNNING + exit → ZOMBIE，等父进程回收', () => {
+    same(nextState('RUNNING', 'exit'), 'ZOMBIE')
+  })
+  check('ZOMBIE + reap → GONE（僵尸态不能跳过回收）', () => {
+    same(nextState('ZOMBIE', 'reap'), 'GONE')
+    throws(() => nextState('ZOMBIE', 'SIGCONT'), '僵尸不接受信号')
+  })
+  check('非法迁移直接抛错，而不是返回原状态', () => {
+    throws(() => nextState('SLEEPING', 'SIGCONT'))
+    throws(() => nextState('FLYING', 'exit'))
+  })
+}`
+
+const L2S3 = `{
+  check('inode 满 → df -i（不是 df -h）', () => {
+    same(pickCommand('inode-full').cmd, 'df -i')
+  })
+  check('磁盘满 → df -h；端口占用 → ss -lntp', () => {
+    same(pickCommand('disk-full').cmd, 'df -h')
+    same(pickCommand('port-occupied').cmd, 'ss -lntp')
+  })
+  check('只读命令风险等级为 read', () => {
+    same(pickCommand('disk-full').risk, 'read')
+    same(pickCommand('high-load').risk, 'read')
+  })
+  check('命令风险分级：rm 是写入，rm -rf 是破坏性', () => {
+    same(commandRisk('df -h'), 'read')
+    same(commandRisk('rm /tmp/a.log'), 'write')
+    same(commandRisk('rm -rf /data'), 'destructive')
+    same(commandRisk('kill -9 1234'), 'destructive')
+  })
+  check('未知症状抛错，不返回随手一条命令', () => {
+    throws(() => pickCommand('slow-website'))
+    throws(() => pickCommand(''))
+  })
+}`
+
+/* ============================================================ 第 2 关代码 */
+const L2C1 = `const TYPE_BITS = { 0o100000: 'file', 0o040000: 'dir', 0o120000: 'symlink' }
+
+function describeInode(stat) {
+  const s = stat || {}
+  const mode = s.mode
+  if (!(mode > 0)) throw new Error('mode 必须为正')
+
+  // 高 4 位是文件类型，低 12 位是权限（含 setuid/setgid/sticky）
+  const type = TYPE_BITS[mode & 0o170000]
+  if (!type) throw new Error('未知文件类型')
+
+  return {
+    type,
+    perms: (mode & 0o777).toString(8).padStart(3, '0'),
+    hardlinks: s.links,
+    // 硬链接 > 1：多个目录项指向同一 inode，删一个名字不会释放数据
+    shared: (s.links || 0) > 1,
+    size: s.size
+  }
+}`
+
+const L2C2 = `${L2C1}
+
+// 进程状态机：只允许表里写明的迁移，其余一律报错（内核也是这样拒绝的）
+const TRANSITIONS = {
+  RUNNING: { SIGSTOP: 'STOPPED', exit: 'ZOMBIE', sleep: 'SLEEPING', fork: 'RUNNING' },
+  RUNNABLE: { schedule: 'RUNNING', SIGSTOP: 'STOPPED' },
+  SLEEPING: { wake: 'RUNNABLE', SIGKILL: 'ZOMBIE' },
+  STOPPED: { SIGCONT: 'RUNNABLE' },
+  ZOMBIE: { reap: 'GONE' }
+}
+
+function nextState(state, event) {
+  const table = TRANSITIONS[state]
+  if (!table) throw new Error('未知进程状态: ' + state)
+  const next = table[event]
+  if (!next) {
+    // 注意：ZOMBIE + SIGCONT 是常见误区，僵尸进程已经不会再被调度
+    throw new Error('状态 ' + state + ' 不接受事件 ' + event)
+  }
+  return next
+}`
+
+const L2C3 = `${L2C2}
+
+// 症状到排查命令的映射：只读命令放前面，破坏性操作永远不在一线排查清单里
+const COMMANDS = {
+  'disk-full': { cmd: 'df -h', risk: 'read' },
+  'inode-full': { cmd: 'df -i', risk: 'read' },
+  'port-occupied': { cmd: 'ss -lntp', risk: 'read' },
+  'high-load': { cmd: 'vmstat 1', risk: 'read' },
+  'd-state': { cmd: 'ps -eo stat,pid,cmd', risk: 'read' }
+}
+
+const DESTRUCTIVE = ['rm -rf', 'mkfs', 'dd if=', 'kill -9', 'shutdown', 'reboot']
+
+function commandRisk(cmd) {
+  const s = String(cmd || '')
+  for (const d of DESTRUCTIVE) {
+    if (s.indexOf(d) >= 0) return 'destructive'
+  }
+  if (/(^|\\s)(rm|mv|chmod|chown|kill)\\s/.test(s)) return 'write'
+  return 'read'
+}
+
+function pickCommand(symptom) {
+  const hit = COMMANDS[symptom]
+  if (!hit) throw new Error('未知症状: ' + symptom)
+  return { cmd: hit.cmd, risk: hit.risk, safe: hit.risk === 'read' }
+}`
+
+/* ============================================================ 第 2 关 */
+const LV2 = {
+  id: 'lv2',
+  title: 'Linux 现场：inode、进程状态、排查命令',
+  emoji: '🐧',
+  xp: 52,
+  goal: '实现 describeInode 解析文件类型与权限位、识别硬链接共享，nextState 按状态机判定进程迁移，pickCommand / commandRisk 把症状映射到只读排查命令并给命令分级。',
+  why: '线上排查最贵的成本不是不会修，而是第一步就跑偏：磁盘满了却去删日志（其实是 inode 满）、进程 D 状态却去 kill -9（杀不掉还加重负载）、端口占用却去看 netstat（新机器根本没装）。这一关把三个最容易跑偏的判断做成可执行规则，让「先看清楚再动手」变成肌肉记忆。',
+  nodes: [
+    'cs.os.linux',
+    'cs.os.linux.filesystem-inode',
+    'cs.os.linux.process-states',
+    'cs.os.linux.troubleshoot-cmds'
+  ],
+  thinking: [
+    {
+      title: 'inode 里没有文件名，文件名在目录项里',
+      md: 'inode 存的是元数据：类型、权限、大小、块指针、链接数、时间戳。文件名存在目录的 dentry 里，指向 inode 号。所以「硬链接」只是多了一个目录项指向同一个 inode，`links` 加一；删除一个名字只是减一，减到 0 才释放数据块。\n\n这就是为什么 `df -h` 显示有空间但写不进去——inode 用完了。`df -i` 看 inode 使用率，`ls -i` 看单个文件的 inode 号。'
+    },
+    {
+      title: 'D 状态是「不可中断睡眠」，kill -9 也没用',
+      md: '进程在等 IO（典型是 NFS 挂死、磁盘故障）时进入 D 状态，信号要等它回到可中断状态才处理。所以 `kill -9` 对 D 状态进程无效——它不会立刻死，只会挂着一个待处理的信号。\n\n正确做法是查它在等什么：`cat /proc/<pid>/stack`、`dmesg`、`iostat`。杀不掉是结果，不是原因。'
+    },
+    {
+      title: '排查命令的第一原则是「只读」',
+      md: '一线排查先跑只读命令：df、ss、ps、vmstat、iostat、top。它们不改变系统状态，最坏情况是输出太多。\n\n破坏性命令（rm -rf、mkfs、dd）必须二次确认目标路径，且永远不该出现在「症状 → 命令」的自动映射里。把命令分级写进工具，比写在 runbook 里更可靠——人会慌，正则不会。'
+    }
+  ],
+  prereq: [
+    {
+      title: '权限位的八进制读法',
+      md: '`0o100644` 拆成两部分：`0o100000` 是普通文件类型位，`0o644` 是权限。644 = rw-r--r--：owner 读写、group 只读、others 只读。\n\n`0o040755` 是目录 + rwxr-xr-x。目录的执行位（x）含义是「能进入/遍历」，不是「能执行」；没有 x 的目录连 `ls` 都进不去。这就是为什么共享目录常给 755 而不是 644。'
+    },
+    {
+      title: '父子进程与僵尸态的因果',
+      md: '子进程退出后不会立刻消失：内核保留它的退出码等信息，等父进程 `wait()` 读取，这段时间就是 ZOMBIE。父进程不 wait 就会积累僵尸，占 PID 但不占内存。\n\n所以「僵尸进程杀不掉」是正常的——它已经死了，能做的只有让父进程回收，或者杀掉父进程让 init 收养。'
+    }
+  ],
+  api: [
+    {
+      name: 'describeInode',
+      sig: 'describeInode({ mode, links, size }) => { type, perms, hardlinks, shared, size }',
+      args: 'mode 是含类型位的完整 st_mode（八进制）；links 是硬链接数。',
+      returns: 'type 取 file / dir / symlink；perms 是三位八进制字符串；shared 表示硬链接数 > 1。未知类型或非法 mode 抛错。',
+      example: 'describeInode({ mode: 0o100644, links: 1, size: 120 })\n// { type: "file", perms: "644", hardlinks: 1, shared: false, size: 120 }'
+    },
+    {
+      name: 'nextState',
+      sig: 'nextState(state, event) => string',
+      args: 'state 取 RUNNING / RUNNABLE / SLEEPING / STOPPED / ZOMBIE；event 是信号名或内核事件（SIGSTOP / SIGCONT / exit / reap / wake / sleep）。',
+      returns: '迁移后的状态；非法迁移或未知状态抛错。',
+      example: 'nextState("RUNNING", "SIGSTOP")   // "STOPPED"\nnextState("STOPPED", "SIGCONT")   // "RUNNABLE"'
+    },
+    {
+      name: 'pickCommand / commandRisk',
+      sig: 'pickCommand(symptom) => { cmd, risk, safe }；commandRisk(cmd) => "read" | "write" | "destructive"',
+      args: 'symptom 取 disk-full / inode-full / port-occupied / high-load / d-state。',
+      returns: 'pickCommand 返回只读排查命令；commandRisk 按命令内容分级。未知症状抛错。',
+      example: 'pickCommand("inode-full").cmd   // "df -i"\ncommandRisk("rm -rf /data")   // "destructive"'
+    }
+  ],
+  usage: '// 告警机器人里先做症状判定，再决定跑哪条命令：\nconst step = pickCommand("inode-full")\nif (step.safe) run(step.cmd)      // df -i，只读，可以直接自动执行\n// 人工输入的清理命令先过分级闸：\nif (commandRisk(userCmd) === "destructive") requireApproval(userCmd)\n// 进程状态排查：\nnextState("RUNNING", "exit")   // "ZOMBIE" → 检查父进程是否 wait',
+  hints: [
+    '第 1 步：类型用 mode & 0o170000 匹配类型位表；权限用 mode & 0o777 转八进制并补足三位。',
+    '第 2 步：建状态迁移表，先查状态是否存在，再查事件是否被接受；ZOMBIE 只接受 reap。',
+    '第 3 步：症状表里全部给只读命令；commandRisk 先扫破坏性前缀，再用正则识别写入类命令。'
+  ],
+  concepts: [
+    {
+      title: '为什么删了大文件空间没释放',
+      md: '进程还持有这个文件的 fd，inode 引用计数不减，数据块就不会释放。`du` 看不到（目录项已删），`df` 却一直满。\n\n经典解法：`lsof +L1` 找到 deleted 但仍被打开的文件，重启或让进程关闭 fd。这也是「日志被删了但磁盘还满」的标准答案。'
+    },
+    {
+      title: 'load average 高不一定是 CPU 忙',
+      md: 'Linux 的 load 统计的是「运行中 + 不可中断睡眠」的进程数，所以大量 D 状态进程（等 IO）也会把 load 拉高，而 CPU 可能很闲。\n\n判断要看组合：load 高 + CPU 利用率低 + iowait 高 → IO 瓶颈；load 高 + CPU 打满 → 真 CPU 瓶颈；load 高 + 大量 D 状态 → 查存储/NFS。'
+    }
+  ],
+  stages: [
+    {
+      n: 1,
+      title: '解析 inode 的类型与权限',
+      think: '先做最底层的解析：一个 st_mode 数字里同时藏着类型和权限。这一步做完，后面判断硬链接共享、排查「空间没释放」才有依据。',
+      hint: '类型位是 mode & 0o170000，权限是 mode & 0o777 再 toString(8) 补零；links > 1 才算共享。',
+      code: L2C1,
+      test: L2S1,
+      diag: [
+        '类型位掩码写错（用了 0o777 或 0o7777）。',
+        '权限没有补足三位，644 输出成 "644" 之外的形态（如 64）。',
+        '软链接被当成普通文件（漏了 0o120000）。',
+        'shared 用 links >= 1 判断，所有文件都被标成共享。',
+        '非法 mode 没有抛错，返回 type: undefined。'
+      ]
+    },
+    {
+      n: 2,
+      title: '进程状态机与合法迁移',
+      think: '状态机的价值在于「拒绝非法迁移」。真实内核不会让僵尸进程响应信号，模型里也必须这样——否则排查时就容易相信「再 kill 一次就好了」。',
+      hint: '把迁移写成 state → event → next 的两层表；未知 state 与未知 event 都抛错，ZOMBIE 只留 reap。',
+      code: L2C2,
+      test: L2S2,
+      diag: [
+        '把 SIGCONT 直接迁移到 RUNNING（正确是 RUNNABLE，还要等调度）。',
+        '僵尸态也允许 SIGCONT/SIGKILL，模型误导排查。',
+        'exit 之后直接变 GONE，跳过了等父进程回收的 ZOMBIE。',
+        '非法迁移返回原状态而不是抛错，错误被吞。',
+        '未知状态没有单独报错，抛的是 TypeError。'
+      ]
+    },
+    {
+      n: 3,
+      title: '症状到只读命令的映射',
+      think: '最后一步把「看到什么现象跑什么命令」固化。重点不是记住命令，而是两条纪律：先只读、先分清 inode 与磁盘。',
+      hint: '五种症状各给一条只读命令；commandRisk 先匹配破坏性字符串，再用正则识别 rm/mv/kill 这类写入。',
+      code: L2C3,
+      test: L2S3,
+      diag: [
+        'inode 满也给了 df -h，排查方向直接跑偏。',
+        '端口占用给了 netstat，新机器上可能根本没装。',
+        '命令风险全是 read，破坏性命令没有被拦住。',
+        'rm -rf 被当成 write（应该是 destructive）。',
+        '未知症状返回默认命令，自动执行时可能误伤。'
+      ]
+    }
+  ],
+  skeleton: `function describeInode(stat) {
+  // TODO: 解析类型位与权限位，判断硬链接共享
+  throw new Error('describeInode 还没实现')
+}
+
+function nextState(state, event) {
+  // TODO: 状态迁移表 + 非法迁移抛错
+  throw new Error('nextState 还没实现')
+}
+
+function commandRisk(cmd) {
+  // TODO: 命令分级 read / write / destructive
+  throw new Error('commandRisk 还没实现')
+}
+
+function pickCommand(symptom) {
+  // TODO: 症状 → 只读排查命令
+  throw new Error('pickCommand 还没实现')
+}`,
+  solution: L2C3,
+  finalCode: L2C3,
+  tests: `${L2S1}\n${L2S2}\n${L2S3}`
+}
+
+/* ============================================================ 第 3 关测试 */
+const L3S1 = `{
+  check('SQL 拼接用户输入 → sqli，参数化可修', () => {
+    const r = classifyRisk({ sink: 'sql', input: 'user', parameterized: false })
+    same(r.attack, 'sqli')
+    same(r.paramFixable, true)
+    same(r.fix, 'parameterize')
+  })
+  check('HTML 拼接未编码 → xss，参数化修不了', () => {
+    const r = classifyRisk({ sink: 'html', input: 'user', encoded: false })
+    same(r.attack, 'xss')
+    same(r.paramFixable, false, 'XSS 要靠输出编码，不是 SQL 参数化')
+  })
+  check('状态变更接口没有 CSRF token → csrf', () => {
+    same(classifyRisk({ sink: 'state-change' }).attack, 'csrf')
+  })
+  check('参数化 + 输出编码 → 无风险', () => {
+    same(classifyRisk({ sink: 'sql', input: 'user', parameterized: true }).attack, 'none')
+    same(classifyRisk({ sink: 'html', input: 'user', encoded: true }).attack, 'none')
+    same(classifyRisk({ sink: 'state-change', csrfToken: 't' }).attack, 'none')
+  })
+  check('输入来自常量（非用户可控）不算注入', () => {
+    same(classifyRisk({ sink: 'sql', input: 'const', parameterized: false }).attack, 'none')
+  })
+}`
+
+const L3S2 = `{
+  check('尖括号被转义，<script> 不再是标签', () => {
+    same(escapeHtml('<script>alert(1)</script>'), '&lt;script&gt;alert(1)&lt;/script&gt;')
+  })
+  check('& 单独出现也要转义（否则实体会被浏览器解释）', () => {
+    same(escapeHtml('a & b'), 'a &amp; b')
+    same(escapeHtml('1 < 2 > 0'), '1 &lt; 2 &gt; 0')
+  })
+  check('引号转义覆盖属性上下文', () => {
+    same(escapeHtml('"onclick=alert(1)"'), '&quot;onclick=alert(1)&quot;')
+    same(escapeHtml("'"), '&#39;')
+  })
+  check('null / undefined 变成空串，不出现字面量 null', () => {
+    same(escapeHtml(null), '')
+    same(escapeHtml(undefined), '')
+    same(escapeHtml(0), '0', '数字 0 不能被当成空值吞掉')
+  })
+  check('safeAttr 生成 name="value" 且值已转义', () => {
+    same(safeAttr('title', '"><script>'), 'title="&quot;&gt;&lt;script&gt;"')
+  })
+}`
+
+const L3S3 = `{
+  check('GET 不改状态，直接放行', () => {
+    same(csrfGuard({ method: 'GET' }), { allow: true, reason: 'safe-method' })
+  })
+  check('POST 双提交 token 一致时放行', () => {
+    same(csrfGuard({ method: 'POST', token: 'abc', cookie: 'abc' }).allow, true)
+    same(csrfGuard({ method: 'POST', token: 'abc', cookie: 'abc' }).reason, 'double-submit')
+  })
+  check('token 不匹配必须拒绝', () => {
+    const r = csrfGuard({ method: 'POST', token: 'abc', cookie: 'xyz' })
+    same(r.allow, false)
+    same(r.reason, 'missing-token')
+  })
+  check('同源 Origin 校验通过可放行（无 token 的老系统）', () => {
+    const r = csrfGuard({ method: 'POST', origin: 'https://a.com', allowOrigin: 'https://a.com' })
+    same(r.allow, true)
+    same(r.reason, 'origin-check')
+  })
+  check('只有 SameSite 不足以防住 CSRF', () => {
+    const r = csrfGuard({ method: 'POST', sameSite: 'lax' })
+    same(r.allow, false)
+    same(r.reason, 'samesite-only')
+  })
+}`
+
+/* ============================================================ 第 3 关代码 */
+const L3C1 = `function classifyRisk(req) {
+  const r = req || {}
+  // 注入的前提是「可控输入进入了解释器」：SQL 解释器或 HTML 解释器
+  if (r.sink === 'sql' && r.input === 'user' && !r.parameterized) {
+    return { attack: 'sqli', fix: 'parameterize', paramFixable: true }
+  }
+  if (r.sink === 'html' && r.input === 'user' && !r.encoded) {
+    return { attack: 'xss', fix: 'encode-output', paramFixable: false }
+  }
+  // CSRF 不依赖输入内容，它利用的是浏览器自动带 cookie
+  if (r.sink === 'state-change' && !r.csrfToken) {
+    return { attack: 'csrf', fix: 'token-or-origin', paramFixable: false }
+  }
+  return { attack: 'none', fix: null, paramFixable: false }
+}`
+
+const L3C2 = `${L3C1}
+
+// 五个必须在输出时替换的字符：& 要最先处理，否则会把 < 转出来的 & 再转一次
+const HTML_ENTITIES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
+
+function escapeHtml(value) {
+  if (value === undefined || value === null) return ''
+  return String(value).replace(/[&<>"']/g, (ch) => HTML_ENTITIES[ch])
+}
+
+function safeAttr(name, value) {
+  // 属性值必须用引号包住：不包引号时空格就能截断属性
+  return name + '="' + escapeHtml(value) + '"'
+}`
+
+const L3C3 = `${L3C2}
+
+const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS']
+
+function csrfGuard(req) {
+  const r = req || {}
+  const method = String(r.method || 'GET').toUpperCase()
+
+  // 安全方法不改变状态，CSRF 利用不了
+  if (SAFE_METHODS.indexOf(method) >= 0) return { allow: true, reason: 'safe-method' }
+
+  // 双提交：cookie 里的随机值必须等于请求体/头里的值（攻击者读不到 cookie）
+  if (r.token && r.cookie && r.token === r.cookie) {
+    return { allow: true, reason: 'double-submit' }
+  }
+  // 严格同源校验：Origin 必须完全等于允许值，不能用前缀匹配
+  if (r.origin && r.allowOrigin && r.origin === r.allowOrigin) {
+    return { allow: true, reason: 'origin-check' }
+  }
+  // SameSite 是纵深防御，不能作为唯一防线（老浏览器、同站子域攻击都会绕过）
+  if (r.sameSite === 'strict' || r.sameSite === 'lax') {
+    return { allow: false, reason: 'samesite-only' }
+  }
+  return { allow: false, reason: 'missing-token' }
+}`
+
+/* ============================================================ 第 3 关 */
+const LV3 = {
+  id: 'lv3',
+  title: 'Web 攻击面：注入、XSS、CSRF 的判定与修复',
+  emoji: '🕸️',
+  xp: 55,
+  goal: '实现 classifyRisk 判定 sqli/xss/csrf 并说明修复方式是否可用参数化，escapeHtml / safeAttr 做输出编码，csrfGuard 用双提交 token、同源校验与 SameSite 分层判定请求能否放行。',
+  why: '「防 SQL 注入用参数化」这句话对，但它不是万能答案：同一份用户输入进 HTML 上下文，参数化毫无作用，必须输出编码；而 CSRF 根本不看输入内容，它利用的是浏览器自动携带 cookie。三种漏洞的修复手段不能互换，面试官追问「为什么参数化修不了 XSS」时，能说清「解释器不同」才算真懂。',
+  nodes: ['cs.seceq.web', 'cs.seceq.web.csrf', 'cs.seceq.web.injection', 'cs.seceq.web.xss'],
+  thinking: [
+    {
+      title: '注入的本质是「数据被当成了代码」',
+      md: 'SQL 注入、XSS、命令注入是同一类问题：用户输入进入了某个解释器（SQL 引擎、HTML 渲染器、shell），而解释器分不清哪部分是数据、哪部分是语法。\n\n所以修复手段取决于解释器：SQL 用参数化（预编译把数据绑成参数），HTML 用输出编码（把 `<` 变成实体，渲染器就不会进入标签状态），shell 用参数数组而不是字符串拼接。三者的共同点是「让数据永远待在数据的位置」。'
+    },
+    {
+      title: 'CSRF 的因果链里没有「用户输入」',
+      md: 'CSRF 能成立需要三个条件同时满足：浏览器会自动带上目标站 cookie、攻击者能让浏览器发请求、服务端只凭 cookie 判断身份。\n\n所以修复不是过滤输入，而是加一个攻击者拿不到的东西：CSRF token（双提交或同步令牌）、严格校验 Origin、或者把 cookie 设成 SameSite。SameSite 单独用仍有缺口——同站子域可以发请求，老浏览器也可能忽略这个属性。'
+    },
+    {
+      title: '输出编码要按上下文选，不是一套 HTML 转义走天下',
+      md: 'HTML 正文、HTML 属性、JS 字符串、URL 参数、CSS，五处上下文各有各的转义规则。用 HTML 实体处理 JS 字符串上下文，`</script>` 仍然能闭合标签。\n\n所以现代框架用「上下文感知的自动转义」，并禁止 `innerHTML` 这类危险 sink。本关先实现最常用的 HTML/属性上下文转义，重点是理解「转义必须发生在输出点，且只转一次」。'
+    }
+  ],
+  prereq: [
+    {
+      title: '参数化查询为什么能挡住注入',
+      md: '参数化把 SQL 语句和参数分两次发给数据库：先编译语句模板（此时语法已固定），再把参数按值绑定。用户输入永远不会被当成语法解析。\n\n所以 `WHERE id = ?` 传 `1 OR 1=1` 只会去匹配字符串 `"1 OR 1=1"`，不会变成永真条件。注意「手动拼接引号再 escape」不算参数化，它依赖转义函数的完备性。'
+    },
+    {
+      title: '双提交 token 与同步令牌的差别',
+      md: '同步令牌：token 存在服务端 session 里，每次提交比对。安全但需要服务端存储。\n\n双提交：token 同时写进 cookie 和请求体，服务端只比对两者是否相等。不需要存储，但要求攻击者无法读 cookie（同站 XSS 可以）。所以它常和 HttpOnly、SameSite 一起用，单用有前提。'
+    }
+  ],
+  api: [
+    {
+      name: 'classifyRisk',
+      sig: 'classifyRisk({ sink, input, parameterized?, encoded?, csrfToken? }) => { attack, fix, paramFixable }',
+      args: 'sink 取 sql / html / state-change；input 取 user / const；parameterized 表示是否用参数化查询；encoded 表示是否输出编码。',
+      returns: 'attack 取 sqli / xss / csrf / none；fix 是修复手段名；paramFixable 表示参数化能否修。',
+      example: 'classifyRisk({ sink: "sql", input: "user", parameterized: false })\n// { attack: "sqli", fix: "parameterize", paramFixable: true }\nclassifyRisk({ sink: "html", input: "user", encoded: false }).paramFixable   // false'
+    },
+    {
+      name: 'escapeHtml / safeAttr',
+      sig: 'escapeHtml(value) => string；safeAttr(name, value) => string',
+      args: 'value 任意类型，null/undefined 视为空串；name 是属性名。',
+      returns: 'escapeHtml 转义 & < > " 五个字符；safeAttr 返回 name="转义后的值"。',
+      example: 'escapeHtml("<b>")   // "&lt;b&gt;"\nsafeAttr("title", "\\"><script>")   // title="&quot;&gt;&lt;script&gt;"'
+    },
+    {
+      name: 'csrfGuard',
+      sig: 'csrfGuard({ method, token?, cookie?, origin?, allowOrigin?, sameSite? }) => { allow, reason }',
+      args: 'method 大小写不敏感；token/cookie 用于双提交比对；origin 必须与 allowOrigin 完全相等。',
+      returns: 'reason 取 safe-method / double-submit / origin-check / samesite-only / missing-token。',
+      example: 'csrfGuard({ method: "POST", token: "abc", cookie: "abc" })   // { allow: true, reason: "double-submit" }\ncsrfGuard({ method: "POST", sameSite: "lax" }).allow   // false'
+    }
+  ],
+  usage: '// 请求进入时先过 CSRF 闸：\nconst gate = csrfGuard({ method: req.method, token: req.body.csrf, cookie: req.cookies.csrf })\nif (!gate.allow) return res.status(403).json({ reason: gate.reason })\n// 渲染用户内容一律走转义：\nres.send(`<div title="${safeAttr("title", user.bio)}">${escapeHtml(user.name)}</div>`)',
+  hints: [
+    '第 1 步：三个分支分别判 sql / html / state-change，且都要检查「对应的修复是否已做」；输入非 user 直接 none。',
+    '第 2 步：用一张实体表 + 一次正则 replace；先判 null/undefined，注意数字 0 不能被当成空值。',
+    '第 3 步：先放行安全方法，再依次判双提交、同源、SameSite；SameSite 只返回 allow:false + samesite-only。'
+  ],
+  concepts: [
+    {
+      title: 'CSP 是兜底，不是修复',
+      md: 'Content-Security-Policy 能禁止内联脚本和外部未知域，把 XSS 的影响面压到「注入但不执行」。但它依赖浏览器支持，且配置复杂（nonce/hash），不能替代输出编码。\n\n正确关系是：输出编码负责「不产生注入」，CSP 负责「万一漏了别执行」。只有 CSP 没有编码，等于把安全交给浏览器版本。'
+    },
+    {
+      title: '为什么 XSS 比 SQL 注入更难防',
+      md: 'SQL 注入只有一个入口（SQL 解释器），参数化能一劳永逸；XSS 有无数输出上下文（HTML、属性、JS、CSS、URL），每处规则不同，且富文本场景还要求「保留一部分 HTML」。\n\n所以 XSS 的工程解是「默认转义 + 白名单清洗 + CSP + 禁用危险 sink」，四层叠加。任何单一手段都会漏。'
+    }
+  ],
+  stages: [
+    {
+      n: 1,
+      title: '判定攻击类型与修复手段',
+      think: '先做分类器：给定 sink 和输入来源，判断是哪种攻击、该用什么修。这一步逼你把「参数化能修什么」说清楚，而不是背一句「防注入用参数化」。',
+      hint: '三个 if 分支：sql + user + 未参数化 → sqli；html + user + 未编码 → xss；state-change + 无 token → csrf；其余 none。',
+      code: L3C1,
+      test: L3S1,
+      diag: [
+        '只要 sink 是 sql 就报 sqli，没有检查输入是否用户可控。',
+        '把 xss 的 paramFixable 写成 true，混淆了参数化与输出编码。',
+        'state-change 分支没有检查 csrfToken，永远报 csrf。',
+        '修复后的场景（parameterized/encoded）没有落到 none。',
+        '返回结构缺字段，调用方拿不到 paramFixable。'
+      ]
+    },
+    {
+      n: 2,
+      title: '输出编码：HTML 与属性上下文',
+      think: '识别出 XSS 之后，下一步是真正把它挡住。输出编码的关键细节有两个：五个字符都要转、null 与数字 0 的边界不能混。',
+      hint: '实体表包含 & < > " 与单引号；replace 一次扫描；先判 null/undefined，再 String(value)。',
+      code: L3C2,
+      test: L3S2,
+      diag: [
+        '只转了 < 和 >，引号没转，属性上下文照样注入。',
+        '没有转 &，浏览器把 &lt; 解释成 <，等于没转。',
+        'null 被 String() 成 "null" 输出到页面。',
+        '用 value || "" 兜底，数字 0 被吞成空串。',
+        'safeAttr 没有加引号，值里的空格直接截断属性。'
+      ]
+    },
+    {
+      n: 3,
+      title: 'CSRF 分层防御判定',
+      think: '最后一步处理最容易被混淆的 CSRF：它不看输入，只看「请求能不能证明是本站发起的」。把四种证据按强度排序，并明确 SameSite 单独不够。',
+      hint: '安全方法直接放行；再判 token===cookie、origin===allowOrigin；SameSite 命中只返回 samesite-only（allow false）。',
+      code: L3C3,
+      test: L3S3,
+      diag: [
+        '只判了 token 存在，没有比对 cookie 里的值。',
+        'Origin 用 indexOf 做前缀匹配，https://a.com.evil.com 也能过。',
+        'SameSite 命中就放行，把纵深防御当成唯一防线。',
+        '安全方法也要求 token，GET 请求被误拒。',
+        'method 没有统一大写，post 走了未知分支。'
+      ]
+    }
+  ],
+  skeleton: `function classifyRisk(req) {
+  // TODO: 按 sink + 输入来源 + 已有修复判定攻击类型
+  throw new Error('classifyRisk 还没实现')
+}
+
+function escapeHtml(value) {
+  // TODO: 转义 & < > " 五个字符
+  throw new Error('escapeHtml 还没实现')
+}
+
+function safeAttr(name, value) {
+  // TODO: 生成带引号且已转义的属性
+  throw new Error('safeAttr 还没实现')
+}
+
+function csrfGuard(req) {
+  // TODO: 安全方法 / 双提交 / 同源 / SameSite 分层判定
+  throw new Error('csrfGuard 还没实现')
+}`,
+  solution: L3C3,
+  finalCode: L3C3,
+  tests: `${L3S1}\n${L3S2}\n${L3S3}`
+}
+
+/* ============================================================ 第 4 关测试 */
+const L4S1 = `{
+  check('授权码流程顺序：authorize → consent → code → token → resource → done', () => {
+    same(nextOauthStep('authorize'), 'consent')
+    same(nextOauthStep('code'), 'token')
+    same(nextOauthStep('resource'), 'done')
+  })
+  check('隐式流程（responseType=token）被标记为问题', () => {
+    const p = validateAuthorize({ responseType: 'token', state: 's', pkce: true })
+    same(p, ['response-type'])
+  })
+  check('缺 state 与 PKCE 都被列出，顺序固定', () => {
+    same(validateAuthorize({ responseType: 'code' }), ['state', 'pkce'])
+  })
+  check('redirect_uri 必须与注册值完全一致', () => {
+    const bad = validateAuthorize({
+      responseType: 'code', state: 's', pkce: true,
+      redirectUri: 'https://app.com/cb/evil', registeredUri: 'https://app.com/cb'
+    })
+    same(bad, ['redirect-uri'])
+    const okOne = validateAuthorize({
+      responseType: 'code', state: 's', pkce: true,
+      redirectUri: 'https://app.com/cb', registeredUri: 'https://app.com/cb'
+    })
+    same(okOne, [])
+  })
+  check('未知流程步骤抛错', () => {
+    throws(() => nextOauthStep('refresh'))
+    throws(() => nextOauthStep(''))
+  })
+}`
+
+const L4S2 = `{
+  check('viewer 只能 read，不能 write', () => {
+    same(can(['viewer'], 'read'), true)
+    same(can(['viewer'], 'write'), false)
+  })
+  check('dev 继承 viewer 的 read，并有 write', () => {
+    same(can(['dev'], 'read'), true)
+    same(can(['dev'], 'write'), true)
+    same(can(['dev'], 'deploy'), false)
+  })
+  check('lead 继承 dev，可 deploy 但不能 delete', () => {
+    same(can(['lead'], 'deploy'), true)
+    same(can(['lead'], 'delete'), false)
+  })
+  check('admin 继承 lead，可 delete 与 grant', () => {
+    same(can(['admin'], 'delete'), true)
+    same(can(['admin'], 'grant'), true)
+    same(can(['admin'], 'read'), true, '继承链一路传下来')
+  })
+  check('未知角色不授予任何权限；多角色取并集', () => {
+    same(can(['guest'], 'read'), false)
+    same(can([], 'read'), false)
+    same(can(['viewer', 'lead'], 'deploy'), true)
+  })
+}`
+
+const L4S3 = `{
+  check('离过期还有 10 分钟 → valid，不需要刷新', () => {
+    const r = tokenStatus({ exp: 1000, now: 400, skew: 30 })
+    same(r.state, 'valid')
+    same(r.refresh, false)
+    same(r.left, 600)
+  })
+  check('进入 skew 窗口 → refresh（提前换，别等 401）', () => {
+    const r = tokenStatus({ exp: 1000, now: 980, skew: 30 })
+    same(r.state, 'refresh')
+    same(r.refresh, true)
+    same(r.left, 20)
+  })
+  check('now >= exp → expired', () => {
+    same(tokenStatus({ exp: 1000, now: 1000 }).state, 'expired')
+    same(tokenStatus({ exp: 1000, now: 1200 }).refresh, true)
+  })
+  check('skew 可配置：为 0 时未过期就仍是 valid', () => {
+    same(tokenStatus({ exp: 100, now: 99, skew: 0 }).state, 'valid')
+    same(tokenStatus({ exp: 100, now: 100, skew: 0 }).state, 'expired')
+  })
+  check('剩余时间不会为负', () => {
+    same(tokenStatus({ exp: 100, now: 500 }).left, 0)
+  })
+}`
+
+/* ============================================================ 第 4 关代码 */
+const L4C1 = `const OAUTH_FLOW = ['authorize', 'consent', 'code', 'token', 'resource']
+
+function nextOauthStep(step) {
+  const i = OAUTH_FLOW.indexOf(step)
+  if (i < 0) throw new Error('未知流程步骤: ' + step)
+  return i === OAUTH_FLOW.length - 1 ? 'done' : OAUTH_FLOW[i + 1]
+}
+
+function validateAuthorize(req) {
+  const r = req || {}
+  const problems = []
+  // 隐式流程把 token 直接放进 URL 片段，容易被打日志/被脚本读到，已不推荐
+  if (r.responseType !== 'code') problems.push('response-type')
+  // state 防 CSRF：攻击者没法预知这个随机值
+  if (!r.state) problems.push('state')
+  // 公共客户端（SPA/移动端）没有 client_secret，必须用 PKCE
+  if (!r.pkce) problems.push('pkce')
+  // 重定向地址必须完全匹配注册值，前缀匹配等于开放重定向
+  if (r.redirectUri && r.registeredUri && r.redirectUri !== r.registeredUri) {
+    problems.push('redirect-uri')
+  }
+  return problems
+}`
+
+const L4C2 = `${L4C1}
+
+// 角色只存自己新增的权限，继承链负责补全（避免每层重复罗列）
+const ROLE_PERMS = {
+  viewer: ['read'],
+  dev: ['write'],
+  lead: ['deploy'],
+  admin: ['delete', 'grant']
+}
+const ROLE_INHERITS = { dev: 'viewer', lead: 'dev', admin: 'lead' }
+
+function permissionsOf(role) {
+  const perms = []
+  const seen = {}
+  let cur = role
+  // seen 防继承环：配置写错成 dev → viewer → dev 时不会死循环
+  while (cur && !seen[cur]) {
+    seen[cur] = true
+    const own = ROLE_PERMS[cur]
+    if (!own) break                    // 未知角色：不授予任何权限（默认拒绝）
+    for (const p of own) {
+      if (perms.indexOf(p) < 0) perms.push(p)
+    }
+    cur = ROLE_INHERITS[cur]
+  }
+  return perms
+}
+
+function can(roles, action) {
+  for (const role of roles || []) {
+    if (permissionsOf(role).indexOf(action) >= 0) return true
+  }
+  return false
+}`
+
+const L4C3 = `${L4C2}
+
+function tokenStatus(req) {
+  const r = req || {}
+  const exp = r.exp
+  const now = r.now
+  const skew = r.skew === undefined ? 30 : r.skew
+
+  if (now >= exp) {
+    return { state: 'expired', refresh: true, left: 0 }
+  }
+  const left = exp - now
+  // 提前 skew 秒刷新：给网络往返和时钟漂移留余量
+  if (left <= skew) {
+    return { state: 'refresh', refresh: true, left }
+  }
+  return { state: 'valid', refresh: false, left }
+}`
+
+/* ============================================================ 第 4 关 */
+const LV4 = {
+  id: 'lv4',
+  title: '认证与授权：OAuth 流程、RBAC 继承、token 刷新',
+  emoji: '🔑',
+  xp: 58,
+  goal: '实现 nextOauthStep / validateAuthorize 校验授权码流程与四类常见缺陷，permissionsOf / can 实现带继承与默认拒绝的 RBAC，tokenStatus 用 skew 窗口判定 token 该用、该刷新还是已过期。',
+  why: '认证授权是「能跑」和「安全」差距最大的一块：OAuth 少一个 state 就是 CSRF，redirect_uri 做前缀匹配就是开放重定向，RBAC 把继承写反就是提权，token 等到 401 才刷新就是雪崩式重试。这四类问题都不是靠「加个中间件」解决的，必须先有一个能判定的模型，再让代码照着模型跑。',
+  nodes: [
+    'cs.seceq.auth',
+    'cs.seceq.auth.oauth-sso',
+    'cs.seceq.auth.rbac-iacl',
+    'cs.seceq.auth.session-token'
+  ],
+  thinking: [
+    {
+      title: 'OAuth 的每一步都在防一个具体攻击',
+      md: '`state` 防 CSRF（攻击者诱导用户用攻击者的 code 换取绑定）；PKCE 防授权码拦截（公共客户端没有 secret，用 code_verifier 证明是同一个人发起的）；`redirect_uri` 精确匹配防开放重定向（攻击者把 code 骗到自己的域名）；授权码一次性 + 短有效期防重放。\n\n所以「OAuth 流程」不是背五个步骤，而是背每一步堵的洞。面试问「为什么要 PKCE」时，答「因为 SPA 的 client_secret 存不住」才是根因。'
+    },
+    {
+      title: 'RBAC 的继承方向决定会不会提权',
+      md: '继承应该是「高权限角色包含低权限角色」：admin 继承 lead，lead 继承 dev。这样检查时顺着链往上找，找到就允许。\n\n写反了（让 viewer 继承 admin）就是给所有只读用户发了删除权限。另一个坑是「默认允许」：未知角色如果落到 else 分支返回 true，等于任何人都能进。正确默认必须是拒绝。'
+    },
+    {
+      title: 'token 刷新要提前一个 skew，而不是等过期',
+      md: '`exp` 是绝对时间，客户端时钟可能偏几秒，网络往返还要几百毫秒。所以正确做法是「剩余时间小于 skew 就刷新」，skew 通常取 30~60 秒。\n\n等到 401 再刷新的代价是：一批请求同时失败、重试风暴、用户体验断崖。刷新还要考虑并发——多个请求同时发现要刷新时，应该只有一个去刷，其余等结果（single-flight）。'
+    }
+  ],
+  prereq: [
+    {
+      title: '授权码流程到底换了几次凭证',
+      md: '① 浏览器跳 `/authorize` 拿 code；② 后端用 code + client_secret（或 PKCE verifier）换 access_token 与 refresh_token；③ 用 access_token 访问资源；④ 过期后用 refresh_token 换新的一对。\n\ncode 只走一次且很快过期；access_token 短期（分钟级）；refresh_token 长期（天级）且必须能被吊销。三者生命周期不同，这是设计的核心。'
+    },
+    {
+      title: '会话 cookie 与 bearer token 的取舍',
+      md: 'cookie 由浏览器自动携带，所以要防 CSRF；bearer token 放在 Authorization 头里，不会被自动携带，天然免疫 CSRF，但要求前端自己存储（XSS 风险更高）。\n\n常见折中：cookie + HttpOnly + SameSite + CSRF token，或者内存里存 access_token + refresh_token 放 HttpOnly cookie。没有一种方案同时免疫 XSS 和 CSRF，只能按威胁模型选。'
+    }
+  ],
+  api: [
+    {
+      name: 'nextOauthStep / validateAuthorize',
+      sig: 'nextOauthStep(step) => string；validateAuthorize({ responseType, state, pkce, redirectUri, registeredUri }) => string[]',
+      args: 'step 取 authorize / consent / code / token / resource；problems 顺序固定为 response-type、state、pkce、redirect-uri。',
+      returns: 'nextOauthStep 返回下一步或 "done"；validateAuthorize 返回缺陷码数组（空数组表示合规）。',
+      example: 'nextOauthStep("code")   // "token"\nvalidateAuthorize({ responseType: "code" })   // ["state", "pkce"]'
+    },
+    {
+      name: 'permissionsOf / can',
+      sig: 'permissionsOf(role) => string[]；can(roles, action) => boolean',
+      args: 'roles 是角色名数组；action 取 read / write / deploy / delete / grant。',
+      returns: 'permissionsOf 返回继承链上的全部权限（去重）；can 对多角色取并集，未知角色不授予权限。',
+      example: 'permissionsOf("lead")   // ["deploy", "write", "read"]\ncan(["lead"], "delete")   // false'
+    },
+    {
+      name: 'tokenStatus',
+      sig: 'tokenStatus({ exp, now, skew? }) => { state, refresh, left }',
+      args: 'exp 与 now 是同一时间单位的绝对时间戳；skew 默认 30。',
+      returns: 'state 取 valid / refresh / expired；left 是剩余时间（≥0）；refresh 表示是否该刷新。',
+      example: 'tokenStatus({ exp: 1000, now: 980, skew: 30 })   // { state: "refresh", refresh: true, left: 20 }'
+    }
+  ],
+  usage: '// 授权入口先做缺陷检查，再决定是否跳转：\nconst problems = validateAuthorize(req.query)\nif (problems.length) return res.status(400).json({ problems })\n// 每个请求进来先判 token：\nconst t = tokenStatus({ exp: claims.exp, now: Math.floor(Date.now() / 1000) })\nif (t.state === "expired") return refreshOrLogin()\nif (t.state === "refresh") scheduleRefresh()   // 后台刷新，不阻塞当前请求\n// 权限检查永远默认拒绝：\nif (!can(user.roles, "deploy")) return res.status(403).end()',
+  hints: [
+    '第 1 步：流程用数组 + indexOf；validateAuthorize 按固定顺序 push 缺陷码，redirect_uri 只在两个值都存在时比较。',
+    '第 2 步：permissionsOf 用 while 沿 ROLE_INHERITS 走，seen 防环；can 对 roles 数组任意一个为 true 即可。',
+    '第 3 步：先判 now >= exp → expired，再算 left，left <= skew → refresh，否则 valid。'
+  ],
+  concepts: [
+    {
+      title: '为什么 refresh token 要轮换',
+      md: '长期有效的 refresh_token 一旦泄漏就是永久访问权。轮换机制（每次刷新都发新的、旧的立即失效）让被盗的 token 只能用一次。\n\n更进一步是「重用检测」：如果旧 refresh_token 被再次使用，说明有人重放了它，服务端直接吊销整个 token 家族，强制重新登录。'
+    },
+    {
+      title: 'ABAC 与 RBAC 的分界',
+      md: 'RBAC 回答「这个角色能不能做这个动作」，ABAC 回答「这个人在这个时间对这个资源能不能做」。前者简单、可审计；后者灵活但难推理。\n\n真实系统常是混合：粗粒度用 RBAC（能不能进后台），细粒度用 ABAC（只能看自己部门的数据）。本关的 `can` 只做 RBAC 部分，资源级判断要再加 owner/tenant 条件。'
+    }
+  ],
+  stages: [
+    {
+      n: 1,
+      title: 'OAuth 授权码流程与缺陷检查',
+      think: '先把流程顺序和四类缺陷固定下来。顺序错（比如先换 token 再 consent）在真实系统里就是绕过用户同意；缺陷不查就是 CSRF 与开放重定向。',
+      hint: '流程用常量数组 + indexOf，末尾返回 done；validateAuthorize 按 response-type → state → pkce → redirect-uri 的顺序 push。',
+      code: L4C1,
+      test: L4S1,
+      diag: [
+        '流程数组顺序写错，consent 跑到了 code 后面。',
+        'validateAuthorize 只检查 state，漏了 PKCE。',
+        '隐式流程没有报 response-type，token 直接暴露在 URL。',
+        'redirect_uri 用 indexOf 做前缀匹配，/cb/evil 也能过。',
+        '未知步骤返回 undefined 而不是抛错，调用方静默失败。'
+      ]
+    },
+    {
+      n: 2,
+      title: 'RBAC 权限继承与默认拒绝',
+      think: '流程之后是授权。RBAC 的关键是继承方向与默认值：高权限继承低权限、未知角色一律拒绝。这两条写反任何一条都是提权漏洞。',
+      hint: '每个角色只存新增权限，ROLE_INHERITS 指向父角色；permissionsOf 用 while + seen 收集，can 遍历角色取并集。',
+      code: L4C2,
+      test: L4S2,
+      diag: [
+        '继承方向写反，viewer 反而拿到了 admin 的权限。',
+        'permissionsOf 只返回角色自身的权限，没有沿链继承。',
+        '继承链没有防环，配置写错时死循环。',
+        '未知角色落到默认允许，任何人都能进。',
+        'can 只检查第一个角色，多角色并集失效。'
+      ]
+    },
+    {
+      n: 3,
+      title: 'token 过期与提前刷新窗口',
+      think: '最后一步处理最日常也最容易写错的时间判断。核心是把「过期」和「该刷新」分成两个状态，并给时钟漂移留 skew。',
+      hint: '先判 now >= exp → expired；否则 left = exp - now，left <= skew → refresh；剩余时间用 max(0, ...) 兜底。',
+      code: L4C3,
+      test: L4S3,
+      diag: [
+        '只判了 now >= exp，没有提前刷新窗口，请求会在边界上失败。',
+        'skew 方向弄反，把 left + skew 和 exp 比较。',
+        'expired 分支的 left 返回了负数。',
+        'skew 写死 30，传入 0 时不生效。',
+        'state 与 refresh 两个字段语义冲突（valid 却 refresh: true）。'
+      ]
+    }
+  ],
+  skeleton: `function nextOauthStep(step) {
+  // TODO: 授权码流程顺序，末尾 done
+  throw new Error('nextOauthStep 还没实现')
+}
+
+function validateAuthorize(req) {
+  // TODO: response-type / state / pkce / redirect-uri 四类缺陷
+  throw new Error('validateAuthorize 还没实现')
+}
+
+function permissionsOf(role) {
+  // TODO: 沿继承链收集权限，防环
+  throw new Error('permissionsOf 还没实现')
+}
+
+function can(roles, action) {
+  // TODO: 多角色并集，默认拒绝
+  throw new Error('can 还没实现')
+}
+
+function tokenStatus(req) {
+  // TODO: expired / refresh / valid 三态 + skew 窗口
+  throw new Error('tokenStatus 还没实现')
+}`,
+  solution: L4C3,
+  finalCode: L4C3,
+  tests: `${L4S1}\n${L4S2}\n${L4S3}`
+}
+
+/* ============================================================ 第 5 关测试 */
+const L5S1 = `{
+  check('加密大数据 → 对称 AES-GCM（非对称慢几个数量级）', () => {
+    const r = choosePrimitive({ goal: 'encrypt' })
+    same(r.primitive, 'aes-gcm')
+    ok(r.reason.length > 0)
+  })
+  check('多接收方加密 → 混合模式：对称加密数据 + 非对称加密密钥', () => {
+    same(choosePrimitive({ goal: 'encrypt', manyRecipients: true }).primitive, 'hybrid')
+  })
+  check('密钥交换 → ECDHE（每次会话新密钥，前向保密）', () => {
+    same(choosePrimitive({ goal: 'key-exchange' }).primitive, 'ecdh')
+  })
+  check('存密码 → argon2id（慢哈希 + 内存硬，不是 SHA-256）', () => {
+    same(choosePrimitive({ goal: 'password' }).primitive, 'argon2id')
+  })
+  check('未知目标抛错，不默认给一个算法', () => {
+    throws(() => choosePrimitive({ goal: 'compress' }))
+    throws(() => choosePrimitive({}))
+  })
+}`
+
+const L5S2 = `{
+  check('签名、有效期、颁发者都对上 → ok', () => {
+    const chain = [
+      { subject: 'leaf', issuer: 'inter', sigOk: true, notBefore: 0, notAfter: 1000, san: ['api.example.com'] },
+      { subject: 'inter', issuer: 'root', sigOk: true, notBefore: 0, notAfter: 1000, san: [] },
+      { subject: 'root', issuer: 'root', sigOk: true, notBefore: 0, notAfter: 1000, san: [] }
+    ]
+    same(verifyChain(chain, 'api.example.com', 500), { ok: true, reason: 'ok', at: null })
+  })
+  check('叶子证书过期 → expired，并指出是哪一级', () => {
+    const chain = [
+      { subject: 'leaf', issuer: 'root', sigOk: true, notBefore: 0, notAfter: 400, san: ['a.com'] },
+      { subject: 'root', issuer: 'root', sigOk: true, notBefore: 0, notAfter: 1000, san: [] }
+    ]
+    const r = verifyChain(chain, 'a.com', 500)
+    same(r.ok, false)
+    same(r.reason, 'expired')
+    same(r.at, 'leaf')
+  })
+  check('中间证书签名无效 → bad-signature', () => {
+    const chain = [
+      { subject: 'leaf', issuer: 'inter', sigOk: true, notBefore: 0, notAfter: 1000, san: ['a.com'] },
+      { subject: 'inter', issuer: 'root', sigOk: false, notBefore: 0, notAfter: 1000, san: [] },
+      { subject: 'root', issuer: 'root', sigOk: true, notBefore: 0, notAfter: 1000, san: [] }
+    ]
+    const r = verifyChain(chain, 'a.com', 500)
+    same(r.reason, 'bad-signature')
+    same(r.at, 'inter')
+  })
+  check('issuer 与下一级 subject 对不上 → chain-broken', () => {
+    const chain = [
+      { subject: 'leaf', issuer: 'wrong', sigOk: true, notBefore: 0, notAfter: 1000, san: ['a.com'] },
+      { subject: 'inter', issuer: 'root', sigOk: true, notBefore: 0, notAfter: 1000, san: [] }
+    ]
+    same(verifyChain(chain, 'a.com', 500).reason, 'chain-broken')
+  })
+  check('域名不在 SAN 列表 → host-mismatch；空链 → empty-chain', () => {
+    const chain = [{ subject: 'leaf', issuer: 'leaf', sigOk: true, notBefore: 0, notAfter: 1000, san: ['a.com'] }]
+    same(verifyChain(chain, 'evil.com', 500).reason, 'host-mismatch')
+    same(verifyChain([], 'a.com', 0).reason, 'empty-chain')
+  })
+}`
+
+const L5S3 = `{
+  check('16 位小写字母 ≈ 75.21 bit → weak', () => {
+    const r = keyStrength({ length: 16, alphabet: 26 })
+    same(r.bits, 75.21)
+    same(r.grade, 'weak')
+  })
+  check('20 位大小写+数字 ≈ 119.08 bit → ok', () => {
+    const r = keyStrength({ length: 20, alphabet: 62 })
+    same(r.bits, 119.08)
+    same(r.grade, 'ok')
+  })
+  check('32 位随机字节 = 256 bit → strong', () => {
+    const r = keyStrength({ length: 32, alphabet: 256 })
+    same(r.bits, 256)
+    same(r.grade, 'strong')
+  })
+  check('4 个小写字母只有 18.8 bit，字典攻击秒破', () => {
+    same(keyStrength({ length: 4, alphabet: 26 }).bits, 18.8)
+    same(keyStrength({ length: 4, alphabet: 26 }).grade, 'weak')
+  })
+  check('长度或字符集非法时抛错，不返回 -Infinity', () => {
+    throws(() => keyStrength({ length: 0, alphabet: 26 }))
+    throws(() => keyStrength({ length: 8, alphabet: 1 }))
+    throws(() => keyStrength({}))
+  })
+}`
+
+/* ============================================================ 第 5 关代码 */
+const L5C1 = `function choosePrimitive(req) {
+  const r = req || {}
+
+  if (r.goal === 'encrypt') {
+    if (r.manyRecipients) {
+      // 混合：数据用对称密钥加密，密钥再用每个接收方的公钥加密
+      return { primitive: 'hybrid', reason: '对称加密数据（快），非对称只加密那把数据密钥（可分发）' }
+    }
+    return { primitive: 'aes-gcm', reason: '对称 AEAD：一次运算同时给机密性与完整性，吞吐是 RSA 的几万倍' }
+  }
+  if (r.goal === 'key-exchange') {
+    return { primitive: 'ecdh', reason: '椭圆曲线 Diffie-Hellman：双方各自算共享密钥，每次会话新密钥（前向保密）' }
+  }
+  if (r.goal === 'signature') {
+    return { primitive: 'ed25519', reason: 'EdDSA：签名短、验签快，且不依赖随机数质量（不像 ECDSA 那样怕 nonce 复用）' }
+  }
+  if (r.goal === 'password') {
+    return { primitive: 'argon2id', reason: '慢哈希 + 内存硬：让离线爆破的成本随内存与轮数线性上升' }
+  }
+  if (r.goal === 'integrity') {
+    return { primitive: 'hmac-sha256', reason: '带密钥的哈希：没有密钥就无法伪造 MAC，比裸哈希多一层认证' }
+  }
+  throw new Error('未知目标: ' + r.goal)
+}`
+
+const L5C2 = `${L5C1}
+
+function verifyChain(chain, host, now) {
+  const list = chain || []
+  if (!list.length) return { ok: false, reason: 'empty-chain', at: null }
+  const t = now === undefined ? 0 : now
+
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i]
+    // 有效期是左闭右开：[notBefore, notAfter)
+    if (!(c.notBefore <= t && t < c.notAfter)) {
+      return { ok: false, reason: 'expired', at: c.subject }
+    }
+    if (!c.sigOk) {
+      return { ok: false, reason: 'bad-signature', at: c.subject }
+    }
+    // 链必须连续：当前证书的 issuer 要等于下一级的 subject
+    if (i + 1 < list.length && list[i + 1].subject !== c.issuer) {
+      return { ok: false, reason: 'chain-broken', at: c.subject }
+    }
+  }
+
+  // 域名只认 SAN（Common Name 已被主流浏览器弃用）
+  const leaf = list[0]
+  const san = leaf.san || []
+  if (san.indexOf(host) < 0) {
+    return { ok: false, reason: 'host-mismatch', at: leaf.subject }
+  }
+  return { ok: true, reason: 'ok', at: null }
+}`
+
+const L5C3 = `${L5C2}
+
+function keyStrength(req) {
+  const length = (req || {}).length
+  const alphabet = (req || {}).alphabet
+  if (!(length > 0)) throw new Error('length 必须为正')
+  if (!(alphabet > 1)) throw new Error('alphabet 必须大于 1')
+
+  // 熵 = 长度 × log2(字符集大小)：假设每字符独立均匀随机
+  const bits = Math.round(length * Math.log2(alphabet) * 100) / 100
+  let grade = 'weak'
+  if (bits >= 128) grade = 'strong'
+  else if (bits >= 80) grade = 'ok'
+  return { bits, grade }
+}`
+
+/* ============================================================ 第 5 关 */
+const LV5 = {
+  id: 'lv5',
+  title: '密码学选型：对称非对称、证书链、密钥强度',
+  emoji: '🔐',
+  xp: 60,
+  goal: '实现 choosePrimitive 按目标在对称、非对称、混合、慢哈希、HMAC 之间选型，verifyChain 逐级验证证书有效期/签名/链连续性并做 SAN 域名匹配，keyStrength 用长度 × log2(字符集) 算熵并分级。',
+  why: '密码学的面试题很少考数学推导，考的是「这个场景该用哪个原语」：加密大文件为什么不能用 RSA、存密码为什么不能用 SHA-256、证书链验证到底验几步、16 位随机密码算不算强。这些问题都能用一个数字或一条规则回答，而选错的代价不可逆——密码哈希选错，泄漏后就是明文。',
+  nodes: [
+    'cs.seceq.crypto',
+    'cs.seceq.crypto.random-secret',
+    'cs.seceq.crypto.sym-asym',
+    'cs.seceq.crypto.tls-pki'
+  ],
+  thinking: [
+    {
+      title: '对称与非对称的分工是「速度 vs 分发」',
+      md: '对称加密（AES-GCM）吞吐高，但双方要事先共享同一把密钥；非对称（RSA/ECC）解决密钥分发，但慢几个数量级，还有长度限制（RSA 只能加密比模数短的数据）。\n\n所以真实协议全是混合：TLS 用 ECDHE 协商出会话密钥，之后全用 AES-GCM。理解这一点，就不会问「为什么不直接用 RSA 加密整个网页」。'
+    },
+    {
+      title: '证书链验证是四步，不是「看有没有锁」',
+      md: '① 有效期：`notBefore <= now < notAfter`；② 签名：每一级用上一级的公钥验签；③ 链连续：当前 issuer 必须等于下一级 subject；④ 身份：叶子证书的 SAN 必须包含目标域名。\n\n四步缺一不可。只验签名不验域名，攻击者拿自己域名的合法证书就能冒充；只验域名不验链，自签证书也能过。所以四步是「与」的关系，不是可选项。'
+    },
+    {
+      title: '熵不是「看起来乱」，是 log2(可能组合数)',
+      md: '长度 L、字符集大小 N，均匀随机时熵 = L × log2(N)。16 位小写字母只有 75 bit，低于 80 bit 的现代底线；32 位随机字节是 256 bit。\n\n更常见的错误是「用时间戳/自增数当密钥」：字符集再大、长度再长，熵也接近 0。所以密钥必须来自 CSPRNG，而不是 Math.random 或时间。'
+    }
+  ],
+  prereq: [
+    {
+      title: 'AEAD 与「加密后 MAC」的差别',
+      md: 'AEAD（如 AES-GCM、ChaCha20-Poly1305）在一次运算里同时输出密文和认证标签，解密时自动校验，改一个字节就整体失败。\n\n手工「先 AES 再 HMAC」也能达到类似效果，但顺序和密钥分离极易写错（先 MAC 后加密会被 padding oracle 攻击）。能用 AEAD 就不要自己拼。'
+    },
+    {
+      title: '证书链为什么要从叶子往根验',
+      md: '服务器发来的是叶子 + 中间证书，根本身不在链里（客户端本地信任库里有）。验证时用中间证书的公钥验叶子的签名，再用根的公钥验中间证书的签名。\n\n根证书是自签的，它的信任来自「预装在系统/浏览器里」，不是来自链上的某一级。所以「链验证通过」= 能一路验到本地信任的根，而不是「链上每一级都可信」。'
+    }
+  ],
+  api: [
+    {
+      name: 'choosePrimitive',
+      sig: 'choosePrimitive({ goal, manyRecipients? }) => { primitive, reason }',
+      args: 'goal 取 encrypt / key-exchange / signature / password / integrity。',
+      returns: 'primitive 取 aes-gcm / hybrid / ecdh / ed25519 / argon2id / hmac-sha256；未知目标抛错。',
+      example: 'choosePrimitive({ goal: "encrypt", manyRecipients: true }).primitive   // "hybrid"\nchoosePrimitive({ goal: "password" }).primitive   // "argon2id"'
+    },
+    {
+      name: 'verifyChain',
+      sig: 'verifyChain(chain, host, now) => { ok, reason, at }',
+      args: 'chain 从叶子到根排列，每项 { subject, issuer, sigOk, notBefore, notAfter, san }；now 由调用方传入。',
+      returns: 'reason 取 ok / empty-chain / expired / bad-signature / chain-broken / host-mismatch；at 指出出问题的证书 subject。',
+      example: 'verifyChain([{ subject: "leaf", issuer: "root", sigOk: true, notBefore: 0, notAfter: 1000, san: ["a.com"] }, { subject: "root", issuer: "root", sigOk: true, notBefore: 0, notAfter: 1000, san: [] }], "a.com", 500)\n// { ok: true, reason: "ok", at: null }'
+    },
+    {
+      name: 'keyStrength',
+      sig: 'keyStrength({ length, alphabet }) => { bits, grade }',
+      args: 'length 是字符/字节数；alphabet 是字符集大小（随机字节为 256）。',
+      returns: 'bits 是熵（2 位小数）；grade 取 weak（<80）/ ok（80~127.99）/ strong（≥128）。非法入参抛错。',
+      example: 'keyStrength({ length: 20, alphabet: 62 })   // { bits: 119.08, grade: "ok" }'
+    }
+  ],
+  usage: '// 生成会话密钥：\nconst plan = choosePrimitive({ goal: "encrypt", manyRecipients: false })\n// plan.primitive === "aes-gcm" → crypto.randomBytes(32) + AES-256-GCM\n// 网关校验上游证书：\nconst v = verifyChain(peerChain, "api.internal", Date.now())\nif (!v.ok) reject(`${v.reason} @ ${v.at}`)\n// 密码策略：\nconst s = keyStrength({ length: 16, alphabet: 26 })\nif (s.grade === "weak") requireLongerPassword(s.bits)',
+  hints: [
+    '第 1 步：按 goal 分支；encrypt 再判 manyRecipients 走 hybrid；其余四类各给一个原语，末尾抛错。',
+    '第 2 步：循环每项依次判有效期、签名、与下一级的 issuer 连接；循环外再拿叶子 SAN 匹配 host。',
+    '第 3 步：bits = length × Math.log2(alphabet)，round 到 2 位；grade 用 80 与 128 两个阈值。'
+  ],
+  concepts: [
+    {
+      title: '为什么密码哈希要「慢」',
+      md: '普通哈希（SHA-256）为吞吐优化，GPU 每秒能算几十亿次，8 位密码几小时就爆破完。argon2id/bcrypt/scrypt 故意消耗内存与时间，把单次尝试成本抬高几千倍。\n\n代价是登录接口也要算几百毫秒，所以需要按硬件调参（目标 ~100ms），并对同一账号的并发登录做限流。'
+    },
+    {
+      title: '前向保密到底保护什么',
+      md: '没有前向保密时，攻击者可以先把流量存下来，等以后拿到服务器私钥再解密历史流量。ECDHE 每次会话生成临时密钥，私钥泄漏也解不开过去的会话。\n\n所以「换 ECDHE」不只是性能选择，而是把「私钥泄漏」的影响范围从「全部历史」压到「当前会话」。这也是 TLS 1.3 强制 ECDHE 的原因。'
+    }
+  ],
+  stages: [
+    {
+      n: 1,
+      title: '按目标选择密码学原语',
+      think: '先做选型器。它看起来像 if-else 堆叠，但每一支都对应一个「用错就出事」的场景，写的时候要能说出理由。',
+      hint: '按 goal 分支：encrypt 内再判 manyRecipients；key-exchange → ecdh；signature → ed25519；password → argon2id；integrity → hmac-sha256。',
+      code: L5C1,
+      test: L5S1,
+      diag: [
+        '加密分支没有处理多接收方，直接给了对称算法（密钥怎么分发？）。',
+        '把 RSA 当成大数据加密的答案。',
+        '密码哈希给了 sha256，离线爆破毫无成本。',
+        '密钥交换写成 rsa（没有前向保密）。',
+        '未知目标返回默认算法，调用方悄悄用错。'
+      ]
+    },
+    {
+      n: 2,
+      title: '证书链逐级验证与域名匹配',
+      think: '选型之后是验证。这一步把「看锁图标」拆成四个必须同时成立的检查，并让失败原因可定位到具体一级。',
+      hint: '循环里依次判 notBefore/notAfter、sigOk、下一级 subject 是否等于本级 issuer；循环后用叶子 SAN 匹配 host。',
+      code: L5C2,
+      test: L5S2,
+      diag: [
+        '只验了签名，没有验有效期。',
+        '有效期用了闭区间，notAfter 那一刻仍判有效。',
+        '链连接判反了（拿 issuer 比下一级 issuer，或根本没比）。',
+        '域名只查了 CN 或者用 indexOf 做子串匹配，evil-a.com 也能过。',
+        '空链返回 ok，等于信任任何人。'
+      ]
+    },
+    {
+      n: 3,
+      title: '密钥强度与熵计算',
+      think: '最后一步把「密码够不够强」变成数字。熵是唯一能跨「字母密码 / 随机字节 / 口令短语」比较的单位，也是面试里最容易被含糊过去的计算。',
+      hint: 'bits = length × log2(alphabet)，round 两位；grade 用 80 / 128 两个阈值；length ≤ 0 或 alphabet ≤ 1 抛错。',
+      code: L5C3,
+      test: L5S3,
+      diag: [
+        '用了 log10 或自然对数，bits 数量级完全不对。',
+        'bits 没有 round，浮点误差让相同输入出现不同结果。',
+        '分级阈值写反（80 以下反而 strong）。',
+        'length 为 0 时算出 0 但没抛错，弱密钥被放过。',
+        'alphabet 为 1 时 log2(1)=0，返回 0 而不是报错。'
+      ]
+    }
+  ],
+  skeleton: `function choosePrimitive(req) {
+  // TODO: 按目标选对称/非对称/混合/慢哈希/HMAC
+  throw new Error('choosePrimitive 还没实现')
+}
+
+function verifyChain(chain, host, now) {
+  // TODO: 有效期 + 签名 + 链连续 + SAN 域名匹配
+  throw new Error('verifyChain 还没实现')
+}
+
+function keyStrength(req) {
+  // TODO: 长度 × log2(字符集)，按阈值分级
+  throw new Error('keyStrength 还没实现')
+}`,
+  solution: L5C3,
+  finalCode: L5C3,
+  tests: `${L5S1}\n${L5S2}\n${L5S3}`
+}
+
+export default {
+  id: 'cs-seceq',
+  version: 3,
+  domain: 'cs',
+  cumulative: false,
+  title: '系统与安全：IO、Linux、Web、认证、密码学',
+  emoji: '🛡️',
+  xp: 70,
+  tagline: '5 关：IO 模型与零拷贝 → Linux inode/进程/排查 → 注入与 CSRF 判定 → OAuth/RBAC/token → 对称非对称与证书链。',
+  stack: ['操作系统', '安全工程', 'Web'],
+  intro: '系统与安全是两门最容易被「名词化」的学科：epoll、inode、CSRF、OAuth、证书链，每个词都能背出一段定义，但面试官一问「具体是几次拷贝」「这个 token 什么时候该刷新」「证书链哪一步会断」就露馅。这个项目把五章的核心判断全部写成可运行函数：事件收集、拷贝计数、状态机、风险分类、权限继承、证书验证。每个函数都必须能给出确定的输出，讲不清边界就写不出来。',
+  outcome: '你能数清一次传输的拷贝次数、按 st_mode 解析 inode、用状态机解释进程迁移、判定注入与 CSRF 的修复方式、实现 RBAC 继承与 token 刷新窗口、验证证书链并评估密钥强度。',
+  levels: [LV1, LV2, LV3, LV4, LV5]
+}

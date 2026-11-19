@@ -59,7 +59,13 @@ const listInfo = await cdp.evaluate(`return (() => {
 })()`)
 
 check(`项目卡片数 = ${projectCount}（与内容库一致）`, listInfo.cards === projectCount, `实际 ${listInfo.cards}`)
-check('按领域分 4 组（前端/后端/公共基础/AI）', listInfo.groups.length === 4, JSON.stringify(listInfo.groups))
+const domainLabels = listInfo.groups.map((g) => g.label)
+const wantLabels = ['前端', '后端', '公共基础', 'AI Agent', '工程难题']
+check(
+  '按领域分 5 组（前端/后端/公共基础/AI Agent/工程难题）',
+  listInfo.groups.length === 5 && wantLabels.every((l) => domainLabels.includes(l)),
+  JSON.stringify(listInfo.groups)
+)
 check('卡片墙：同屏至少两列', listInfo.twoPerRow, `grid-template-columns=${listInfo.gridCols}`)
 check('有知识图谱覆盖总览', listInfo.hasCov)
 check('覆盖数字非空且指向 402 个知识点', /\d+/.test(listInfo.covNum) && /402/.test(listInfo.covOf), `${listInfo.covNum} ${listInfo.covOf}`)
