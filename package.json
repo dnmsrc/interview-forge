@@ -45,7 +45,9 @@
     "tutor:fetch": "node scripts/tutor-fetch.mjs",
     "project:check": "node scripts/qa/project-content.test.mjs",
     "project:build": "node scripts/project-build.mjs",
-    "project:coverage": "node scripts/project-coverage.mjs"
+    "project:coverage": "node scripts/project-coverage.mjs",
+    "project:plan": "node scripts/project-plan.mjs",
+    "project:audit": "node scripts/project-audit.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

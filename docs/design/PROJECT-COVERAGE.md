@@ -67,17 +67,26 @@ node scripts/project-coverage.mjs --check --min=100   # 覆盖率门槛（CI 用
 分批推进，每批完成后跑一遍 `project:build` + `project-coverage`，覆盖率必须可见上升；
 每批都要在真实应用里点一遍（关卡网格、章节、筛选、跑一关），不允许「内容进了库但 UI 撑不住」。
 
-## 5. 当前批次
+## 5. 当前批次（补齐全量流水线）
 
-| 批次 | 范围 | 目标 |
-| --- | --- | --- |
-| B0 ✅ | 现有 9 项目 33 关补 `nodes` 映射 | 25/402（6.2%） |
-| B1 | be.redis（9）→ `redis-cache` 4 关 | be 域先开张 |
-| B2 | be 其余：java(19)/spring(9)/mysql(12)/mq(6)/micro(8)/node(6)/python(6) | be 75 节点收编 |
-| B3 | cs：algo(25)/design(24)/devops(19)/net(14)/os(22)/seceq(16) | cs 120 节点收编 |
-| B4 | fe：vue(48)/js(24)/browser(12)/css(11)/network(12)/perf(9)/build(10)/ts(6)/html(5)/eco(8)/electron(8)/uniapp(8) | fe 161 节点收编 |
-| B5 | ai：eval/harness/memory/multi/rag/serving/tools/train | ai 33 节点收编 |
-| B6 | eng：warstory（13） | 工程难题收编 |
+2026-11 起把剩余 368 个缺口切成 **26 个项目 / 103 关**，规划文件在 `data/project-plan.json`
+（`npm run project:plan -- --write` 可重算，图谱增删后要重跑）。
 
-每批的具体项目清单与关数，在该批开始前按 `project-coverage --gaps` 的缺口重算一遍再定稿——
-图谱会增删节点，提前写死的关数表很快就过期。
+| 分组 | 项目 | 关数 | 覆盖 |
+| --- | --- | --- | --- |
+| ai | ai-eval、ai-memory、ai-tools | 8 | ai 33 |
+| be | be-java、be-micro、be-mysql、be-python、be-spring | 20 | be 66 |
+| cs | cs-algo、cs-design、cs-devops、cs-net、cs-os、cs-seceq | 28 | cs 111 |
+| fe | fe-vue、fe-vue-2、fe-vue-3、fe-js、fe-browser、fe-network、fe-css、fe-build、fe-perf、fe-eco、fe-uniapp | 33 | fe 151 |
+| eng | eng-warstory | 4 | eng 13 |
+
+生产流程（每个项目走一遍）：
+
+1. 读 `docs/design/PROJECT-GEN-SPEC.md`（内容生产规范）与 `data/plans/<slug>.json`（关卡与 nodes 分配）；
+2. 写 `content/projects-src/<slug>.mjs`，反复跑 `npm run project:build -- --only=<slug>` 到全绿；
+3. `npm run project:audit -- --only=<slug>` 过质量线（步数/检查点/覆盖核对）；
+4. 全量 `npm run project:build` + `npm run project:coverage`，覆盖率必须可见上升；
+5. 在真实应用里点一遍（卡片墙、章节网格、筛掉没做的、跑一关）。
+
+> 生产是串行的：本机同一时刻只允许 1 个内容子代理运行（并发上限），
+> 所以按「一个项目一跑」推进，不要指望多代理同时写同一仓库。
