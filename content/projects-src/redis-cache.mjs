@@ -1354,9 +1354,9 @@ const monday = new HyperLogLog()
 const tuesday = new HyperLogLog()
 for (let i = 0; i < 200; i++) monday.add('user:' + i)
 for (let i = 100; i < 300; i++) tuesday.add('user:' + i)
-monday.count()          // 约 181
+monday.count()          // 200.1（真实 200，64 个桶这次刚好猜中）
 monday.merge(tuesday)
-monday.count()          // 约 350（并集 300，64 个桶的误差）`,
+monday.count()          // 284.3（并集是 300，误差 5%）`,
   concepts: [
     {
       title: '通关后复盘：编码是「成本模型」的产物',
@@ -3018,7 +3018,7 @@ Redlock：在 N 个**独立**主节点上依次加锁，拿到 (N/2+1) 个且总
       returns:
         'hashSlot 返回 0~16383 的整数；nodeOf / ownerOf 返回节点 id；set 返回属主节点 id；get 未命中返回 undefined；keysOn 返回该节点上 key 的有序数组；route 返回 { ok: true, node, slot } 或 { ok: false, kind: \'MOVED\' | \'ASK\', node, slot }。',
       example:
-        "const c = new Cluster(['A', 'B', 'C'])\nhashSlot('foo')            // 12182\nc.nodeOf('foo')            // 'B'（示例，取决于分配）\nc.route('A', 'foo')        // { ok: false, kind: 'MOVED', node: 'B', slot: 12182 }\nc.route('B', 'foo')        // { ok: true, node: 'B', slot: 12182 }"
+        "const c = new Cluster(['A', 'B', 'C'])\nhashSlot('foo')            // 12182\nc.nodeOf('foo')            // 'C'（槽按 5462 一段平均分给三个节点）\nc.route('A', 'foo')        // { ok: false, kind: 'MOVED', node: 'C', slot: 12182 }\nc.route('C', 'foo')        // { ok: true, node: 'C', slot: 12182 }"
     },
     {
       name: 'Cluster（槽迁移）',
@@ -3143,18 +3143,19 @@ Redlock：在 N 个**独立**主节点上依次加锁，拿到 (N/2+1) 个且总
 const cluster = new Cluster(['A', 'B', 'C'])
 hashSlot('foo')                    // 12182
 cluster.set('user:1', 'alice')
-cluster.nodeOf('user:1')           // 属主节点
-cluster.route('A', 'user:1')       // 可能返回 MOVED
+cluster.nodeOf('user:1')           // 'B'（槽 10778 落在 B）
+cluster.route('A', 'user:1')       // { ok: false, kind: 'MOVED', node: 'B', slot: 10778 }
 
 // 2) hash tag：两个 key 强制同槽，才能一起做 MGET / 事务
-hashSlot('{u1}.name') === hashSlot('{u1}.email')   // true
+hashSlot('{u1}.name') === hashSlot('{u1}.email')   // true，都是 4574
 
-// 3) 迁移一个槽
+// 3) 迁移一个槽（4574 归 A，迁给 B）
+cluster.set('{u1}.name', 'alice')
 const slot = hashSlot('{u1}.name')
 cluster.startMigration(slot, 'B')
 cluster.route('A', '{u1}.name')    // { ok: false, kind: 'ASK', node: 'B', slot }
-cluster.migrateKey('{u1}.name')
-cluster.finishMigration(slot)
+cluster.migrateKey('{u1}.name')    // 1
+cluster.finishMigration(slot)      // 'B'
 cluster.route('A', '{u1}.name')    // { ok: false, kind: 'MOVED', node: 'B', slot }
 
 // 4) 分布式锁

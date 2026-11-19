@@ -49,9 +49,17 @@ const list = await cdp.evaluate(`return (() => {
 
 check(`项目列表共 ${projects.length} 个项目`, list.total === projects.length, `实际 ${list.total}`)
 const byLabel = Object.fromEntries(list.groups.map((g) => [g.label, g.count]))
+// 期望值从内容库算：新加项目时这里不会误报，只验「分栏数与各栏数量跟内容一致」
+const DOMAIN_LABEL = { fe: '前端', be: '后端', cs: '公共基础', ai: 'AI Agent', eng: '工程难题' }
+const wantByLabel = {}
+for (const p of projects) {
+  const label = DOMAIN_LABEL[p.domain] ?? '其它'
+  wantByLabel[label] = (wantByLabel[label] ?? 0) + 1
+}
 check(
-  '按领域分成 4 栏且各栏数量正确',
-  list.groups.length === 4 && byLabel['前端'] === 3 && byLabel['后端'] === 2 && byLabel['公共基础'] === 2 && byLabel['AI Agent'] === 2,
+  '按领域分栏且各栏数量与内容一致',
+  list.groups.length === Object.keys(wantByLabel).length &&
+    Object.entries(wantByLabel).every(([k, v]) => byLabel[k] === v),
   JSON.stringify(byLabel)
 )
 check('每张卡都有「N 关」徽标与进度读数', list.hasMeta)
