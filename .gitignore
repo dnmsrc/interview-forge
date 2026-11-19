@@ -13,7 +13,7 @@ data/instances/
 data/r24-qa/
 data/_backup*/
 data/e2e-*.png
-scripts/.tmp-*/
+scripts/.tmp-*
 .DS_Store
 *.log
 .env
