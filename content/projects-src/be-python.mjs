@@ -1,0 +1,2039 @@
+/**
+ * be-python —— 服务端运行时四连（本文件先落地前两关：Node 事件循环、Python 协程调度）。
+ * 关卡分配见 data/plans/be-python.json：
+ *   lv1 be.node.*   lv2 be.python.*   lv3 be.spring.ioc/aop   lv4 be.spring.mvc
+ */
+
+/* ============================================================ 第 1 关测试 */
+const L1S1 = `{
+  check('advance 前排队的 nextTick 会在这一轮执行', () => {
+    const order = []
+    const loop = createLoop()
+    loop.nextTick(() => order.push('tick'))
+    same(order, [], '注册时不该立即执行')
+    loop.advance(0)
+    same(order, ['tick'])
+  })
+  check('nextTick 优先于 setImmediate', () => {
+    const order = []
+    const loop = createLoop()
+    loop.setImmediate(() => order.push('immediate'))
+    loop.nextTick(() => order.push('tick'))
+    loop.advance(0)
+    same(order, ['tick', 'immediate'])
+  })
+  check('嵌套 nextTick 在本轮全部清空', () => {
+    const order = []
+    const loop = createLoop()
+    loop.nextTick(() => { order.push('a'); loop.nextTick(() => order.push('b')) })
+    loop.nextTick(() => order.push('c'))
+    loop.advance(0)
+    same(order, ['a', 'c', 'b'], '嵌套的 nextTick 追加到队尾，本轮清空')
+  })
+  check('没有任务时 advance 正常返回', () => {
+    const loop = createLoop()
+    same(loop.advance(10), null)
+  })
+}`
+
+const L1S2 = `{
+  check('未到期的定时器不执行', () => {
+    const order = []
+    const loop = createLoop()
+    loop.setTimeout(() => order.push('t10'), 10)
+    loop.advance(9)
+    same(order, [], '9ms < 10ms，不能提前跑')
+    loop.advance(1)
+    same(order, ['t10'])
+  })
+  check('到期的定时器按到期时间升序执行', () => {
+    const order = []
+    const loop = createLoop()
+    loop.setTimeout(() => order.push('30'), 30)
+    loop.setTimeout(() => order.push('10'), 10)
+    loop.setTimeout(() => order.push('20'), 20)
+    loop.advance(100)
+    same(order, ['10', '20', '30'])
+  })
+  check('同时到期按注册顺序执行', () => {
+    const order = []
+    const loop = createLoop()
+    loop.setTimeout(() => order.push('first'), 5)
+    loop.setTimeout(() => order.push('second'), 5)
+    loop.advance(5)
+    same(order, ['first', 'second'])
+  })
+  check('定时器回调里新注册的定时器留到下一轮（阶段快照）', () => {
+    const order = []
+    const loop = createLoop()
+    loop.setTimeout(() => {
+      order.push('t1')
+      loop.setTimeout(() => order.push('nested'), 0)
+    }, 0)
+    loop.advance(0)
+    same(order, ['t1'], '本轮只跑进入阶段时已到期的快照')
+    loop.advance(0)
+    same(order, ['t1', 'nested'])
+  })
+  check('定时器回调里的 nextTick 在下一个定时器之前执行', () => {
+    const order = []
+    const loop = createLoop()
+    loop.setTimeout(() => { order.push('t1'); loop.nextTick(() => order.push('tick')) }, 0)
+    loop.setTimeout(() => order.push('t2'), 0)
+    loop.advance(0)
+    same(order, ['t1', 'tick', 't2'], '每个回调之后都要清空微任务队列')
+  })
+}`
+
+const L1S3 = `{
+  check('setImmediate 在定时器之后执行', () => {
+    const order = []
+    const loop = createLoop()
+    loop.setImmediate(() => order.push('imm'))
+    loop.setTimeout(() => order.push('timer'), 0)
+    loop.advance(0)
+    same(order, ['timer', 'imm'], 'timers 阶段先于 check 阶段')
+  })
+  check('immediate 里注册的 immediate 留到下一轮', () => {
+    const order = []
+    const loop = createLoop()
+    loop.setImmediate(() => { order.push('a'); loop.setImmediate(() => order.push('b')) })
+    loop.advance(0)
+    same(order, ['a'])
+    loop.advance(0)
+    same(order, ['a', 'b'])
+  })
+  check('nextTick 优先于 promise 微任务', () => {
+    const order = []
+    const loop = createLoop()
+    loop.micro(() => order.push('promise'))
+    loop.nextTick(() => order.push('tick'))
+    loop.advance(0)
+    same(order, ['tick', 'promise'], 'nextTick 队列先于 Promise 队列')
+  })
+  check('promise 回调里注册的 nextTick 会插到剩余微任务之前', () => {
+    const order = []
+    const loop = createLoop()
+    loop.micro(() => { order.push('p1'); loop.nextTick(() => order.push('tick')) })
+    loop.micro(() => order.push('p2'))
+    loop.advance(0)
+    same(order, ['p1', 'tick', 'p2'])
+  })
+  check('advance(0) 也会清空已排队的 immediate', () => {
+    const order = []
+    const loop = createLoop()
+    loop.setImmediate(() => order.push('imm'))
+    loop.advance(0)
+    same(order, ['imm'])
+  })
+}`
+
+/* ============================================================ 第 1 关 */
+const LV1 = {
+  id: 'lv1',
+  title: '手写 Node 事件循环：谁先跑、跑几轮',
+  emoji: '🔁',
+  xp: 45,
+  goal: '实现 createLoop()：nextTick(fn)、setTimeout(fn, ms)、setImmediate(fn)、micro(fn) 四类回调，advance(ms) 推进时钟并跑一轮事件循环，顺序为 timers → 微任务 → check。',
+  why: 'Node 里最贵的 bug 往往不是逻辑写错，而是「我以为它先跑」。nextTick 和 Promise 谁先？setTimeout(fn, 0) 和 setImmediate 谁先？同一轮里新注册的定时器会不会当场执行？这些问题的答案不在 API 文档里，而在事件循环的阶段模型里。手写一遍调度器，这些顺序就不再靠背。',
+  nodes: ['be.node.core', 'be.node.core.async-stream', 'be.node.core.eventloop', 'be.node.runtime', 'be.node.runtime.cluster-bff', 'be.node.runtime.module-process'],
+  thinking: [
+    {
+      title: '事件循环不是「一个队列」，是「几个阶段 + 两个插队队列」',
+      md: 'Node 的一轮循环走 `timers → pending callbacks → poll → check → close callbacks`，**每个阶段结束都会清空微任务队列**。微任务里又分两级：`process.nextTick` 队列优先于 Promise 队列。\n\n本关把这些压缩成可测的最小模型：`advance(ms)` 就是「推进时间 + 走一轮」，一轮里先跑所有到期的 timer（快照），再跑 check 阶段的 immediate；每个回调之后都清空 `nextTick → Promise` 两级微任务。模型小，但四个最容易答错的顺序全在里面。'
+    },
+    {
+      title: '为什么第 1 步故意不写定时器',
+      md: '第 1 步只有 nextTick 和 setImmediate，先证明「微任务先于 check 阶段」这一条。这时 `setTimeout` 根本不存在——第 2 步的测试一调用就会 `TypeError`，这正是分步要的效果：**先让缺失暴露，再补语义**。'
+    }
+  ],
+  prereq: [
+    {
+      title: '「阶段快照」是定时器行为的关键',
+      md: '`timers` 阶段不会「边执行边看表」：它进入时把已到期的定时器取成一个快照，执行过程中新注册的定时器哪怕 `due <= now` 也要等下一轮。\n\n这解释了线上常见现象：在定时器回调里 `setTimeout(fn, 0)` 不会在同一轮立刻再跑一次，而是让出一轮。测试里 `advance(0)` 两次才看到 `nested` 就是这个语义。'
+    },
+    {
+      title: '微任务的两级优先与「插队」',
+      md: 'Node 先清空整个 `nextTick` 队列，再处理 Promise 队列；但每条 Promise 回调执行完，又会回头检查 nextTick 队列。所以 Promise 回调里 `process.nextTick(...)` 注册的回调会插到还没跑完的 Promise 前面。\n\n实现上就是一个循环：`while (nextTick 有 || promise 有) { 有 nextTick 就跑 nextTick，否则跑 promise }`。'
+    },
+    {
+      title: '这跟 Stream 背压、Cluster 有什么关系',
+      md: 'Stream 的 `drain`、背压回调都排在微任务/下一轮 tick 上；Cluster 主进程分发连接也依赖事件循环的 poll 阶段。**调度顺序错，背压就变成「一次性把内存吃满」**。第 1 关建立的时间模型，后面排查 `MaxListenersExceeded`、`ERR_STREAM_WRITE_AFTER_END` 都用得上。'
+    }
+  ],
+  api: [
+    {
+      name: 'createLoop',
+      sig: 'createLoop() => { nextTick(fn), setTimeout(fn, ms), setImmediate(fn), micro(fn), advance(ms) }',
+      args: 'fn 是无参回调；ms 是相对当前虚拟时钟的延迟。advance(ms) 先把时钟推进 ms，再跑一轮事件循环，返回 null。',
+      returns: 'nextTick / setImmediate / micro / setTimeout 都返回自增的任务 id；advance 返回 null。',
+      example: "const order = []\nconst loop = createLoop()\nloop.setImmediate(() => order.push('imm'))\nloop.setTimeout(() => order.push('timer'), 0)\nloop.nextTick(() => order.push('tick'))\nloop.advance(0)\n// order = ['tick', 'timer', 'imm']"
+    }
+  ],
+  usage: "// 真实 Node 里没有 advance，因为事件循环自己转；这里对应的是：\n//   下一轮 tick  = setImmediate\n//   微任务       = process.nextTick / Promise.then\nconst cache = new Map()\nfunction get(key, load) {\n  if (cache.has(key)) return Promise.resolve(cache.get(key))\n  return load(key).then((v) => { cache.set(key, v); return v })\n}\n// 这个 then 回调和 nextTick 注册的回调，谁先跑取决于上面的两级队列",
+  hints: [
+    '第 1 步：两个数组（nextTicks、immediates），drainMicro 循环里「有 nextTick 就跑 nextTick，否则跑 micro」。',
+    '第 2 步：timers 存 { due, order, fn }；advance 先 filter 出 due <= now 的快照并按 due、order 排序，再从 timers 里删掉，最后依次执行。',
+    '第 3 步：暴露 micro() 把回调塞进 Promise 队列；immediate 每轮取批次快照，回调里新注册的留到下一轮。'
+  ],
+  concepts: [
+    {
+      title: 'setTimeout(fn, 0) vs setImmediate',
+      md: '在 I/O 回调里，`setImmediate` 几乎总是先于 `setTimeout(fn, 0)`（因为 check 紧跟 poll）；在主模块里两者的先后是不确定的，取决于进程启动耗时是否超过 1ms。所以**永远不要靠这两个的顺序写业务逻辑**，要顺序就用 nextTick/Promise 或显式串行。'
+    },
+    {
+      title: '事件循环与 CPU 密集任务',
+      md: 'poll 阶段被同步计算占住时，timers 和微任务全部饿死。这就是 Node 处理大计算要 `worker_threads` 或 Cluster 的原因：不是「多线程更快」，而是「必须把 CPU 从事件循环里挪出去」。'
+    }
+  ],
+  stages: [
+    {
+      n: 1,
+      title: '先跑通 nextTick 与 check 阶段',
+      think: '先只做「轮次」：advance 表示走一轮，轮内先清微任务（nextTick 优先），再跑 check 阶段的 immediate。定时器先不管，第 2 步再加。',
+      hint: 'drainMicro 用 while 循环；immediate 用批次快照（先取走整个数组再执行）。',
+      code: `function createLoop() {
+  let now = 0
+  let seq = 0
+  const nextTicks = []
+  const micros = []
+  let immediates = []
+
+  const drainMicro = () => {
+    while (nextTicks.length || micros.length) {
+      if (nextTicks.length) nextTicks.shift()()
+      else micros.shift()()
+    }
+  }
+
+  return {
+    nextTick(fn) { nextTicks.push(fn); return ++seq },
+    setImmediate(fn) { immediates.push(fn); return ++seq },
+    advance(ms) {
+      now += ms
+      drainMicro()
+      const batch = immediates
+      immediates = []
+      for (const im of batch) { im(); drainMicro() }
+      return null
+    }
+  }
+}`,
+      test: L1S1,
+      diag: [
+        'advance 里没调 drainMicro，nextTick 一直不执行。',
+        'nextTick 和 immediate 用了同一个队列，顺序退化成注册顺序。',
+        '执行 immediate 时直接遍历 immediates（没做快照），回调里新注册的当场就被执行了。',
+        'drainMicro 只跑一轮就退出，嵌套 nextTick 留到了下次 advance。'
+      ]
+    },
+    {
+      n: 2,
+      title: '补上 timers 阶段与快照语义',
+      think: '定时器的三个坑：没到期不能跑、到期的按 due 升序（同 due 按注册序）、阶段内新注册的留到下一轮。第三个是「快照」的直接后果。',
+      hint: 'due 用 now + ms 记；排序 (a, b) => a.due - b.due || a.order - b.order；先算快照再从 timers 删除。',
+      code: `function createLoop() {
+  let now = 0
+  let seq = 0
+  const nextTicks = []
+  const micros = []
+  let immediates = []
+  let timers = []
+
+  const drainMicro = () => {
+    while (nextTicks.length || micros.length) {
+      if (nextTicks.length) nextTicks.shift()()
+      else micros.shift()()
+    }
+  }
+
+  return {
+    nextTick(fn) { nextTicks.push(fn); return ++seq },
+    setTimeout(fn, ms) {
+      const id = ++seq
+      timers.push({ due: now + ms, order: id, fn })
+      return id
+    },
+    setImmediate(fn) { immediates.push(fn); return ++seq },
+    advance(ms) {
+      now += ms
+      drainMicro()
+      const due = timers
+        .filter((t) => t.due <= now)
+        .sort((a, b) => a.due - b.due || a.order - b.order)
+      timers = timers.filter((t) => t.due > now)
+      for (const t of due) { t.fn(); drainMicro() }
+      const batch = immediates
+      immediates = []
+      for (const im of batch) { im(); drainMicro() }
+      return null
+    }
+  }
+}`,
+      test: L1S2,
+      diag: [
+        'advance 只加时钟不执行 timer（或者执行了但没判断 due <= now，提前跑了）。',
+        '排序只按注册顺序，忽略了 due；或者反过来同 due 顺序不对——用 a.due - b.due || a.order - b.order。',
+        '执行完没有从 timers 里删除，下一轮又跑一遍。',
+        '边执行边重新筛 timers，导致阶段内新注册的定时器当场执行。',
+        'timer 回调后没调 drainMicro，nextTick 被挤到所有 timer 之后。'
+      ]
+    },
+    {
+      n: 3,
+      title: '补上 Promise 微任务与 check 阶段细节',
+      think: '最后一块拼图：micro() 代表 Promise.then 回调，它排在 nextTick 之后但仍在同一轮微任务清空里；immediate 每轮只跑一次批次。',
+      hint: 'drainMicro 里 if (nextTicks.length) 优先，否则 micros；immediate 用批次快照。',
+      code: `function createLoop() {
+  let now = 0
+  let seq = 0
+  const nextTicks = []
+  const micros = []
+  let immediates = []
+  let timers = []
+
+  const drainMicro = () => {
+    while (nextTicks.length || micros.length) {
+      if (nextTicks.length) nextTicks.shift()()
+      else micros.shift()()
+    }
+  }
+
+  return {
+    nextTick(fn) { nextTicks.push(fn); return ++seq },
+    micro(fn) { micros.push(fn); return ++seq },
+    setTimeout(fn, ms) {
+      const id = ++seq
+      timers.push({ due: now + ms, order: id, fn })
+      return id
+    },
+    setImmediate(fn) { immediates.push(fn); return ++seq },
+    advance(ms) {
+      now += ms
+      drainMicro()
+      const due = timers
+        .filter((t) => t.due <= now)
+        .sort((a, b) => a.due - b.due || a.order - b.order)
+      timers = timers.filter((t) => t.due > now)
+      for (const t of due) { t.fn(); drainMicro() }
+      const batch = immediates
+      immediates = []
+      for (const im of batch) { im(); drainMicro() }
+      return null
+    }
+  }
+}`,
+      test: L1S3,
+      diag: [
+        'setImmediate 和 timer 塞进了同一个队列，注册顺序决定执行顺序。',
+        'immediate 执行时没有快照，嵌套 immediate 当场执行。',
+        '把 micro 和 nextTick 塞进同一个队列，先注册的 promise 反而先跑。',
+        'drainMicro 写成「先跑完 micros 再看 nextTicks」，回调里注册的 nextTick 被压到最后。',
+        'immediate 只在 advance(ms > 0) 时跑，advance(0) 没清队列。'
+      ]
+    }
+  ],
+  skeleton: `function createLoop() {
+  // TODO: nextTick 队列、Promise 微任务队列、定时器列表、immediate 批次；
+  // advance(ms) 推进时钟并跑一轮：timers → 微任务 → check
+  throw new Error('createLoop 还没实现')
+}`,
+  solution: `function createLoop() {
+  let now = 0
+  let seq = 0
+  const nextTicks = []
+  const micros = []
+  let immediates = []
+  let timers = []
+
+  const drainMicro = () => {
+    while (nextTicks.length || micros.length) {
+      if (nextTicks.length) nextTicks.shift()()
+      else micros.shift()()
+    }
+  }
+
+  return {
+    nextTick(fn) { nextTicks.push(fn); return ++seq },
+    micro(fn) { micros.push(fn); return ++seq },
+    setTimeout(fn, ms) {
+      const id = ++seq
+      timers.push({ due: now + ms, order: id, fn })
+      return id
+    },
+    setImmediate(fn) { immediates.push(fn); return ++seq },
+    advance(ms) {
+      now += ms
+      drainMicro()
+      const due = timers
+        .filter((t) => t.due <= now)
+        .sort((a, b) => a.due - b.due || a.order - b.order)
+      timers = timers.filter((t) => t.due > now)
+      for (const t of due) { t.fn(); drainMicro() }
+      const batch = immediates
+      immediates = []
+      for (const im of batch) { im(); drainMicro() }
+      return null
+    }
+  }
+}`,
+  finalCode: `function createLoop() {
+  let now = 0
+  let seq = 0
+  const nextTicks = []
+  const micros = []
+  let immediates = []
+  let timers = []
+
+  const drainMicro = () => {
+    while (nextTicks.length || micros.length) {
+      if (nextTicks.length) nextTicks.shift()()
+      else micros.shift()()
+    }
+  }
+
+  return {
+    nextTick(fn) { nextTicks.push(fn); return ++seq },
+    micro(fn) { micros.push(fn); return ++seq },
+    setTimeout(fn, ms) {
+      const id = ++seq
+      timers.push({ due: now + ms, order: id, fn })
+      return id
+    },
+    setImmediate(fn) { immediates.push(fn); return ++seq },
+    advance(ms) {
+      now += ms
+      drainMicro()
+      const due = timers
+        .filter((t) => t.due <= now)
+        .sort((a, b) => a.due - b.due || a.order - b.order)
+      timers = timers.filter((t) => t.due > now)
+      for (const t of due) { t.fn(); drainMicro() }
+      const batch = immediates
+      immediates = []
+      for (const im of batch) { im(); drainMicro() }
+      return null
+    }
+  }
+}`,
+  tests: `${L1S1}\n${L1S2}\n${L1S3}`
+}
+
+/* ============================================================ 第 2 关测试 */
+const L2S1 = `{
+  check('spawn 不立即执行，step 才推进一步', () => {
+    const order = []
+    const r = createRunner()
+    const t = r.spawn(function* () { order.push('a'); yield; order.push('b') })
+    same(order, [], 'spawn 只是登记，不该执行协程体')
+    same(r.step(), t.id)
+    same(order, ['a'])
+  })
+  check('多个任务按 spawn 顺序轮转，yield 后回到队尾', () => {
+    const order = []
+    const r = createRunner()
+    r.spawn(function* () { order.push('a1'); yield; order.push('a2') })
+    r.spawn(function* () { order.push('b1'); yield; order.push('b2') })
+    r.step(); r.step()
+    same(order, ['a1', 'b1'])
+    r.step(); r.step()
+    same(order, ['a1', 'b1', 'a2', 'b2'], 'yield 后重新排队，不会一直占着执行权')
+  })
+  check('一个任务要多次 step 才能跑完', () => {
+    const order = []
+    const r = createRunner()
+    r.spawn(function* () { order.push(1); yield; order.push(2); yield; order.push(3) })
+    r.step()
+    same(order, [1])
+    r.step()
+    same(order, [1, 2])
+  })
+  check('就绪队列空了 step 返回 null', () => {
+    const r = createRunner()
+    r.spawn(function* () { return 'ok' })
+    same(r.step(), 1)
+    same(r.step(), null)
+  })
+}`
+
+const L2S2 = `{
+  check('run 把所有任务跑到完成，并按 spawn 顺序返回结果', () => {
+    const r = createRunner()
+    r.spawn(function* () { yield; return 'a' })
+    r.spawn(function* () { return 'b' })
+    const out = r.run()
+    same(out.map((x) => x.value), ['a', 'b'], '结果按 spawn 顺序，不是完成顺序')
+    same(out.map((x) => x.done), [true, true])
+  })
+  check('run 之后没有剩余就绪任务', () => {
+    const r = createRunner()
+    r.spawn(function* () { yield })
+    r.run()
+    same(r.step(), null, 'run 已经把队列跑空')
+  })
+  check('已完成的任务不会再执行第二次', () => {
+    let runs = 0
+    const r = createRunner()
+    r.spawn(function* () { runs++ })
+    r.run()
+    same(runs, 1)
+    same(r.run().length, 1, '再次 run 只是回放结果，不重跑')
+  })
+  check('多个多步任务交替推进', () => {
+    const order = []
+    const r = createRunner()
+    r.spawn(function* () { order.push('a1'); yield; order.push('a2') })
+    r.spawn(function* () { order.push('b1'); yield; order.push('b2') })
+    r.run()
+    same(order, ['a1', 'b1', 'a2', 'b2'])
+  })
+}`
+
+const L2S3 = `{
+  check('任务抛错被捕获，标记 error 而不是中断整批', () => {
+    const order = []
+    const r = createRunner()
+    r.spawn(function* () { order.push('a'); throw new Error('boom') })
+    r.spawn(function* () { order.push('b'); yield; order.push('c') })
+    const out = r.run()
+    same(order, ['a', 'b', 'c'], '一个任务崩了，其他任务继续跑')
+    same(out[0].error, 'boom')
+    same(out[0].done, true)
+    same(out[1].error, null)
+  })
+  check('yield { wait } 的任务在时间没到之前不回就绪队列', () => {
+    const order = []
+    const r = createRunner()
+    r.spawn(function* () { order.push('start'); yield { wait: 100 }; order.push('resume') })
+    r.step()
+    r.step()
+    same(order, ['start'])
+    same(r.tick(99), 0, '99ms 还没到，唤醒 0 个')
+    same(r.step(), null)
+    same(order, ['start'])
+    same(r.tick(1), 1)
+    r.step()
+    same(order, ['start', 'resume'])
+  })
+  check('等待期间其他就绪任务照常推进', () => {
+    const order = []
+    const r = createRunner()
+    r.spawn(function* () { yield { wait: 50 }; order.push('slow') })
+    r.spawn(function* () { order.push('fast'); return 'ok' })
+    r.step()
+    r.step()
+    same(order, ['fast'])
+    r.tick(50)
+    r.step()
+    same(order, ['fast', 'slow'])
+  })
+  check('多个等待任务按唤醒时间先后入队', () => {
+    const order = []
+    const r = createRunner()
+    r.spawn(function* () { yield { wait: 30 }; order.push('30') })
+    r.spawn(function* () { yield { wait: 10 }; order.push('10') })
+    r.step()
+    r.step()
+    same(r.tick(100), 2)
+    r.run()
+    same(order, ['10', '30'], 'wakeAt 早的先就绪')
+  })
+}`
+
+/* ============================================================ 第 2 关 */
+const LV2 = {
+  id: 'lv2',
+  title: '手写协程调度器：一个线程如何假装并发',
+  emoji: '🧵',
+  xp: 50,
+  goal: '实现 createRunner()：spawn(genFn) 登记协程任务，step() 推进一步（yield 后回到队尾），run() 跑到全部完成并回收结果，tick(ms) 唤醒 yield { wait } 的任务，任务抛错只标记错误不中断其他任务。',
+  why: 'Python 的 asyncio、JS 的 async/await、Go 的 goroutine 共享同一个核心：**协作式调度——任务自己让出执行权，调度器从不抢占**。也正因为不抢占，一个 `time.sleep()` 就能卡死整个事件循环，这正是 GIL 与异步框架里最常被问的问题。手写一个就绪队列，就能看清 await 到底在等什么。',
+  nodes: ['be.python.core', 'be.python.core.gil-concurrency', 'be.python.core.lang-advanced', 'be.python.web', 'be.python.web.asyncio', 'be.python.web.framework'],
+  thinking: [
+    {
+      title: '协程调度器只有三样东西',
+      md: '① 任务表（每个任务一个 id、一个执行状态机、一个结果槽）；② 就绪队列（可以立刻推进的任务，FIFO）；③ 等待表（挂起中、带唤醒时间的任务）。\n\n`step()` 就是「从就绪队列取一个、推进一个切片」：切片跑完如果还没结束，就把它放回**队尾**——这一句「回队尾」就是协程并发的全部秘密。`run()` 只是 `while (就绪队列非空) step()`。'
+    },
+    {
+      title: '为什么第 1 步不写 run 和 tick',
+      md: '第 1 步只证明「轮转公平」：一个任务 yield 之后不能继续霸占执行权。`run()` 是把 step 循环起来，`tick()` 是唤醒等待者，它们各自有独立的语义（结果回收顺序、唤醒顺序），放到后面单独证明。这样每一步的错误都能被下一步的测试抓住。'
+    }
+  ],
+  prereq: [
+    {
+      title: 'yield 与 await 是一回事',
+      md: 'Python 的 `await coro` 等价于「把当前协程挂起、把控制权交还事件循环」；JS 的 `await p` 等价于「yield 一个 promise，调度器在 promise settled 后把任务放回就绪队列」。\n\n本关用 generator 的 `yield` 模拟 `await`：`yield`（不带值）= 让出一次；`yield { wait: ms }` = 挂起到指定时间。理解了这一层，asyncio 的 `Task`、`Future`、`loop.call_later` 就都是这张表的实现细节。'
+    },
+    {
+      title: 'GIL 与「协作式」是两回事',
+      md: 'GIL 限制的是**同一时刻只有一个线程执行 Python 字节码**，所以 CPU 密集多线程没有收益；而 asyncio 的单线程并发靠的是**任务主动让出**，所以 `time.sleep(1)`（阻塞调用）会卡住整个 loop，必须换成 `await asyncio.sleep(1)`。\n\n面试里这两点经常被混着问：GIL 解释「为什么多线程不能加速计算」，事件循环解释「为什么一个阻塞调用能拖死所有请求」。'
+    },
+    {
+      title: '任务异常为什么要「就地捕获」',
+      md: 'asyncio 里一个 Task 抛出的异常如果没人 await/取结果，会变成 "Task exception was never retrieved" 警告，但**不会影响其他任务**——因为每个任务在自己的切片里跑，异常边界就是切片边界。\n\n所以调度器的 catch 必须放在「推进单个任务」这一层，不能包在外面：包在外面第一个任务抛错就把整轮循环炸掉了。'
+    }
+  ],
+  api: [
+    {
+      name: 'createRunner',
+      sig: 'createRunner() => { spawn(genFn), step(), run(), tick(ms) }',
+      args: 'genFn 是无参生成器函数，函数体就是协程；yield 表示让出，yield { wait: ms } 表示挂起 ms 毫秒。',
+      returns: 'spawn 返回任务对象 { id }；step 返回推进的任务 id，空队列返回 null；run 返回 [{ id, done, value, error }]（按 spawn 顺序）；tick 返回本次唤醒的任务数。',
+      example: "const r = createRunner()\nr.spawn(function* () { yield; return 'a' })\nr.spawn(function* () { return 'b' })\nconst out = r.run()\n// out = [{id:1,done:true,value:'a',error:null}, {id:2,done:true,value:'b',error:null}]"
+    }
+  ],
+  usage: "// asyncio 里对应的三件套：\n//   spawn(genFn)  ≈ asyncio.create_task(coro)\n//   step()        ≈ loop._run_once() 里的一次回调\n//   yield {wait}   ≈ await asyncio.sleep(ms)\n//   run()         ≈ await asyncio.gather(*tasks)\nasync def handler():\n    data = await fetch()      # 这里让出执行权，别的请求继续跑\n    return await render(data)",
+  hints: [
+    '第 1 步：ready 数组存任务；step 里 shift 一个、next() 一次，没结束就 push 回队尾。',
+    '第 2 步：run 用 while (ready.length) step()，最后按 tasks 数组（spawn 顺序）映射结果。',
+    '第 3 步：next() 包 try/catch 记录 error；yield 的值是 { wait } 时进 waiting 表（wakeAt = now + ms），tick 把到期的按 wakeAt 升序放回 ready。'
+  ],
+  concepts: [
+    {
+      title: '为什么 asyncio 的 sleep 能「同时睡」',
+      md: '`await asyncio.sleep(1)` 不是真的睡 1 秒，而是**注册一个 1 秒后的回调，然后把当前任务挂起**。1000 个协程同时 sleep 1 秒，只是 1000 个计时器 + 1 个事件循环，总耗时仍约 1 秒；换成线程就是 1000 个栈，换成阻塞 sleep 就是 1000 秒。'
+    },
+    {
+      title: 'FastAPI/Flask 的并发模型差异',
+      md: 'Flask（同步 WSGI）每个请求占一个 worker 线程，并发上限就是线程池大小；FastAPI（ASGI）一个事件循环跑所有协程，I/O 密集下并发高得多，但**任何同步阻塞调用都会拖住整个 worker**。所以 FastAPI 里做 CPU 密集要用 `run_in_executor` 或独立进程。'
+    }
+  ],
+  stages: [
+    {
+      n: 1,
+      title: '先让任务轮转起来',
+      think: '这一步只证明公平：两个任务各自 yield，执行顺序必须是 a1 → b1 → a2 → b2，而不是 a1 → a2 → b1 → b2。关键动作是「yield 之后 push 回队尾」。',
+      hint: 'tasks 数组保存全部任务（供后面回收结果），ready 数组只存可运行的；step 里 shift → next() → 没 done 就 push 回去。',
+      code: `function createRunner() {
+  const tasks = []
+  const ready = []
+  let seq = 0
+
+  return {
+    spawn(genFn) {
+      const t = { id: ++seq, gen: genFn(), done: false, value: undefined, error: null }
+      tasks.push(t)
+      ready.push(t)
+      return t
+    },
+    step() {
+      const t = ready.shift()
+      if (!t) return null
+      const r = t.gen.next()
+      if (r.done) {
+        t.done = true
+        t.value = r.value
+      } else {
+        ready.push(t)
+      }
+      return t.id
+    }
+  }
+}`,
+      test: L2S1,
+      diag: [
+        'step 里没把未完成的任务 push 回 ready，第二次 step 直接返回 null。',
+        'spawn 时就执行了协程体（应该在 step 里推进）。',
+        'push 回队列时插到了队头（unshift），导致一个任务一直霸占执行权。',
+        'next() 之后没判断 r.done，完成的任务还在继续跑。'
+      ]
+    },
+    {
+      n: 2,
+      title: 'run：跑空队列并按 spawn 顺序收结果',
+      think: 'run 本身没有新语义，难的是「结果顺序」：gather 的返回值按任务创建顺序，不是完成顺序。所以结果要从 tasks 数组映射，不能按完成时机 push。',
+      hint: 'while (ready.length) this.step()；返回 tasks.map(t => ({ id, done, value, error }))。',
+      code: `function createRunner() {
+  const tasks = []
+  const ready = []
+  let seq = 0
+
+  return {
+    spawn(genFn) {
+      const t = { id: ++seq, gen: genFn(), done: false, value: undefined, error: null }
+      tasks.push(t)
+      ready.push(t)
+      return t
+    },
+    step() {
+      const t = ready.shift()
+      if (!t) return null
+      const r = t.gen.next()
+      if (r.done) {
+        t.done = true
+        t.value = r.value
+      } else {
+        ready.push(t)
+      }
+      return t.id
+    },
+    run() {
+      while (ready.length) this.step()
+      return tasks.map((t) => ({ id: t.id, done: t.done, value: t.value, error: t.error }))
+    }
+  }
+}`,
+      test: L2S2,
+      diag: [
+        '结果按完成顺序 push，导致 gather 顺序和 spawn 顺序不一致。',
+        'run 没有跑空队列（只跑了固定步数），多步任务没完成。',
+        '已完成任务仍留在 ready 里，再次 run 会重跑。',
+        'run 里直接调 step 而丢了 this（比如把 step 单独解构出来），调用抛错。'
+      ]
+    },
+    {
+      n: 3,
+      title: '异常隔离与定时唤醒',
+      think: '两个都是「任务边界」问题：异常必须就地捕获，等待必须进独立的等待表。tick 只负责把到期的搬回就绪队列，不直接推进——推进永远是 step 的职责。',
+      hint: 'catch 只包 next() 这一句；yield 值是 { wait: number } 时记 wakeAt，tick 里 filter + sort 后搬回 ready。',
+      code: `function createRunner() {
+  const tasks = []
+  const ready = []
+  const waiting = []
+  let now = 0
+  let seq = 0
+
+  return {
+    spawn(genFn) {
+      const t = { id: ++seq, gen: genFn(), done: false, value: undefined, error: null }
+      tasks.push(t)
+      ready.push(t)
+      return t
+    },
+    step() {
+      const t = ready.shift()
+      if (!t) return null
+      let r
+      try {
+        r = t.gen.next()
+      } catch (e) {
+        t.done = true
+        t.error = String((e && e.message) || e)
+        return t.id
+      }
+      if (r.done) {
+        t.done = true
+        t.value = r.value
+        return t.id
+      }
+      const req = r.value
+      if (req && typeof req === 'object' && typeof req.wait === 'number') {
+        waiting.push({ t, wakeAt: now + req.wait })
+      } else {
+        ready.push(t)
+      }
+      return t.id
+    },
+    tick(ms) {
+      now += ms
+      const due = waiting
+        .filter((w) => w.wakeAt <= now)
+        .sort((a, b) => a.wakeAt - b.wakeAt)
+      const rest = waiting.filter((w) => w.wakeAt > now)
+      waiting.length = 0
+      waiting.push(...rest)
+      for (const w of due) ready.push(w.t)
+      return due.length
+    },
+    run() {
+      while (ready.length) this.step()
+      return tasks.map((t) => ({ id: t.id, done: t.done, value: t.value, error: t.error }))
+    }
+  }
+}`,
+      test: L2S3,
+      diag: [
+        'try/catch 包住了整个 while 循环，第一个任务抛错就中断了其他任务。',
+        'yield { wait } 的任务直接 push 回 ready，sleep 变成了纯让出（时间语义丢失）。',
+        'tick 里没用 wakeAt 排序，多个等待任务按注册顺序而不是唤醒顺序恢复。',
+        'tick 里直接执行 next()（推进应该只发生在 step 里）。'
+      ]
+    }
+  ],
+  skeleton: `function createRunner() {
+  // TODO: 任务表 + 就绪队列 + 等待表；spawn / step / run / tick
+  // 提示：yield 表示让出，yield { wait: ms } 表示挂起到 now + ms
+  throw new Error('createRunner 还没实现')
+}`,
+  solution: `function createRunner() {
+  const tasks = []
+  const ready = []
+  const waiting = []
+  let now = 0
+  let seq = 0
+
+  return {
+    spawn(genFn) {
+      const t = { id: ++seq, gen: genFn(), done: false, value: undefined, error: null }
+      tasks.push(t)
+      ready.push(t)
+      return t
+    },
+    step() {
+      const t = ready.shift()
+      if (!t) return null
+      let r
+      try {
+        r = t.gen.next()
+      } catch (e) {
+        t.done = true
+        t.error = String((e && e.message) || e)
+        return t.id
+      }
+      if (r.done) {
+        t.done = true
+        t.value = r.value
+        return t.id
+      }
+      const req = r.value
+      if (req && typeof req === 'object' && typeof req.wait === 'number') {
+        waiting.push({ t, wakeAt: now + req.wait })
+      } else {
+        ready.push(t)
+      }
+      return t.id
+    },
+    tick(ms) {
+      now += ms
+      const due = waiting
+        .filter((w) => w.wakeAt <= now)
+        .sort((a, b) => a.wakeAt - b.wakeAt)
+      const rest = waiting.filter((w) => w.wakeAt > now)
+      waiting.length = 0
+      waiting.push(...rest)
+      for (const w of due) ready.push(w.t)
+      return due.length
+    },
+    run() {
+      while (ready.length) this.step()
+      return tasks.map((t) => ({ id: t.id, done: t.done, value: t.value, error: t.error }))
+    }
+  }
+}`,
+  finalCode: `function createRunner() {
+  const tasks = []
+  const ready = []
+  const waiting = []
+  let now = 0
+  let seq = 0
+
+  return {
+    spawn(genFn) {
+      const t = { id: ++seq, gen: genFn(), done: false, value: undefined, error: null }
+      tasks.push(t)
+      ready.push(t)
+      return t
+    },
+    step() {
+      const t = ready.shift()
+      if (!t) return null
+      let r
+      try {
+        r = t.gen.next()
+      } catch (e) {
+        t.done = true
+        t.error = String((e && e.message) || e)
+        return t.id
+      }
+      if (r.done) {
+        t.done = true
+        t.value = r.value
+        return t.id
+      }
+      const req = r.value
+      if (req && typeof req === 'object' && typeof req.wait === 'number') {
+        waiting.push({ t, wakeAt: now + req.wait })
+      } else {
+        ready.push(t)
+      }
+      return t.id
+    },
+    tick(ms) {
+      now += ms
+      const due = waiting
+        .filter((w) => w.wakeAt <= now)
+        .sort((a, b) => a.wakeAt - b.wakeAt)
+      const rest = waiting.filter((w) => w.wakeAt > now)
+      waiting.length = 0
+      waiting.push(...rest)
+      for (const w of due) ready.push(w.t)
+      return due.length
+    },
+    run() {
+      while (ready.length) this.step()
+      return tasks.map((t) => ({ id: t.id, done: t.done, value: t.value, error: t.error }))
+    }
+  }
+}`,
+  tests: `${L2S1}\n${L2S2}\n${L2S3}`
+}
+
+/* ============================================================ 第 3 关测试 */
+const L3S1 = `{
+  check('无依赖的 bean 可以直接解析', () => {
+    const ctx = createContext()
+    ctx.bean('clock', () => ({ now: () => 1 }))
+    same(ctx.resolve('clock').now(), 1)
+  })
+  check('按名字注入依赖，deps 对象里就是依赖实例', () => {
+    const ctx = createContext()
+    ctx.bean('db', () => ({ name: 'mysql' }))
+    ctx.bean('userDao', (deps) => ({ db: deps.db, find: () => deps.db.name }), ['db'])
+    const dao = ctx.resolve('userDao')
+    same(dao.find(), 'mysql')
+    same(dao.db, { name: 'mysql' })
+  })
+  check('默认作用域是单例，两次解析拿到同一实例', () => {
+    const ctx = createContext()
+    ctx.bean('counter', () => ({ n: 0 }))
+    const a = ctx.resolve('counter')
+    a.n = 5
+    same(ctx.resolve('counter').n, 5, '第二次解析不应重新创建')
+  })
+  check('依赖只被创建一次（工厂只调一次）', () => {
+    let built = 0
+    const ctx = createContext()
+    ctx.bean('db', () => { built++; return {} })
+    ctx.bean('a', (d) => ({ db: d.db }), ['db'])
+    ctx.bean('b', (d) => ({ db: d.db }), ['db'])
+    ctx.resolve('a'); ctx.resolve('b')
+    same(built, 1)
+  })
+  check('循环依赖与未注册 bean 都会抛错', () => {
+    const ctx = createContext()
+    ctx.bean('a', (d) => ({ b: d.b }), ['b'])
+    ctx.bean('b', (d) => ({ a: d.a }), ['a'])
+    throws(() => ctx.resolve('a'))
+    const err = throws(() => ctx.resolve('nobody'))
+    ok(err.message.includes('nobody'), '错误信息里应带出 bean 名')
+  })
+}`
+
+const L3S2 = `{
+  check('依赖的初始化先于依赖者（拓扑顺序）', () => {
+    const ctx = createContext()
+    ctx.bean('db', () => ({}), [], { init: () => {} })
+    ctx.bean('dao', (d) => ({ db: d.db }), ['db'], { init: () => {} })
+    ctx.bean('svc', (d) => ({ dao: d.dao }), ['dao'], { init: () => {} })
+    ctx.resolve('svc')
+    same(ctx.initOrder(), ['db', 'dao', 'svc'])
+  })
+  check('init 执行时依赖已经初始化完成', () => {
+    const seen = []
+    const ctx = createContext()
+    ctx.bean('db', () => ({ open: false }), [], { init: (inst) => { inst.open = true } })
+    ctx.bean('dao', (d) => ({ db: d.db }), ['db'], {
+      init: (inst, deps) => seen.push('dao 看到 db.open=' + deps.db.open)
+    })
+    ctx.resolve('dao')
+    same(seen, ['dao 看到 db.open=true'])
+  })
+  check('init 可以就地补充实例属性（无需返回新对象）', () => {
+    const ctx = createContext()
+    ctx.bean('cfg', () => ({ env: 'dev' }), [], {
+      init: (inst) => { inst.loadedAt = 'boot' }
+    })
+    const cfg = ctx.resolve('cfg')
+    same(cfg.loadedAt, 'boot')
+    same(cfg.env, 'dev')
+  })
+  check('重复解析不会重复初始化', () => {
+    let inits = 0
+    const ctx = createContext()
+    ctx.bean('once', () => ({}), [], { init: () => { inits++ } })
+    ctx.resolve('once'); ctx.resolve('once')
+    same(inits, 1)
+    same(ctx.initOrder(), ['once'])
+  })
+}`
+
+const L3S3 = `{
+  check('before / after 按调用顺序包裹，非函数属性原样透传', () => {
+    const log = []
+    const ctx = createContext()
+    ctx.bean('svc', () => ({ version: 42, greet(name) { return 'hi ' + name } }))
+    const p = ctx.advise('svc', {
+      before: (m, a) => log.push('before:' + m + ':' + a[0]),
+      after: (m, a, r) => log.push('after:' + r)
+    })
+    same(p.greet('alice'), 'hi alice')
+    same(log, ['before:greet:alice', 'after:hi alice'])
+    same(p.version, 42, '非函数属性不该被包成函数')
+  })
+  check('around 可以短路（不调用 proceed 就不执行原方法）', () => {
+    let calls = 0
+    const ctx = createContext()
+    ctx.bean('api', () => ({ fetch(id) { calls++; return 'id:' + id } }))
+    const p = ctx.advise('api', {
+      around: (m, a, proceed) => (a[0] === 0 ? 'cached' : proceed())
+    })
+    same(p.fetch(0), 'cached')
+    same(calls, 0, '短路时原方法不该被执行')
+    same(p.fetch(7), 'id:7')
+    same(calls, 1)
+  })
+  check('advise 之后的容器单例已经是代理', () => {
+    const log = []
+    const ctx = createContext()
+    ctx.bean('counter', () => ({ n: 0, inc() { this.n++; return this.n } }))
+    ctx.advise('counter', { before: () => log.push('hit') })
+    ctx.resolve('counter').inc()
+    same(log, ['hit'], '从容器里拿到的必须是代理，否则切面不生效')
+    same(ctx.resolve('counter').n, 1)
+  })
+  check('事务切面：成功提交，失败回滚并继续抛出', () => {
+    const log = []
+    const ctx = createContext()
+    ctx.bean('account', () => ({
+      withdraw(n) { if (n > 100) throw new Error('余额不足'); return 'ok' }
+    }))
+    const p = ctx.advise('account', transactionAdvice({
+      begin: () => log.push('begin'),
+      commit: () => log.push('commit'),
+      rollback: () => log.push('rollback')
+    }))
+    same(p.withdraw(10), 'ok')
+    same(log, ['begin', 'commit'])
+    throws(() => p.withdraw(1000))
+    same(log, ['begin', 'commit', 'begin', 'rollback'], '失败必须回滚，且不能提交')
+  })
+  check('throwing 钩子拿到错误，异常继续往外抛', () => {
+    const seen = []
+    const ctx = createContext()
+    ctx.bean('fragile', () => ({ boom() { throw new TypeError('bad input') } }))
+    const p = ctx.advise('fragile', {
+      throwing: (m, a, e) => seen.push(m + ':' + e.message)
+    })
+    const err = throws(() => p.boom(), '异常不该被切面吞掉')
+    same(err.message, 'bad input')
+    same(seen, ['boom:bad input'])
+  })
+}`
+
+/* ============================================================ 第 3 关 */
+const LV3 = {
+  id: 'lv3',
+  title: '手写 IoC 容器与 AOP 代理：谁在什么时候被创建',
+  emoji: '🧩',
+  xp: 50,
+  goal: '实现 createContext()：bean(name, factory, deps, { init }) 注册定义，resolve(name) 按依赖拓扑创建单例并执行 init，advise(name, { before, after, around, throwing }) 织入切面并回写容器；再实现 transactionAdvice 用 around + throwing 做事务边界。',
+  why: 'Spring 面试的高频追问几乎都落在这三条线上：bean 是单例还是原型、依赖注入的顺序、@Transactional 为什么自调用会失效。它们不是三个知识点，而是同一个问题的三个切面——**容器在什么时候把哪个对象交给谁**。手写一个最小容器，这三条线会自己连起来。',
+  nodes: ['be.spring.ioc', 'be.spring.ioc.bean-lifecycle', 'be.spring.ioc.inject-scan', 'be.spring.aop', 'be.spring.aop.proxy', 'be.spring.aop.transaction'],
+  thinking: [
+    {
+      title: 'IoC 容器就是一张「定义表 + 实例表」',
+      md: '定义表存「怎么创建」（工厂 + 依赖名 + 生命周期回调），实例表存「已经创建出来的单例」。`resolve(name)` 的逻辑：查实例表 → 命中直接返回；未命中查定义表 → 递归解析依赖 → 创建 → 执行初始化 → 写回实例表。\n\n`@ComponentScan` 做的事，本质就是把扫描到的类填进定义表；`@Autowired` 做的事，就是在创建时按类型/名字查实例表。这两个注解看起来神奇，落到数据结构和上面这段递归上就没什么了。'
+    },
+    {
+      title: '为什么初始化顺序是拓扑序，不是声明序',
+      md: '`dao` 依赖 `db`，那 `db` 的 `@PostConstruct` 必须先跑，否则 `dao` 初始化时读到的 `db` 还是半成品。这解释了线上常见故障：**某个 bean 在启动时拿到 null 依赖**——不是注入失败，而是初始化顺序被打破了（比如在构造函数里用了 `@Autowired` 字段）。\n\n本关的 `initOrder()` 就是这个拓扑序的可观测版本。'
+    },
+    {
+      title: '「代理对象」与「原对象」是两份引用',
+      md: 'AOP 的本质是**调用方拿到的不是原对象，而是代理**。所以事务、缓存、日志切面能生效的前提是：调用必须穿过代理。这也直接解释了 Spring 事务最著名的坑——**同类内部 `this.method()` 自调用不走代理**，事务注解形同虚设。\n\n本关第 3 步特意把容器里的单例替换成代理，并让测试从 `resolve()` 拿代理来调用：这就是「调用方拿到代理」的最小复现。'
+    }
+  ],
+  prereq: [
+    {
+      title: '循环依赖：检测靠递归栈，解决靠三级缓存',
+      md: '构造器注入的循环依赖（A 构造器要 B，B 构造器要 A）**无法解决**，只能在启动时报错——因为对象还没创建出来，没有引用可提前暴露。\n\n字段/setter 注入的循环依赖能解，是因为 Spring 允许先把「刚 new 出来、还没填充属性」的实例提前暴露（三级缓存 + 提前引用）。本关的递归栈检测对应第一种场景。'
+    },
+    {
+      title: 'Bean 生命周期：实例化 → 注入 → 初始化 → 使用 → 销毁',
+      md: '`BeanPostProcessor.postProcessBeforeInitialization` → `@PostConstruct` → `InitializingBean.afterPropertiesSet` → 自定义 init-method → `postProcessAfterInitialization`（AOP 代理通常在这里生成）→ 使用 → `@PreDestroy`。\n\n注意代理生成在**初始化之后**，所以代理包的是完全初始化好的对象；也注意 `@PostConstruct` 里拿到的是原对象不是代理。'
+    },
+    {
+      title: '事务什么时候回滚',
+      md: '默认只对 `RuntimeException` 和 `Error` 回滚，受检异常（checked exception）**默认不回滚**——这是 `@Transactional(rollbackFor = Exception.class)` 存在的原因。\n\n另外两个高频坑：`@Transactional` 加在 private 方法上无效（CGLIB 无法覆写）；自调用不走代理。这三条都能用本关的 around/throwing 结构解释。'
+    }
+  ],
+  api: [
+    {
+      name: 'createContext',
+      sig: 'createContext() => { bean(name, factory, deps?, lifecycle?), resolve(name), advise(name, advices), initOrder() }',
+      args: 'factory(deps) 返回实例；deps 是依赖名数组；lifecycle.init(instance, deps) 在依赖就绪后执行。advices 支持 before(method, args)、after(method, args, result)、around(method, args, proceed)、throwing(method, args, err)。',
+      returns: 'bean/advise 返回容器自身（可链式）；resolve 返回实例或代理；initOrder 返回已初始化 bean 的名字数组（拓扑序）。',
+      example: "const ctx = createContext()\nctx.bean('db', () => ({ open: true }))\nctx.bean('dao', (d) => ({ db: d.db }), ['db'])\nconst dao = ctx.resolve('dao')\nconst p = ctx.advise('dao', { before: (m) => console.log(m) })"
+    },
+    {
+      name: 'transactionAdvice',
+      sig: 'transactionAdvice({ begin, commit, rollback }) => advices',
+      args: '三个钩子函数，分别在一次调用前、成功后、失败后触发。',
+      returns: '符合 advise 第二参数形状的切面对象（只有 around）。',
+      example: "const p = ctx.advise('account', transactionAdvice({\n  begin: () => log.push('begin'),\n  commit: () => log.push('commit'),\n  rollback: () => log.push('rollback')\n}))"
+    }
+  ],
+  usage: "// 对应的 Spring 全景：\n//   createContext()        ≈ ApplicationContext\n//   bean(name, factory)    ≈ @Bean / @Component + BeanDefinition\n//   deps                   ≈ @Autowired 的依赖关系\n//   init                   ≈ @PostConstruct / InitializingBean\n//   advise + 回写单例      ≈ BeanPostProcessor 生成代理\n//   transactionAdvice      ≈ @Transactional 的 TransactionInterceptor",
+  hints: [
+    '第 1 步：defs/instances 两个 Map；resolve 递归，用 stack 数组检测环（进入前 includes 检查）。',
+    '第 2 步：依赖解析完之后执行 def.init(inst, depMap)，再把 name 推进 initOrder。',
+    '第 3 步：遍历 Object.keys(target) 把函数包一层；around 拿到 proceed 回调；最后 instances.set(name, proxy) 回写。'
+  ],
+  concepts: [
+    {
+      title: '单例 vs 原型，以及为什么单例要注意线程安全',
+      md: 'Spring 默认 singleton：整个容器一个实例，所有请求共享。所以单例 bean 里的**可变成员变量**就是并发 bug 的温床（比如把 `SimpleDateFormat` 当字段）。prototype 每次注入都新建，适合有状态的短生命周期对象。\n\n面试追问「单例 bean 线程安全吗」的标准答案是：容器不保证，取决于你有没有写可变状态。'
+    },
+    {
+      title: 'JDK 动态代理 vs CGLIB',
+      md: 'JDK 代理要求目标实现接口，生成的代理只实现接口方法，所以「注入接口」才能生效；CGLIB 通过继承生成子类，能代理没有接口的类，但 `final` 方法和 `private` 方法代理不了。\n\nSpring Boot 2.x 起默认 `proxyTargetClass=true`（CGLIB），这也是为什么没有接口的类也能被 `@Transactional` 代理。'
+    }
+  ],
+  stages: [
+    {
+      n: 1,
+      title: '定义表 + 实例表：先把依赖解析跑通',
+      think: '这一步只做「创建」：按名字找定义、递归解析依赖、工厂产出实例、写回单例表，顺手用递归栈把循环依赖挡住。生命周期和切面留给后面。',
+      hint: '注意 stack 的 push/pop 必须包住「解析依赖」这一段，不要把工厂调用也算进环里。',
+      code: `function createContext() {
+  const defs = new Map()
+  const instances = new Map()
+  const stack = []
+
+  const resolve = (name) => {
+    if (instances.has(name)) return instances.get(name)
+    const def = defs.get(name)
+    if (!def) throw new Error('未注册的 bean: ' + name)
+    if (stack.includes(name)) throw new Error('循环依赖: ' + [...stack, name].join(' -> '))
+    stack.push(name)
+    const depMap = {}
+    try {
+      for (const d of def.deps) depMap[d] = resolve(d)
+    } finally {
+      stack.pop()
+    }
+    const inst = def.factory(depMap)
+    instances.set(name, inst)
+    return inst
+  }
+
+  return {
+    bean(name, factory, deps) {
+      defs.set(name, { factory, deps: deps || [] })
+      return this
+    },
+    resolve
+  }
+}`,
+      test: L3S1,
+      diag: [
+        'resolve 没有先查实例表，每次都重新调工厂（单例失效）。',
+        '依赖解析时把 depMap 建成了 { depName: depName } 而不是实例。',
+        'stack 没有 pop（或 pop 位置在创建实例之后），第二次解析同一个 bean 被误判成环。',
+        '循环检测用的是「已创建」集合而不是「解析中」栈，正常的多层依赖被误报。',
+        '未注册的 bean 返回 undefined 而不是抛错。'
+      ]
+    },
+    {
+      n: 2,
+      title: '生命周期：依赖先就绪，自己再初始化',
+      think: 'init 必须晚于依赖的 init，且必须在实例写入单例表之后执行（否则 init 里递归 resolve 自己会死循环）。顺序是：解析依赖 → 创建实例 → 写表 → init → 记入 initOrder。',
+      hint: 'def.init 可能改实例也可能返回 void，所以不要用返回值覆盖 inst；initOrder 在 init 之后 push。',
+      code: `function createContext() {
+  const defs = new Map()
+  const instances = new Map()
+  const stack = []
+  const initOrder = []
+
+  const resolve = (name) => {
+    if (instances.has(name)) return instances.get(name)
+    const def = defs.get(name)
+    if (!def) throw new Error('未注册的 bean: ' + name)
+    if (stack.includes(name)) throw new Error('循环依赖: ' + [...stack, name].join(' -> '))
+    stack.push(name)
+    const depMap = {}
+    try {
+      for (const d of def.deps) depMap[d] = resolve(d)
+    } finally {
+      stack.pop()
+    }
+    const inst = def.factory(depMap)
+    instances.set(name, inst)
+    if (def.init) def.init(inst, depMap)
+    initOrder.push(name)
+    return inst
+  }
+
+  return {
+    bean(name, factory, deps, lifecycle) {
+      defs.set(name, { factory, deps: deps || [], init: lifecycle && lifecycle.init })
+      return this
+    },
+    resolve,
+    initOrder() { return initOrder.slice() }
+  }
+}`,
+      test: L3S2,
+      diag: [
+        'init 在解析依赖之前执行，init 里读到的 deps 是空对象。',
+        '实例还没写进 instances 就执行 init，init 里 resolve 自己会导致栈溢出。',
+        'initOrder 按声明顺序记录，不是按实际初始化顺序。',
+        '把 init 的返回值当成新实例（init 返回 void 时实例变成 undefined）。'
+      ]
+    },
+    {
+      n: 3,
+      title: 'AOP：把代理放进容器，让事务围绕调用',
+      think: '代理要包住所有函数属性，并且必须回写到 instances —— 否则容器里还是原对象，切面永远不生效。around 拿到 proceed 回调，事务就是在它前后加 begin/commit，失败走 rollback。',
+      hint: 'before 在调用前；around 存在时用 proceed() 取结果；catch 里调 throwing 后必须 rethrow。',
+      code: `function transactionAdvice(hooks) {
+  return {
+    around(method, args, proceed) {
+      hooks.begin(method)
+      try {
+        const result = proceed()
+        hooks.commit(method)
+        return result
+      } catch (e) {
+        hooks.rollback(method, e)
+        throw e
+      }
+    }
+  }
+}
+
+function createContext() {
+  const defs = new Map()
+  const instances = new Map()
+  const stack = []
+  const initOrder = []
+
+  const resolve = (name) => {
+    if (instances.has(name)) return instances.get(name)
+    const def = defs.get(name)
+    if (!def) throw new Error('未注册的 bean: ' + name)
+    if (stack.includes(name)) throw new Error('循环依赖: ' + [...stack, name].join(' -> '))
+    stack.push(name)
+    const depMap = {}
+    try {
+      for (const d of def.deps) depMap[d] = resolve(d)
+    } finally {
+      stack.pop()
+    }
+    const inst = def.factory(depMap)
+    instances.set(name, inst)
+    if (def.init) def.init(inst, depMap)
+    initOrder.push(name)
+    return inst
+  }
+
+  return {
+    bean(name, factory, deps, lifecycle) {
+      defs.set(name, { factory, deps: deps || [], init: lifecycle && lifecycle.init })
+      return this
+    },
+    resolve,
+    initOrder() { return initOrder.slice() },
+    advise(name, advices) {
+      const target = resolve(name)
+      const proxy = {}
+      for (const key of Object.keys(target)) {
+        const value = target[key]
+        if (typeof value !== 'function') {
+          Object.defineProperty(proxy, key, {
+            get() { return target[key] },
+            set(v) { target[key] = v },
+            enumerable: true
+          })
+          continue
+        }
+        proxy[key] = function (...args) {
+          if (advices.before) advices.before(key, args)
+          let result
+          try {
+            const call = () => target[key](...args)
+            result = advices.around ? advices.around(key, args, call) : call()
+          } catch (e) {
+            if (advices.throwing) advices.throwing(key, args, e)
+            throw e
+          }
+          if (advices.after) advices.after(key, args, result)
+          return result
+        }
+      }
+      instances.set(name, proxy)
+      return proxy
+    }
+  }
+}`,
+      test: L3S3,
+      diag: [
+        'advise 只返回 proxy 没回写 instances.set，容器里仍是原对象。',
+        '把非函数属性也包成了函数，调用方拿到的 42 变成 function。',
+        'around 没有把 proceed 传给调用方（或者直接调用原方法跳过了 around）。',
+        'catch 里吞掉了异常（没有 rethrow），调用方以为成功了。',
+        'around 里 proceed 的返回值被丢掉，代理方法永远返回 undefined。'
+      ]
+    }
+  ],
+  skeleton: `function createContext() {
+  // TODO: defs + instances 两张表；resolve 递归解析依赖并用栈检测环；
+  // 依赖就绪后执行 init 并记录初始化顺序；advise 生成代理并回写单例
+  throw new Error('createContext 还没实现')
+}
+
+function transactionAdvice(hooks) {
+  // TODO: around 包住 proceed：begin → commit / rollback
+  throw new Error('transactionAdvice 还没实现')
+}`,
+  solution: `function transactionAdvice(hooks) {
+  return {
+    around(method, args, proceed) {
+      hooks.begin(method)
+      try {
+        const result = proceed()
+        hooks.commit(method)
+        return result
+      } catch (e) {
+        hooks.rollback(method, e)
+        throw e
+      }
+    }
+  }
+}
+
+function createContext() {
+  const defs = new Map()
+  const instances = new Map()
+  const stack = []
+  const initOrder = []
+
+  const resolve = (name) => {
+    if (instances.has(name)) return instances.get(name)
+    const def = defs.get(name)
+    if (!def) throw new Error('未注册的 bean: ' + name)
+    if (stack.includes(name)) throw new Error('循环依赖: ' + [...stack, name].join(' -> '))
+    stack.push(name)
+    const depMap = {}
+    try {
+      for (const d of def.deps) depMap[d] = resolve(d)
+    } finally {
+      stack.pop()
+    }
+    const inst = def.factory(depMap)
+    instances.set(name, inst)
+    if (def.init) def.init(inst, depMap)
+    initOrder.push(name)
+    return inst
+  }
+
+  return {
+    bean(name, factory, deps, lifecycle) {
+      defs.set(name, { factory, deps: deps || [], init: lifecycle && lifecycle.init })
+      return this
+    },
+    resolve,
+    initOrder() { return initOrder.slice() },
+    advise(name, advices) {
+      const target = resolve(name)
+      const proxy = {}
+      for (const key of Object.keys(target)) {
+        const value = target[key]
+        if (typeof value !== 'function') {
+          Object.defineProperty(proxy, key, {
+            get() { return target[key] },
+            set(v) { target[key] = v },
+            enumerable: true
+          })
+          continue
+        }
+        proxy[key] = function (...args) {
+          if (advices.before) advices.before(key, args)
+          let result
+          try {
+            const call = () => target[key](...args)
+            result = advices.around ? advices.around(key, args, call) : call()
+          } catch (e) {
+            if (advices.throwing) advices.throwing(key, args, e)
+            throw e
+          }
+          if (advices.after) advices.after(key, args, result)
+          return result
+        }
+      }
+      instances.set(name, proxy)
+      return proxy
+    }
+  }
+}`,
+  finalCode: `function transactionAdvice(hooks) {
+  return {
+    around(method, args, proceed) {
+      hooks.begin(method)
+      try {
+        const result = proceed()
+        hooks.commit(method)
+        return result
+      } catch (e) {
+        hooks.rollback(method, e)
+        throw e
+      }
+    }
+  }
+}
+
+function createContext() {
+  const defs = new Map()
+  const instances = new Map()
+  const stack = []
+  const initOrder = []
+
+  const resolve = (name) => {
+    if (instances.has(name)) return instances.get(name)
+    const def = defs.get(name)
+    if (!def) throw new Error('未注册的 bean: ' + name)
+    if (stack.includes(name)) throw new Error('循环依赖: ' + [...stack, name].join(' -> '))
+    stack.push(name)
+    const depMap = {}
+    try {
+      for (const d of def.deps) depMap[d] = resolve(d)
+    } finally {
+      stack.pop()
+    }
+    const inst = def.factory(depMap)
+    instances.set(name, inst)
+    if (def.init) def.init(inst, depMap)
+    initOrder.push(name)
+    return inst
+  }
+
+  return {
+    bean(name, factory, deps, lifecycle) {
+      defs.set(name, { factory, deps: deps || [], init: lifecycle && lifecycle.init })
+      return this
+    },
+    resolve,
+    initOrder() { return initOrder.slice() },
+    advise(name, advices) {
+      const target = resolve(name)
+      const proxy = {}
+      for (const key of Object.keys(target)) {
+        const value = target[key]
+        if (typeof value !== 'function') {
+          Object.defineProperty(proxy, key, {
+            get() { return target[key] },
+            set(v) { target[key] = v },
+            enumerable: true
+          })
+          continue
+        }
+        proxy[key] = function (...args) {
+          if (advices.before) advices.before(key, args)
+          let result
+          try {
+            const call = () => target[key](...args)
+            result = advices.around ? advices.around(key, args, call) : call()
+          } catch (e) {
+            if (advices.throwing) advices.throwing(key, args, e)
+            throw e
+          }
+          if (advices.after) advices.after(key, args, result)
+          return result
+        }
+      }
+      instances.set(name, proxy)
+      return proxy
+    }
+  }
+}`,
+  tests: `${L3S1}\n${L3S2}\n${L3S3}`
+}
+
+/* ============================================================ 第 4 关测试 */
+const L4S1 = `{
+  check('精确路由：方法和路径都对上才命中', () => {
+    const app = createMvc()
+    app.route('GET', '/health', () => 'ok')
+    same(app.handle({ method: 'GET', path: '/health' }).body, 'ok')
+  })
+  check('路径变量解析成 params', () => {
+    const app = createMvc()
+    app.route('GET', '/users/:id', (req) => ({ id: req.params.id, path: req.path }))
+    const res = app.handle({ method: 'GET', path: '/users/42' })
+    same(res.body, { id: '42', path: '/users/42' })
+  })
+  check('多段路径与根路径都能匹配', () => {
+    const app = createMvc()
+    app.route('GET', '/', () => 'root')
+    app.route('GET', '/api/v1/users/:uid/posts/:pid', (req) => req.params)
+    same(app.handle({ method: 'GET', path: '/' }).body, 'root')
+    same(app.handle({ method: 'GET', path: '/api/v1/users/7/posts/9' }).body, { uid: '7', pid: '9' })
+  })
+  check('路径不存在返回 404', () => {
+    const app = createMvc()
+    app.route('GET', '/health', () => 'ok')
+    same(app.handle({ method: 'GET', path: '/nope' }).status, 404)
+  })
+  check('路径命中但方法不对返回 405', () => {
+    const app = createMvc()
+    app.route('GET', '/users/:id', () => 'ok')
+    same(app.handle({ method: 'POST', path: '/users/1' }).status, 405)
+  })
+}`
+
+const L4S2 = `{
+  check('拦截器 pre 正序、post 逆序', () => {
+    const log = []
+    const app = createMvc()
+    app.route('GET', '/x', () => 'ok')
+    app.interceptor({ pre: () => log.push('pre1'), post: () => log.push('post1') })
+    app.interceptor({ pre: () => log.push('pre2'), post: () => log.push('post2') })
+    app.handle({ method: 'GET', path: '/x' })
+    same(log, ['pre1', 'pre2', 'post2', 'post1'])
+  })
+  check('pre 返回 false 短路：后续拦截器与 handler 都不执行', () => {
+    const log = []
+    const app = createMvc()
+    app.route('GET', '/x', () => { log.push('handler'); return 'ok' })
+    app.interceptor({ pre: () => { log.push('pre1'); return true } })
+    app.interceptor({ pre: () => { log.push('pre2'); return false }, post: () => log.push('post2') })
+    const res = app.handle({ method: 'GET', path: '/x' })
+    same(res.status, 403)
+    same(log, ['pre1', 'pre2'])
+  })
+  check('短路时只对已通过 pre 的拦截器逆序执行 after', () => {
+    const log = []
+    const app = createMvc()
+    app.route('GET', '/x', () => 'ok')
+    app.interceptor({ pre: () => true, after: () => log.push('after1') })
+    app.interceptor({ pre: () => false, after: () => log.push('after2') })
+    app.handle({ method: 'GET', path: '/x' })
+    same(log, ['after1'], '返回 false 的拦截器没进入链，它自己的 after 也不执行')
+  })
+  check('404 时 post 不执行但 after 执行（请求已进入容器）', () => {
+    const log = []
+    const app = createMvc()
+    app.interceptor({ pre: () => log.push('pre'), post: () => log.push('post'), after: () => log.push('after') })
+    app.handle({ method: 'GET', path: '/missing' })
+    same(log, ['pre', 'after'])
+  })
+  check('post 里可以改写响应', () => {
+    const app = createMvc()
+    app.route('GET', '/x', () => 'raw')
+    app.interceptor({ post: (req, res) => { res.body = '[' + res.body + ']' } })
+    same(app.handle({ method: 'GET', path: '/x' }).body, '[raw]')
+  })
+}`
+
+const L4S3 = `{
+  check('匹配的异常处理器接管响应', () => {
+    class BizError extends Error {}
+    const app = createMvc()
+    app.route('POST', '/orders', () => { throw new BizError('库存不足') })
+    app.errorHandler(BizError, (e) => ({ status: 400, body: { code: 'BIZ', msg: e.message } }))
+    const res = app.handle({ method: 'POST', path: '/orders' })
+    same(res.status, 400)
+    same(res.body, { code: 'BIZ', msg: '库存不足' })
+  })
+  check('父类处理器能接住子类异常（instanceof 匹配）', () => {
+    class AppError extends Error {}
+    class NotFound extends AppError {}
+    const app = createMvc()
+    app.route('GET', '/x', () => { throw new NotFound('没有') })
+    app.errorHandler(AppError, () => ({ status: 404, body: 'not found' }))
+    same(app.handle({ method: 'GET', path: '/x' }).status, 404)
+  })
+  check('没有匹配的处理器就落到 500', () => {
+    const app = createMvc()
+    app.route('GET', '/x', () => { throw new Error('boom') })
+    const res = app.handle({ method: 'GET', path: '/x' })
+    same(res.status, 500)
+    same(res.body, null)
+    ok(res.error && res.error.message === 'boom', 'error 要保留原始异常供日志用')
+  })
+  check('异常时 post 不执行，after 拿到 error', () => {
+    const log = []
+    const app = createMvc()
+    app.route('GET', '/x', () => { throw new Error('boom') })
+    app.interceptor({
+      post: () => log.push('post'),
+      after: (req, res, err) => log.push('after:' + (err ? err.message : 'null'))
+    })
+    app.handle({ method: 'GET', path: '/x' })
+    same(log, ['after:boom'])
+  })
+  check('无异常时 after 的 error 是 null', () => {
+    const seen = []
+    const app = createMvc()
+    app.route('GET', '/x', () => 'ok')
+    app.interceptor({ after: (req, res, err) => seen.push(err === null ? 'null' : 'err') })
+    app.handle({ method: 'GET', path: '/x' })
+    same(seen, ['null'])
+  })
+}`
+
+/* ============================================================ 第 4 关 */
+const LV4 = {
+  id: 'lv4',
+  title: '手写 DispatcherServlet：一个请求要走几道关',
+  emoji: '🚪',
+  xp: 45,
+  goal: '实现 createMvc()：route(method, pattern, handler) 注册路由，interceptor({ pre, post, after }) 注册拦截器，errorHandler(Cls, fn) 注册异常处理器，handle(req) 走完「匹配 → pre 链 → handler → post 链 → after 链」并返回 { status, body, error }。',
+  why: '排查一个「接口返回 500 但没有日志」或「拦截器没进 afterCompletion」的问题，靠的是对 DispatcherServlet 分发流程的记忆。这个流程有明确的顺序契约：**HTTP 方法不匹配是 405 不是 404、preHandle 返回 false 后 postHandle 不执行、afterCompletion 一定执行、异常处理发生在 postHandle 之前**。手写一遍，顺序就不再靠猜。',
+  nodes: ['be.spring.mvc', 'be.spring.mvc.autoconfig', 'be.spring.mvc.request-flow'],
+  thinking: [
+    {
+      title: '分发链是一条「带短路和逆序清理」的管道',
+      md: '`preHandle` 正序进入，任何一个返回 false 就短路；`postHandle` 逆序执行，但只在 handler 正常返回后；`afterCompletion` 逆序执行，**无论成功失败都要跑**——它是资源清理（比如打开的事务、MDC）的唯一可靠位置。\n\n这三个钩子的正/逆序不是设计洁癖：pre 是「逐层进入」，post/after 是「逐层退出」，和栈的进出一致。'
+    },
+    {
+      title: '为什么第 1 步只有路由',
+      md: '路由匹配的语义本身就有三个分支：路径没匹配（404）、路径匹配但方法不匹配（405）、命中（200）。很多人第一版会把 405 写成 404——这正好用测试把它按出来。拦截器和异常处理各自还有独立的顺序契约，分开验证才不会互相掩盖。'
+    }
+  ],
+  prereq: [
+    {
+      title: '路径变量与精确匹配的优先级',
+      md: '真实 Spring 用 `AntPathMatcher` / `PathPattern`，匹配有优先级：精确路径 > 带变量的路径 > 通配。本关简化成「按注册顺序第一条命中」，但要求你明确：**路由表顺序就是优先级**，所以 `users/me` 必须注册在 `users/:id` 之前，否则 `me` 会被当成 id。\n\n这是个真实的线上坑：注册顺序错了，`/users/me` 永远走到 `:id` 分支。'
+    },
+    {
+      title: '@ExceptionHandler 的匹配规则',
+      md: 'Spring 选异常处理器时按**异常类型的继承距离**找最具体的那个：`NotFoundException` 的处理器优先于 `Exception` 的处理器；没有匹配就走默认的 `DefaultHandlerExceptionResolver` / `BasicErrorController`（500）。\n\n本关用「注册顺序 + instanceof」模拟这个过程：第一个能接住的处理器赢。'
+    },
+    {
+      title: '自动配置在这个流程里的位置',
+      md: '`@SpringBootApplication` 的自动配置决定的是「这条管道上装什么」：`DispatcherServletAutoConfiguration` 装上 DispatcherServlet，`WebMvcAutoConfiguration` 装上消息转换器、静态资源、默认拦截器。\n\n所以「为什么我的接口返回 JSON 而不是 XML」这类问题的答案在 `HttpMessageConverter` 的注册顺序里，而不是在 controller 里。'
+    }
+  ],
+  api: [
+    {
+      name: 'createMvc',
+      sig: 'createMvc() => { route(method, pattern, handler), interceptor({ pre, post, after }), errorHandler(Cls, fn), handle(req) }',
+      args: 'pattern 支持 :name 路径变量；handler 收到 { method, path, params }；req 是 { method, path }；异常处理器 fn(err, req) 返回 { status, body }。',
+      returns: 'handle 返回 { status, body, error }；404/405/403/500 都会带上对应状态码。',
+      example: "const app = createMvc()\napp.route('GET', '/users/:id', (req) => ({ id: req.params.id }))\napp.interceptor({ pre: (req) => req.path !== '/admin' })\napp.errorHandler(Error, () => ({ status: 500, body: 'oops' }))\napp.handle({ method: 'GET', path: '/users/1' })"
+    }
+  ],
+  usage: "// 对应真实 Spring MVC：\n//   route()          ≈ @RequestMapping 扫描结果（HandlerMapping）\n//   interceptor()    ≈ HandlerInterceptor（preHandle/postHandle/afterCompletion）\n//   errorHandler()   ≈ @ExceptionHandler（ExceptionHandlerExceptionResolver）\n//   handle()         ≈ DispatcherServlet.doDispatch()\n// 排查 500 的顺序：看 HandlerMapping 命中 → 看拦截器 pre → 看 handler → 看异常解析器",
+  hints: [
+    '第 1 步：matchPath 按 / 切段比较，: 开头的段填 params；先找路径匹配的路由，再判断方法。',
+    '第 2 步：passed 数组记录 pre 通过的拦截器；短路时对 passed 逆序跑 after；正常时逆序跑 post 再逆序跑 after。',
+    '第 3 步：handler 调用包 try/catch；catch 里找第一个 e instanceof Cls 的处理器，找不到就 500。'
+  ],
+  concepts: [
+    {
+      title: '405 与 404 的区别为什么重要',
+      md: '404 表示「资源不存在」，405 表示「资源存在但不支持这个 HTTP 方法」，响应必须带 `Allow` 头告诉调用方支持哪些方法。\n\n把 405 写成 404 会让前端排查方向完全跑偏：以为是路径错了，实际是方法错了（PUT 写成 POST 之类）。这也是 REST API 设计评审的常见检查项。'
+    },
+    {
+      title: '拦截器 vs 过滤器 vs AOP',
+      md: 'Filter 在 Servlet 容器层，包住整个请求（包括静态资源），拿不到 handler 信息；Interceptor 在 Spring MVC 层，知道将要执行哪个 handler，能访问 HandlerMethod；AOP 在 bean 方法层，连 controller 内部方法都能拦。\n\n顺序：Filter → Interceptor.preHandle → Controller → AOP → Interceptor.postHandle → Filter。'
+    }
+  ],
+  stages: [
+    {
+      n: 1,
+      title: '路由匹配：404 / 405 / 命中 三个分支',
+      think: '先把「找路由」写对。注意 405 的判断要求「路径能匹配但方法不匹配」，所以匹配过程要分两步：先按路径找，再看方法。',
+      hint: 'matchPath 返回 params 或 null；遍历路由时记录 pathMatched，最后根据它会 404 还是 405。',
+      code: `function matchPath(pattern, path) {
+  const ps = pattern.split('/').filter(Boolean)
+  const xs = path.split('/').filter(Boolean)
+  if (ps.length !== xs.length) return null
+  const params = {}
+  for (let i = 0; i < ps.length; i++) {
+    if (ps[i].charAt(0) === ':') params[ps[i].slice(1)] = xs[i]
+    else if (ps[i] !== xs[i]) return null
+  }
+  return params
+}
+
+function createMvc() {
+  const routes = []
+
+  return {
+    route(method, pattern, handler) {
+      routes.push({ method, pattern, handler })
+      return this
+    },
+    handle(req) {
+      let pathMatched = false
+      for (const r of routes) {
+        const params = matchPath(r.pattern, req.path)
+        if (!params) continue
+        pathMatched = true
+        if (r.method !== req.method) continue
+        return { status: 200, body: r.handler({ method: req.method, path: req.path, params }), error: null }
+      }
+      return { status: pathMatched ? 405 : 404, body: null, error: null }
+    }
+  }
+}`,
+      test: L4S1,
+      diag: [
+        'matchPath 只比较整串相等，路径变量完全没解析。',
+        '段数不同时仍然继续比较（没有先判断 ps.length === xs.length）。',
+        '路径能匹配但方法不符时直接返回 404（没有区分 405）。',
+        'params 里存的是 ":id" 而不是 "42"（没有 slice 掉冒号）。',
+        'handler 收到的 req 里没有 params 字段。'
+      ]
+    },
+    {
+      n: 2,
+      title: '拦截器链：正序进入，逆序退出',
+      think: '三个顺序都要对：pre 正序、post 逆序、after 逆序且一定执行。短路时只有已经进入过的拦截器跑 after（post 不跑，因为 handler 没执行）。',
+      hint: 'passed 记录已通过 pre 的拦截器；用 [...passed].reverse() 避免修改原数组导致两次遍历顺序错乱。',
+      code: `function matchPath(pattern, path) {
+  const ps = pattern.split('/').filter(Boolean)
+  const xs = path.split('/').filter(Boolean)
+  if (ps.length !== xs.length) return null
+  const params = {}
+  for (let i = 0; i < ps.length; i++) {
+    if (ps[i].charAt(0) === ':') params[ps[i].slice(1)] = xs[i]
+    else if (ps[i] !== xs[i]) return null
+  }
+  return params
+}
+
+function createMvc() {
+  const routes = []
+  const interceptors = []
+
+  const finish = (req, res, error) => {
+    for (const it of [...interceptors].reverse()) {
+      if (it.after) it.after(req, res, error)
+    }
+  }
+
+  return {
+    route(method, pattern, handler) {
+      routes.push({ method, pattern, handler })
+      return this
+    },
+    interceptor(it) {
+      interceptors.push(it)
+      return this
+    },
+    handle(req) {
+      const passed = []
+      for (const it of interceptors) {
+        const ok = it.pre ? it.pre(req) : true
+        if (ok === false) {
+          for (const p of [...passed].reverse()) {
+            if (p.after) p.after(req, null, null)
+          }
+          return { status: 403, body: null, error: null }
+        }
+        passed.push(it)
+      }
+
+      let pathMatched = false
+      let res = null
+      for (const r of routes) {
+        const params = matchPath(r.pattern, req.path)
+        if (!params) continue
+        pathMatched = true
+        if (r.method !== req.method) continue
+        res = { status: 200, body: r.handler({ method: req.method, path: req.path, params }), error: null }
+        break
+      }
+      if (!res) {
+        res = { status: pathMatched ? 405 : 404, body: null, error: null }
+        finish(req, res, null)
+        return res
+      }
+      for (const p of [...passed].reverse()) {
+        if (p.post) p.post(req, res)
+      }
+      finish(req, res, null)
+      return res
+    }
+  }
+}`,
+      test: L4S2,
+      diag: [
+        'post 也是正序执行（应该逆序）。',
+        '短路时直接返回，没有给已进入的拦截器跑 after。',
+        '404/405 分支里没有调用 finish，afterCompletion 丢了。',
+        'post 遍历时用了 passed.reverse() 原地反转，后续 after 顺序跟着变。',
+        'pre 返回 false 后仍然执行了 handler。'
+      ]
+    },
+    {
+      n: 3,
+      title: '异常处理：谁接住错误，谁保证清理',
+      think: '异常必须发生在 post 之前被处理掉：handler 抛错 → 找异常处理器 → 用它的 status/body 组响应；此时 post 不执行（没有正常结果），但 after 必须收到 error。',
+      hint: '把 handler 调用包进 try/catch；catch 里遍历 handlers 找 e instanceof Cls，命中就组 { status, body, error: e }。',
+      code: `function matchPath(pattern, path) {
+  const ps = pattern.split('/').filter(Boolean)
+  const xs = path.split('/').filter(Boolean)
+  if (ps.length !== xs.length) return null
+  const params = {}
+  for (let i = 0; i < ps.length; i++) {
+    if (ps[i].charAt(0) === ':') params[ps[i].slice(1)] = xs[i]
+    else if (ps[i] !== xs[i]) return null
+  }
+  return params
+}
+
+function createMvc() {
+  const routes = []
+  const interceptors = []
+  const handlers = []
+
+  const finish = (req, res, error) => {
+    for (const it of [...interceptors].reverse()) {
+      if (it.after) it.after(req, res, error)
+    }
+  }
+
+  return {
+    route(method, pattern, handler) {
+      routes.push({ method, pattern, handler })
+      return this
+    },
+    interceptor(it) {
+      interceptors.push(it)
+      return this
+    },
+    errorHandler(Cls, fn) {
+      handlers.push({ Cls, fn })
+      return this
+    },
+    handle(req) {
+      const passed = []
+      for (const it of interceptors) {
+        const ok = it.pre ? it.pre(req) : true
+        if (ok === false) {
+          for (const p of [...passed].reverse()) {
+            if (p.after) p.after(req, null, null)
+          }
+          return { status: 403, body: null, error: null }
+        }
+        passed.push(it)
+      }
+
+      let pathMatched = false
+      let res = null
+      for (const r of routes) {
+        const params = matchPath(r.pattern, req.path)
+        if (!params) continue
+        pathMatched = true
+        if (r.method !== req.method) continue
+        try {
+          res = { status: 200, body: r.handler({ method: req.method, path: req.path, params }), error: null }
+        } catch (e) {
+          const h = handlers.find((x) => e instanceof x.Cls)
+          if (h) {
+            const out = h.fn(e, req)
+            res = { status: out.status || 500, body: out.body === undefined ? null : out.body, error: e }
+          } else {
+            res = { status: 500, body: null, error: e }
+          }
+        }
+        break
+      }
+      if (!res) {
+        res = { status: pathMatched ? 405 : 404, body: null, error: null }
+        finish(req, res, null)
+        return res
+      }
+      if (!res.error) {
+        for (const p of [...passed].reverse()) {
+          if (p.post) p.post(req, res)
+        }
+      }
+      finish(req, res, res.error)
+      return res
+    }
+  }
+}`,
+      test: L4S3,
+      diag: [
+        'try/catch 包住了整个 handle，404/405 分支也被当成异常。',
+        '异常处理器匹配用 === 比较构造函数（子类异常接不住），应该用 instanceof。',
+        '没有匹配的处理器时不返回 500，直接把异常抛给调用方。',
+        '异常时仍然执行了 post（没有正常响应可处理）。',
+        'finish 传的 error 是 null（after 无法感知失败），或者传了 res.error 但成功时不是 null。'
+      ]
+    }
+  ],
+  skeleton: `function createMvc() {
+  // TODO: 路由表 + 拦截器链 + 异常处理器；
+  // handle 的流程：pre 正序 → 路由匹配 → handler → post 逆序 → after 逆序（必执行）
+  throw new Error('createMvc 还没实现')
+}`,
+  solution: `function matchPath(pattern, path) {
+  const ps = pattern.split('/').filter(Boolean)
+  const xs = path.split('/').filter(Boolean)
+  if (ps.length !== xs.length) return null
+  const params = {}
+  for (let i = 0; i < ps.length; i++) {
+    if (ps[i].charAt(0) === ':') params[ps[i].slice(1)] = xs[i]
+    else if (ps[i] !== xs[i]) return null
+  }
+  return params
+}
+
+function createMvc() {
+  const routes = []
+  const interceptors = []
+  const handlers = []
+
+  const finish = (req, res, error) => {
+    for (const it of [...interceptors].reverse()) {
+      if (it.after) it.after(req, res, error)
+    }
+  }
+
+  return {
+    route(method, pattern, handler) {
+      routes.push({ method, pattern, handler })
+      return this
+    },
+    interceptor(it) {
+      interceptors.push(it)
+      return this
+    },
+    errorHandler(Cls, fn) {
+      handlers.push({ Cls, fn })
+      return this
+    },
+    handle(req) {
+      const passed = []
+      for (const it of interceptors) {
+        const ok = it.pre ? it.pre(req) : true
+        if (ok === false) {
+          for (const p of [...passed].reverse()) {
+            if (p.after) p.after(req, null, null)
+          }
+          return { status: 403, body: null, error: null }
+        }
+        passed.push(it)
+      }
+
+      let pathMatched = false
+      let res = null
+      for (const r of routes) {
+        const params = matchPath(r.pattern, req.path)
+        if (!params) continue
+        pathMatched = true
+        if (r.method !== req.method) continue
+        try {
+          res = { status: 200, body: r.handler({ method: req.method, path: req.path, params }), error: null }
+        } catch (e) {
+          const h = handlers.find((x) => e instanceof x.Cls)
+          if (h) {
+            const out = h.fn(e, req)
+            res = { status: out.status || 500, body: out.body === undefined ? null : out.body, error: e }
+          } else {
+            res = { status: 500, body: null, error: e }
+          }
+        }
+        break
+      }
+      if (!res) {
+        res = { status: pathMatched ? 405 : 404, body: null, error: null }
+        finish(req, res, null)
+        return res
+      }
+      if (!res.error) {
+        for (const p of [...passed].reverse()) {
+          if (p.post) p.post(req, res)
+        }
+      }
+      finish(req, res, res.error)
+      return res
+    }
+  }
+}`,
+  finalCode: `function matchPath(pattern, path) {
+  const ps = pattern.split('/').filter(Boolean)
+  const xs = path.split('/').filter(Boolean)
+  if (ps.length !== xs.length) return null
+  const params = {}
+  for (let i = 0; i < ps.length; i++) {
+    if (ps[i].charAt(0) === ':') params[ps[i].slice(1)] = xs[i]
+    else if (ps[i] !== xs[i]) return null
+  }
+  return params
+}
+
+function createMvc() {
+  const routes = []
+  const interceptors = []
+  const handlers = []
+
+  const finish = (req, res, error) => {
+    for (const it of [...interceptors].reverse()) {
+      if (it.after) it.after(req, res, error)
+    }
+  }
+
+  return {
+    route(method, pattern, handler) {
+      routes.push({ method, pattern, handler })
+      return this
+    },
+    interceptor(it) {
+      interceptors.push(it)
+      return this
+    },
+    errorHandler(Cls, fn) {
+      handlers.push({ Cls, fn })
+      return this
+    },
+    handle(req) {
+      const passed = []
+      for (const it of interceptors) {
+        const ok = it.pre ? it.pre(req) : true
+        if (ok === false) {
+          for (const p of [...passed].reverse()) {
+            if (p.after) p.after(req, null, null)
+          }
+          return { status: 403, body: null, error: null }
+        }
+        passed.push(it)
+      }
+
+      let pathMatched = false
+      let res = null
+      for (const r of routes) {
+        const params = matchPath(r.pattern, req.path)
+        if (!params) continue
+        pathMatched = true
+        if (r.method !== req.method) continue
+        try {
+          res = { status: 200, body: r.handler({ method: req.method, path: req.path, params }), error: null }
+        } catch (e) {
+          const h = handlers.find((x) => e instanceof x.Cls)
+          if (h) {
+            const out = h.fn(e, req)
+            res = { status: out.status || 500, body: out.body === undefined ? null : out.body, error: e }
+          } else {
+            res = { status: 500, body: null, error: e }
+          }
+        }
+        break
+      }
+      if (!res) {
+        res = { status: pathMatched ? 405 : 404, body: null, error: null }
+        finish(req, res, null)
+        return res
+      }
+      if (!res.error) {
+        for (const p of [...passed].reverse()) {
+          if (p.post) p.post(req, res)
+        }
+      }
+      finish(req, res, res.error)
+      return res
+    }
+  }
+}`,
+  tests: `${L4S1}\n${L4S2}\n${L4S3}`
+}
+
+export default {
+  id: 'be-python',
+  version: 3,
+  domain: 'be',
+  cumulative: false,
+  title: '服务端运行时：从事件循环到 MVC 分发',
+  emoji: '🧠',
+  tagline: '4 关：Node 事件循环的四个顺序 → Python 协程调度器 → Spring IoC/AOP → Spring MVC 分发链。',
+  stack: ['Node', 'Python', 'Spring'],
+  intro: '后端面试里最容易被问穿的往往不是框架用法，而是运行时机制：nextTick 到底插在哪里、await 之后谁被唤醒、bean 什么时候初始化、一个请求进 Spring MVC 之后按什么顺序经过拦截器和异常处理器。这个项目用四个可运行的模型把这些顺序一次讲透。',
+  outcome: '你能手写事件循环调度、协程就绪队列、简易 IoC 容器与 MVC 分发链，并用它们解释线上「顺序不对」类问题。',
+  levels: [LV1, LV2, LV3, LV4]
+}

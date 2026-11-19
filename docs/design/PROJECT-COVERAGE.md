@@ -69,10 +69,11 @@ node scripts/project-coverage.mjs --check --min=100   # 覆盖率门槛（CI 用
 
 ## 5. 当前批次（补齐全量流水线）
 
-**进度（2026-11-20 晚）**：16 个项目 / 54 关，覆盖 **106 / 402（26.4%）**；AI 域已 100%。
-本轮新增：ai-tools、ai-memory、ai-eval（AI 域收尾）、be-java、be-micro、be-mysql。
+**进度（2026-11-20 深夜）**：17 个项目 / 58 关，覆盖 **127 / 402（31.6%）**；AI 域与后端域均 100%。
+本轮新增：be-python（4 关 21 知识点 / 55 check）。
+累计已完成：ai-tools、ai-memory、ai-eval、be-java、be-micro、be-mysql、be-python。
 
-剩余约 296 个知识点、20 个项目：be 域（be-python/spring 等）、cs 域 6 个、fe 域 11 个、eng-warstory。
+剩余 275 个知识点、19 个项目：cs 域 6 个、fe 域 12 个、eng-warstory。
 每个项目按「规划 → 写内容 → project-build 全绿 → project-audit → 覆盖率上升 → UI 回归 → 提交」推进。
 
 2026-11 起把剩余缺口切成 **24 个项目 / 83 关**，规划文件在 `data/project-plan.json`
@@ -80,10 +81,10 @@ node scripts/project-coverage.mjs --check --min=100   # 覆盖率门槛（CI 用
 
 | 分组 | 项目 | 关数 | 覆盖 |
 | --- | --- | --- | --- |
-| ai | ai-eval、ai-memory、ai-tools | 8 | ai 33 |
-| be | be-java、be-micro、be-mysql、be-python、be-spring | 20 | be 66 |
-| cs | cs-algo、cs-design、cs-devops、cs-net、cs-os、cs-seceq | 28 | cs 111 |
-| fe | fe-vue、fe-vue-2、fe-vue-3、fe-js、fe-browser、fe-network、fe-css、fe-build、fe-perf、fe-eco、fe-uniapp | 33 | fe 151 |
+| ai | ai-eval、ai-memory、ai-tools | 8 | ai 33（100%） |
+| be | be-java、be-micro、be-mysql、be-python | 13 | be 75（100%） |
+| cs | cs-algo、cs-design、cs-devops、cs-net、cs-os、cs-seceq、cs-seceq-2 | 28 | cs 111 |
+| fe | fe-vue、fe-vue-2、fe-vue-3、fe-js、fe-browser、fe-network、fe-css、fe-build、fe-perf、fe-eco、fe-uniapp、fe-electron | 33 | fe 151 |
 | eng | eng-warstory | 4 | eng 13 |
 
 生产流程（每个项目走一遍）：

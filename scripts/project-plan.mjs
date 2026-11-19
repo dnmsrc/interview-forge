@@ -68,51 +68,22 @@ function clusterTopics(nodes) {
   return clusters
 }
 
-/** 把簇切成关：尽量一个 topic 一关；<3 个节点的簇与相邻簇合并；>6 的簇拆开 */
-function cutLevels(clusters, stack) {
+/** 把簇切成关：目标每关 4~6 个 node（覆盖优先，一个 topic 的 L3+L4 尽量一关讲完） */
+function cutLevels(clusters) {
   const levels = []
-  let carry = null // 攒着的小簇，等下一个簇来合并
-  const flushCarry = () => {
-    if (!carry) return
-    // 攒太久（已经 4 个节点）就单独成关，避免拖着一堆杂项
-    if (carry.nodes.length >= 3) {
-      levels.push(carry)
-      carry = null
-    }
-  }
+  let buf = null // { topic, nodes[] }
+  const push = (topic, nodes) => { if (nodes.length) levels.push({ topic: nodes[0].topic ?? topic, nodes }) }
   for (const c of clusters) {
-    if (carry) {
-      const merged = { topic: carry.topic, nodes: [...carry.nodes, ...c.nodes] }
-      if (merged.nodes.length <= 6) {
-        carry = merged
-        if (carry.nodes.length >= 4) { levels.push(carry); carry = null }
-        continue
-      }
-      flushCarry()
-      if (!carry) { /* fallthrough to c */ }
-    }
-    if (c.nodes.length <= 6) {
-      if (c.nodes.length < 3) { carry = c } else levels.push(c)
-    } else {
-      // 大 topic 按 4 个一关拆：第一关带 L3 主节点，后面的关不再重复它
-      const rest = [...c.nodes]
-      const first = rest.shift()
-      let isFirst = true
-      while (rest.length) {
-        levels.push({ topic: c.topic, nodes: isFirst ? [first, ...rest.splice(0, 3)] : rest.splice(0, 4) })
-        isFirst = false
-      }
-      if (isFirst) levels.push({ topic: c.topic, nodes: [first] })
-    }
+    if (!buf) buf = { topic: c.topic, nodes: [...c.nodes] }
+    else if (buf.nodes.length >= 4) { push(buf.topic, buf.nodes); buf = { topic: c.topic, nodes: [...c.nodes] } }
+    else buf.nodes.push(...c.nodes)
+    while (buf.nodes.length > 6) push(buf.topic, buf.nodes.splice(0, 6))
   }
-  flushCarry()
-  if (carry) levels.push(carry)
-  // 收尾：只有 1 个孤零零节点的关，就近并入上一关（≤6 时）
-  for (let i = levels.length - 1; i > 0; i--) {
-    if (levels[i].nodes.length === 1 && levels[i - 1].nodes.length < 6) {
-      levels[i - 1] = { topic: levels[i - 1].topic, nodes: [...levels[i - 1].nodes, ...levels[i].nodes] }
-      levels.splice(i, 1)
-    }
+  if (buf?.nodes.length) {
+    const last = levels[levels.length - 1]
+    // 尾巴太短就并进上一关（不超 6）
+    if (buf.nodes.length < 4 && last && last.nodes.length + buf.nodes.length <= 6) last.nodes.push(...buf.nodes)
+    else push(buf.topic, buf.nodes)
   }
   return levels
 }
@@ -120,10 +91,10 @@ function cutLevels(clusters, stack) {
 const plan = []
 for (const [key, nodes] of [...buckets.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
   const [domain, stack] = key.split('|')
-  const levels = cutLevels(clusterTopics(nodes), stack)
+  const levels = cutLevels(clusterTopics(nodes))
   // 一个 stack 超过 6 关就拆项目，每项目 3~6 关
   const chunks = []
-  for (let i = 0; i < levels.length; i += 4) chunks.push(levels.slice(i, i + 4))
+  for (let i = 0; i < levels.length; i += 3) chunks.push(levels.slice(i, i + 3))
   for (const [ci, chunk] of chunks.entries()) {
     const totalNodes = chunk.reduce((a, l) => a + l.nodes.length, 0)
     plan.push({
