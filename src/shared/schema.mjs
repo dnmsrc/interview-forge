@@ -208,7 +208,35 @@ export const DDL_STATEMENTS = [
     style TEXT NOT NULL DEFAULT 'easier', model TEXT, tokens INTEGER DEFAULT 0, ms INTEGER DEFAULT 0,
     answer_md TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now','localtime'))
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_explain_lookup ON ai_explain(node_id, ask, style)`
+  `CREATE INDEX IF NOT EXISTS idx_explain_lookup ON ai_explain(node_id, ask, style)`,
+
+  // ---------- 项目闯关（content/projects/*.json 的进度存档）----------
+  // 关卡内容是文件资产：不进库、不参与 seed，改完 json 重启即生效。
+  // 这里只存用户数据——每关一行，draft_code 是「没通过时敲了一半的代码」，done=1 才算通关。
+  // 刻意不并入 attempts / node_mastery：项目关卡衡量的是「能不能写出来」，
+  // 和题库的四档评分不是同一把尺子，混在一起会把 SRS 的调度算乱。
+  `CREATE TABLE IF NOT EXISTS project_progress (
+    project_id TEXT NOT NULL, level_id TEXT NOT NULL,
+    done INTEGER NOT NULL DEFAULT 0,
+    draft_code TEXT,
+    -- R29 阶段进度：刷新页面不该把「我已经走到第 3 步」抹掉。
+    -- stage_done 是「通过过的步骤号」的 JSON 数组（只增不减，和已发 XP 不回收同理）；
+    -- stage_base 绑定进度写就时的阶段结构，内容改版后旧进度不能算数
+    -- （否则界面说「已通过」，实际跑不过——又是「看起来像自己的错」）。
+    stage_done TEXT,
+    stage_base TEXT,
+    -- R36 连续失败计数：JSON {步骤号: 次数}，只记「当前卡住的那一步」，通过即清零。
+    -- 同一步连续红 3 次后，允许直接看这一步的答案（结账按钮由主进程校验，前端说了不算）。
+    stage_fails TEXT,
+    -- R36 看过答案的步骤号：答案不扣 XP（不惩罚求助），但要如实标「参考过答案」。
+    answer_steps TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    xp INTEGER NOT NULL DEFAULT 0,
+    passed_at TEXT,
+    updated_at TEXT DEFAULT (datetime('now','localtime')),
+    PRIMARY KEY (project_id, level_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_progress_project ON project_progress(project_id)`
 ]
 
 /**
@@ -228,7 +256,17 @@ export const MIGRATION_STATEMENTS = [
   // （旧库该列不存在，靠这里的 ALTER 自动补；重复执行的 duplicate column 由 db.ts 容忍）
   `ALTER TABLE placement_turn ADD COLUMN answer TEXT`,
   // R19 关系本体：9 类语义边的「为什么有这层关系」一句话说明（见 shared/relations.ts）
-  `ALTER TABLE edges ADD COLUMN note TEXT`
+  `ALTER TABLE edges ADD COLUMN note TEXT`,
+  // R27 关卡内容改版：草稿必须绑定「它是在哪一版骨架下写的」。
+  // 没有这一列的话，内容一升级，用户打开关卡看到的是上一版留下的旧代码，
+  // 跑测试满屏红、他自己也不知道为什么（这不是他的错）。
+  `ALTER TABLE project_progress ADD COLUMN draft_base TEXT`,
+  // R29 阶段进度持久化（同上，老库靠这两条补齐）
+  `ALTER TABLE project_progress ADD COLUMN stage_done TEXT`,
+  `ALTER TABLE project_progress ADD COLUMN stage_base TEXT`,
+  // R36 卡住了要有兜底：同一步连续红 3 次可以直接看这一步的答案
+  `ALTER TABLE project_progress ADD COLUMN stage_fails TEXT`,
+  `ALTER TABLE project_progress ADD COLUMN answer_steps TEXT`
 ]
 
 export const SUBJECTIVE_TYPES = new Set(['short', 'essay', 'code'])

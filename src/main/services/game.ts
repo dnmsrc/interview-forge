@@ -466,3 +466,34 @@ export function chapterProgress(domain = 'fe') {
 }
 
 function safeJson(s: string): any { try { return JSON.parse(s) } catch { return {} } }
+
+/**
+ * 项目闯关的奖励结算（由 project 服务在「本关首次通过」时调用，已在外层 tx 里）。
+ *
+ * 为什么不复用 recordAnswer：那条路径是围绕「题目 + 四档评分 + SRS」设计的，
+ * 需要 qid / scale4 / 掌握度跳变这些项目关卡根本不存在的东西。这里只做两件事：
+ * 加 XP、发一条能被庆祝弹窗识别的 xp 事件。奖励池和等级曲线与答题共用，
+ * 所以用户的成长是连续的一条线，而不是两个割裂的游戏。
+ */
+export function recordProjectLevel(input: {
+  projectTitle: string; levelTitle: string; xp: number
+  levelIndex: number; levelCount: number; projectDone: boolean
+}): { xp: number; level: number; leveledUp: boolean } {
+  const res = addXp(input.xp)
+  pushEvent('xp', {
+    text: `通关「${input.levelTitle}」`,
+    title: `+${input.xp} XP`,
+    xpGain: input.xp
+  } as GameEventPayload)
+  if (res.leveledUp) {
+    pushEvent('level-up', { level: res.newLevel, xpGain: 0, title: `升到 ${res.newLevel} 级` } as GameEventPayload)
+  }
+  if (input.projectDone) {
+    pushEvent('chapter-clear', {
+      text: `「${input.projectTitle}」${input.levelCount} 关全部完成`,
+      title: `项目通关：${input.projectTitle}`,
+      xpGain: 0
+    } as GameEventPayload)
+  }
+  return { xp: input.xp, level: res.newLevel, leveledUp: res.leveledUp }
+}

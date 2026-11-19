@@ -324,7 +324,7 @@ onActivated(() => {
           <div class="row" style="margin-bottom:12px">
             <span class="pill" :class="'state-pill st-' + stateKey(detail.node)">{{ STATE_LABEL[stateKey(detail.node)] }}</span>
             <span class="pill lock">L{{ detail.node.level }} · {{ detail.node.stack }}</span>
-            <span v-if="detail.node.must_master" class="pill purple">必考基础</span>
+            <span v-if="detail.node.must_master" class="pill purple">基础必修</span>
           </div>
 
           <div v-if="detail.node.summary" class="card" style="margin-bottom:12px;background:var(--surface-2)">

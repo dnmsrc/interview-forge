@@ -8,19 +8,26 @@ import { registerIpc } from './ipc'
 // 后面再读 process.env 就会拿到 undefined。本地常量能保证求值顺序。
 const PROJECT_ROOT = process.env.FORGE_ROOT || join(__dirname, '..', '..')
 process.env.FORGE_ROOT = PROJECT_ROOT
+// 多开（FORGE_INSTANCE=2/3/...）：Chromium 的 userData 里有缓存、localStorage 和「单实例锁」——
+// 两个进程指向同一个 userData 时，第二个窗口要么被锁踢掉、要么争抢 profile 直接起不来。
+// 按实例各给一个目录，锁自然就分开了（requestSingleInstanceLock 用的就是 userData 位置）。
+// 不设实例号时保持原路径，仓库里的备份、QA 脚本都不受影响。
+const INSTANCE = (process.env.FORGE_INSTANCE ?? '').trim()
+process.env.FORGE_INSTANCE = INSTANCE
+const USER_DATA_DIR = join(PROJECT_ROOT, 'data', INSTANCE ? `electron-userData-${INSTANCE}` : 'electron-userData')
 const DATA_DIR = process.env.FORGE_DATA_DIR || (app.isPackaged ? join(app.getPath('userData'), 'forge-data') : join(PROJECT_ROOT, 'data'))
 process.env.FORGE_DATA_DIR = DATA_DIR
-// 便携模式：Electron 自身的 userData（Chromium 缓存、localStorage、单实例锁）也放进项目内，
+// 便携模式：Electron 自身的 userData 也放进项目内，
 // 既不污染系统 AppData，也让「content + data」两目录即为全部状态，拷走就是完整备份。
-if (!app.isPackaged) app.setPath('userData', join(PROJECT_ROOT, 'data', 'electron-userData'))
+if (!app.isPackaged) app.setPath('userData', USER_DATA_DIR)
 
 /**
  * 启动日志同时落到 data/boot.log —— Windows 下 electron.exe 是 GUI 子系统程序，
  * 从终端 spawn 时 stdout 往往拿不到，落盘是唯一可靠的排障手段（菜单里没有控制台时也一样）。
  */
-const LOG_FILE = join(PROJECT_ROOT, 'forge-boot.log')
+const LOG_FILE = join(PROJECT_ROOT, INSTANCE ? `forge-boot-${INSTANCE}.log` : 'forge-boot.log')
 export function bootLog(msg: string) {
-  const line = `${new Date().toISOString()} ${msg}`
+  const line = `${new Date().toISOString()}${INSTANCE ? ` [i${INSTANCE}]` : ''} ${msg}`
   console.log(msg)
   try {
     mkdirSync(dirname(LOG_FILE), { recursive: true })
@@ -56,7 +63,7 @@ function createWindow() {
     height: 920,
     minWidth: 980,
     minHeight: 640,
-    title: '面试熔炉 interview-forge',
+    title: '练习册',
     backgroundColor: '#f7f8fa',
     show: false,
     autoHideMenuBar: true,

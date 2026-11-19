@@ -86,7 +86,7 @@ onActivated(load)
     <!-- ===== 核心指标：一卡一指标 ===== -->
     <div class="kpis">
       <div class="stat rise" style="--i:0">
-        <div class="lbl"><Icon name="target" :size="13" /> 面试表现预估区间</div>
+        <div class="lbl"><Icon name="target" :size="13" /> 掌握程度预估</div>
         <div class="val num" :style="{ color: pctColor(bandMid) }">{{ dash?.interviewBand.low }}–{{ dash?.interviewBand.high }}</div>
         <div class="foot ellip" :title="dash?.interviewBand.note">{{ dash?.interviewBand.note }}</div>
       </div>
@@ -94,7 +94,7 @@ onActivated(load)
         <div class="lbl"><Icon name="graph" :size="13" /> 图谱点亮</div>
         <div class="val num">{{ dash?.totals.litNodes }}<span class="val-sub">/{{ dash?.totals.nodes }}</span></div>
         <div class="bar" style="margin-top:8px"><i :style="{ width: ((dash?.totals.litNodes ?? 0) / Math.max(1, dash?.totals.nodes ?? 1) * 100) + '%' }" /></div>
-        <div class="foot">必考基础缺口 <b :style="{ color: mustGap ? 'var(--bad)' : 'var(--ok)' }">{{ mustGap }}</b></div>
+        <div class="foot">基础考点缺口 <b :style="{ color: mustGap ? 'var(--bad)' : 'var(--ok)' }">{{ mustGap }}</b></div>
       </div>
       <div class="stat rise clickable" style="--i:2" role="button" tabindex="0" @click="() => router.push('/')" @keydown.enter="() => router.push('/')">
         <div class="lbl"><Icon name="clock" :size="13" /> 今日到期</div>
@@ -126,7 +126,7 @@ onActivated(load)
         <span><i class="dot mb-learning" />学习中 {{ dash.stateDist.learning }}</span>
         <span><i class="dot mb-mastered" />已掌握 {{ dash.stateDist.mastered }}</span>
         <span><i class="dot mb-stale" />已生疏 ↺ {{ dash.stateDist.stale }}</span>
-        <span v-if="dash.stateDist.stale" class="stale-warn">有 {{ dash.stateDist.stale }} 个考点已降回队列，其中必考 {{ dash.stateDist.mustStale }} 个，建议优先复习</span>
+        <span v-if="dash.stateDist.stale" class="stale-warn">有 {{ dash.stateDist.stale }} 个考点已降回队列，其中基础考点 {{ dash.stateDist.mustStale }} 个，建议优先复习</span>
       </div>
     </section>
 
@@ -223,7 +223,7 @@ onActivated(load)
     <section class="card rise" style="--i:8">
       <header class="panel-head">
         <h3><Icon name="book" :size="16" class="hd-ic" /> 错题本全量<span class="count-chip num">{{ wrong.length }}</span></h3>
-        <span class="desc">点开看题干、选项与解析；带出去面试前扫一遍</span>
+        <span class="desc">点开看题干、选项与解析；考前扫一遍</span>
         <span class="grow" />
         <button class="btn" @click="exportWrongBook"><Icon name="download" :size="14" /> 导出 Markdown</button>
       </header>

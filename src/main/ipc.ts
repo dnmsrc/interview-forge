@@ -17,6 +17,8 @@ import * as kbDraftSvc from './services/kb-draft'
 import * as explainSvc from './services/explain'
 import * as srsSvc from './services/srs'
 import * as gameSvc from './services/game'
+import * as projectSvc from './services/project'
+import * as progressSvc from './services/progress'
 import * as aiSvc from './ai/gateway'
 import * as tutorSvc from './ai/tutor-model'
 import * as tasksSvc from './ai/tasks'
@@ -47,10 +49,18 @@ export const impl = {
     async reload() { return reloadContent() },
     async validate() {
       try {
-        const out = execFileSync(process.execPath, [join(projectRoot(), 'scripts', 'validate.mjs')], { cwd: projectRoot(), encoding: 'utf8', timeout: 60000 })
-        return { ok: !/❌/.test(out), output: out }
+        // 报错项存在时 validate.mjs 以退出码 1 结束，execFileSync 会抛异常 ——
+        // 真正的报告在 e.stdout 里，不能丢，所以下面 catch 里要把它取出来。
+        // 另外 process.execPath 在 Electron 里是 Electron 本体，直接喂 .mjs 会被当成
+        // 应用启动（输出为空）；ELECTRON_RUN_AS_NODE=1 才让它退化成纯 Node 跑这个脚本。
+        const out = execFileSync(process.execPath, [join(projectRoot(), 'scripts', 'validate.mjs')], {
+          cwd: projectRoot(), encoding: 'utf8', timeout: 120000, windowsHide: true,
+          env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }
+        })
+        return { ok: !/❌/.test(out), output: out.slice(0, 8000) }
       } catch (e: any) {
-        return { ok: false, output: `${e?.stdout ?? ''}\n${e?.stderr ?? e?.message ?? ''}`.slice(0, 4000) }
+        const text = `${e?.stdout ?? ''}${e?.stderr ?? ''}`.trim()
+        return { ok: false, output: (text || `校验脚本没能跑起来：${e?.message ?? e}`).slice(0, 8000) }
       }
     }
   },
@@ -204,6 +214,24 @@ export const impl = {
     async bosses(domain) { return gameSvc.listBosses(domain ?? 'fe') },
     async chapters(domain) { return gameSvc.chapterProgress(domain ?? 'fe') },
     async reportExplorer(visitedChapterIds) { return gameSvc.reportExplorer(visitedChapterIds ?? []) }
+  },
+
+  // 项目闯关：真敲代码 + 沙箱判题（测试源码只留在主进程，渲染层拿不到）
+  project: {
+    async list() { return projectSvc.projectList() },
+    async detail(id) { return projectSvc.projectDetail(String(id)) },
+    async run(projectId, levelId, code, stepBase, stepN) { return projectSvc.projectRunLevel(String(projectId), String(levelId), String(code ?? ''), typeof stepBase === 'string' ? stepBase : undefined, typeof stepN === 'number' ? stepN : undefined) },
+    async saveDraft(projectId, levelId, code) { return projectSvc.projectSaveDraft(String(projectId), String(levelId), String(code ?? '')) },
+    async resetLevel(projectId, levelId) { return projectSvc.projectResetLevel(String(projectId), String(levelId)) },
+    async revertLevel(projectId, levelId) { return projectSvc.projectRevertLevel(String(projectId), String(levelId)) },
+    async stepAnswer(projectId, levelId, step) { return projectSvc.projectStepAnswer(String(projectId), String(levelId), Number(step)) },
+    async resetAll(projectId) { return projectSvc.projectResetAll(String(projectId)) }
+  },
+
+  // 从零开始：清空全部学习进度（不动 AI 配置与题库缓存）
+  progress: {
+    async summary() { return progressSvc.progressSummary() },
+    async resetAll() { return progressSvc.resetAllProgress() }
   },
 
   settings: {

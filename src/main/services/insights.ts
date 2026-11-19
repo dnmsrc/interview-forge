@@ -122,10 +122,10 @@ const safeJson = (s: string) => { try { return JSON.parse(s) } catch { return {}
 
 export function exportWeeklyMarkdown(): string {
   const d = dashboardSummary()
-  const lines = [`# 面试熔炉周报 · ${dayStr()}`, '']
+  const lines = [`# 练习册周报 · ${dayStr()}`, '']
   lines.push(`- 连续打卡：**${d.streak} 天**｜今日到期复习：${d.dueNow} 题`,
     `- 图谱点亮：${d.totals.litNodes}/${d.totals.nodes} 个考点｜强制基础缺口：${d.totals.mustMaster - d.totals.mustMasterLit}`,
-    `- 面试预估区间：**${d.interviewBand.low}–${d.interviewBand.high} 分**（${d.interviewBand.note}）`, '', '## 板块掌握度', '| 板块 | 点亮/总数 | 平均档 |', '|---|---|---|')
+    `- 掌握程度预估：**${d.interviewBand.low}–${d.interviewBand.high} 分**（${d.interviewBand.note}）`, '', '## 板块掌握度', '| 板块 | 点亮/总数 | 平均档 |', '|---|---|---|')
   for (const m of d.mastery) lines.push(`| ${m.title} | ${m.lit}/${m.total} | ${m.avgScale4}/3 |`)
   lines.push('', '## 最该补的题', '```')
   for (const w of d.topWrong.slice(0, 8)) lines.push(`- [${w.nodeTitle}] ${w.stem}（做过 ${w.times} 次，均分 ${Math.round(w.avgPct)}）`)

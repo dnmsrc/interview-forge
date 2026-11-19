@@ -193,8 +193,8 @@ function buildReport(examId: string, results: AiExamReport['perQuestion'], rows:
   }
   const attribution = [...attributionMap.entries()].map(([reason, count]) => ({ reason, count })).sort((a, b) => b.count - a.count).slice(0, 10)
 
-  const band = total >= 85 ? '可挑战大厂三面/SP' : total >= 70 ? '一面稳，二面需补强薄弱节点' : total >= 55 ? '基础题不稳，先回硬基础节点' : '需系统重学：从图谱锁定区开始循序渐进'
-  const delta = selfEst != null ? { self: selfEst, ai: total, note: selfEst - total >= 12 ? '你高估了自己：把"看过"当成了"能讲清"，面试里容易被追问穿' : total - selfEst >= 12 ? '你偏保守，实际表现比自评好，面试时可以更自信地展开' : '自我评估较准，能预判自己的失分点' } : undefined
+  const band = total >= 85 ? '掌握得不错，可以挑战更难的题' : total >= 70 ? '基础扎实，把薄弱节点补一下' : total >= 55 ? '基础题还不稳，先回基础考点' : '需要系统补一遍，从图谱里标出的区域开始'
+  const delta = selfEst != null ? { self: selfEst, ai: total, note: selfEst - total >= 12 ? '你高估了自己：把"看过"当成了"能讲清"，答题时容易被追问到答不上来' : total - selfEst >= 12 ? '你偏保守，实际表现比自评好，答题时可以更自信地展开' : '自我评估较准，能预判自己的失分点' } : undefined
   return {
     total, pass: total >= (get<any>(`SELECT pass_line FROM exams WHERE id=?`, [examId])?.pass_line ?? 60),
     band, perQuestion: results, weakNodes, attribution, selfEstDelta: delta,

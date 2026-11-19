@@ -4,6 +4,10 @@ export const router = createRouter({
   history: createWebHashHistory(),
   routes: [
     { path: '/', name: 'home', component: () => import('./views/HomeView.vue'), meta: { title: '今日', icon: '🔥' } },
+    // 项目闯关：先给用户一个「直接动手写」的入口，和做题体系并行存在
+    { path: '/projects', name: 'projects', component: () => import('./views/ProjectView.vue'), meta: { title: '项目闯关', icon: '⚡' } },
+    { path: '/projects/:projectId', name: 'project', component: () => import('./views/ProjectBoardView.vue'), meta: { title: '项目闯关', icon: '⚡' } },
+    { path: '/projects/:projectId/:levelId', name: 'project-level', component: () => import('./views/ProjectLevelView.vue'), meta: { title: '关卡', icon: '⚡' } },
     { path: '/placement', name: 'placement', component: () => import('./views/PlacementView.vue'), meta: { title: '入门摸底', icon: '🧭' } },
     { path: '/practice', name: 'practice', component: () => import('./views/PracticeView.vue'), meta: { title: '练习', icon: '📝' } },
     { path: '/mistakes', name: 'mistakes', component: () => import('./views/WrongBookView.vue'), meta: { title: '错题本', icon: '📕' } },
@@ -18,5 +22,5 @@ export const router = createRouter({
 
 router.afterEach((to) => {
   const t = (to.meta?.title as string) ?? ''
-  document.title = t ? `${t} · 面试熔炉` : '面试熔炉'
+  document.title = t ? `${t} · 练习册` : '练习册'
 })

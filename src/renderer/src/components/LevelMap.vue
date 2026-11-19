@@ -143,7 +143,7 @@ defineExpose({ expand: (id: string) => openIds.value.add(id), nextId })
             </span>
             <span class="lv-title" :title="w.node.title">
               <i v-if="bossIds.has(w.node.id)" class="lv-boss-tag">BOSS</i>
-              <i v-else-if="w.node.must_master && !w.node.lit" class="lv-must" title="必考红线">🛡</i>
+              <i v-else-if="w.node.must_master && !w.node.lit" class="lv-must" title="基础必修">🛡</i>
               {{ w.node.title }}
             </span>
             <span class="lv-state">{{ STATE_LABEL[stateKey(w.node)] }}</span>

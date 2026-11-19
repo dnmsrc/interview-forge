@@ -6,6 +6,13 @@ data/qa/
 data/backups/
 # Electron 运行时用户数据（Cache / leveldb / Cookies 会被进程锁住，git add 会直接报 Permission denied）
 data/electron-userData/
+# 多开实例的运行目录（npm run dev:2 / --own-data 生成）
+data/electron-userData-*/
+data/instances/
+# 一次性探针产物 / 内容备份，不该跟着仓库走
+data/r24-qa/
+data/_backup*/
+data/e2e-*.png
 .DS_Store
 *.log
 .env

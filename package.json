@@ -2,7 +2,7 @@
   "name": "interview-forge",
   "version": "0.1.0",
   "private": false,
-  "description": "面试熔炉 · 完全本地的面试训练客户端：题库练习/闭卷考试/知识图谱/FSRS 间隔重复/带引用校验的本地 AI 私教",
+  "description": "练习册 · 完全本地的技术练习客户端：题库练习/闭卷考试/知识图谱/FSRS 间隔重复/带引用校验的本地 AI 私教",
   "license": "MIT",
   "main": "./out/main/index.js",
   "author": "harry",
@@ -31,6 +31,10 @@
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "dev:2": "node scripts/dev.mjs --instance=2",
+    "dev:3": "node scripts/dev.mjs --instance=3",
+    "dev:bg": "node scripts/dev-detach.mjs",
+    "dev:multi": "node scripts/dev-multi.mjs",
     "start": "electron-vite preview",
     "build": "electron-vite build",
     "seed": "node scripts/seed.mjs",
@@ -38,7 +42,9 @@
     "kb:index": "node scripts/kb-index.mjs",
     "kb:build": "node scripts/kb-build.mjs",
     "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
-    "tutor:fetch": "node scripts/tutor-fetch.mjs"
+    "tutor:fetch": "node scripts/tutor-fetch.mjs",
+    "project:check": "node scripts/qa/project-content.test.mjs",
+    "project:build": "node scripts/project-build.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

@@ -12,19 +12,23 @@ const route = useRoute()
 const theme = useNaiveTheme()
 
 const items = [
-  { to: '/', title: '今日', icon: 'flame', desc: '按记忆曲线排好的当日任务' },
-  { to: '/placement', title: '入门摸底', icon: 'brain', desc: '沿前置链循序渐进，定位你的知识缺口' },
-  { to: '/practice', title: '练习模式', icon: 'pen', desc: '随机抽题 · AI 批改 · 追问式教学' },
-  { to: '/mistakes', title: '错题本', icon: 'alert', desc: '实时汇总答错的题，专攻薄弱点' },
-  { to: '/exam', title: '闭卷考试', icon: 'timer', desc: '限时全真模拟与复盘' },
-  { to: '/graph', title: '知识图谱', icon: 'graph', desc: '考点依赖网与掌握度地图' },
-  { to: '/dashboard', title: '数据面板', icon: 'chart', desc: '正确率趋势与薄弱点画像' },
-  { to: '/bank', title: '题库·版本', icon: 'folder', desc: '题库演进、快照与回滚' },
-  { to: '/settings', title: '设置', icon: 'gear', desc: 'AI 端点、路由与本地数据' }
+  { to: '/', title: '今日', icon: 'flame', desc: '按复习进度排好的今日任务' },
+  // 项目闯关与做题体系并行：一个从「做出来」入手，一个从「说得清」入手
+  { to: '/projects', title: '项目闯关', icon: 'zap', desc: '真敲代码 · 逐关解锁 · 边做边学' },
+  { to: '/placement', title: '入门摸底', icon: 'brain', desc: '按先后顺序，找出你卡在哪' },
+  { to: '/practice', title: '练习模式', icon: 'pen', desc: '随机抽题 · AI 批改 · 逐层追问' },
+  { to: '/mistakes', title: '错题本', icon: 'alert', desc: '汇总答错的题，集中攻克' },
+  { to: '/exam', title: '闭卷考试', icon: 'timer', desc: '限时答题，做完看解析' },
+  { to: '/graph', title: '知识图谱', icon: 'graph', desc: '考点依赖关系与掌握程度' },
+  { to: '/dashboard', title: '数据面板', icon: 'chart', desc: '正确率变化与薄弱点' },
+  { to: '/bank', title: '题库·版本', icon: 'folder', desc: '题库版本、快照与回滚' },
+  { to: '/settings', title: '设置', icon: 'gear', desc: 'AI 服务、路由与本地数据' }
 ]
 const byPath = new Map(items.map((i) => [i.to, i]))
-const page = computed(() => byPath.get(route.path))
-const title = computed(() => page.value?.title ?? '面试熔炉')
+// 子路由（/projects/:id/:levelId）没有精确匹配项，按前缀归到父级，
+// 否则顶栏标题会掉回「练习册」，面包屑也没了
+const page = computed(() => byPath.get(route.path) ?? items.find((i) => i.to !== '/' && route.path.startsWith(i.to + '/')))
+const title = computed(() => page.value?.title ?? '练习册')
 const desc = computed(() => page.value?.desc ?? '')
 const due = computed(() => store.plan?.totalPlanned ?? 0)
 const gapCount = computed(() => (store.dash ? Math.max(0, store.dash.totals.mustMaster - store.dash.totals.mustMasterLit) : 0))
@@ -76,14 +80,14 @@ watch(
         <div class="brand">
           <span class="logo"><Icon name="flame" :size="17" /></span>
           <span class="meta">
-            <b>面试熔炉</b>
+            <b>练习册</b>
             <small>{{ store.bankStats ? `${store.bankStats.questions} 题 · ${store.bankStats.nodes} 考点` : '装载中…' }}</small>
           </span>
         </div>
         <nav class="nav" aria-label="主导航">
           <div class="nav-label">训练</div>
           <RouterLink
-            v-for="(i, n) in items.slice(0, 5)" :key="i.to" :to="i.to" custom v-slot="{ navigate, isExactActive }"
+            v-for="i in items.slice(0, 6)" :key="i.to" :to="i.to" custom v-slot="{ navigate, isExactActive }"
           >
             <a :href="i.to" class="nav-item" :class="{ on: isExactActive }" @click="navigate" :title="rail ? i.title : ''">
               <span class="ic"><Icon :name="i.icon" :size="17" /></span>
@@ -92,7 +96,7 @@ watch(
             </a>
           </RouterLink>
           <div class="nav-label">洞察</div>
-          <RouterLink v-for="i in items.slice(5)" :key="i.to" :to="i.to" custom v-slot="{ navigate, isExactActive }">
+          <RouterLink v-for="i in items.slice(6)" :key="i.to" :to="i.to" custom v-slot="{ navigate, isExactActive }">
             <a :href="i.to" class="nav-item" :class="{ on: isExactActive }" @click="navigate" :title="rail ? i.title : ''">
               <span class="ic"><Icon :name="i.icon" :size="17" /></span>
               <span class="lbl">{{ i.title }}</span>
@@ -104,7 +108,7 @@ watch(
           <div v-if="store.dash" class="foot-block">
             <div class="row2"><span class="micro">考点点亮</span><span class="grow" /><b class="micro num">{{ litRatio }}%</b></div>
             <div class="bar accent" style="margin-top:4px"><i :style="{ width: litRatio + '%' }" /></div>
-            <div class="row2" style="margin-top:6px">必考缺口 <b :style="{ color: gapCount ? 'var(--bad)' : 'var(--ok)' }">{{ gapCount }}</b></div>
+            <div class="row2" style="margin-top:6px">基础缺口 <b :style="{ color: gapCount ? 'var(--bad)' : 'var(--ok)' }">{{ gapCount }}</b></div>
           </div>
           <div class="row2 foot-block" style="margin-top:8px">
             <span class="dotmark pulse" :style="{ background: store.anyEndpoint ? 'var(--ok)' : 'var(--bad)' }" />

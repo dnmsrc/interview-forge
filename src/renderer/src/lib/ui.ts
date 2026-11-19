@@ -2,13 +2,16 @@ import MarkdownIt from 'markdown-it'
 import { computed } from 'vue'
 import { createDiscreteApi, darkTheme } from 'naive-ui'
 import { isDark, naiveOverrides } from './theme'
+import { highlightCode, langOf } from './highlight'
 
-const escapeHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!)
 export const md: InstanceType<typeof MarkdownIt> = new MarkdownIt({
   html: false,
   linkify: true,
   breaks: true,
-  highlight: (str: string, lang?: string): string => `<pre><code class="lang-${lang || 'text'}">${escapeHtml(str)}</code></pre>`
+  // 讲解里的 ```js 代码块要做语法着色：教学页一半的信息量在示例代码里，
+  // 全是黑白的文字会让人分不清关键字、字符串和注释。
+  highlight: (str: string, lang?: string): string =>
+    `<pre class="code-block"><code class="lang-${lang || 'text'}">${highlightCode(str, langOf(lang))}</code></pre>`
 })
 export const renderMd = (s: unknown): string => (s == null ? '' : md.render(String(s)))
 /**  inline 代码风格的短文本（题干里的 `x`） */

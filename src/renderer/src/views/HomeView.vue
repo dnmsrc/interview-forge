@@ -21,18 +21,18 @@ function goPlacement(domain?: string) { void router.push({ path: '/placement', q
 const groups = computed(() => [
   {
     key: 'due', title: '到期复习', icon: 'clock', cls: 'bad' as const,
-    desc: 'FSRS 判定今天到记忆临界点，逾期成本最高', list: plan.value?.due ?? [],
-    emptyT: '今天没有到期的复习', emptyD: '说明前几天的巩固都按时完成了。想加快图谱推进，可以直接开始新题。'
+    desc: '今天到期的复习题，拖得越久越容易忘', list: plan.value?.due ?? [],
+    emptyT: '今天没有到期的复习', emptyD: '前面学的都按计划复习过了。想往下推进，可以直接做新题。'
   },
   {
     key: 'weak', title: '薄弱变体', icon: 'target', cls: 'warn' as const,
-    desc: '换个问法再考一遍上次没答透的知识点', list: plan.value?.weakVariants ?? [],
-    emptyT: '没有待攻克的薄弱点', emptyD: '最近的作答质量均衡，暂时没有需要换角度重考的题。'
+    desc: '上次没讲清楚的题，换个问法再练一遍', list: plan.value?.weakVariants ?? [],
+    emptyT: '没有要重练的题', emptyD: '最近几组都答得不错，暂时不用换角度重练。'
   },
   {
     key: 'new', title: '新题推进', icon: 'sparkles', cls: 'info' as const,
-    desc: '按考点权重与前置解锁顺序排好的新内容', list: plan.value?.newQuestions ?? [],
-    emptyT: '新题已清空', emptyD: '今日配额已完成。去数据面板看看正确率趋势，或安排一次闭卷模拟。'
+    desc: '按重要程度和前后依赖排的新内容', list: plan.value?.newQuestions ?? [],
+    emptyT: '今天的题做完了', emptyD: '今天的量已经完成。可以去数据面板看正确率变化，或做一次闭卷考试。'
   }
 ])
 const doneRatio = computed(() => Math.min(1, (plan.value?.doneToday ?? 0) / Math.max(1, plan.value?.totalPlanned ?? 1)))
@@ -45,7 +45,7 @@ async function loadResults() {
 }
 async function exportWeekly() {
   const r = await ipc.daily.exportWeekly()
-  downloadText(`面试熔炉周报-${new Date().toISOString().slice(0, 10)}.md`, r.markdown)
+  downloadText(`练习册周报-${new Date().toISOString().slice(0, 10)}.md`, r.markdown)
   message.success(`已导出：${r.path}`)
 }
 const refresh = async () => { await store.boot(); await loadResults(); void store.loadDash() }
@@ -96,7 +96,7 @@ const DOMAIN_LABEL: Record<string, string> = { fe: '前端', be: '后端', cs: '
       <div class="acts">
         <n-button data-testid="home-start" type="primary" size="large" @click="goToday">
           <template #icon><Icon name="play" :size="15" /></template>
-          开始今日队列
+          开始今天的练习
         </n-button>
         <n-button quaternary size="large" @click="exportWeekly">
           <template #icon><Icon name="download" :size="15" /></template>
@@ -107,11 +107,11 @@ const DOMAIN_LABEL: Record<string, string> = { fe: '前端', be: '后端', cs: '
 
     <!-- ===== 硬基础红线（放在任务列表之前，因为它决定今天该先补哪一层） ===== -->
     <div v-if="gapCount > 0" class="fb bad rise" style="--i:1">
-      <h4><Icon name="alert" :size="16" /> 硬基础红线未过：{{ gapCount }} 个必考基础考点还没点亮</h4>
-      <div class="tiny muted">面试官一定会往下追问一层。跳过它们去刷框架难题，等于地基上盖楼。</div>
+      <h4><Icon name="alert" :size="16" /> 还有 {{ gapCount }} 个基础考点没掌握</h4>
+      <div class="tiny muted">这些是后面内容的基础，先过一遍，再学进阶内容会顺很多。</div>
       <n-button size="small" style="margin-top:10px" @click="goNode()">
         <template #icon><Icon name="graph" :size="14" /></template>
-        去图谱看缺口
+        查看缺哪些
       </n-button>
     </div>
 
@@ -152,7 +152,7 @@ const DOMAIN_LABEL: Record<string, string> = { fe: '前端', be: '后端', cs: '
     <section class="card rise" style="--i:5">
       <header class="panel-head">
         <h3><Icon name="brain" :size="16" class="hd-ic" /> 入门摸底</h3>
-        <span class="desc">从最基础考点沿前置链循序渐进，可直接标记"不会"并定位卡点</span>
+        <span class="desc">从最基础的考点开始，按先后顺序往下走，遇到不会的直接标记</span>
         <span class="grow" />
         <n-button size="small" type="primary" secondary @click="goPlacement()"><Icon name="play" :size="14" /> 进入摸底向导</n-button>
       </header>
@@ -174,7 +174,7 @@ const DOMAIN_LABEL: Record<string, string> = { fe: '前端', be: '后端', cs: '
           </template>
           <template v-else>
             <div class="val faint">未摸底</div>
-            <div class="foot">点击开始 · 确定从哪个考点切入</div>
+            <div class="foot">点击开始 · 从第一个卡住的地方入手</div>
           </template>
         </div>
       </div>
@@ -201,7 +201,7 @@ const DOMAIN_LABEL: Record<string, string> = { fe: '前端', be: '后端', cs: '
     <!-- ===== 最近模拟面 ===== -->
     <section v-if="dash?.examHistory?.length" class="card rise" style="--i:6">
       <header class="panel-head">
-        <h3><Icon name="trophy" :size="16" class="hd-ic" /> 最近的模拟面</h3>
+        <h3><Icon name="trophy" :size="16" class="hd-ic" /> 最近的考试</h3>
         <span class="grow" />
         <n-button size="tiny" quaternary @click="() => router.push('/exam')">全部记录<Icon name="chevron" :size="13" /></n-button>
       </header>

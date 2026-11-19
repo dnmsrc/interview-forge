@@ -11,6 +11,7 @@ interview-forge/
 │  ├─ questions/<domain>/<stack>/<topic>.json   # 题库（一个知识点一个文件，内含多题）
 │  ├─ variants/<domain>/<stack>/<topic>.json    # 预生成变体池
 │  ├─ papers/presets.json                 # 预置模拟卷模板
+│  ├─ projects/<project-id>.json          # 项目闯关课程内容（v3 分步制：每关 stages，每步完整代码 + 测试）
 │  └─ snapshots/<timestamp>/              # 每次题库更新的版本快照（可回滚）
 ├─ data/app.db                            # SQLite（node:sqlite）
 ├─ scripts/{seed.mjs,import-playbook.mjs,update-bank.mjs}
@@ -18,6 +19,9 @@ interview-forge/
 ```
 
 `domain ∈ { fe 前端, be 后端, cs 公共基础, ai AI Agent, eng 工程难题 }`
+
+项目闯关的关卡字段契约不在本文件展开，见 `docs/design/PROJECT-LEVELS.md`（结构）与
+`docs/project-authoring.md`（生产规范：v3 stages、每步自检、domain 分栏）。
 
 ## 1. 知识节点（四级 DAG）
 
@@ -63,7 +67,7 @@ interview-forge/
   "knowledgeLinks": {                       // 知识关联
     "prereq": ["fe.js.proxy.reflect"],
     "related": ["fe.vue.reactivity.effect"],
-    "followUps": ["面试官常接着问：为什么不用 Object.defineProperty？"]
+    "followUps": ["常接着问：为什么不用 Object.defineProperty？"]
   },
   "resources": [{ "title": "Vue 官方文档·响应式", "digest": "80-200 字要点摘要" }],  // 练习模式资料面板
   "openBookAllowed": true,                  // 练习时可查 resources；闭卷一律禁用
@@ -156,6 +160,18 @@ CREATE TABLE ai_log ( ts TEXT, task TEXT, model TEXT, in_tokens INTEGER, out_tok
   ms INTEGER, ref_type TEXT, ref_id TEXT, ok INTEGER );
 CREATE TABLE settings ( key TEXT PRIMARY KEY, value TEXT );   -- AI 端点表存这里（加密后）
 CREATE TABLE checkins ( day TEXT PRIMARY KEY, done INTEGER, plan TEXT );
+
+-- 项目闯关进度：内容（关卡本身）在 content/projects/*.json，库里只存用户状态
+CREATE TABLE project_progress (
+  project_id TEXT NOT NULL, level_id TEXT NOT NULL,
+  done INTEGER NOT NULL DEFAULT 0,      -- 1 = 本关检查点全绿
+  draft_code TEXT,                      -- 编辑中的草稿；没写过时为 NULL（前端回落到骨架）
+  attempts INTEGER NOT NULL DEFAULT 0,  -- 跑测试次数，用于「已尝试 N 次」
+  xp INTEGER NOT NULL DEFAULT 0,        -- 首次通关发的 XP；重做不重复计
+  passed_at TEXT,
+  updated_at TEXT DEFAULT (datetime('now','localtime')),
+  PRIMARY KEY (project_id, level_id)
+);
 ```
 
 ## 5. 评分映射（展示百分制 / 内部四档）

@@ -16,6 +16,8 @@ console.log(`数据库: ${dbPath}`)
 const db = new DatabaseSync(dbPath)
 db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;`)
 for (const stmt of DDL_STATEMENTS) db.exec(stmt)
+// 旧库自愈：IF NOT EXISTS 不会给已存在的 edges 补 note 列，显式 ALTER（重复列名容忍）
+try { db.exec(`ALTER TABLE edges ADD COLUMN note TEXT`) } catch (e) { if (!/duplicate column/i.test(String(e?.message))) throw e }
 db.prepare(`INSERT INTO meta(key,value) VALUES('schema_version',?)
   ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(String(SCHEMA_VERSION))
 

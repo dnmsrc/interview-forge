@@ -90,9 +90,18 @@ await step('A2 作答后点提交并批改', async () => {
     const cm = document.querySelector('.cm-content, .monaco-editor textarea'); if (cm) { setter(cm.tagName === 'DIV' ? cm : cm, 'function memoize(fn){ const cache = new Map(); return (...a) => JSON.stringify(a) in cache ? cache[JSON.stringify(a)] : (cache[JSON.stringify(a)] = fn(...a)) }'); cm.setAttribute('contenteditable', 'true'); return 'editor' }
     return 'no-input';
   })()`)
-  if (filled === 'no-opt' || filled === 'no-input') throw new Error('无法构造作答：' + filled)
-  await sleep(400)
-  await clickTid('practice-submit')
+  if (filled === 'no-opt' || filled === 'no-input') {
+    // R9 随机练习首题可能是编程/简答等无标准输入控件的题型：
+    // 兜底走四档自评（点「完全不会」直接提交，对所有题型都成立的真实练习路径），
+    // 不再因题型随机而把功能正常的提交流误判成失败。
+    const selfBtn = await cdp.evaluate(`
+      const b = [...document.querySelectorAll('.s4-group .s4')].find(e => e.getBoundingClientRect().width > 0);
+      if (!b) return null; b.click(); return 'self';`)
+    if (!selfBtn) throw new Error('无法构造作答：' + filled + '，且没有四档自评按钮')
+  } else {
+    await sleep(400)
+    await clickTid('practice-submit')
+  }
   try {
     // 在线强档要生成「错因诊断 + 讲评」，实测可能 1~2 分钟
     await waitTid('practice-next', 150000, '判分完成（反馈后出现下一题）')
@@ -114,8 +123,8 @@ await step('A5 下一题切换', async () => {
   await cdp.waitFor('!!document.querySelector(\'.stem\')', 10000, '第二题题干')
 })
 await step('A6 AI 答疑区可交互', async () => {
-  const has = await cdp.evaluate(`return document.body.innerText.includes('就地提问') || document.body.innerText.includes('让面试官追问')`)
-  if (has) { await cdp.clickText('就地提问').catch(() => cdp.clickText('让面试官追问')); await sleep(800) }
+  const has = await cdp.evaluate(`return document.body.innerText.includes('就地提问') || document.body.innerText.includes('让教练追问')`)
+  if (has) { await cdp.clickText('就地提问').catch(() => cdp.clickText('让教练追问')); await sleep(800) }
   await cdp.shot(`${OUT}/r3-practice-qa.png`)
 })
 
@@ -151,15 +160,15 @@ await step('B4 弃考（dialog 确认）', async () => {
   await waitTid('exam-tpl', 10000, '回到组卷页')
 })
 
-// ---------- C. 图谱：点节点开抽屉 → 详情区 → 关闭 ----------
-await step('C1 图谱加载节点', async () => {
+// ---------- C. 图谱：点关卡开抽屉 → 详情区 → 关闭 ----------
+await step('C1 图谱加载关卡', async () => {
   await cdp.nav('/graph')
-  // 图谱自定义节点的类是 .gn（四级共用），不是 VueFlow 的 .vf-node
-  await cdp.waitFor('!!document.querySelector(\'.gn\')', 25000, '图谱节点')
+  // R21 闯关目录的关卡行类是 .lv-stage（纯 DOM 手风琴，不再是 VueFlow 圆形节点）
+  await cdp.waitFor('!!document.querySelector(".lv-stage")', 25000, '图谱关卡')
   await closeToasts()
 })
-await step('C2 点击节点打开抽屉', async () => {
-  await cdp.clickSel('.gn', 3)
+await step('C2 点击关卡打开抽屉', async () => {
+  await cdp.clickSel('.lv-stage', 3)
   await waitTid('graph-drawer', 8000, '抽屉')
   await cdp.shot(`${OUT}/r3-graph-drawer.png`)
 })
@@ -207,8 +216,24 @@ await step('F1 保存参数出 toast', async () => {
 await step('G1 跑结构校验出结果', async () => {
   await cdp.nav('/bank')
   await waitTid('bank-validate', 12000, '校验按钮')
+  // 先清掉上一个用例可能留在页面上的 toast / 弹出层：坐标点击会被它们挡住，
+  // 表现就是「按钮找到了、点了没反应」，和校验逻辑坏掉长得一模一样。
+  await closeToasts()
+  await sleep(300)
+  const hasResult = () => cdp.evaluate(`return /校验通过|校验有/.test(document.body.innerText || '')`)
   await clickTid('bank-validate')
-  await cdp.waitFor(`(document.body.innerText.match(/校验通过|校验有/g)||[]).length > 0`, 30000, '校验结果')
+  let hit = false
+  for (let i = 0; i < 20 && !hit; i++) { await sleep(300); hit = await hasResult() }
+  if (!hit) {
+    // 坐标点击没打中时用元素自身 click 兜底，同时把现场留下来，避免下次还要靠猜
+    await cdp.evaluate(`document.querySelector('[data-testid=bank-validate]').click(); return 1`)
+    for (let i = 0; i < 30 && !hit; i++) { await sleep(300); hit = await hasResult() }
+  }
+  if (!hit) {
+    await cdp.shot(`${OUT}/r3-bank-validate-fail.png`)
+    const tail = (await cdp.evaluate('return document.body.innerText || ""')).slice(-400).replace(/\n/g, ' | ')
+    throw new Error('点击后 15 秒内没有校验结果文案；页面尾部：' + tail)
+  }
   await cdp.shot(`${OUT}/r3-bank-validate.png`)
 })
 

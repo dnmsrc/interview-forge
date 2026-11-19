@@ -115,6 +115,131 @@ export interface DraftOutcome {
   repaired?: string[]          // 自动补写过的内容（tail-sections / ai-complete:xxx）
 }
 
+/** 项目闯关（content/projects/*.json 的运行时视图）。关卡代码与测试都在主进程，前端只拿结果。 */
+export interface ProjectCard {
+  id: string
+  /** 领域分类 fe/be/cs/ai/eng：列表按它分栏；内容没填时为空串，前端归入「其它」。 */
+  domain: string
+  title: string; emoji: string; tagline: string; stack: string[]
+  levelCount: number; doneCount: number
+  nextLevelId: string | null   // 下一个该做的关卡；全部完成时为 null
+  started: boolean; finished: boolean
+}
+export interface ProjectConcept { title: string; md: string }
+/** 前置知识：动手前必须先看懂的概念。不读完就写不出来，所以放在任务之前、默认展开。 */
+export interface ProjectPrereq { title: string; md: string }
+/** 你要交付的函数契约：签名、参数含义、返回值、调用示例。只写函数名等于没说。 */
+export interface ProjectApiSpec {
+  name: string; sig: string; args: string; returns: string; example: string
+}
+/** 分步做法：每步对应骨架里的一个 TODO，todo 字段就是那个编号（如 "TODO 1"） */
+export interface ProjectStep { todo: string; title: string; how: string; code?: string }
+/**
+ * 思维链：我做这个功能时真实想过的那几句话。
+ * 不是「知识点」，是「决策过程」——为什么先做这一步、为什么不用另一种写法、踩过什么坑。
+ * 用户明确要的是这个：学我的思考方式，而不是背 API。
+ */
+export interface ProjectThinking { title: string; md: string }
+/** 单词卡：本关会碰到的陌生 API（Proxy / Reflect / WeakMap…），讲到能用为止 */
+export interface ProjectVocab { term: string; md: string }
+/**
+ * 一个可独立跑测试的阶段。整关由若干阶段递进组成：
+ * 每写完一步就能跑一次，绿了再进下一步；不是等到最后才知道对错。
+ */
+export interface ProjectStage {
+  n: number
+  title: string
+  /** 这一步我怎么想（为什么要现在做它） */
+  think: string
+  /** 步骤提示：说清要做什么，不给完整代码 */
+  hint: string
+  vocab: ProjectVocab[]
+  /** 这一步完成后的完整代码；只有这一步已经通过时才有（避免直接抄） */
+  code: string | null
+  /** 这一步有几个检查点（只给个数，测试源码留在主进程） */
+  caseCount: number
+}
+export interface ProjectLevelCard {
+  id: string; title: string; emoji: string; index: number
+  goal: string; why: string; task: string
+  prereq: ProjectPrereq[]; api: ProjectApiSpec[]; steps: ProjectStep[]
+  hints: string[]; concepts: ProjectConcept[]; xp: number
+  /** 思维链（v3 关卡才有；旧的 TODO 填空式关卡为空数组） */
+  thinking: ProjectThinking[]
+  /** 分阶段（v3 关卡才有）；为空时按 steps/TODO 的老流程走 */
+  stages: ProjectStage[]
+  /**
+   * 已经通过过的阶段编号（服务端持久化，刷新页面不丢）。
+   * 只增不减：它记的是「我写出过能通过的代码」；内容改版后阶段结构变了，这里会退回空数组。
+   */
+  stageDone: number[]
+  /** 每步的连续失败次数（服务端算）：到 3 次就允许看这一步的答案 */
+  stageFails: Record<string, number>
+  /** 看过答案的步骤号：不扣 XP，但关卡卡片上会如实标出来 */
+  answerSteps: number[]
+  /** 整关的完整体验代码与调用示例；通关后才有 */
+  finalCode: string | null
+  usage: string | null
+  done: boolean; attempts: number; unlocked: boolean
+  skeleton: string
+  /** 编辑器打开时应该显示的内容：上次的草稿优先，没有就用骨架 */
+  draft: string
+  /** 参考答案：只有已通关的关卡才有，未通过时是 null（避免 devtools 直接抄） */
+  solution: string | null
+  caseCount: number
+}
+export interface ProjectDetail extends ProjectCard {
+  intro: string; outcome: string; levels: ProjectLevelCard[]
+}
+export interface ProjectRunCase { name: string; ok: boolean; message: string
+  /**
+   * 失败诊断：这条检查点没做到时，最可能少写了什么。
+   * 只在「跑红的用例」上由主进程附加（通过的、没跑到的都没有）——
+   * 内容里逐条写，避免把「期望/实际」留成用户看不懂的原始值。
+   */
+  diag?: string
+}
+/** 某个阶段的执行结果：前端据此点亮阶段进度条、「这一步已通过」标记 */
+export interface ProjectStageRun {
+  n: number
+  title: string
+  ok: boolean
+  /** 通过的阶段会把「这一步的完整代码」带回来，供对照自己少想了什么 */
+  code: string | null
+  cases: ProjectRunCase[]
+  /** 前面的步骤没通过，这一步没跑（不是失败，是还没轮到） */
+  skipped?: boolean
+}
+export interface ProjectRunResult {
+  passed: boolean
+  cases: ProjectRunCase[]
+  /** 分阶段结果（v3 关卡才有）；cases 是它们按顺序拍平的合集 */
+  stages: ProjectStageRun[]
+  /** 推进到的阶段下标：第一个没过的阶段；全过时等于 stages.length */
+  stageIndex: number
+  /** 跑完之后「累计通过过」的阶段号（含以前的），前端据此点亮进度条，刷新后由 detail 提供同一份 */
+  stageDone: number[]
+  /** 每步连续失败次数（本次跑完后的账）；键是步骤号的字符串形式 */
+  stageFails: Record<string, number>
+  /** 看过答案的步骤号（含本次之前看过的） */
+  answerSteps: number[]
+  /**
+   * 这次跑红的那一步是否已经够格看答案。
+   * 只是提示：真正取答案要调 project.stepAnswer，服务端会重新校验次数。
+   */
+  answerReady: boolean
+  logs: { level: string; text: string }[]
+  error: { message: string; stack: string } | null
+  ms: number
+  attempts: number
+  /** 本次实际发放的 XP；重做已通关的关卡为 0（不重复给奖） */
+  xpAwarded: number
+  firstPass: boolean
+  nextLevelId: string | null
+  projectDone: boolean
+  solution: string | null
+}
+
 /** preload 据此生成同名桥接方法（必须与主进程 impl 的方法名一一对应） */
 export const API_METHODS: Record<string, string[]> = {
   app: ['paths', 'openExternal', 'reveal', 'versions'],
@@ -131,7 +256,9 @@ export const API_METHODS: Record<string, string[]> = {
   explain: ['run', 'history', 'followups', 'tutor'],
   ai: ['endpoints', 'saveEndpoints', 'test', 'usage', 'byTask', 'errors', 'tutorStatus', 'tutorStart', 'tutorStop', 'tutorLog', 'tutorSetMode', 'tutorSetModel', 'tutorCatalog'],
   settings: ['all', 'get', 'set'],
-  game: ['overview', 'badges', 'events', 'drainEvents', 'bosses', 'chapters', 'reportExplorer']
+  game: ['overview', 'badges', 'events', 'drainEvents', 'bosses', 'chapters', 'reportExplorer'],
+  project: ['list', 'detail', 'run', 'saveDraft', 'resetLevel', 'revertLevel', 'stepAnswer', 'resetAll'],
+  progress: ['summary', 'resetAll']
 }
 
 /** 渲染进程可调用的全部能力；主进程实现必须 satisfies 这个形状 */
@@ -311,4 +438,64 @@ export interface ForgeApi {
     /** 上报图谱浏览过的章节 id，用于「地图探索者」徽章 */
     reportExplorer(visitedChapterIds: string[]): Promise<boolean>
   }
+  /** 项目闯关：真敲代码，跑测试判定，通过后解锁下一关并发奖励 */
+  project: {
+    list(): Promise<ProjectCard[]>
+    detail(id: string): Promise<ProjectDetail>
+    /**
+     * 跑一关。stepBase 是「这一步开始时编辑器里的代码」（每步快照）：
+     * 主进程用它与提交的 code 比对，逐字相同表示人还没动笔，这次红不计入「连续失败」。
+     *
+     * stepN 是「我现在正站在第几步」：串行判定会把后面的步也跑一遍，那些步红了
+     * 只是「还没写到」，不能算成这一步的连续失败。
+     */
+    run(projectId: string, levelId: string, code: string, stepBase?: string, stepN?: number): Promise<ProjectRunResult>
+    saveDraft(projectId: string, levelId: string, code: string): Promise<{ ok: boolean }>
+    resetLevel(projectId: string, levelId: string): Promise<{ ok: boolean }>
+    /** 只撤掉「通关」标记，保留代码/草稿/阶段进度；返回是否真的改动了状态 */
+    revertLevel(projectId: string, levelId: string): Promise<{ ok: boolean; changed?: boolean }>
+    /**
+     * 看「这一步」的答案：同一步连续失败满 3 次才可用（服务端校验）。
+     * 只回这一步写完后到文件为止的代码，不含后面步骤，也不回测试源码。
+     */
+    stepAnswer(projectId: string, levelId: string, step: number): Promise<{ code: string; step: number }>
+    resetAll(projectId: string): Promise<{ ok: boolean }>
+  }
+  /** 学习进度总账：设置页「从零开始」用它列清单、清空后回报清掉了什么 */
+  progress: {
+    /** 每块进度各有多少条，dirty=false 说明已经是初始状态（按钮可置灰） */
+    summary(): Promise<ProgressSummary>
+    /**
+     * 清空全部学习进度（项目关卡/作答/复习/掌握度/考试/摸底/打卡/XP与徽章）。
+     * 不动 AI 端点与偏好、不动题库缓存、不动已花过钱的讲解缓存。
+     */
+    resetAll(): Promise<ProgressResetResult>
+  }
+}
+
+export interface ProgressArea {
+  key: string
+  label: string
+  detail: string
+  n: number
+}
+
+export interface ProgressSummary {
+  xp: number
+  level: number
+  streak: number
+  /** 各块进度条数之和，用于「共 N 条记录」的概述 */
+  total: number
+  areas: ProgressArea[]
+  /** 有东西可清为 true；全新用户为 false */
+  dirty: boolean
+}
+
+export interface ProgressResetResult {
+  ok: boolean
+  /** 清空前那一刻的快照，界面据此说明「你的 Lv.x 已经归零」 */
+  before: ProgressSummary
+  /** 实际被删掉的行，按表计数（0 行的表不列） */
+  cleared: { table: string; n: number }[]
+  after: ProgressSummary
 }

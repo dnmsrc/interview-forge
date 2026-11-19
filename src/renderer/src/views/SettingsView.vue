@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onActivated, onMounted, onUnmounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useForgeStore } from '../store'
 import type { EndpointConfig, TutorStatus, TutorCatalog, InferMode } from '@shared/types'
+import type { ProgressSummary } from '@shared/api'
 import EndpointRow from '../components/EndpointRow.vue'
 import Icon from '../components/Icon.vue'
 import { useNaiveTheme } from '../lib/theme'
@@ -9,6 +11,7 @@ import { toast, dialog } from '../lib/ui'
 import { ipc } from '../lib/ipc'
 
 const store = useForgeStore()
+const route = useRoute()
 /* 外观能力全部来自 lib/theme.ts：themeMode / isDark / set(mode) / cycle()，
    它内部已持久化到 localStorage('forge.ui.theme') 并同步 html[data-theme]，这里不重写 */
 const { themeMode, isDark, set: setTheme, cycle: cycleTheme } = useNaiveTheme()
@@ -190,12 +193,71 @@ function resetThemePref() {
   try { localStorage.removeItem('forge.ui.theme') } catch { /* 沙箱下 localStorage 可能不可写，忽略 */ }
   location.reload()
 }
+
+/* ---------- 从零开始：清空全部学习进度 ---------- */
+const progressInfo = ref<ProgressSummary | null>(null)
+const resettingAll = ref(false)
+
+async function loadProgress() {
+  try { progressInfo.value = await ipc.progress.summary() } catch { progressInfo.value = null }
+}
+
+/** 把清单压成一句话：确认框里必须出现「会清掉什么」，不能只写「确定吗」 */
+function clearListText(p: ProgressSummary) {
+  const parts = p.areas.filter((a) => a.n > 0).map((a) => `${a.label} ${a.n}`)
+  if (p.xp > 0) parts.push(`等级与经验 Lv.${p.level} · ${p.xp} XP`)
+  return parts.join('、')
+}
+
+/**
+ * 从零开始：项目、作答、复习、掌握度、考试、摸底、打卡、XP 一次全清。
+ * 确认框逐项说清要清什么、保留什么；清完回首页并重载，避免各页缓存着旧数字。
+ */
+function startOver() {
+  const p = progressInfo.value
+  if (!p || !p.dirty || resettingAll.value) return
+  dialog.warning({
+    title: '从零开始？',
+    content: `会清空这些学习进度：${clearListText(p)}（共 ${p.total} 条记录）。`
+      + '保留：AI 端点与偏好、题库、已生成的讲解缓存。清空后没有撤销，只能从头再做。',
+    positiveText: '清空，从头开始',
+    negativeText: '算了',
+    type: 'error',
+    onPositiveClick: async () => {
+      resettingAll.value = true
+      try {
+        const r = await ipc.progress.resetAll()
+        toast.ok(`已清空 ${r.before.total} 条进度记录，回到最开始`)
+        location.hash = '#/'
+        // 各页都在 KeepAlive 里缓存着进度数字，光靠 router 跳转不会重读，整页重载最省心。
+        // 等 1.2s 再重载：toast 要来得及被看见，否则「清空了」这句提示会跟着页面一起消失。
+        setTimeout(() => location.reload(), 1200)
+      } catch (e: unknown) {
+        toast.err(`清空失败：${e instanceof Error ? e.message : String(e)}`)
+      } finally {
+        resettingAll.value = false
+      }
+    }
+  })
+}
 onMounted(async () => {
   await boot()
   await loadUsage()
   await refreshTutor()
   // 状态只有 4 态且带倒计时，5s 轮询足够；页面卸载时清掉，避免后台空转
   tutorTimer = setInterval(() => { void refreshTutor() }, 5000)
+})
+/**
+ * 设置页在 KeepAlive 里，onMounted 只跑第一次：进度总账必须每次进来重取，
+ * 否则在别处做了题再回来，「从零开始」那块还显示着「当前已经是初始状态」——按钮跟着置灰，
+ * 用户以为入口没了（这正是这一轮被报的那个问题）。
+ * 顺带把 focus=reset 的滚动也放这里：从地图页跳进来时实例是复用的，onMounted 不会再跑。
+ */
+onActivated(async () => {
+  await loadProgress()
+  if (String(route.query.focus ?? '') !== 'reset') return
+  await nextTick()
+  document.querySelector('.danger-reset')?.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior })
 })
 onUnmounted(() => { if (tutorTimer) { clearInterval(tutorTimer); tutorTimer = null } })
 </script>
@@ -426,6 +488,24 @@ onUnmounted(() => { if (tutorTimer) { clearInterval(tutorTimer); tutorTimer = nu
       </div>
 
       <div class="section-title">危险区</div>
+
+      <!-- 从零开始：比「重做这一关 / 重做这个项目」范围更大，是唯一会把整站进度清零的入口 -->
+      <div class="row danger-row danger-reset">
+        <div class="col grow dang-txt">
+          <span class="tiny"><b>从零开始</b> · 清空全部学习进度</span>
+          <span class="micro faint">
+            <template v-if="progressInfo?.dirty">
+              项目关卡、练习作答、复习排期、掌握度、考试、摸底、打卡与等级（共 {{ progressInfo.total }} 条）一起清空，回到刚装好 App 的状态
+            </template>
+            <template v-else>当前已经是初始状态，没有可清的进度</template>
+            · 保留 AI 端点与题库
+          </span>
+        </div>
+        <button class="btn danger shrink" type="button" :disabled="resettingAll || !progressInfo?.dirty" @click="startOver">
+          <Icon name="refresh" :size="13" /> {{ resettingAll ? '清空中…' : '从头开始' }}
+        </button>
+      </div>
+
       <div class="row danger-row">
         <div class="col grow dang-txt">
           <span class="tiny">清掉界面偏好（主题档位）</span>
@@ -600,6 +680,9 @@ onUnmounted(() => { if (tutorTimer) { clearInterval(tutorTimer); tutorTimer = nu
 .data-fb h4 { font-size: var(--fs-sm) }
 .danger-row { margin-top: var(--sp-2); padding: var(--sp-3); border: 1px solid color-mix(in oklab, var(--bad) 26%, var(--border)); border-radius: var(--r-md); background: color-mix(in oklab, var(--bad) 5%, var(--surface)); row-gap: var(--sp-2) }
 .dang-txt { gap: 2px }
+/* 从零开始比其它危险项重：它是唯一会把整站进度清零的按钮，视觉上必须比「清除偏好」更醒目 */
+.danger-reset { border-left-width: 3px; border-left-color: var(--bad); background: color-mix(in oklab, var(--bad) 9%, var(--surface)) }
+.danger-reset .tiny b { color: var(--bad) }
 
 /* ---- 外观节 ---- */
 .ap-grid { gap: var(--sp-4) }

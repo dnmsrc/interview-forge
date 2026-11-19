@@ -3,6 +3,9 @@
 // 无参数则校验全部。退出码 0=通过, 1=有错误。
 import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { RELATION_META } from '../src/shared/relations.ts'
+
+const RELATION_TYPES = new Set(Object.keys(RELATION_META))
 
 const ROOT = process.cwd()
 const TYPES = new Set(['single', 'multiple', 'judge', 'blank', 'short', 'essay', 'code'])
@@ -42,6 +45,14 @@ for (const f of walk(join(ROOT, 'content', 'nodes'))) {
     if (seg !== n.level) warns.push(`${rel(f)} :: ${n.id} level=${n.level} 与 slug 段数 ${seg} 不一致`)
     if (!DOMAINS.has(n.id.split('.')[0])) errors.push(`${rel(f)} :: 未知 domain: ${n.id}`)
     for (const k of ['prerequisites', 'related']) if (n[k] && !Array.isArray(n[k])) errors.push(`${rel(f)} :: ${n.id}.${k} 必须是数组`)
+    // R19 显式关系声明：relations: [{to,type,note?}]，type 必须是 9 类本体之一
+    if (n.relations) {
+      if (!Array.isArray(n.relations)) errors.push(`${rel(f)} :: ${n.id}.relations 必须是数组`)
+      else for (const r of n.relations) {
+        if (!r?.to) { errors.push(`${rel(f)} :: ${n.id}.relations 每项必须含 to`); continue }
+        if (!RELATION_TYPES.has(r.type)) errors.push(`${rel(f)} :: ${n.id}.relations 非法关系类型 ${r.type}（应为 ${[...RELATION_TYPES].join('/')} 之一）`)
+      }
+    }
   }
 }
 // 前置引用先收集，稍后统一报（允许跨文件前向引用）
@@ -51,6 +62,9 @@ for (const f of walk(join(ROOT, 'content', 'nodes'))) {
   for (const n of (Array.isArray(data) ? data : data.nodes) || []) {
     for (const k of ['prerequisites', 'related']) {
       for (const ref of n[k] || []) if (!nodeIds.has(ref)) dangling.push(`${rel(f)} :: ${n.id}.${k} 指向不存在节点 ${ref}`)
+    }
+    for (const r of n.relations || []) {
+      if (r?.to && !nodeIds.has(r.to)) dangling.push(`${rel(f)} :: ${n.id}.relations 指向不存在节点 ${r.to}`)
     }
   }
 }
@@ -96,7 +110,15 @@ for (const f of walk(join(ROOT, 'content', 'questions'))) {
     if (q.type === 'blank' && !Array.isArray(q.answer?.blanks)) errors.push(`${rel(f)} :: ${q.id} blank 需 answer.blanks 数组`)
     if (SUBJECTIVE.has(q.type)) {
       if (!Array.isArray(q.scoringPoints) || !q.scoringPoints.length) errors.push(`${rel(f)} :: ${q.id} 主观题缺 scoringPoints`)
+      else {
+        // 评分点必须是 { point, weight }：AI 判分提示词按 p.point / p.weight 拼字符串，
+        // 写成纯字符串会在提示词里变成「1. undefined（权重 undefined）」。
+        const bad = q.scoringPoints.filter((p) => typeof p !== 'object' || p === null || !p.point || !(Number(p.weight) > 0))
+        if (bad.length) errors.push(`${rel(f)} :: ${q.id} scoringPoints 应为 {point,weight} 对象（${bad.length} 条不合规）`)
+      }
       if (!q.answer?.ref && !q.answer?.code) errors.push(`${rel(f)} :: ${q.id} 主观题缺参考答案 answer.ref`)
+      const ref = q.answer?.ref
+      if (Array.isArray(ref) && ref.length === 0) errors.push(`${rel(f)} :: ${q.id} answer.ref 是空数组（等于没给答案）`)
     }
     if (!q.source?.kind || !KINDS.has(q.source.kind)) errors.push(`${rel(f)} :: ${q.id} source.kind 缺失或非法`)
     else if (q.source.kind !== 'self-authored' && !q.source.url) warns.push(`${rel(f)} :: ${q.id} ${q.source.kind} 来源建议填 url`)

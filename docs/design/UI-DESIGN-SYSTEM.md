@@ -1,4 +1,4 @@
-# 面试熔炉 · UI 设计系统落地规范
+# 练习册 · UI 设计系统落地规范
 
 > 面向实现阶段的操作手册。基座已在 `src/renderer/src/styles.css` 落地，naive-ui 主题在 `src/renderer/src/lib/theme.ts`。
 > 社区依据见同目录 `COMMUNITY-UI-BENCHMARK.md`。**改任何视图前先读本文第 1、2、3、8 节。**

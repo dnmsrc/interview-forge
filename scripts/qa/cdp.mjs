@@ -34,7 +34,8 @@ export class Cdp {
       try {
         const res = await fetch(`http://127.0.0.1:${DEBUG_PORT}/json/list`)
         const list = await res.json()
-        const page = list.find((t) => t.type === 'page' && /localhost:5173|index\.html/.test(t.url))
+        // 渲染端 dev server 端口可能因 5173 被占用而顺延（5174/5175…），按 localhost 任意端口匹配
+        const page = list.find((t) => t.type === 'page' && /localhost:\d+|index\.html/.test(t.url))
         if (!page?.webSocketDebuggerUrl) throw new Error('没有 renderer page target')
         const cdp = await new Promise((resolve, reject) => {
           const ws = new WebSocket(page.webSocketDebuggerUrl)
@@ -45,6 +46,14 @@ export class Cdp {
         })
         await cdp.init()
         await cdp.ensureVisible()
+        /**
+         * 把窗口带到前台再开始点击。
+         *
+         * 窗口被别的窗口压住（或最小化后恢复）时，CDP 注入的鼠标事件会静默失效：
+         * Input.dispatchMouseEvent 不报错、elementFromPoint 也正确，但 Vue 的 @click 不触发。
+         * 表现是「点了没反应」，QA 里就变成「等结果面板超时」。
+         */
+        try { await cdp.cmd('Page.bringToFront') } catch { /* 老版本 Electron 不支持就算了 */ }
         return cdp
       } catch (e) {
         if (i === retries - 1) throw e
@@ -151,6 +160,8 @@ export class Cdp {
 
   /** 真实鼠标点击：按可见文本找元素，滚入视野后派发 trusted 事件序列 */
   async clickText(text, opts = {}) {
+    // 窗口在后台时注入的鼠标事件会被静默丢弃（不报错、不触发 @click）——点之前先抬到前台
+    try { await this.cmd('Page.bringToFront') } catch { /* 不支持就照常点 */ }
     const rect = await this.evaluate(`
       const sels = 'button,.n-button,a,.opt,label,.nav a,.vf-node,.pill,th,.q-item,.answer-cell,summary,[role="switch"],[role="option"],.n-base-select-option,.n-tree-node,.n-drawer .n-button';
       const els = [...document.querySelectorAll(sels)];

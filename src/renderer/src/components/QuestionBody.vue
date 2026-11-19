@@ -112,7 +112,7 @@ const refAnswerHtml = computed(() => {
         @input="emit('update:modelValue', { text: ($event.target as HTMLTextAreaElement).value })" />
       <div class="row tiny" style="margin-top:6px;color:var(--text-faint)">
         <span>{{ charCount }} 字</span>
-        <span v-if="charCount < suggestMin" style="color:var(--warn)">建议至少 {{ suggestMin }} 字：面试答太短会被追问到卡住</span>
+        <span v-if="charCount < suggestMin" style="color:var(--warn)">建议至少 {{ suggestMin }} 字：答得太短，追问两句就答不上来</span>
         <span v-else style="color:var(--ok)">字数够，注意结构是否完整</span>
         <span class="grow" />
         <span>Ctrl+Enter 提交</span>

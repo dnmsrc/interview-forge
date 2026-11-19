@@ -39,7 +39,8 @@ const P: Record<string, string[]> = {
   zap: ['m13 2-9 12h7l-1 8 9-12h-7Z'],
   route: ['M6 19a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm12-10a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z', 'M15 6h-3a3 3 0 0 0-3 3v.5', 'M9 16.5h3a3 3 0 0 0 3-3V9'],
   external: ['M14 4h6v6', 'M20 4 11 13', 'M18 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5'],
-  lock: ['M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z', 'M8 11V8a4 4 0 0 1 8 0v3', 'M12 15v2']
+  lock: ['M6 11h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1Z', 'M8 11V8a4 4 0 0 1 8 0v3', 'M12 15v2'],
+  code: ['m16 18 6-6-6-6', 'm8 6-6 6 6 6']
 }
 const props = withDefaults(defineProps<{ name: string; size?: number | string; stroke?: number }>(), { size: 18, stroke: 1.7 })
 

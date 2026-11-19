@@ -32,6 +32,7 @@ const nodesErr = ref('')
 
 const NAV = [
   { to: '/', title: '今日', icon: 'flame' },
+  { to: '/projects', title: '项目闯关', icon: 'zap' },
   { to: '/practice', title: '练习模式', icon: 'pen' },
   { to: '/exam', title: '闭卷考试', icon: 'timer' },
   { to: '/graph', title: '知识图谱', icon: 'graph' },
@@ -64,12 +65,12 @@ async function loadNodes() {
 function go(to: string) { void router.push(to); close() }
 const ACTIONS = computed<Item[]>(() => [
   { id: 'a-today', group: '动作', icon: 'zap', label: '开始今日队列', hint: '进入练习', run: () => { void router.push({ path: '/practice', query: { today: '1' } }); close() } },
-  { id: 'a-gap', group: '动作', icon: 'target', label: '查看必考缺口', hint: '图谱', run: () => { void router.push({ path: '/graph', query: { gap: '1' } }); close() } },
+  { id: 'a-gap', group: '动作', icon: 'target', label: '查看基础缺口', hint: '图谱', run: () => { void router.push({ path: '/graph', query: { gap: '1' } }); close() } },
   {
     id: 'a-weekly', group: '动作', icon: 'download', label: '导出本周周报', hint: 'Markdown', run: async () => {
       close()
       const r = await ipc.daily.exportWeekly()
-      downloadText(`面试熔炉周报-${new Date().toISOString().slice(0, 10)}.md`, r.markdown)
+      downloadText(`练习册周报-${new Date().toISOString().slice(0, 10)}.md`, r.markdown)
       toast.ok(`已导出：${r.path}`)
     }
   },

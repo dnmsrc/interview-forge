@@ -109,7 +109,7 @@ const awardedPct = computed(() => {
       <div class="row" style="margin-bottom:10px">
         <n-button size="small" type="primary" :loading="busy === 'teach'" @click="runTeach">AI 诊断我的错因</n-button>
         <n-button size="small" :loading="busy === 'probe'" :disabled="!probeCurrent && probeDone" @click="probeCurrent ? undefined : runProbe(true)">
-          {{ probeCurrent ? '继续追问链 ↓' : '让面试官追问' }}
+          {{ probeCurrent ? '继续追问链 ↓' : '让教练追问' }}
         </n-button>
         <n-button size="small" @click="showQa = !showQa">{{ showQa ? '收起答疑' : '就地提问' }}</n-button>
       </div>
@@ -131,7 +131,7 @@ const awardedPct = computed(() => {
           </div>
         </div>
         <div v-if="teach.missingPoints?.length">
-          <div class="section-title">面试官会追问但我没提</div>
+          <div class="section-title">教练可能追问、但我没讲到的</div>
           <ul><li v-for="(m, i) in teach.missingPoints" :key="i">{{ m }}</li></ul>
         </div>
         <div v-if="teach.howToRemember" class="fb warn"><h4>🔖 记忆锚点</h4><div class="tiny">{{ teach.howToRemember }}</div></div>
@@ -140,13 +140,13 @@ const awardedPct = computed(() => {
 
       <!-- 追问链 -->
       <div v-if="probeCurrent || probeHistory.length">
-        <div class="section-title">模拟面试追问链（最多 3 轮）</div>
+        <div class="section-title">追问链（最多 3 轮）</div>
         <div v-for="(h, i) in probeHistory" :key="i" style="margin-bottom:10px">
-          <div class="tiny" style="color:var(--accent-2)">面试官 Q{{ i + 1 }}：{{ h.probe }}</div>
+          <div class="tiny" style="color:var(--accent-2)">教练 Q{{ i + 1 }}：{{ h.probe }}</div>
           <div class="tiny muted" style="margin-top:2px">我：{{ h.me || '（空）' }}</div>
         </div>
         <template v-if="probeCurrent && !probeDone">
-          <div class="tiny" style="color:var(--accent-2);margin-bottom:6px">面试官：{{ probeCurrent }}</div>
+          <div class="tiny" style="color:var(--accent-2);margin-bottom:6px">教练：{{ probeCurrent }}</div>
           <textarea class="code-area" style="min-height:90px;font-family:inherit" v-model="probeLast" placeholder="口头回答也行，写下关键词即可" />
           <div class="row" style="margin-top:8px">
             <n-button size="small" type="primary" :loading="busy === 'probe'" @click="sendProbeAnswer">回答并继续</n-button>
@@ -198,7 +198,7 @@ const awardedPct = computed(() => {
             </div>
           </div>
           <div v-if="q.knowledgeLinks?.followUps?.length">
-            <div class="tiny muted">面试官接着会问</div>
+            <div class="tiny muted">教练接着会问</div>
             <ul><li v-for="(f, i) in q.knowledgeLinks.followUps" :key="i">{{ f }}</li></ul>
           </div>
           <div v-if="nodeId" class="row" style="margin-top:8px">

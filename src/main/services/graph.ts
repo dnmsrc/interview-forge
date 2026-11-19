@@ -150,7 +150,7 @@ export function nodeDetail(nodeId: string): NodeDetail | null {
       return { id: q.id, type: q.type, difficulty: q.difficulty, stem, parentId: q.parent_id, angle: q.angle, answered: q.answered, bestPct: q.best, due: q.due }
     })
   let advice = ''
-  if (node.must_master && !node.lit) advice = '这是强制掌握节点，面试硬基础，建议优先补齐。'
+  if (node.must_master && !node.lit) advice = '这是强制掌握节点，基础要求，建议优先补齐。'
   else if (node.needs_work) advice = '已作答但未达点亮阈值，先读解析与查漏补缺，再做该节点的变体题。'
   else if (!node.answered) advice = node.locked ? '前置未点亮，暂锁定；如已掌握可在节点面板手动解锁。' : '尚未接触，可直接开练。'
   else advice = '已点亮。保持间隔重复即可，可尝试更高难度与追问型变体。'

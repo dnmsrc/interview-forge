@@ -232,7 +232,7 @@ export async function updateBank(opts: UpdateOptions = {}): Promise<UpdateResult
   const report: any = { added: [], revised: [], retired: [], notes: [] }
   if (!targets.length) { rmSync(before, { recursive: true, force: true }); return { ok: true, added: 0, revised: 0, retired: 0, report: { message: '覆盖已达标，无需更新', gaps: { empty: gaps.empty.length, thin: gaps.thin.length, noSubjective: gaps.noSubjective?.length ?? 0 } } } }
 
-  const digest = opts.digest || (await webDigest(`${new Date().getFullYear()} 面试题 ${targets[0]?.title ?? ''} 最新考点`))
+  const digest = opts.digest || (await webDigest(`${new Date().getFullYear()} 练习题 ${targets[0]?.title ?? ''} 最新考点`))
   let added = 0
   for (const t of targets) {
     const need = t.mode === 'subjective' ? 1 : Math.max(1, perTarget - t.total)
@@ -241,7 +241,7 @@ export async function updateBank(opts: UpdateOptions = {}): Promise<UpdateResult
         task: 'bank_update', role: 'strong', refType: 'node', refId: t.id, maxTokens: 3000,
         // 本机模型输出 2-3 千 token 常超过 90 秒；默认超时会让整节点白跑（ai_log 里全是超时）
         timeoutMs: 150000,
-        system: `你是面试题库编者。要求：题干像真实面试官口吻、必须能通过官方文档验证、禁止编造 API 与版本号；每题必须有 analysis（含错项为什么错）、gapCheck（易漏点）、knowledgeLinks（含 followUps 追问方向）；主观题必须给 scoringPoints 与 answer.ref。只输出 JSON。`,
+        system: `你是题库编者。要求：题干像真人出题的口吻、必须能通过官方文档验证、禁止编造 API 与版本号；每题必须有 analysis（含错项为什么错）、gapCheck（易漏点）、knowledgeLinks（含 followUps 追问方向）；主观题必须给 scoringPoints 与 answer.ref。只输出 JSON。`,
         user: `知识点：${t.title}（节点 id：${t.id}）
 现有题量 ${t.total}，已有题型：${t.types || '无'}。${t.mode === 'subjective'
   ? `本节点题量已达标，但${t.types}里没有任何主观题。请只补 ${need} 道主观题（short 简答 / essay 论述 / code 代码，按该知识点特点选一种），必须给 scoringPoints（判分要点清单）与 answer.ref（参考答案要点）。`
@@ -281,8 +281,19 @@ function normalizeNewQuestion(q: any, nodeId: string, i: number): Question {
   // 主观题兜底：本地小模型常漏 scoringPoints / answer.ref，缺了会被 validate 拦下，
   // 这里用解析文本与最低判分骨架补齐，保证「可判分」这一契约底线不被 AI 输出打断。
   if (['short', 'essay', 'code'].includes(q.type)) {
+    // 模型偶尔把评分点写成纯字符串；统一成 { point, weight }，别让判分提示词读到 undefined
+    if (Array.isArray(out.scoringPoints)) {
+      out.scoringPoints = out.scoringPoints.map((p: any, idx: number) =>
+        typeof p === 'string' ? { point: p, weight: idx < 2 ? 2 : 1 } : p)
+    }
     if (!Array.isArray(out.scoringPoints) || !out.scoringPoints.length) {
-      out.scoringPoints = ['结论正确且给出机制', '覆盖关键边界或失败场景', '能联系相关考点延伸']
+      // 必须是 { point, weight }：AI 判分提示词里按 p.point / p.weight 取值，
+      // 写字符串会渲染成「1. undefined（权重 undefined）」，判分直接失真。
+      out.scoringPoints = [
+        { point: '结论正确且给出机制', weight: 2 },
+        { point: '覆盖关键边界或失败场景', weight: 2 },
+        { point: '能联系相关考点延伸', weight: 1 }
+      ]
     }
     if (!out.answer?.ref && !out.answer?.code) {
       out.answer = { ...(out.answer ?? {}), ref: String(q.analysis ?? '').trim() || '要点见题目解析' }

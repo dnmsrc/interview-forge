@@ -103,7 +103,7 @@ export async function explainNode(input: ExplainInput) {
   const qBlock = input.questionId
     ? `\n用户正在看的题目 id：${input.questionId}（题目解析他看过了仍有疑问）` : ''
 
-  const system = `你是一名资深前端面试官转的私教，面对的是正在准备面试、基础不牢的学习者。
+  const system = `你是一名资深前端教练转的私教，面对的是正在系统练习、基础不牢的学习者。
 要求：
 1. ${STYLE_HINT[style]}；
 2. 只把「已点亮的前置概念」当已知量，不要引入用户还没学过的术语，必须出现的新术语要当场用一句话解释；
@@ -252,7 +252,7 @@ export async function tutorChat(input: {
   const qBlock = input.questionId
     ? `\n学习者正卡在一道题（题目 id：${input.questionId}），他可能连题面术语都没见过，讲解要能兜住零基础。` : ''
 
-  const system = `你是一名耐心的技术私教，正在帮一位准备面试、基础不牢的学习者吃透「${node.title}」这个考点。
+  const system = `你是一名耐心的技术私教，正在帮一位系统练习、基础不牢的学习者吃透「${node.title}」这个考点。
 
 # 铁律：作用域护栏
 1. 只回答与「${node.title}」直接相关、或是理解它所必需的前置/关联知识。判定无关的提问（闲聊、别的技术栈、与本考点无关的时事/写作/通用百科等），不要顺着答，先用一句话礼貌说明「这个问题和当前考点无关，我先带你把眼前这个学会」，再把话头拉回本考点。

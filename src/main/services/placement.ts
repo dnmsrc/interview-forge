@@ -769,7 +769,7 @@ export async function interpretGapNote(note: string, nodeId?: string | null): Pr
     const res = await chat({
       task: 'gap_triage',
       role: 'fast',
-      system: `你是面试摸底系统的「缺口分类器」。用户在标记「我不会」时写了一句自由描述，把它归为三类之一：
+      system: `你是练习册的摸底系统的「缺口分类器」。用户在标记「我不会」时写了一句自由描述，把它归为三类之一：
 - concept：知识点/原理没掌握（不知道某概念是什么、没学过、看不懂、讲不清）
 - code：原理大概懂，但手写/编码实现不出来
 - skip：这题不想答了、主动想跳过

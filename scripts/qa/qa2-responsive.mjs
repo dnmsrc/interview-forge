@@ -4,8 +4,8 @@ const OUT = 'data/qa'
 const PAGES = [
   { path: '/', name: 'home', wait: '.page .card' },
   { path: '/practice', name: 'practice', wait: '.n-select' },
-  { path: '/exam', name: 'exam', wait: ".page .stat" },
-  { path: '/graph', name: 'graph', wait: '.vf-node', waitMs: 20000 },
+  { path: '/exam', name: 'exam', wait: '.tpl-grid' },
+  { path: '/graph', name: 'graph', wait: '.lv-chapter', waitMs: 20000 },
   { path: '/dashboard', name: 'dashboard', wait: '.stat' },
   { path: '/bank', name: 'bank', wait: '.page .card' },
   { path: '/settings', name: 'settings', wait: '.page .card' }

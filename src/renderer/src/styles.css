@@ -1,5 +1,5 @@
 /* ============================================================================
-   面试熔炉 · 设计系统基座
+   练习册 · 设计系统基座
    规范来源：docs/design/COMMUNITY-UI-BENCHMARK.md（社区对标）
             docs/design/UI-DESIGN-SYSTEM.md（本项目落地决策）
    原则：token 驱动、单一主色、三级 surface、四态可辨、动效只碰 transform/opacity、
@@ -324,6 +324,9 @@ html[data-theme="dark"] .hero { background:
   display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; height: 21px;
   border-radius: var(--r-pill); font-size: var(--fs-xs); font-weight: 550; line-height: 1;
   border: 1px solid transparent; white-space: nowrap; font-variant-numeric: tabular-nums;
+  /* flex 行里默认会被压缩：父级 `.kv > *`/`.row > *` 的 min-width:0 会让「已就绪」这种
+     21px 高的小胶囊被挤掉 6px，字就缺一截。胶囊本来就该保持原宽，由外层决定换行或滚动。 */
+  flex: 0 0 auto;
 }
 .pill.ok { background: color-mix(in oklab, var(--ok) 13%, transparent); color: var(--ok); border-color: color-mix(in oklab, var(--ok) 30%, transparent) }
 .pill.warn { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); border-color: color-mix(in oklab, var(--warn) 32%, transparent) }
@@ -333,6 +336,18 @@ html[data-theme="dark"] .hero { background:
 .pill.purple { background: color-mix(in oklab, var(--purple) 13%, transparent); color: var(--purple); border-color: color-mix(in oklab, var(--purple) 30%, transparent) }
 .pill.cyan { background: color-mix(in oklab, var(--cyan) 13%, transparent); color: var(--cyan); border-color: color-mix(in oklab, var(--cyan) 30%, transparent) }
 html[data-theme="dark"] .pill.info { color: var(--accent-hi) }
+
+/* 可点的胶囊（关卡页「退回未通关」）：外形和 .pill 一致，但它是真按钮 */
+.pill-btn {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; height: 21px;
+  border-radius: var(--r-pill); font: inherit; font-size: var(--fs-xs); font-weight: 550; line-height: 1;
+  white-space: nowrap; cursor: pointer; flex: 0 0 auto;
+  background: color-mix(in oklab, var(--text-dim) 11%, transparent);
+  color: var(--text-dim); border: 1px solid color-mix(in oklab, var(--text-dim) 26%, transparent);
+  transition: color .15s, border-color .15s;
+}
+.pill-btn:hover:not(:disabled) { color: var(--text); border-color: color-mix(in oklab, var(--text-dim) 45%, transparent) }
+.pill-btn:disabled { opacity: .5; cursor: not-allowed }
 
 .dotmark { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex: 0 0 7px }
 .dotmark.pulse { animation: pulse 1.8s var(--ease-in-out) infinite }
@@ -401,8 +416,18 @@ kbd, .kbd { font-family: var(--mono); font-size: 10.5px; padding: 2px 5px; borde
 .md { line-height: var(--lh-loose); font-size: var(--fs-base) }
 .md p { margin: 8px 0 }
 .md code { background: color-mix(in oklab, var(--accent) 9%, var(--surface-2)); padding: 1.5px 5px; border-radius: 5px; font-size: 12.5px; color: var(--accent-2); font-family: var(--mono) }
-.md pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); overflow: auto; margin: 10px 0 }
+.md pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); overflow: auto; margin: 10px 0; max-width: 100%; box-sizing: border-box }
 .md pre code { background: none; padding: 0; color: var(--text); font-size: 12.5px; line-height: 1.6 }
+
+/* ---------- 语法高亮 token（编辑器叠层与讲解页代码块共用） ----------
+   颜色全部从语义 token 派生：深色主题里这些变量本身会变亮，不需要写第二套。 */
+.tk-kw { color: var(--purple) }
+.tk-str { color: var(--ok) }
+.tk-com { color: var(--text-faint); font-style: italic }
+.tk-num { color: var(--hot) }
+.tk-fn { color: var(--cyan) }
+.tk-bi { color: var(--accent-2) }
+.tk-var { color: var(--text) }
 .md h1, .md h2, .md h3, .md h4 { margin: 14px 0 8px; font-size: var(--fs-base); color: var(--text) }
 .md ul, .md ol { padding-left: 22px; margin: 8px 0 }
 .md table { border-collapse: collapse; margin: 10px 0; font-size: var(--fs-sm); width: 100% }

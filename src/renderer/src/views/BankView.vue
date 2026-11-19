@@ -239,7 +239,7 @@ onMounted(async () => { await load(); loading.value = false })
         </label>
         <label class="fld">
           <span class="fld-l">附加要求（可选）</span>
-          <n-input v-model:value="updateOpts.note" size="small" placeholder="补充要求，如：二面追问风格" />
+          <n-input v-model:value="updateOpts.note" size="small" placeholder="补充要求，如：追问从机制细节切入" />
         </label>
       </div>
 
