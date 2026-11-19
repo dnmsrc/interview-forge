@@ -494,7 +494,7 @@
         "weight": 1
       }
     ],
-    "analysis": "分包题是工程化面试的「系统设计题」：答案没有唯一形态，考的是权衡叙事——先测（visualizer）再切（分层策略）再守（CI 预算）。失分：背「拆 vendor 越小越好」却不管请求数与 HTTP/2 现状；不知道 runtime/ preload helper 这些 Vite 自动产物为何存在；把 tree-shaking 当万能药却不提 sideEffects 前提。",
+    "analysis": "分包题是工程化题目里的「系统设计题」：答案没有唯一形态，考的是权衡叙事——先测（visualizer）再切（分层策略）再守（CI 预算）。失分：背「拆 vendor 越小越好」却不管请求数与 HTTP/2 现状；不知道 runtime/ preload helper 这些 Vite 自动产物为何存在；把 tree-shaking 当万能药却不提 sideEffects 前提。",
     "gapCheck": [
       "易漏点：拆得过碎在 HTTP/1 时代有害、H/2 下缓解但仍有序列化成本，答题要带权衡",
       "常见误区：以为 manualChunks 能拆开「同一模块被同步+异步混合引用」的场景（会出现幽灵 chunk）",

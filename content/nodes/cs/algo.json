@@ -8,7 +8,7 @@
   { "id": "cs.algo.graph", "title": "图", "level": 3, "domain": "cs", "stack": "algo", "topic": "graph", "mustMaster": true, "estMinutes": 110,
     "summary": "BFS/DFS 与连通性、Dijkstra/Floyd 最短路、最小生成树、拓扑排序、并查集——关系网络建模与路径/连通问题的标准武器库" },
   { "id": "cs.algo.sort", "title": "排序与查找", "level": 3, "domain": "cs", "stack": "algo", "topic": "sort", "mustMaster": true, "estMinutes": 90,
-    "summary": "快排/归并/堆排/桶排的复杂度与稳定性对比、二分查找及左右边界变体——面试手写命中率最高的算法基本功" },
+    "summary": "快排/归并/堆排/桶排的复杂度与稳定性对比、二分查找及左右边界变体——手写命中率最高的算法基本功" },
   { "id": "cs.algo.paradigm", "title": "算法范式", "level": 3, "domain": "cs", "stack": "algo", "topic": "paradigm", "mustMaster": true, "estMinutes": 120,
     "summary": "双指针滑动窗口、回溯、贪心、分治与动态规划（背包/LIS/编辑距离/状态转移）——从具体题目抽象出的通用解题框架" },
 

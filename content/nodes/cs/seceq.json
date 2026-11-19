@@ -1,6 +1,6 @@
 [
   { "id": "cs.seceq.web", "title": "Web 攻防基础", "level": 3, "domain": "cs", "stack": "seceq", "topic": "web", "mustMaster": true, "estMinutes": 90,
-    "summary": "XSS/CSRF/注入三大类 Web 漏洞的成因、危害与标准防御：同源策略与输出编码、CSP 与 Cookie 安全属性、CSRF Token/SameSite、SQL 注入与命令注入/SSRF/路径穿越的参数化与白名单治理——后端与全栈工程师面试必考的安全常识底盘" },
+    "summary": "XSS/CSRF/注入三大类 Web 漏洞的成因、危害与标准防御：同源策略与输出编码、CSP 与 Cookie 安全属性、CSRF Token/SameSite、SQL 注入与命令注入/SSRF/路径穿越的参数化与白名单治理——后端与全栈工程师常考的安全常识底盘" },
   { "id": "cs.seceq.auth", "title": "鉴权与授权", "level": 3, "domain": "cs", "stack": "seceq", "topic": "auth", "mustMaster": true, "estMinutes": 90,
     "summary": "认证（你是谁）与授权（你能做什么）两条主线：Cookie/Session/Token/JWT 的结构与存储风险、OAuth2 授权码+PKCE 与 OIDC/SSO 的流程与常见漏洞、RBAC/ABAC 与水平/垂直越权、最小权限与 MFA——登录体系与权限系统设计的安全底线" },
   { "id": "cs.seceq.crypto", "title": "密码学工程实践", "level": 3, "domain": "cs", "stack": "seceq", "topic": "crypto", "mustMaster": false, "estMinutes": 75,

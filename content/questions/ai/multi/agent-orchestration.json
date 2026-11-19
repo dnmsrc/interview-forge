@@ -146,7 +146,7 @@
     "variants": [
       {
         "angle": "追问延伸",
-        "stem": "面试官追问：『框架抽象泄漏』——请讲两个你在 LangGraph 或 AutoGen 里真实踩到/见过的泄漏现场，以及你当时的绕行方案。",
+        "stem": "追问：『框架抽象泄漏』——请讲两个你在 LangGraph 或 AutoGen 里真实踩到/见过的泄漏现场，以及你当时的绕行方案。",
         "analysis": "高分现场案例库：①LangGraph 的 checkpointer 序列化踩到不可序列化对象（工具闭包里的 DB 连接），每步快照都在悄悄变慢/失败——绕行是 state 只存纯数据、连接挂外部资源；②条件边的字符串路由与节点改名不同步导致线上永远走 fallback 分支（类型系统不保护路由 key）；③AutoGen group chat 的 speaker 选择靠 LLM 判定，出现『两个 agent 互相谦让轮流空转』的成本事故——绕行是强行 speaker 模板/终止条件；④中断恢复时 interrupt 前的副作用已执行过一遍（不是从节点起点重来）。评分看『具体故障形态+根因+绕行』三件套齐不齐，泛泛『调试困难』不给分。"
       }
     ]
@@ -614,16 +614,19 @@
     "stem": "我注意到你们做过 LangGraph 这类状态图框架，也接触过 AutoGen 这类多代理协作框架。现在假设一个审批 Agent 需要在高风险动作前暂停，等待人类确认后再继续，而且进程可能重启、服务可能恢复。请你从状态保存、中断触发方式、恢复语义、事件/消息可见性四个角度，比较 LangGraph 和 AutoGen 在这类“可恢复中断”上的设计差异；最后提炼一个跨框架通用的中断点设计原则，避免把中断做成不可恢复的阻塞。",
     "options": [],
     "answer": {
-      "ref": []
+      "ref": "【一·状态保存】LangGraph 的状态是显式的 state schema，靠 checkpointer 在**每个 super-step 边界**写一份快照（thread_id 定位一条会话，可落 SQLite/Postgres），恢复时从最近快照重建，node 之间不靠回放对话。AutoGen 的会话状态散在 GroupChat 消息历史和各个 Agent 对象里，较新版本提供 save_state/load_state 做序列化，但它覆盖的是\"Agent 看到的东西\"，外部工具调用的副作用不在其中。\n【二·中断触发】LangGraph 有框架级的一等原语 interrupt()：在 node 内声明\"这里要等外部输入\"，runtime 把中断信息写进 checkpoint 并挂起，属于\"停在半路等信号\"。AutoGen 没有这个语义，human-in-the-loop 通常做成一个参与方（UserProxyAgent 这类），中断=多一轮对话，等待期间状态是活的、进程重启就没了。\n【三·恢复语义】LangGraph 用 resume 把外部决策注回被中断的 node，从该 node 继续，之前的 step 不重跑；恢复是\"步骤级续跑\"。AutoGen 只能接着对话往下问，缺少\"从某一步继续\"的语义，要么重放整个会话，要么让调用方自己保证幂等。\n【四·可见性】LangGraph 的 stream（values/updates/debug）暴露每个 super-step 的 state 变更，中断点也在事件流里，可审计、可回放定位。AutoGen 的可见性主要是对话消息流，步骤级内部事件不进入消息流，出事后难以准确定位恢复点。\n【五·原则】可恢复中断必须满足三条：①中断落在\"状态已持久化、副作用已完成或可幂等重放\"的边界上；②中断表现为可持久化的暂停态，而不是阻塞线程等信号；③恢复协议带版本号与幂等键（同一 interrupt 不能被两次 resume 消费）。跨框架通用的一句话：**把中断设计成一次状态转移，而不是一次等待**。"
     },
     "openBookAllowed": true,
     "source": {
       "kind": "self-authored",
-      "note": "bank_update 自动生成",
+      "note": "R26 补齐：原 AI 生成稿缺答案与解析",
       "retrievedAt": "2026-11-15"
     },
     "tags": [
-      "自动生成"
+      "多智能体",
+      "LangGraph",
+      "AutoGen",
+      "可恢复中断"
     ],
     "status": "active",
     "meta": {
@@ -632,9 +635,47 @@
       "history": []
     },
     "scoringPoints": [
-      "结论正确且给出机制",
-      "覆盖关键边界或失败场景",
-      "能联系相关考点延伸"
-    ]
+      {
+        "point": "四个角度都覆盖，且说的是机制差异而不是 API 名字",
+        "weight": 3
+      },
+      {
+        "point": "点明\"能暂停 ≠ 能恢复\"，区分状态快照与对话回放",
+        "weight": 3
+      },
+      {
+        "point": "恢复语义落到 step/node 边界，并提到重放与幂等",
+        "weight": 2
+      },
+      {
+        "point": "可见性区分步骤级事件流与对话消息流",
+        "weight": 2
+      },
+      {
+        "point": "最后提炼出可跨框架的中断点设计原则",
+        "weight": 2
+      }
+    ],
+    "analysis": "这题的陷阱是把\"框架支持暂停\"直接当成\"支持可恢复\"。真正要答的是状态存在哪、存在什么粒度、恢复从哪继续。第二个坑是把对话历史当状态：消息齐了不代表业务状态齐，工具副作用尤其不在消息里。第三个坑是只背 API，不说 checkpointer 的快照边界在 super-step 上——这决定了你能恢复到哪一步。敢写\"中断=状态转移\"并给出幂等键的人，才算想清了分布式恢复这件事。",
+    "gapCheck": [
+      "易漏点：LangGraph 的 checkpoint 是每个 super-step 存一次，恢复粒度是 step 边界，不是任意一行代码",
+      "常见误区：以为 AutoGen save/load 能恢复外部副作用，其实只覆盖 agent 可见状态",
+      "加分弹药：提出\"副作用先写 outbox、恢复时重放\"或给 interrupt 加幂等键，防重复 resume",
+      "结构自救：四角度各 2 分钟，原则段 1 分钟；时间不够宁可少写一个角度，也别把四段都写成概念复述"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.multi.agent-orchestration.shared-state"
+      ],
+      "related": [
+        "ai.multi.agent-orchestration.topology-selection",
+        "ai.harness.agent-loop.context-budget"
+      ],
+      "followUps": [
+        "checkpoint 里存了状态，但外部已经把订单提交了，恢复时怎么保证不重复下单？",
+        "中断点放在 node 内部和放在 node 之间，对可观测性和恢复成本各有什么影响？",
+        "AutoGen 里人类参与方的发言，怎么变成可持久化的挂起状态而不是一轮对话？"
+      ]
+    }
   }
 ]

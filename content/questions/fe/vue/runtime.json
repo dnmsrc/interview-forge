@@ -263,7 +263,7 @@
     "variants": [
       {
         "angle": "追问延伸",
-        "stem": "追问延伸：面试官接着问『那 runtime-dom 相对 core 到底多做了什么？列不全就别说你懂分层』。请按模块列举 runtime-dom 的增量（至少 4 类），并指出其中哪一类是你自定义渲染器最难复刻的、为什么。",
+        "stem": "追问延伸：教练接着问『那 runtime-dom 相对 core 到底多做了什么？列不全就别说你懂分层』。请按模块列举 runtime-dom 的增量（至少 4 类），并指出其中哪一类是你自定义渲染器最难复刻的、为什么。",
         "analysis": "增量清单：①nodeOps 的 DOM 实现 + insertStaticContent innerHTML 快速路径；②patchProp 家族（attr/class/style/event invoker/自定义元素判定）；③内置组件 Transition/KeepAlive?（注意：KeepAlive/Suspense/Teleport 在 core，**Transition/TransitionGroup/v-show/v-html/v-cloak 在 dom**——能纠出这个归属即源码级）；④CSS 变量注入 useCssVars、自定义元素 isCustomElement 编译选项桥接；⑤directives 运行时(v-once/v-pre?)——v-once/v-pre 属 compiler 优化不在 dom。最难复刻：patchProp 的 event invoker+style 归一化（含 !important/多值）或 Transition（rAF/nextFrame/getComputedStyle 时序依赖）。纠错能力是这题的满分开关。"
       }
     ]
@@ -449,9 +449,9 @@
         "weight": 1
       }
     ],
-    "analysis": "d5 题考的是组织论据的能力：四层每一层都要有具体机制名词+一个可验证的行为（引用相等短路、-1 return、双端命中样例）。React 对比最忌拉踩，给出『光谱论』（Vue 模板=强补贴，React=弱补贴强表达，Solid=零 vnode）的考生能让面试官眼前一亮。JSX 打折是本题的隐藏区分器：知道 vue jsx 插件也在做 hoist 的人极少。",
+    "analysis": "d5 题考的是组织论据的能力：四层每一层都要有具体机制名词+一个可验证的行为（引用相等短路、-1 return、双端命中样例）。React 对比最忌拉踩，给出『光谱论』（Vue 模板=强补贴，React=弱补贴强表达，Solid=零 vnode）的考生能让教练眼前一亮。JSX 打折是本题的隐藏区分器：知道 vue jsx 插件也在做 hoist 的人极少。",
     "gapCheck": [
-      "易漏点：『diff 不可中断』要说 Vue 靠的是单次工作量小而非抢占，漏了会被 React 背景面试官追击",
+      "易漏点：『diff 不可中断』要说 Vue 靠的是单次工作量小而非抢占，漏了会被 React 背景教练追击",
       "常见误区：把 patchFlag 说成 diff 算法的一部分——它是编译期产物被 diff **消费**",
       "叙事安全垫：先抛论点再分层递进，中途被打断也能带走结构分"
     ],
@@ -486,7 +486,7 @@
     "variants": [
       {
         "angle": "换问法",
-        "stem": "换问法（面试官是 React 转岗者，带敌意）：『我们 React 团队觉得 Vue 的 diff 就是双端指针老掉牙的东西，你们凭什么说自己快？』请用不超过 10 句话反击，必须包含一个他们无法反驳的数字性事实和一个诚实承认的短板。",
+        "stem": "换问法（教练是 React 转岗者，带敌意）：『我们 React 团队觉得 Vue 的 diff 就是双端指针老掉牙的东西，你们凭什么说自己快？』请用不超过 10 句话反击，必须包含一个他们无法反驳的数字性事实和一个诚实承认的短板。",
         "analysis": "合格反击骨架：数字事实——Vue3 的 patch 每层只访问 block 清单里的动态节点，典型 CRUD 表格一次 cell 更新的访问 vnode 数是常数级（官方 benchmark js-framework-benchmark 长期第一梯队，1k 行 create/replace 毫秒级领先）；机制点——你们的 memo 是我们编译器的免费午餐。诚实短板——Fiber 的可中断渲染与并发优先级（transition/startTransition）Vue 同步 diff 给不了，超大一次性渲染（首挂 5k 行）会卡帧，只能靠虚拟列表自救。全攻击不给承认 = 减分；只承认不打 = 也减分；这题本质测技术人格。"
       }
     ]

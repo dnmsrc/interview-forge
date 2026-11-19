@@ -1,6 +1,6 @@
 [
   { "id": "cs.os.process", "title": "进程与线程", "level": 3, "domain": "cs", "stack": "os", "topic": "process", "mustMaster": true, "estMinutes": 100,
-    "summary": "进程/线程本质、进程状态与调度算法、上下文切换、用户线程与内核线程及协程——操作系统并发的地基，后端与客户端面试必考" },
+    "summary": "进程/线程本质、进程状态与调度算法、上下文切换、用户线程与内核线程及协程——操作系统并发的地基，后端与客户端常考" },
   { "id": "cs.os.sync", "title": "同步互斥与死锁", "level": 3, "domain": "cs", "stack": "os", "topic": "sync", "mustMaster": true, "estMinutes": 100,
     "summary": "临界区与锁、信号量与经典同步问题、CAS/ABA 与无锁编程、死锁条件与银行家算法——并发编程正确性的核心理论" },
   { "id": "cs.os.memory", "title": "内存管理", "level": 3, "domain": "cs", "stack": "os", "topic": "memory", "mustMaster": true, "estMinutes": 90,

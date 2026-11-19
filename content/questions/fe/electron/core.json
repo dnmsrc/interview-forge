@@ -264,7 +264,7 @@
     "nodeId": "fe.electron.security.csp",
     "type": "short",
     "difficulty": 3,
-    "stem": "面试官：「我们的 Electron 应用要接入一个内部 Web 系统的远程页面，还要允许弹出新窗口下载附件。请从 Electron 安全模型出发，给出完整的威胁清单与对应防线。」要求覆盖进程隔离、导航与弹窗、外部程序、更新链路四层。",
+    "stem": "教练：「我们的 Electron 应用要接入一个内部 Web 系统的远程页面，还要允许弹出新窗口下载附件。请从 Electron 安全模型出发，给出完整的威胁清单与对应防线。」要求覆盖进程隔离、导航与弹窗、外部程序、更新链路四层。",
     "answer": {
       "ref": "参考骨架：① 进程隔离层：确认 webPreferences 三件套默认值未被历史代码翻转（老项目常因迁移遗留 nodeIntegration:true 或 enableRemoteModule），preload 只暴露函数白名单；远程页所在窗口单独降级 webPreferences（禁 preload 或给 noop 桥），与本地特权窗分离——site isolation 思维：不同信任域不进同一进程语境。② 导航/弹窗层：will-navigate 拦截离开白名单域（防表单劫持/重定向钓鱼）、pre-drag 防拖放导航；setWindowOpenHandler 对所有 window.open 返回 deny，附件下载判定 Content-Disposition 走 session.downloadURL 或直接 openExternal，其余按白名单创建受控 BrowserWindow（无 preload、独立 partition=session.fromPartition 隔离 Cookie/存储）；新窗再监听自己的 will-navigate 形成递归防线；权限申请 permission-request 事件按 origin 白名单放行（摄像头/剪贴板）。③ 外部程序层：shell.openExternal 严格 scheme 白名单+query 编码检查（mailto 拼多参曾出过参数注入执行任意命令的历史 CVE）；自定义协议 handler 里 decodeURIComponent 后 realpath 校验目录根，防 ../ 穿越读任意文件；file 拖入用 webUtils.getPathForFile 取径而非拼 fake path。④ 更新与供应链层：updater 走 HTTPS 且校验包签名/哈希，macOS notarization、Windows 代码签名双平台建立信任链；node_modules 依赖审计（Electron 生态 supply-chain 事件：electron-builder 证书事件、前端包投毒）；崩溃 dump 与日志避免泄露 token；敏感数据用 safeStorage 加密，不学 web 端明文 localStorage。收尾金句：Electron 安全的本质是把「浏览器 XSS」与「本机任意代码执行」之间的两堵墙（进程隔离+API 白名单）永远立住，任何为省事的翻转都要过威胁评审。"
     },

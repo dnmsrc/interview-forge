@@ -98,7 +98,7 @@ export function nextTick(fn) {
 - 「nextTick 能保证在下一个 watcher 之前执行」——不保证：post-flush 与递归 flush 都会改变相对顺序，别把 nextTick 当同步点用[^2]。
 - 「生产环境也有 100 次递归上限」——没有，`RECURSION_LIMIT` 检查只在 `__DEV__` 分支里[^2]。
 
-## 面试怎么问
+## 常见问法
 追问链：为什么改状态不立刻更新 DOM → 队列怎么去重（位标记）→ 为什么能保证父先于子（uid + 二分插入）→ pre/post/sync 三种 watcher 分别排在哪儿 → `await nextTick()` 之后 DOM 和绘制各处于什么状态 → 一个 job 抛错会发生什么 → 无限递归更新怎么被发现。
 加分线：顺手说 3.5 的 `flushPreFlushCbs` 用 `minUid` 限定挂载范围、以及 Suspense 的两个 post 标记，说明你真读过源码而不是背结论。
 

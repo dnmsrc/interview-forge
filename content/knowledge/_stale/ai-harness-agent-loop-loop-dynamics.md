@@ -1,4 +1,4 @@
-<!-- gate failed: missing-section:关键结论; missing-section:常见误区; missing-section:面试怎么问; missing-section:前置知识; missing-section:相关 -->
+<!-- gate failed: missing-section:关键结论; missing-section:常见误区; missing-section:常见问法; missing-section:前置知识; missing-section:相关 -->
 ---
 node: ai.harness.agent-loop.loop-dynamics
 title: Agent 循环动态：终止条件、停滞与护栏
@@ -26,7 +26,7 @@ Agent 循环动态，就是模型在“推理—调用工具—观察结果—�
 
 如果只让模型一次性回答，复杂任务容易缺少可展开的推理路径；Chain-of-Thought 论文指出，生成一系列中间推理步骤会显著提升大语言模型完成复杂推理任务的能力，并且这种能力会在足够大的模型中通过少量思维链示例自然出现 [^1]。这说明 Agent 需要“多步推进”的能力。
 
-但多步推进会带来新问题：每一步都可能消耗上下文、时间、成本和外部动作权限。LangChain 文档把 Agent 定义为 `Model + Harness`，并明确 harness 是模型循环之外的一切：prompt、tools，以及塑造行为的 middleware [^2]。因此，循环动态不是模型内部自动保证的，而是由 harness 设计出来的。面试里问终止条件、停滞检测、预算和护栏，本质上是在问：你如何把“自由推理”变成可控工程系统。
+但多步推进会带来新问题：每一步都可能消耗上下文、时间、成本和外部动作权限。LangChain 文档把 Agent 定义为 `Model + Harness`，并明确 harness 是模型循环之外的一切：prompt、tools，以及塑造行为的 middleware [^2]。因此，循环动态不是模型内部自动保证的，而是由 harness 设计出来的。实际讨论里问终止条件、停滞检测、预算和护栏，本质上是在问：你如何把“自由推理”变成可控工程系统。
 
 ## 机制讲清楚
 

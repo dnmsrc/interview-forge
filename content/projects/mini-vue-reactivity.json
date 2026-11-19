@@ -1,0 +1,1164 @@
+{
+  "id": "mini-vue-reactivity",
+  "version": 3,
+  "title": "从零写一个响应式内核",
+  "emoji": "⚡",
+  "domain": "fe",
+  "tagline": "9 关，从「Proxy 是什么」开始，一路写到 computed：数据一变，用到它的代码自动重跑。",
+  "stack": [
+    "JavaScript"
+  ],
+  "intro": "这一季不背概念，只写代码。每一关都是：先读一段前置知识（带可运行的小例子），再照着分阶段提示，一步一步写出当步的完整代码，每步都点「跑测试」看红绿。第 1 关你只会写两行代码，第 9 关你会得到一份完整的响应式实现。",
+  "outcome": "做完你手上有一份能跑、能讲清每一步为什么这么写的实现：Proxy 拦截、依赖收集、精确触发、分支清理、嵌套栈、调度器、computed 缓存。面试被问到 Vue3 响应式，你可以直接照着这九关讲。",
+  "levels": [
+    {
+      "id": "lv1",
+      "title": "让读写经过你的代码",
+      "emoji": "🧩",
+      "xp": 30,
+      "regress": false,
+      "goal": "写出 reactive(obj)：它返回一个「替身」，读、写、删、查都会先经过你写的函数，最后才落到原对象上。从空白开始写，每写完一步都能立刻跑测试。",
+      "why": "响应式的全部魔法都发生在「读」和「写」这两个瞬间。可 JavaScript 默认不给你插手的机会：state.count 这一行，引擎直接把值给你了，你没有任何机会知道「有人在读 count」。Proxy 就是那个能插手的口子。这一关先把口子接到「读、写、删、查」四个位置，并且每接一个就跑一次测试——不靠猜，靠红绿确认自己接对了。",
+      "thinking": [
+        {
+          "title": "先问「我要在哪一刻插手」，再问「用什么工具」",
+          "md": "拿到「做一个 reactive」这个需求，我没有先想 Proxy，而是先问：响应式到底需要我在哪一刻拿到控制权？\n\n答案只有两个瞬间——**有人读我的属性**、**有人写我的属性**。因为「数据变了要通知」这件事，必然是先有人读，才知道该通知谁；先有人写，才知道该通知了。把这两个瞬间想清楚，剩下的只是选工具。\n\n这个顺序很重要。反过来先想工具，就会陷进「Proxy 有 13 个陷阱，我该用哪几个」；先想需求，答案自己会收敛到 get 和 set。"
+        },
+        {
+          "title": "为什么不用 Object.defineProperty（Vue2 走的路）",
+          "md": "Vue2 是把对象上已有的每个属性改写成 getter/setter。它能拦读写，但有三件事拦不到，每一件都要额外打补丁：\n\n- **新增属性**：obj.newKey = 1 不触发，所以 Vue2 才需要 $set\n- **数组下标和 length**：arr[0] = x、arr.push 都不触发，所以它重写了 7 个数组方法\n- **必须初始化时递归遍历**所有嵌套属性，对象一大启动就卡\n\nProxy 是在对象外面套一层，**访问发生的那一刻才拦**：新增属性、数组下标、in、delete 天然就拦得到，不需要提前遍历。\n\n我选它不是因为「新」，是因为它把 Vue2 的三个补丁变成了零个。"
+        },
+        {
+          "title": "第一步为什么先写「一个空 handler」",
+          "md": "很多人一上来就写 get / set。我先写 new Proxy(target, {})——handler 是空对象——然后直接跑一遍测试。\n\n理由：我需要先确认「Proxy 的默认行为是不是透明的」。如果空 handler 就已经等价于原对象，我就有了一个可靠的基线：之后任何行为异常，都只可能来自我新加的那几行，排错范围立刻从「整个机制不可信」缩小到「我刚写的 3 行」。\n\n一跑，测试全绿。这 30 秒买到的是对机制的确认，不是功能。\n\n这是我最常用的调试习惯：**先让最小版本跑通，再一格一格加功能**。"
+        },
+        {
+          "title": "get 里为什么必须写 Reflect.get(t, key, receiver)，而不是 t[key]",
+          "md": "这两行在普通对象上结果一模一样，所以我一开始也觉得无所谓。区别在一个参数上：**receiver**——正在被访问的那个代理。\n\n对象上如果有 getter，getter 里的 this 指向谁，取决于这次访问是怎么发起的。用 Reflect.get(t, key, receiver)，getter 的 this 就是代理；写成 t[key]，this 就退化成原对象。一旦 getter 内部又去读被代理的属性（响应式里极其常见），this 错了，后面的追踪就全断了。\n\n还有一个更实用的理由：Proxy 和 Reflect 是**官方设计上的对称**。你拦到的每一种操作，都有一个同名的 Reflect 方法替你去真正做这件事：\n\n- 拦 get，就用 Reflect.get\n- 拦 set，就用 Reflect.set\n- 拦 deleteProperty，就用 Reflect.deleteProperty\n- 拦 has，就用 Reflect.has\n- 拦 ownKeys，就用 Reflect.ownKeys\n\n记住这条对称，就不用背 API：**我拦什么，就交给同名的 Reflect 去做。**"
+        },
+        {
+          "title": "每一步为什么都要留下一个「看得见的证据」",
+          "md": "如果第 2 步的 get 里只写了原样转发，测试照样是绿的——因为 Proxy 默认转发本来就是对的行为。那种绿什么也没证明。\n\n所以每一步我都让它留下一点可观察的东西：\n\n- 第 2 步：读 `__raw` 能拿回原对象\n- 第 3 步：读 `__setCount` 能看到「写入发生过几次」\n- 第 4 步：读 `__deleteCount` 能看到「删除发生过几次」\n\n这不是写测试的套路，是我随时要能回答「我这一步真的接上去了吗」。看不到现象，就等于没接。\n\n顺便说一句，这三笔「记账」正是下一关的地基：get 里记账就是**依赖收集**，set 里记账就是**触发更新**。我现在写的是最小版本，但它和最终的响应式是同一个形状。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "Proxy 是什么：new Proxy(target, handler)",
+          "md": "Proxy 是 JavaScript 内置的构造函数，用来给一个对象造一个**替身**。\n\n```js\nconst raw = { count: 1 }\nconst state = new Proxy(raw, {})   // 两个参数：原对象、陷阱集合\n\nstate.count        // 1，读得到\nstate.count = 2    // 写进去\nraw.count          // 2，原对象真的变了\n```\n\n三个要点：\n\n1. **不是拷贝**。整个过程中只有一个对象，raw 和 state 是「本体」与「影子」，改一个另一个立刻是一样。\n2. **handler 可以为空**。空 handler 的代理行为和原对象完全一致——因为 Proxy 本来就会把操作原样转发给 target。\n3. **它拦的是「操作」，不是「属性」**。拦截发生在你**访问的那一刻**，而不是初始化的时候逐个属性改写。这就是它比 defineProperty 强的地方。"
+        },
+        {
+          "title": "handler 里的「陷阱」：这一关只用 5 个",
+          "md": "handler 上每个方法就是一个**陷阱（trap）**，同名于你要拦截的操作。JavaScript 一共有 13 种，这一关只需要 5 个：\n\n| 陷阱 | 拦截的是什么 |\n| --- | --- |\n| get(t, key, receiver) | 读 t[key] |\n| set(t, key, value, receiver) | 写 t[key] = value |\n| deleteProperty(t, key) | delete t[key] |\n| has(t, key) | key in t |\n| ownKeys(t) | Object.keys(t)、for...in、Object.getOwnPropertyNames |\n\n其余几个（apply、construct、defineProperty、getOwnPropertyDescriptor…）等用到再说。\n\n**返回值规则不一样，这点最容易踩**：\n\n- get 返回什么，调用方就拿到什么\n- set 必须返回布尔。返回 false（或者不写 return，等于 undefined→false）在严格模式下会直接抛 TypeError\n- deleteProperty / has 必须返回布尔\n- ownKeys 必须返回数组（元素是字符串或 Symbol）"
+        },
+        {
+          "title": "Reflect：和 Proxy 一一对应的「真正干活的人」",
+          "md": "Reflect 是内置对象，13 个方法和 Proxy 的陷阱名一一对应。陷阱里负责**通知**，Reflect 负责**照做**。\n\n```js\nReflect.get(t, key, receiver)          // 读 t[key]，this 绑到 receiver\nReflect.set(t, key, value, receiver)   // 写 t[key] = value，返回 true / false\nReflect.has(t, key)                    // 等价于 key in t\nReflect.deleteProperty(t, key)         // 等价于 delete t[key]，返回布尔\nReflect.ownKeys(t)                     // 返回自有键数组\n```\n\n为什么不用 obj[key] 这种写法？两个原因：\n\n1. **receiver 传不下去**。obj[key] 的 this 永远是 obj，而 Reflect.get 能显式指定 this。\n2. **拿得到布尔结果**。delete 用操作符在严格模式下失败会抛错，Reflect.deleteProperty 只返回 false，你可以在陷阱里把它原样交回去。\n\n一句话：**陷阱里我拦，Reflect 里它做，中间的 return 就是通知的出口。**"
+        },
+        {
+          "title": "get / set 的四个参数，逐个认一遍",
+          "md": "```js\nget(target, key, receiver)                // 3 个\nset(target, key, value, receiver)         // 4 个\n```\n\n- **target**：原对象（不是代理）。这一关里我习惯写成 t\n- **key**：被读/写的属性名，字符串或 Symbol\n- **value**：只出现在 set，准备写进去的新值\n- **receiver**：正在被访问的**代理本身**。上面那条思维链讲过它为什么重要\n\n读一个代理上和原型链上的属性都会触发 get；但 set 里如果这个属性其实是原型上的 setter，receiver 会决定 setter 被谁调用。\n\n这一关你只要记住：**t 永远是原对象，receiver 永远是代理**。写错这两个是最常见的 bug。"
+        }
+      ],
+      "api": [
+        {
+          "name": "reactive",
+          "sig": "reactive(target: object): object",
+          "args": "target —— 任意普通对象，例如 { count: 1 }。函数不会改动它的结构，只在它外面包一层代理。",
+          "returns": "一个代理对象 proxy。读 proxy.x 得到 target.x；写 proxy.x = v 会真的写进 target；delete、in、Object.keys 的行为都和普通对象一致。",
+          "example": "const raw = { count: 1 }\nconst state = reactive(raw)\n\nstate.count        // 1\nstate.count = 5    // 写进 raw\nraw.count          // 5\n\ndelete state.count\n'count' in raw     // false"
+        },
+        {
+          "name": "两个调试约定（这一关的测试会用到）",
+          "sig": "proxy.__raw / proxy.__setCount / proxy.__deleteCount",
+          "args": "不是标准 API，是这一关额外约定的「观察孔」。它们必须由 get 陷阱里返回。",
+          "returns": "__raw 返回原对象；__setCount 返回到目前发生过多少次写入；__deleteCount 返回到目前发生过多少次删除。",
+          "example": "const raw = { a: 1 }\nconst state = reactive(raw)\n\nstate.__raw          // { a: 1 }，就是 raw 本身\nstate.a = 2\nstate.__setCount     // 1\ndelete state.a\nstate.__deleteCount  // 1"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "先让它「什么都不改」也能用",
+          "think": "我要先确认 Proxy 默认行为是透明的。空 handler 的代理如果能完全等价于原对象，我就有了一个可靠基线：后面出问题只可能是我新加的那几行。这一步只需要 3 行。",
+          "hint": "写一个函数 reactive(target)，参数是原对象，返回值应该是一个「替身」。注意：这一步不要写任何拦截逻辑——空着就行。具体怎么造替身，看左栏 Proxy 那条知识卡。",
+          "diag": [
+            "这条查「替身」读出来必须和原对象一模一样。现在不一致，多半是你给 handler 写了逻辑（自己判断 key、自己给默认值）——第 1 步的第二个参数要空着 `{}`，全交给 Proxy 默认转发。",
+            "原对象上没有这个键，代理读出来也该是 undefined。你读到了别的值，说明 get 里凭空造了值（默认值、`??` 兜底），而不是把读取原样转发。",
+            "这条查「透过替身写，原对象要跟着变」。raw 没变，说明写入被你的 handler 吞掉了——第 1 步不写 set，让默认行为落回原对象。",
+            "`in` 走 has 陷阱。两边不一致，说明你写了 has 却没把结果交给 `Reflect.has(t, key)`，或者写死了一个布尔。",
+            "`Object.keys` 走 ownKeys 陷阱，必须返回数组。不一致通常是没返回 `Reflect.ownKeys(t)`，或返回了字符串/对象。",
+            "`delete` 走 deleteProperty。删完原对象还读得到，说明陷阱里没真删（可能返回了 true 但没删），或者你多接了这条路径。"
+          ],
+          "vocab": [
+            {
+              "term": "Proxy 的第二个参数",
+              "md": "必须是一个对象。传 {} 表示「一个陷阱都不拦」，这时 Proxy 会透明转发所有操作。省略第二个参数会直接 TypeError。"
+            }
+          ],
+          "code": "function reactive(target) {\n  // handler 给空对象：Proxy 的默认行为就是「原样转发」\n  return new Proxy(target, {})\n}\n",
+          "test": "{\n  const raw = { count: 1, name: 'vue' }\n  const state = reactive(raw)\n\n  check('读到的值和原对象一致', () => { same(state.count, 1); same(state.name, 'vue') })\n  check('读不存在的属性得到 undefined', () => { same(state.nope, undefined) })\n  check('写入会落到原对象上', () => { state.count = 5; same(raw.count, 5) })\n  check('in 判断一致', () => { ok('name' in state); same('nope' in state, false) })\n  check('Object.keys 一致', () => { same(Object.keys(state).sort(), ['count', 'name']) })\n  check('delete 之后两边都读不到', () => { delete state.name; same('name' in raw, false) })\n}\n"
+        },
+        {
+          "n": 2,
+          "title": "让「读」经过我",
+          "think": "基线有了，现在开始插手。为什么先做读、后做写？因为响应式里读先于写发生——先知道「谁在读」，后面的「谁该更新」才有对象。而且读坏了我立刻能看到 undefined，比写更好验证。",
+          "hint": "在 handler 里加一个方法，用来接住「读」。转发交给 Reflect 里同名的方法；另外加一个约定：读 __raw 时直接返回原对象。",
+          "diag": [
+            "加了 get 也得能读普通属性。这里是 undefined，通常是 get 里忘了 `return`，或者 return 的不是 `Reflect.get(t, key, receiver)` 的结果。",
+            "对象上的 getter 里写了 `this`，它必须指向代理，否则 getter 内部再读属性会绕过你的拦截。现在不对，通常是调用 `Reflect.get(t, key)` 时漏了第三个参数 receiver。",
+            "`__raw` 不是原对象上的键，交给 Reflect 转发只能读到 undefined。get 里要给它单独一个分支：一命中就返回原对象本身，不走转发。",
+            "不存在的键必须还是 undefined。你现在造出了值，说明 get 里对未知 key 有兜底（默认值/`??`），或者特判写宽了，把别的键也拦了。"
+          ],
+          "vocab": [
+            {
+              "term": "Reflect.get(target, key, receiver)",
+              "md": "和读 target[key] 等价，但能显式指定 this（receiver），并且对象上有 getter 时 this 会正确指向 receiver。"
+            },
+            {
+              "term": "为什么 getter 的 this 很重要",
+              "md": "对象上的 getter 里如果写了 this.x，this 是谁决定了读到哪个 x。代理场景下必须让 this 是代理，否则内部读取绕过了你的拦截。"
+            }
+          ],
+          "code": "function reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      // 调试口：读 __raw 拿到原对象\n      if (key === '__raw') return t\n      return Reflect.get(t, key, receiver)\n    }\n  })\n}\n",
+          "test": "{\n  let proxyRef = null\n  const raw = { n: 2, get dbl() { return this.n * 2 }, get isProxy() { return this === proxyRef } }\n  const state = reactive(raw)\n  proxyRef = state\n\n  check('普通属性读得到', () => { same(state.n, 2) })\n  check('getter 里的 this 是代理本身，不是原对象', () => { same(state.isProxy, true) })\n  check('读取 __raw 拿到原对象', () => { same(state.__raw, raw) })\n  check('读不存在的属性还是 undefined', () => { same(state.nope, undefined) })\n}\n"
+        },
+        {
+          "n": 3,
+          "title": "让「写」经过我",
+          "think": "读能拦了，写还没。写这里有两个细节：一是必须把 Reflect.set 的布尔结果原样 return（漏了 return，严格模式下会抛 TypeError）；二是我想在这里顺手留一笔「写入发生过几次」的记录——这正是下一关「写触发通知」的位置。",
+          "hint": "再加一个接住「写」的方法：先给计数加一，再交给 Reflect 的写方法，并把它返回的布尔值原样交回去。别忘了让 __setCount 能读到这个计数——计数器要放在 reactive 内部（每个代理各有一份）。计数器从 0 还是从 1 开始都行，测试只核对「每写一次多一笔」。",
+          "diag": [
+            "set 只负责「接住」，真要落盘得交给 `Reflect.set(t, key, value, receiver)`。raw 没变，说明你只记了数、没有转发这次写入（或转发后把结果丢了）。",
+            "新键和已有键一样要能写进去。失败说明 set 里对「原对象上还没有的键」有判断或拦截，把它吞掉了。",
+            "set 的返回值必须是布尔：成功 true、失败 false；返回 undefined 会被当成失败，严格模式下直接抛 TypeError。这里要把 Reflect.set 的真实结果原样交回，而不是写死 true。",
+            "冻结对象上写入必须返回 false——这正是不能写死 `return true` 的原因。你返回了 true，等于骗调用方「写成功了」，而对象其实没变。",
+            "计数器要放在 reactive 内部、Proxy 之前（每个代理各一份），并在 get 里开一个 `__setCount` 出口。对不上，多半是计数器写在模块外层（所有代理共用），或 get 里少了这个分支。"
+          ],
+          "vocab": [
+            {
+              "term": "set 陷阱的返回值",
+              "md": "必须返回 true / false。返回 false 表示「这次写入没成功」，在严格模式代码里会变成 TypeError 抛出。所以不要硬写 return true，要返回 Reflect.set 的真实结果。"
+            },
+            {
+              "term": "闭包里的计数器",
+              "md": "let setCount = 0 写在 reactive 内部、new Proxy 之前，get/set 两个陷阱都能访问到它。每个代理对象都有一份自己的计数，互不干扰。"
+            },
+            {
+              "term": "为什么键名是 __setCount，而变量叫 setCount",
+              "md": "这是两个不同的东西，名字当然不一样：\n\n- `let setCount` 是 **reactive 函数内部的闭包变量**。函数外的人（包括拿着代理的调用方）看不见它，直接 `state.setCount` 也读不到——除非你在 get 里给它开一个出口。\n- `'__setCount'` 是 **代理对象上暴露出来的键名**，也就是那个出口。调用方读 `state.__setCount`，get 陷阱里命中这个键，然后把闭包里的 `setCount` 交出去。\n\n为什么不直接叫 `setCount`？因为原对象上可能真的存在一个叫 `setCount` 的业务属性（比如 `{ setCount: 5 }`）。两个同名，读 `state.setCount` 时你就分不清要的是「用户的数据」还是「你记的账」——前者必须原样转发给 Reflect，后者必须拦下来返回计数，同一行代码没法同时做两件事。\n\n`__` 前缀是 JavaScript 世界约定俗成的「内部 / 调试专用」标记（英文叫 dunder，double underscore）。它不改变任何语法，只是给读代码的人一个信号：**这个键不是业务数据**。你在别处见过它很多次：`__proto__`、Node 的 `__dirname`，Vue 内部自己的 `__v_isReactive`、`__v_raw`。\n\n所以那一行读作：「如果有人访问代理上名为 `__setCount` 的键，把我在闭包里数着的 `setCount` 给他。」"
+            }
+          ],
+          "code": "function reactive(target) {\n  let setCount = 0\n\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      if (key === '__raw') return t\n      if (key === '__setCount') return setCount\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      setCount++\n      return Reflect.set(t, key, value, receiver)\n    }\n  })\n}\n",
+          "test": "{\n  const raw = { a: 1 }\n  const state = reactive(raw)\n\n  check('写入落到原对象', () => { state.a = 9; same(raw.a, 9); same(state.a, 9) })\n  check('写一个新属性也能落下去', () => { state.b = 2; same(raw.b, 2) })\n  check('写入成功时返回 true', () => { same(Reflect.set(state, 'c', 3), true); same(raw.c, 3) })\n  check('写到冻结对象上返回 false，且不修改', () => {\n    const frozen = Object.freeze({ x: 1 })\n    const st = reactive(frozen)\n    same(Reflect.set(st, 'x', 2), false)\n    same(frozen.x, 1)\n  })\n  check('每一次写入都会被记下来（__setCount）', () => {\n    const raw2 = { a: 1 }\n    const s = reactive(raw2)\n    // 只核对「增量」：计数器从 0 开始、从 1 开始、从 10 开始都算对。\n    // 以前这里写死 same(s.__setCount, 0)，把「记对了但初始值不同」判成失败——\n    // 题面从没规定起点是几，这不是用户该猜的东西。\n    const before = s.__setCount\n    s.a = 2\n    s.b = 3\n    same(s.__setCount - before, 2)\n  })\n}\n"
+        },
+        {
+          "n": 4,
+          "title": "把「删」和「查」也接进来",
+          "think": "读和写都接好了，但对象操作不止这两种：delete、in、Object.keys 也要么经过我，要么默认转发。我现在把它们显式写出来，不是这一步就需要，而是因为下一关我要在这些位置记账——得先有位置可写。这是「先接好口子、再灌业务」的工程习惯。",
+          "hint": "再加三个方法，分别接住 delete、in、Object.keys；其中 delete 要记一笔。转发继续用 Reflect 的同名方法，最后在 get 里补一个 __deleteCount 分支。",
+          "diag": [
+            "delete 要真正落到原对象上：交给 `Reflect.deleteProperty(t, key)`。删不掉通常是陷阱里没转发，或只记了数没删。",
+            "和 `__setCount` 一样：计数器在 reactive 内部，get 里要有 `__deleteCount` 出口。数字不对，检查是不是计数写在 Proxy 外面、或 get 漏了这个分支。",
+            "`in` 走 has 陷阱，要原样转发 `Reflect.has(t, key)`。判断错了，多半是写死了 true/false。",
+            "`Object.keys` 走 ownKeys，必须返回数组。这里不一致，通常是没返回 `Reflect.ownKeys(t)` 或返回了非数组。",
+            "这是回归检查：新加的 delete/in/keys 不能把前面的读写和 `__raw` 弄坏。它红通常是某个新陷阱挡住了老路径——先把前面几条红清掉再看这条。"
+          ],
+          "vocab": [
+            {
+              "term": "Reflect 的删除 / 查询方法",
+              "md": "Reflect.deleteProperty(t, key) 等价 delete t[key] 并返回布尔；Reflect.has(t, key) 等价 key in t；Reflect.ownKeys(t) 返回自有键数组（含 Symbol）。"
+            },
+            {
+              "term": "ownKeys 返回什么",
+              "md": "必须是数组，元素是字符串或 Symbol，否则 Proxy 会抛 TypeError。Reflect.ownKeys 刚好满足这个要求。"
+            },
+            {
+              "term": "`__deleteCount` 的 `__` 又是什么",
+              "md": "和上一步的 `__setCount` 同一套约定：闭包变量 `deleteCount` 在里面，代理上的键名 `__deleteCount` 是给外面看的窗口。`__` 只是「内部 / 调试专用」的记号，防止和原对象上的真实属性重名。起点是几不影响测试：第 4 步只核对「删除一次，账上多一笔」。"
+            }
+          ],
+          "code": "function reactive(target) {\n  let setCount = 0\n  let deleteCount = 0\n\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      if (key === '__raw') return t\n      if (key === '__setCount') return setCount\n      if (key === '__deleteCount') return deleteCount\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      setCount++\n      return Reflect.set(t, key, value, receiver)\n    },\n    deleteProperty(t, key) {\n      deleteCount++\n      return Reflect.deleteProperty(t, key)\n    },\n    has(t, key) {\n      return Reflect.has(t, key)\n    },\n    ownKeys(t) {\n      return Reflect.ownKeys(t)\n    }\n  })\n}\n",
+          "test": "{\n  const raw = { a: 1, b: 2 }\n  const state = reactive(raw)\n  // 和 __setCount 一样只看增量：起点是几不影响判定\n  const beforeDel = state.__deleteCount\n\n  check('delete 之后两边都读不到', () => { delete state.a; same('a' in raw, false); same(state.a, undefined) })\n  check('delete 会被记一次（__deleteCount）', () => { same(state.__deleteCount - beforeDel, 1) })\n  check('in 判断仍然正确', () => { ok('b' in state); same('a' in state, false) })\n  check('Object.keys 和原对象一致', () => { same(Object.keys(state).sort(), ['b']) })\n  check('回归：读、写、__raw 都没被弄坏', () => {\n    const r2 = { x: 1 }\n    const s2 = reactive(r2)\n    const beforeSet = s2.__setCount\n    s2.x = 5\n    same(r2.x, 5)\n    same(s2.__raw, r2)\n    same(s2.__setCount - beforeSet, 1)\n  })\n}\n"
+        }
+      ],
+      "finalCode": "/**\n * 第 1 关 · reactive(obj)：让读、写、删、查都经过你的函数\n *\n * 到这里你手上有一个「行为和普通对象一致，但每个操作都能插手」的代理。\n * 它现在只做了记账（__setCount / __deleteCount），下一关开始用这些账去通知别人。\n */\nfunction reactive(target) {\n  let setCount = 0      // 写入发生了多少次\n  let deleteCount = 0   // 删除发生了多少次\n\n  return new Proxy(target, {\n    // 读：包括 __raw / __setCount / __deleteCount 这类观察孔\n    get(t, key, receiver) {\n      if (key === '__raw') return t\n      if (key === '__setCount') return setCount\n      if (key === '__deleteCount') return deleteCount\n      return Reflect.get(t, key, receiver)\n    },\n    // 写：先记账，再交给 Reflect 真正写进去\n    set(t, key, value, receiver) {\n      setCount++\n      return Reflect.set(t, key, value, receiver)\n    },\n    // 删：同样先记账\n    deleteProperty(t, key) {\n      deleteCount++\n      return Reflect.deleteProperty(t, key)\n    },\n    has(t, key) {\n      return Reflect.has(t, key)\n    },\n    ownKeys(t) {\n      return Reflect.ownKeys(t)\n    }\n  })\n}\n",
+      "usage": "// 1) 最普通的用法：把它当成原对象来用\nconst raw = { count: 0, name: 'vue' }\nconst state = reactive(raw)\n\nstate.count          // 0\nstate.count = 1      // 写进 raw\nraw.count            // 1，原对象真的变了\nstate.name = 'js'    // 新值也能写\n\n// 2) 观察孔：随时确认「我的拦截接上了没有」\nstate.__raw          // raw 本身\nstate.__setCount     // 1（写了一次 count）… 再加一次 name 就是 2\nstate.__deleteCount  // 0\n\ndelete state.name\nstate.__deleteCount  // 1\n\n// 3) 一个真实场景：把它当「数据源」用\nfunction render() {\n  return 'count = ' + state.count\n}\nrender()             // 'count = 1'\nstate.count = 2\nrender()             // 'count = 2' —— 但这次是手动调用的\n\n// 第 4 关会解决最后那一行：让 render 自动重跑。\n// 现在你还没有「谁在读」的账本，所以只能手动。",
+      "hints": [
+        "Proxy 完全没用过：先看左栏「先懂这些」第 1 条，那里有一段能直接抄进编辑器的代码，抄完改成你要的样子。",
+        "一次只加一个陷阱，加完立刻跑测试。一次加两个，红了就分不清是谁的问题——这条在真实开发里同样成立。",
+        "set 陷阱忘了写 return，在严格模式下会抛 TypeError：因为返回 undefined 被当成 false，表示「写入失败」。"
+      ],
+      "concepts": [
+        {
+          "title": "空 handler 的 Proxy 就已经是透明的",
+          "md": "这是我第一步敢于先写 3 行的原因：Proxy 的默认行为就是把所有操作原样转发给 target。你不需要写任何陷阱，它就已经和原对象行为一致。**陷阱是「额外插入的代码」，不是「必须补全的骨架」**——这一点想明白，就不会把 Proxy 当成一件要「实现」的东西。"
+        },
+        {
+          "title": "为什么每个拦截都要配一个同名的 Reflect",
+          "md": "因为拦截和真正执行是两件事，必须分开写。只有分开，你才能在「真正执行」的前后插入自己的逻辑——记账、通知、校验。Reflect 提供了「真正执行」的标准写法，并且把结果（成功/失败）交还给你。\n\n这也是 Vue3 响应式源码里的固定写法：get 里 track 完再 Reflect.get，set 里 trigger 完再 Reflect.set。你现在写的形状，和它是同一个。"
+        },
+        {
+          "title": "这几笔「账」下一关马上要用",
+          "md": "setCount 和 deleteCount 现在只是给人看的。下一关它们会变成一个 Map：记录「哪个函数的哪次执行读了哪个对象的哪个属性」。到那时候，get 里不再只 +1，而是把这个函数登记进账本；set 里不再只 +1，而是把账本里相关的函数全叫醒重跑。\n\n所以这一关不是热身，是你把「通知的出口」提前留好了。"
+        }
+      ],
+      "skeleton": "/**\n * 第 1 关 · reactive(obj)：让读写经过你的代码\n *\n * 目标：返回一个「替身」，行为和原对象一致，\n *       但读、写、删、查都先经过你写的函数。\n *\n * 按左栏「第 1 步」开始，每写完一步就点一次「跑这一步测试」。\n *\n * 测试会用到的约定（照着实现）：\n *   proxy.__raw          读到原对象\n *   proxy.__setCount     到目前为止写入过几次\n *   proxy.__deleteCount  到目前为止删除过几次\n */\n\nfunction reactive(target) {\n  // 第 1 步：先让它「什么都不改」也能用\n  // 写完跑一次测试，全绿再进第 2 步\n}\n",
+      "solution": "/**\n * 第 1 关 · 参考答案：reactive(obj) 的完整实现\n *\n * 四个阶段合起来就是这一份：\n *   1) 空 handler → 通透的代理\n *   2) get → 读经过我\n *   3) set → 写经过我\n *   4) deleteProperty / has / ownKeys → 删和查也经过我\n */\nfunction reactive(target) {\n  let setCount = 0\n  let deleteCount = 0\n\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      if (key === '__raw') return t\n      if (key === '__setCount') return setCount\n      if (key === '__deleteCount') return deleteCount\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      setCount++\n      return Reflect.set(t, key, value, receiver)\n    },\n    deleteProperty(t, key) {\n      deleteCount++\n      return Reflect.deleteProperty(t, key)\n    },\n    has(t, key) {\n      return Reflect.has(t, key)\n    },\n    ownKeys(t) {\n      return Reflect.ownKeys(t)\n    }\n  })\n}\n",
+      "tests": "{\n  const raw = { count: 1, name: 'vue' }\n  const state = reactive(raw)\n\n  check('读到的值和原对象一致', () => { same(state.count, 1); same(state.name, 'vue') })\n  check('读不存在的属性得到 undefined', () => { same(state.nope, undefined) })\n  check('写入会落到原对象上', () => { state.count = 5; same(raw.count, 5) })\n  check('in 判断一致', () => { ok('name' in state); same('nope' in state, false) })\n  check('Object.keys 一致', () => { same(Object.keys(state).sort(), ['count', 'name']) })\n  check('delete 之后两边都读不到', () => { delete state.name; same('name' in raw, false) })\n}\n{\n  let proxyRef = null\n  const raw = { n: 2, get dbl() { return this.n * 2 }, get isProxy() { return this === proxyRef } }\n  const state = reactive(raw)\n  proxyRef = state\n\n  check('普通属性读得到', () => { same(state.n, 2) })\n  check('getter 里的 this 是代理本身，不是原对象', () => { same(state.isProxy, true) })\n  check('读取 __raw 拿到原对象', () => { same(state.__raw, raw) })\n  check('读不存在的属性还是 undefined', () => { same(state.nope, undefined) })\n}\n{\n  const raw = { a: 1 }\n  const state = reactive(raw)\n\n  check('写入落到原对象', () => { state.a = 9; same(raw.a, 9); same(state.a, 9) })\n  check('写一个新属性也能落下去', () => { state.b = 2; same(raw.b, 2) })\n  check('写入成功时返回 true', () => { same(Reflect.set(state, 'c', 3), true); same(raw.c, 3) })\n  check('写到冻结对象上返回 false，且不修改', () => {\n    const frozen = Object.freeze({ x: 1 })\n    const st = reactive(frozen)\n    same(Reflect.set(st, 'x', 2), false)\n    same(frozen.x, 1)\n  })\n  check('每一次写入都会被记下来（__setCount）', () => {\n    const raw2 = { a: 1 }\n    const s = reactive(raw2)\n    // 只核对「增量」：计数器从 0 开始、从 1 开始、从 10 开始都算对。\n    // 以前这里写死 same(s.__setCount, 0)，把「记对了但初始值不同」判成失败——\n    // 题面从没规定起点是几，这不是用户该猜的东西。\n    const before = s.__setCount\n    s.a = 2\n    s.b = 3\n    same(s.__setCount - before, 2)\n  })\n}\n{\n  const raw = { a: 1, b: 2 }\n  const state = reactive(raw)\n  // 和 __setCount 一样只看增量：起点是几不影响判定\n  const beforeDel = state.__deleteCount\n\n  check('delete 之后两边都读不到', () => { delete state.a; same('a' in raw, false); same(state.a, undefined) })\n  check('delete 会被记一次（__deleteCount）', () => { same(state.__deleteCount - beforeDel, 1) })\n  check('in 判断仍然正确', () => { ok('b' in state); same('a' in state, false) })\n  check('Object.keys 和原对象一致', () => { same(Object.keys(state).sort(), ['b']) })\n  check('回归：读、写、__raw 都没被弄坏', () => {\n    const r2 = { x: 1 }\n    const s2 = reactive(r2)\n    const beforeSet = s2.__setCount\n    s2.x = 5\n    same(r2.x, 5)\n    same(s2.__raw, r2)\n    same(s2.__setCount - beforeSet, 1)\n  })\n}\n"
+    },
+    {
+      "id": "lv2",
+      "title": "把「谁在读」记下来",
+      "emoji": "📒",
+      "xp": 40,
+      "goal": "实现 track(target, key)：把「当前正在执行的那个函数」登记到「对象 → 属性」名下，建立一张依赖账本。",
+      "why": "第 1 关已经能在读写时插一手了，但插了手什么也没做。响应式需要的第一份信息是：**谁读了什么**。没有这份账本，后面就算数据变了，你也不知道该通知谁。这一关只记账、不通知——把账本建对，下一关通知才有对象可叫。",
+      "prereq": [
+        {
+          "title": "账本为什么是「对象 → 属性 → 函数集合」三层",
+          "md": "一个函数可能读 state.a 也可能读 state.b。如果只按对象记账，改 b 会把只读过 a 的函数也叫醒——白跑一趟。\n\n所以在 Map 里再分一层：先按对象分，再按属性名分，最后一层是 Set（用到这个属性的所有函数，自动去重）。\n\n```js\nWeakMap<原对象, Map<属性名, Set<函数>>>\n```\n\n最外层用 WeakMap 不是为了快，是为了内存正确：业务上已经不用的对象，不能因为账本还引用着就回收不掉。"
+        },
+        {
+          "title": "activeEffect：此刻「谁在读」的唯一线索",
+          "md": "get 陷阱被调用的时候，它只知道「有人在读 count」，不知道是谁。所以需要一个全局变量记录「当前正在执行的那个函数」，在函数开始执行前设好、执行完清掉：\n\n```js\nlet activeEffect = null   // 第 4 关会用 effect() 自动维护它\n```\n\n这一关先手动赋值，模拟「有个函数正在执行」：\n\n```js\nactiveEffect = () => state.count\nstate.count          // 此刻读属性，track 就能记下这个函数\nactiveEffect = null\n```\n\n先手动、后自动，是为了让你看清这个变量到底在干什么。"
+        }
+      ],
+      "api": [
+        {
+          "name": "track",
+          "sig": "track(target: object, key: string): void",
+          "args": "target —— 原对象（不是代理）；key —— 刚被读的那个属性名。两者都由 get 陷阱直接传进来。",
+          "returns": "没有返回值。它的产出写在 targetMap 里：targetMap.get(target).get(key) 是一个 Set，里面装着读过它的函数。",
+          "example": "const raw = { count: 1 }\nconst state = reactive(raw)\nconst fn = () => state.count\n\nactiveEffect = fn\nstate.count            // 触发 get → track(raw, 'count')\nactiveEffect = null\n\ntargetMap.get(raw).get('count').has(fn)   // true"
+        }
+      ],
+      "thinking": [
+        {
+          "title": "先做「只记不通知」的一半，而不是一口气写完",
+          "md": "拿到这一关，我没有先想 trigger，而是先问：通知的前提是什么？是知道该通知谁。也就是说账本必须先存在、且形状正确。所以这一关只做记账，把「谁读了哪个对象的哪个属性」这本账建对；通知留给下一关。分开做的好处很直接：账本错了，这一关的测试立刻红；不用在「既可能记错、又可能叫错」的两处之间猜。这和我在真实项目里拆重构是一个顺序：先让数据可信，再让数据流动。"
+        },
+        {
+          "title": "三层结构不是设计出来的，是「精确通知」逼出来的",
+          "md": "最直觉的版本是「一个对象对应一个函数集合」。但只要一个函数读了 count、另一个读了 name，改 count 时就会把只读 name 的那位也叫醒——白跑一趟，还可能在回调里读到它根本不依赖的数据。所以账本必须分到属性这一层：对象 → 属性 → 函数集合。最外层用 WeakMap 也不是为了快，而是内存正确：业务上不再使用的对象，不能因为账本还引用它就回收不掉。第三层的 Set 解决重复登记，同一个函数把同一个属性读一百次也只占一份。"
+        },
+        {
+          "title": "为什么这一关让我手动设置 activeEffect",
+          "md": "get 陷阱被调用时只知道「有人在读 count」，不知道是谁。所以需要一个全局变量记录当前正在执行的函数。这一关没有 effect() 自动维护它，我让你手动赋值，是为了把「变量到底在什么时候被设、什么时候被清」看清。手动一遍，你才知道下一关 effect 包的那两行不是装饰：函数执行前设好、执行完清空，中间所有读取都归属这个函数。先手动、后自动，比一上来给你一个黑盒函数更容易讲清。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "没有「正在执行的人」，就什么都不记",
+          "think": "track 的第一步不是建表，而是判断这次读取有没有归属。控制台里随手读一下、或者组件外读一下，都不该产生依赖。先把这个出口堵上，后面建表的代码就只在确实有函数执行时运行，出问题也更容易定位到范围。",
+          "hint": "在 track 开头判断 activeEffect 是否为空；为空就直接 return，先别碰 Map 和 Set。",
+          "vocab": [
+            {
+              "term": "activeEffect",
+              "md": "一个模块级变量，表示「此刻正在执行的函数」。get 陷阱触发时靠它才知道这次读取该记到谁名下。这一关由测试手动赋值。"
+            },
+            {
+              "term": "旁路（副作用不改主流程）",
+              "md": "track 是接在 get 旁边的旁路：它负责记账，但不改变「读到什么值」。所以它没有返回值，也不能替换 Reflect.get 的结果。"
+            }
+          ],
+          "diag": [
+            "读属性必须仍然返回原值：track 只该在记账后放行，不能把 get 的返回值吞掉或改写。",
+            "只有 activeEffect 存在时才该建账；现在账本出现了，说明空值判断写反了，或者 return 漏写了。"
+          ],
+          "code": "/**\n * 第 2 关 · 第 1 步：先挡住「没有正在执行的函数」的读取\n *\n * 这一步 track 只做一件事：没有 activeEffect 就地返回。\n * 账本结构留到下一步，先保证读取行为不受影响。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  // 没有正在执行的函数：这次读取不属于任何依赖，直接放行\n  if (!activeEffect) return\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      return Reflect.set(t, key, value, receiver)\n    }\n  })\n}\n",
+          "test": "{\n  const raw = { count: 1 }\n  const state = reactive(raw)\n\n  check('没有账本代码时，读属性仍然返回正确值', () => {\n    same(state.count, 1)\n  })\n  check('当前这一步还不会凭空建账本', () => {\n    activeEffect = () => state.count\n    state.count\n    activeEffect = null\n    same(targetMap.get(raw), undefined)\n  })\n}\n"
+        },
+        {
+          "n": 2,
+          "title": "把对象和属性的格子先搭出来",
+          "think": "确认了「只在有函数执行时记账」，下一步解决记到哪。账本要分两层：对象一层、属性一层。先只把容器搭好、不塞人，这样测试能单独验证结构对不对；如果连 add 一起写，结构错了和登记错了会混在同一条红里。",
+          "hint": "从 targetMap 取对象对应的 Map，没有就新建并 set 回去；再从这张 Map 里取属性对应的 Set，没有就新建。两次都是「有就用、没有就建」。",
+          "vocab": [
+            {
+              "term": "WeakMap",
+              "md": "键必须是对象、且是弱引用的 Map。对象被回收时，它名下的整本账自动释放，不会造成内存泄漏。"
+            },
+            {
+              "term": "depsMap",
+              "md": "每个原对象对应的一张 Map，键是属性名，值是这个属性专属的函数集合。"
+            }
+          ],
+          "diag": [
+            "对象或属性名下的容器没建出来：检查两次「有就用、没有就 set 一个 new」是否都写了。",
+            "格子不该有内容，也不该给没读过的属性建格子：add 要留到下一步，key 要用 get 传进来的那个。"
+          ],
+          "code": "/**\n * 第 2 关 · 第 2 步：搭出「对象 → 属性 → 集合」两层容器\n *\n * 这一步只建格子，不往里放函数。结构对了，下一步再登记。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n\n  // 对象这一层：没有就建一张 Map\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n\n  // 属性这一层：没有就建一个 Set\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      return Reflect.set(t, key, value, receiver)\n    }\n  })\n}\n",
+          "test": "{\n  const raw = { count: 1, name: 'vue' }\n  const state = reactive(raw)\n  const fn = () => state.count\n\n  activeEffect = fn\n  state.count\n  activeEffect = null\n\n  const depsMap = targetMap.get(raw)\n\n  check('读过属性后，对象名下建起 depsMap，属性名下建起 Set 格子', () => {\n    ok(depsMap instanceof Map, 'targetMap 里没有这个对象的 Map')\n    ok(depsMap.get('count') instanceof Set, 'count 名下不是 Set')\n  })\n  check('这一步只建空格子，还没登记函数', () => {\n    same(depsMap.get('count').size, 0)\n    same(depsMap.has('name'), false)\n  })\n}\n"
+        },
+        {
+          "n": 3,
+          "title": "把当前函数登记进格子",
+          "think": "容器搭好，最后一步才是把人放进去。这里唯一要守住的是「登记的是函数本身」——用 Set 的 add，天然去重。登记完，账本就能回答「count 被谁读过」，下一关的 trigger 才有数据可查。",
+          "hint": "用 dep.add(activeEffect) 把当前函数加进这个属性的 Set；不要用数组，也不要在 add 之前改写 activeEffect。",
+          "vocab": [
+            {
+              "term": "Set.add 的幂等性",
+              "md": "对同一个值重复 add，Set 只保留一份，size 不会增长。这正好对应「一个函数读同一个属性多次只算一个依赖」。"
+            }
+          ],
+          "diag": [
+            "函数没进 Set：track 结尾少了 dep.add(activeEffect)，或者 add 进去的不是 activeEffect。",
+            "重复项说明你用了数组 push：用 Set 的 add 才能天然去重，size 才对。"
+          ],
+          "code": "/**\n * 第 2 关 · 第 3 步：把 activeEffect 登记到属性名下\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n\n  // 当前函数读过这个属性，登记一份\n  dep.add(activeEffect)\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      return Reflect.set(t, key, value, receiver)\n    }\n  })\n}\n",
+          "test": "{\n  const raw = { count: 1, name: 'vue' }\n  const state = reactive(raw)\n  const fnA = () => state.count\n  const fnB = () => state.count\n\n  activeEffect = fnA\n  state.count\n  activeEffect = fnB\n  state.count\n  state.count\n  activeEffect = null\n\n  const dep = targetMap.get(raw).get('count')\n\n  check('读过的函数被登记进对应属性的 Set', () => {\n    ok(dep.has(fnA), 'fnA 没被登记')\n    ok(dep.has(fnB), 'fnB 没被登记')\n  })\n  check('同一个函数重复读取，Set 里只保留一份', () => {\n    same(dep.size, 2)\n  })\n}\n"
+        }
+      ],
+      "finalCode": "/**\n * 第 2 关 · 把「谁在读」记下来（完整实现）\n *\n * 账本三层：targetMap(原对象) → depsMap(属性名) → dep(读过该属性的函数 Set)。\n * get 陷阱里调用 track；set 这一关仍然只负责把值写进去。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n\n  dep.add(activeEffect)\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      return Reflect.set(t, key, value, receiver)\n    }\n  })\n}\n",
+      "usage": "// 手动模拟「有个函数正在执行」\nconst raw = { count: 1 }\nconst state = reactive(raw)\nconst render = () => 'count = ' + state.count\n\nactiveEffect = render\nstate.count          // get 陷阱 → track(raw, 'count')\nactiveEffect = null\n\ntargetMap.get(raw).get('count').has(render)   // true\n\n// 换一个函数读另一个属性，账本按属性分开记\nactiveEffect = () => state.name\nstate.name\nactiveEffect = null\n\ntargetMap.get(raw).get('count').size          // 1\ntargetMap.get(raw).get('name').size           // 1\n\n// 第 3 关会拿这本账去通知 render；这一关只保证账记得对。",
+      "hints": [
+        "`targetMap.set(target, (depsMap = new Map()))` 这种「赋值表达式顺手返回新对象」的写法很常见，等价于先 set 再取值，写不惯可以拆成三行。",
+        "两次「有就用、没有就建」是顺序依赖的：没建 depsMap 就没有 dep，没有 dep 就没地方 add。卡住时按顺序检查哪一层是 undefined。",
+        "测试里访问的是 targetMap.get(raw)（原对象），不是 state（代理）。因为 get 陷阱里的 t 就是原对象，记账时也必须用这个 t。"
+      ],
+      "concepts": [
+        {
+          "title": "为什么用 Set 而不是数组",
+          "md": "同一个函数读同一个属性多次很常见（循环里读、条件分支里重复读）。用数组会存进很多重复项，触发时就要重复执行很多次；Set 天然去重，还自带 O(1) 的 has/delete——第 6 关清理依赖时靠的就是 delete。"
+        },
+        {
+          "title": "依赖是「运行时」收集的，不是「声明时」",
+          "md": "很多人以为依赖是初始化时静态分析出来的。实际上它是执行到哪读到哪就记到哪：if (flag) 读 a else 读 b，这一轮跑哪个分支，就只记哪个分支的属性。这也解释了第 6 关为什么必须清理——上一轮记的账，这一轮可能已经作废了。"
+        }
+      ],
+      "skeleton": "/**\n * 第 2 关 · 把「谁在读」记下来\n *\n * 第 1 关的 reactive 已经能在读写时插一手。这一关开始记账：\n * 谁读了哪个对象的哪个属性，就把它记在 targetMap 里。\n */\n\n/**\n * 依赖账本：WeakMap<原对象, Map<属性名, Set<读过它的函数>>>\n * 用 WeakMap：对象被回收时，它名下的依赖一起释放。\n */\nconst targetMap = new WeakMap()\n\n/**\n * 当前正在执行的函数 —— 「谁在读」的唯一线索。\n * 这一关由你在测试/调用代码里手动设置，第 4 关会交给 effect() 自动维护。\n */\nlet activeEffect = null\n\n/**\n * 收集依赖：把 activeEffect 登记到 target[key] 名下。\n * 调用点在 reactive 的 get 陷阱里：读了一次，就说明这个函数用到了它。\n */\nfunction track(target, key) {\n  // TODO 1：没有正在执行的函数（activeEffect 为 null）就直接返回\n  // TODO 2：从 targetMap 取出 target 的 depsMap，没有就新建一个 Map 放进去\n  //         再从 depsMap 取出 key 对应的 dep（一个 Set），没有就新建一个 Set 放进去\n  // TODO 3：把 activeEffect 加进这个 Set\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      // 接线已经帮你写好：先记账，再真正读\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      return Reflect.set(t, key, value, receiver)\n    }\n  })\n}\n",
+      "solution": "/**\n * 第 2 关 · 把「谁在读」记下来（参考答案）\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      return Reflect.set(t, key, value, receiver)\n    }\n  })\n}\n",
+      "tests": "const raw = { count: 1, name: 'vue' }\nconst state = reactive(raw)\nconst fnA = () => state.count\nconst fnB = () => state.name\n\nactiveEffect = fnA\nstate.count\nactiveEffect = fnB\nstate.name\nactiveEffect = null\n\ncheck('读到哪个属性，就记在哪个属性名下', () => {\n  const byKey = targetMap.get(raw)\n  ok(byKey, 'targetMap 里根本没有这个对象：depsMap 没建起来')\n  ok(byKey.get('count')?.has(fnA), 'count 名下没有 fnA')\n  ok(!byKey.get('count')?.has(fnB), 'count 名下不该有 fnB，它读的是 name')\n  ok(byKey.get('name')?.has(fnB), 'name 名下没有 fnB')\n})\n\ncheck('同一个函数反复读同一个属性，只记一份', () => {\n  activeEffect = fnA\n  state.count\n  state.count\n  state.count\n  activeEffect = null\n  same(targetMap.get(raw).get('count').size, 1)\n})\n\ncheck('没有正在执行的函数时，读属性不记账', () => {\n  const before = targetMap.get(raw).get('count').size\n  state.count\n  same(targetMap.get(raw).get('count').size, before)\n})\n\ncheck('两个不同的对象各记各的，不会串', () => {\n  const raw2 = { count: 1 }\n  const s2 = reactive(raw2)\n  activeEffect = fnA\n  s2.count\n  activeEffect = null\n  ok(targetMap.get(raw2).get('count').has(fnA), 'raw2 的 count 名下应该有 fnA')\n  same(targetMap.get(raw).get('count').size, 1)\n})\n\ncheck('两个函数读同一个属性，账本里两个都在', () => {\n  const raw3 = { count: 0 }\n  const s3 = reactive(raw3)\n  activeEffect = fnA\n  s3.count\n  activeEffect = fnB\n  s3.count\n  activeEffect = null\n  const dep = targetMap.get(raw3).get('count')\n  same(dep.size, 2)\n  ok(dep.has(fnA) && dep.has(fnB), '两个函数都该登记')\n})\n\ncheck('离开 effect 之后的读取，连格子都不会建', () => {\n  const raw4 = { n: 1 }\n  const s4 = reactive(raw4)\n  s4.n\n  same(targetMap.get(raw4), undefined)\n})"
+    },
+    {
+      "id": "lv3",
+      "title": "写完之后，把该醒的人叫醒",
+      "emoji": "🔔",
+      "xp": 40,
+      "goal": "实现 trigger(target, key)：数据变了，就照着账本把 target[key] 名下登记过的函数全部执行一遍。",
+      "why": "第 2 关的账本只记不用。现在数据一变，你得翻到那一页，把名字上有的人挨个叫起来。这一步叫「触发」。做完这关，「记账 + 叫人」这套最小闭环就通了——剩下的关卡都是在修补这个闭环的漏洞。",
+      "prereq": [
+        {
+          "title": "触发 = 遍历 Set，逐个调用",
+          "md": "账本里存的是一个 Set，里面是函数。所谓「触发更新」，就是把它们挨个调用一次：\n\n```js\nconst dep = targetMap.get(target).get(key)   // Set\nfor (const fn of dep) fn()\n```\n\n但真正的实现要写成 for (const fn of [...dep]) fn() —— 先把 Set 拷成数组再遍历。原因见下一条。"
+        },
+        {
+          "title": "为什么遍历前必须拷贝一份",
+          "md": "函数被调用时会干两件事：先把自己从旧的 dep 里删掉（第 6 关的清理），再往新的 dep 里加回去（这一轮的 track）。也就是说，**你正在遍历的那个 Set，会被遍历过程本身修改**。\n\nJS 的 Set 迭代器遇到「删除再新增」会出现同一个元素被访问两次，极端情况下变成死循环。所以规矩是：遍历一个会在遍历中变化的集合，先 [...copy]。\n\n现在还没有清理逻辑，所以看不出差别；但第 6 关一加清理，没写拷贝的实现立刻会坏。这就是为什么这一关就要求你写上。"
+        }
+      ],
+      "api": [
+        {
+          "name": "trigger",
+          "sig": "trigger(target: object, key: string): void",
+          "args": "target —— 原对象；key —— 刚被写入的属性名。两者都由 set 陷阱传进来。",
+          "returns": "没有返回值。效果是把 targetMap 里 target[key] 名下所有函数各执行一次。",
+          "example": "const raw = { count: 1 }\nconst state = reactive(raw)\nlet runs = 0\n\nactiveEffect = () => { runs++ }\nstate.count          // 记账\nactiveEffect = null\n\nstate.count = 2      // 触发 → runs 变成 1"
+        }
+      ],
+      "thinking": [
+        {
+          "title": "触发不是「重新执行所有函数」，而是拿账本点名",
+          "md": "这一关最容易写错的方向是：数据一变，把所有登记过的函数全跑一遍。那样也能「看起来生效」，但一个只读 name 的组件会因为 count 变化而重渲染。真正的触发必须先定位到对象，再定位到属性，最后只叫这个属性名下的人。这也是为什么第 2 关非要把账本分到属性这一层——如果只按对象记账，这一关根本做不到精确。我的判断顺序是：先接受「查不到是正常情况」，再写调用；而不是先写遍历、再补防御。"
+        },
+        {
+          "title": "先写返回值、再写通知：set 陷阱的顺序不能反",
+          "md": "写 set 的时候我特意把 trigger 放在 Reflect.set 之后。原因不是风格，而是语义：被叫醒的函数会立刻读状态，如果这时候值还没真正写进原对象，它读到的就是旧值，界面会晚一拍。先落盘、再通知，是响应式能「改完马上一致」的前提。另一件事是遍历前先拷贝：这一关还没有清理逻辑，直接遍历 Set 也能跑；但第 6 关一加「执行前先清旧依赖」，正在遍历的 Set 会被遍历过程本身修改，同一个函数可能被访问两次。现在多写三个点，是给后面的清理买保险。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "先把「没账可查」的情况挡掉",
+          "think": "trigger 一进来不能假设账本存在。对象从没被读过就没有 depsMap，属性从没被读过就没有 dep，这两件事都是正常状态，不是异常。先按「对象 → 属性」两层查一遍、各自查不到就返回，下一步再谈怎么叫人。这样写出来的第一版虽然不通知，但不会因为 undefined 直接抛错。",
+          "hint": "先取 target 的 depsMap，取不到就 return；再取 key 的 dep，取不到也 return。这一步先不要遍历 Set。",
+          "vocab": [
+            {
+              "term": "trigger 的入口参数",
+              "md": "target 是原对象、key 是刚被写入的属性名，两者都由 set 陷阱直接传进来；和 track 的参数含义完全一致。"
+            },
+            {
+              "term": "「查不到」是正常分支",
+              "md": "对象没被读过、属性没被读过，说明没人依赖它，本来就不需要通知。这里的 return 不是防御性补丁，而是业务语义。"
+            }
+          ],
+          "diag": [
+            "改属性不能抛错，值也必须真的写进去：trigger 只是在写完之后做通知，不能挡住 Reflect.set 的结果。",
+            "对象有账本、但改的是没被读过的属性，也必须安全返回；这里抛错通常是取到 undefined 的 dep 后还继续用了它。",
+            "这一步还不该调用任何函数：runs 不为 0，说明 trigger 里已经开始遍历 Set 了，先把调用去掉、只留两层查询。"
+          ],
+          "code": "/**\n * 第 3 关 · 第 1 步：先查账，暂时不通知\n *\n * 对象没被读过、属性没被读过都是正常情况，查到就返回。\n * 这一步先把两条出口堵上，下一步再遍历 Set 叫醒函数。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n\n  const dep = depsMap.get(key)\n  if (!dep) return\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n",
+          "test": "{\n  const raw = { count: 1 }\n  const state = reactive(raw)\n\n  check('从没被读过的对象，改属性不报错且值写进去了', () => {\n    state.count = 2\n    same(raw.count, 2)\n  })\n  check('读过 count、改没读过的 name，不报错', () => {\n    activeEffect = () => state.count\n    state.count\n    activeEffect = null\n    state.name = 'vue'\n    same(raw.name, 'vue')\n  })\n  check('这一步还不会叫醒函数', () => {\n    let runs = 0\n    activeEffect = () => { runs++ }\n    state.count\n    activeEffect = null\n    state.count = 3\n    same(runs, 0)\n  })\n}\n"
+        },
+        {
+          "n": 2,
+          "title": "拷贝一份，再挨个叫醒",
+          "think": "账查到了，最后一步才是调用。两个细节必须同时做对：遍历前用 [...dep] 拷贝，避免正在遍历的集合被回调修改；并且每个函数都要调用。拷贝现在看不出效果，但第 6 关加清理后，不拷贝的写法会立刻出问题，所以这一关就把它当成规矩写进去。",
+          "hint": "在 dep 存在之后，用 for (const eff of [...dep]) eff() 挨个调用；注意先拷贝再遍历，不要直接在 dep 上迭代。",
+          "vocab": [
+            {
+              "term": "快照遍历",
+              "md": "把集合展开成数组再遍历。遍历的是那一刻的成员快照，回调里增删原集合不会影响这一轮循环。"
+            }
+          ],
+          "diag": [
+            "函数没被调用：trigger 结尾少了 for...of 遍历，或者调用的不是 dep 里的函数。",
+            "只叫醒了一个：遍历要在 [...dep] 上做，并且循环体里每个函数都调用，别在循环里提前 return。",
+            "回调读到旧值：set 陷阱里 trigger 要放在 Reflect.set 之后，先写值再通知。"
+          ],
+          "code": "/**\n * 第 3 关 · 第 2 步：触发更新（完整实现）\n *\n * 先 Reflect.set 落盘，再 trigger 通知；\n * trigger 里先拷贝 Set 再遍历，为第 6 关的依赖清理留好余地。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n\n  const dep = depsMap.get(key)\n  if (!dep) return\n\n  // 先展开成数组快照，再遍历\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n",
+          "test": "{\n  const raw = { count: 1 }\n  const state = reactive(raw)\n  let runs = 0\n\n  activeEffect = () => { runs++ }\n  state.count\n  activeEffect = null\n\n  check('改一个被读过的属性，登记的函数被叫醒一次', () => {\n    state.count = 2\n    same(runs, 1)\n  })\n  check('两个函数登记在同一属性，两个都要跑', () => {\n    let a = 0\n    let b = 0\n    activeEffect = () => { a++ }\n    state.count\n    activeEffect = () => { b++ }\n    state.count\n    activeEffect = null\n    state.count = 4\n    same(a, 1)\n    same(b, 1)\n  })\n  check('被叫醒时读到的是已经写入的新值', () => {\n    const s = reactive({ n: 0 })\n    let seen = -1\n    activeEffect = () => { seen = s.n }\n    s.n\n    activeEffect = null\n    s.n = 7\n    same(seen, 7)\n  })\n}\n"
+        }
+      ],
+      "finalCode": "/**\n * 第 3 关 · 写完之后，把该醒的人叫醒（完整实现）\n *\n * set：先 Reflect.set 落盘，再 trigger。\n * trigger：先查对象账本，再查属性名单，最后遍历快照逐个调用。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n\n  const dep = depsMap.get(key)\n  if (!dep) return\n\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n",
+      "usage": "const raw = { count: 1 }\nconst state = reactive(raw)\nlet runs = 0\n\nactiveEffect = () => { runs++ }\nstate.count\nactiveEffect = null\n\nstate.count = 2       // set → 先写 raw.count = 2，再 trigger\nruns                  // 1\nraw.count             // 2\n\nstate.count = 2       // 再写一次：这一关还没有「值没变就不通知」，所以\nruns                  // 2\n\n// 改一个没人读过的属性，不会误伤\nstate.name = 'vue'\nruns                  // 2\n\n// 第 5 关会补上「新旧值相同就别通知」，第 6 关会补依赖清理。",
+      "hints": [
+        "两个 if (!xxx) return 不是防御性代码写多了：对象没被读过、属性没被读过都是正常情况，不 return 就会在 undefined 上继续取东西。",
+        "`[...dep]` 里的三个点不能省。省了现在能跑，第 6 关一加清理就会坏。",
+        "set 陷阱的顺序是先 Reflect.set 再 trigger：必须先真的把值写进去，再通知别人；反过来的话，被叫醒的函数读到的还是旧值。"
+      ],
+      "concepts": [
+        {
+          "title": "同步触发：改了立刻跑，还是攒一攒再跑",
+          "md": "这一关是同步触发：state.count = 2 这一行执行完，所有依赖它的函数已经跑完了。好处是「改完马上就能读到新状态」；坏处是同一轮改 10 个属性就会跑 10 轮。第 8 关的 scheduler 就是为解决这个而生的。"
+        }
+      ],
+      "skeleton": "/**\n * 第 3 关 · 写完之后，把该醒的人叫醒\n *\n * 账本（targetMap）已经能记下「谁读了什么」。这一关补上另一半：\n * 数据变了，照着账本把相关函数执行一遍。\n */\n\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\n/**\n * 触发更新：target[key] 变了，把用过它的函数全部重新跑一遍。\n */\nfunction trigger(target, key) {\n  // TODO 1：取出 target 的 depsMap；没有（这个对象从没被读过）就直接 return\n  // TODO 2：取出 key 对应的 dep；没有（被改的属性没人读过）就直接 return\n  // TODO 3：遍历 dep 里的每个函数并调用它\n  //         注意：要用 [...dep] 先拷贝一份再遍历，原因见左栏前置知识\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      // 先不判断「值有没有变」，第 5 关再补\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n",
+      "solution": "/**\n * 第 3 关 · 写完之后，把该醒的人叫醒（参考答案）\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n",
+      "tests": "const raw = { count: 1 }\nconst state = reactive(raw)\nlet runs = 0\n\nactiveEffect = () => { runs++ }\nstate.count\nactiveEffect = null\n\ncheck('改一个被读过的属性，会把函数叫醒一次', () => { state.count = 2; same(runs, 1) })\ncheck('改一个没人读过的属性，谁都不该被叫醒', () => { state.name = 'x'; same(runs, 1) })\ncheck('登记了两个函数，改值两个都要跑', () => {\n  let a = 0\n  let b = 0\n  activeEffect = () => { a++ }\n  state.count\n  activeEffect = () => { b++ }\n  state.count\n  activeEffect = null\n  state.count = 3\n  same(a, 1)\n  same(b, 1)\n})\ncheck('没人读过的新对象，改它不会报错', () => {\n  const s2 = reactive({ v: 1 })\n  s2.v = 2\n  same(s2.v, 2)\n})\ncheck('同一个函数登记两次，也只会被叫醒一次', () => {\n  const s3 = reactive({ n: 0 })\n  let hits = 0\n  const fn = () => { hits++ }\n  activeEffect = fn\n  s3.n\n  s3.n\n  activeEffect = null\n  s3.n = 1\n  same(hits, 1)\n})\n\ncheck('同一轮里改了两次，每次都同步通知', () => {\n  const raw2 = { n: 0 }\n  const s = reactive(raw2)\n  let hits = 0\n  activeEffect = () => { hits++ }\n  s.n\n  activeEffect = null\n  s.n = 1\n  s.n = 2\n  same(hits, 2)\n  same(raw2.n, 2)\n})"
+    },
+    {
+      "id": "lv4",
+      "title": "effect：把「谁在读」这件事自动化",
+      "emoji": "🔁",
+      "xp": 50,
+      "goal": "实现 effect(fn)：注册一个函数，立刻执行一次，执行期间 activeEffect 指向它自己。",
+      "why": "前三关的 activeEffect 都是测试里手动赋值的。真实代码不可能这么写：使用者只会写 effect(() => { document.title = state.count })，他不想、也不该知道有个全局变量要维护。这关把这个动作包进 effect 里，前三关的所有零件才算第一次真正拼起来。",
+      "prereq": [
+        {
+          "title": "为什么要把回调再包一层 runner",
+          "md": "effect 不能直接调用 fn 就完事，因为**调用方以后可能想再执行一次**（比如 watch 要手动触发、computed 要按需重算）。所以要把 fn 包成一个函数返回出去：\n\n```js\nfunction effect(fn) {\n  const runner = () => fn()\n  runner()      // 注册时立刻跑一次\n  return runner // 交出去，别人以后还能再调\n}\n```\n\n包了一层之后，「执行一次」这个动作就有了名字，随时可以重复。"
+        },
+        {
+          "title": "为什么用 try / finally 还原 activeEffect",
+          "md": "activeEffect 必须在执行结束后还原，否则一次意外的抛错就会让它永远停在某个函数上，之后所有读取都被记到它头上——表现是「改什么都会莫名其妙地重跑一个不相干的函数」。\n\nfinally 保证「不管正常返回还是抛错，都还原」：\n\n```js\nactiveEffect = runner\ntry {\n  return fn()\n} finally {\n  activeEffect = null\n}\n```\n\n第 7 关会把它从「置空」改成「弹出栈顶」，但 try/finally 的结构不变。"
+        }
+      ],
+      "api": [
+        {
+          "name": "effect",
+          "sig": "effect(fn: Function): Function",
+          "args": "fn —— 要执行的函数（通常被叫「副作用」）。它没有参数，返回值会被 effect 原样透传出去。",
+          "returns": "runner —— 一个可以被再次调用的函数。调用 runner() 会重新执行一遍 fn，并重新收集依赖。",
+          "example": "const state = reactive({ count: 1 })\n\nconst runner = effect(() => {\n  console.log('count 变了：', state.count)\n})\n// 立刻打印一次「count 变了：1」\n\nstate.count = 2     // 自动再打印一次「count 变了：2」\n\nrunner()            // 手动再执行一次"
+        }
+      ],
+      "thinking": [
+        {
+          "title": "这一关真正要交出去的，不是 effect，而是 runner",
+          "md": "我拿到这关先问的是：调用方以后还要不要再执行这个副作用？答案是会——watch 要手动跑、computed 要按需重算，连我自己的测试都要写 runner()。所以 effect 的产物不能是「跑完了」这个事实，而必须是一个函数。确定这一点之后，代码形状就定了：先包一层 runner，再 runner()，最后 return runner。反过来如果直接 fn() 完事，后面任何「再跑一次」都得由调用方自己重新拼一遍 activeEffect，等于把这一关的封装意义全部丢掉。"
+        },
+        {
+          "title": "为什么第一步偏偏不碰 activeEffect",
+          "md": "很多人会一口气把 activeEffect = runner 也写进去，我刻意把它们拆开。理由是「红的时候能分清是谁的锅」：如果第一步就同时做「执行」和「归属」，那「注册时立刻执行」这条测试红了，你分不清是执行顺序错了，还是依赖记错了。先让 fn 干净地跑一次，确认 effect 这个壳子没问题；再往里加归属。真实项目里我也是这个顺序——先让新函数能被调用，再让它产生副作用，出问题时排查范围小一半。"
+        },
+        {
+          "title": "finally 里的还原位置，比「记得还原」更容易写错",
+          "md": "这一版能想到「执行完要清空」，但最容易写错的是清理的位置：写成 fn(); activeEffect = null 时，fn 一抛错清理就永远执行不到，之后所有读取都被错记到这个已经死掉的函数名下。所以我选 try { return fn() } finally { activeEffect = null }，让「还原」与「是否抛错」解耦。我知道这仍然只是置空、撑不住嵌套 effect——第 7 关会用栈替掉它。但先写对结构、再换实现，比一步到位写一个自己都说不清的版本可靠。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "先把 fn 包成可以再调用的 runner",
+          "think": "effect 的第一步不是设置全局变量，而是给「执行一次」这个动作起个名字。包成 runner 之后，注册时能立刻跑、调用方能手动再调，后面两行代码才有地方可加。这一步只确认执行链路通不通，读取归属留给下一步。",
+          "hint": "写一个 const runner = () => fn()，然后 runner() 执行一次、return runner 交出去；先别动 activeEffect。",
+          "vocab": [
+            {
+              "term": "副作用函数的执行器",
+              "md": "runner 本身不读任何响应式数据，它只是「把 fn 跑一遍」这个动作的可调用包装。有了它，同一次注册产生的执行可以被重复触发。"
+            }
+          ],
+          "diag": [
+            "注册时没执行：检查 effect 里调用的是不是 runner()，而不是只写 const runner = ...。",
+            "runner 没被交出去：函数末尾少了 return runner，调用方拿到的是 undefined。",
+            "依赖被自动收集了：说明你在 runner 里额外设置了 activeEffect，这一步故意不设置它。"
+          ],
+          "code": "/**\n * 第 4 关 · 第 1 步：把 fn 包成可以再调用的 runner\n *\n * effect 只做三件事：包一层、立刻跑一次、把 runner 交出去。\n * 这一步故意不碰 activeEffect —— 先确认「执行」这条链路通。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  // 把「执行 fn」这个动作包装成可重复调用的函数\n  const runner = () => fn()\n  runner()        // 注册时立刻执行一次\n  return runner   // 交出去，之后还能再调\n}\n",
+          "test": "{\n  const state = reactive({ count: 1 })\n\n  check('注册 effect 时会立刻执行一次', () => {\n    let n = 0\n    effect(() => { n++ })\n    same(n, 1)\n  })\n  check('effect 返回的 runner 可以再叫一次', () => {\n    let n = 0\n    const runner = effect(() => { n++ })\n    same(typeof runner, 'function')\n    runner()\n    same(n, 2)\n  })\n  check('还没设置 activeEffect，依赖变化不会自动重跑', () => {\n    let seen = 0\n    effect(() => { seen = state.count })\n    same(seen, 1)\n    state.count = 2\n    same(seen, 1)\n  })\n}\n"
+        },
+        {
+          "n": 2,
+          "title": "执行前把 activeEffect 指向 runner",
+          "think": "执行链路通了，接下来补归属：fn 读属性时，track 必须知道这次读取算谁的。答案就是即将执行的那个 runner。所以赋值只能写在 runner 内部、fn 之前——顺序反了，fn 里第一次读取时 activeEffect 还是 null，依赖一条都收不到。",
+          "hint": "在 runner 的箭头函数体第一行写 activeEffect = runner，然后再 return fn()。",
+          "vocab": [
+            {
+              "term": "依赖归属",
+              "md": "同一次执行里读到的每个属性，都记到「当前正在执行的 runner」名下。这也是为什么后续改这些属性时，被叫醒的正好是这个 render 函数。"
+            }
+          ],
+          "diag": [
+            "注册时没跑：runner() 这一行漏了，或者被写成 return runner() 提前退出。",
+            "依赖没被自动重跑：activeEffect = runner 写在了 fn() 之后，或者根本没写。",
+            "两个函数互相串台：activeEffect 只有一个，说明第二个 effect 执行时没重新指向自己。"
+          ],
+          "code": "/**\n * 第 4 关 · 第 2 步：执行前把 activeEffect 指向自己\n *\n * fn 里每一次读取都要归属到「当前正在执行的人」，\n * 所以赋值只能放在 runner 内部、且在 fn() 之前。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    // 先声明「谁在读」，再执行；反过来一条依赖都收不到\n    activeEffect = runner\n    return fn()\n  }\n  runner()\n  return runner\n}\n",
+          "test": "{\n  const state = reactive({ count: 1 })\n\n  check('注册时立刻执行一次', () => {\n    let n = 0\n    effect(() => { n++; state.count })\n    same(n, 1)\n  })\n  check('依赖的属性变化，函数自动重跑', () => {\n    let runs = 0\n    effect(() => { runs++; state.count })\n    state.count = 2\n    same(runs, 2)\n  })\n  check('多个 effect 各记各的依赖，互不串台', () => {\n    let a = 0\n    let b = 0\n    effect(() => { a++; state.count })\n    effect(() => { b++; state.name })\n    state.count = 3\n    same(a, 2)\n    same(b, 1)\n  })\n}\n"
+        },
+        {
+          "n": 3,
+          "title": "用 try / finally 把 activeEffect 交还回去",
+          "think": "现在能收集依赖了，但执行完没人把 activeEffect 收回去，它会一直停在上一个 runner 上，之后所有读取都错记到它名下。还原必须放进 finally：这样 fn 抛错时同样会还原，异常照旧向外传播，账本却不会脏。",
+          "hint": "把 return fn() 放进 try，在 finally 里写 activeEffect = null；清理不能写在 try 里面。",
+          "vocab": [
+            {
+              "term": "finally 的契约",
+              "md": "不管 try 里是正常返回还是抛出异常，finally 都会执行。用它做「还原现场」，比在 fn() 后面补一行更可靠。"
+            }
+          ],
+          "diag": [
+            "activeEffect 没被清空：runner 少了 finally 分支，或者清理写在了 fn() 之后。",
+            "抛错后账本脏了：还原写在了 try 里，异常一跳过就永远执行不到那一行。",
+            "手动重跑收不到更新：runner 里没重新设置 activeEffect，只有第一次执行时记上了依赖。"
+          ],
+          "code": "/**\n * 第 4 关 · 第 3 步：执行完把 activeEffect 还原\n *\n * try / finally 保证「不管 fn 正常返回还是抛错，现场都要还原」。\n * 这一步之后，effect 外部的读取才不会被错记到上一个 runner 名下。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      // 正常返回、抛错，都要还原，否则账本会一直算在这个函数头上\n      activeEffect = null\n    }\n  }\n  runner()\n  return runner\n}\n",
+          "test": "{\n  const state = reactive({ count: 1 })\n\n  check('effect 跑完，activeEffect 回到 null', () => {\n    effect(() => { state.count })\n    same(activeEffect, null)\n  })\n  check('effect 里抛错时，异常照旧抛出，activeEffect 也已还原', () => {\n    let caught = null\n    try {\n      effect(() => { throw new Error('boom') })\n    } catch (e) {\n      caught = e.message\n    }\n    same(caught, 'boom')\n    same(activeEffect, null)\n  })\n  check('手动重跑 runner 之后，后续变化依然收得到', () => {\n    let n = 0\n    const runner = effect(() => { n++; state.count })\n    same(n, 1)\n    runner()\n    same(n, 2)\n    state.count = 4\n    same(n, 3)\n  })\n}\n"
+        }
+      ],
+      "finalCode": "/**\n * 第 4 关 · effect：把「谁在读」这件事自动化（完整实现）\n *\n * effect(fn)：注册时立刻跑一次，跑之前把 activeEffect 指向 runner，\n * 跑完（无论成功还是抛错）在 finally 里还原。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner()\n  return runner\n}\n",
+      "usage": "// 1) 注册一个会自动重跑的副作用：不用再手动管 activeEffect\nconst state = reactive({ count: 1 })\n\nconst runner = effect(() => {\n  console.log('count =', state.count)\n})\n// 注册时立刻打印一次：count = 1\n\nstate.count = 2\n// 依赖变化后自动再打印：count = 2\n\n// 2) runner 就是「再执行一次」的入口，常见于 watch 的立即执行、调试重放\nrunner()\n// 手动再打印一次：count = 2\n\n// 3) effect 返回的是函数，可以交给调用方保管\nconst stopLater = [runner]\nstopLater[0]()\n\n// 4) effect 执行完后 activeEffect 是干净的，外部读取不会被误记账\nactiveEffect        // null",
+      "hints": [
+        "runner 是一个箭头函数，它调用时才需要 activeEffect 指向自己——所以赋值写在 runner 内部，不写在 effect 内部。",
+        "顺序很重要：先 activeEffect = runner，再 fn()。反过来写，fn 里读属性时 activeEffect 还是 null，依赖一条都收不到（测试会全红）。",
+        "effect 的返回值测试会用到：`const r = effect(...)`；r() 再执行一次，n 应该再加 1。"
+      ],
+      "concepts": [
+        {
+          "title": "为什么叫「副作用」",
+          "md": "函数式说法里，一个函数如果除了返回值之外还改变了外部世界（改 DOM、打印、写文件），就叫有副作用。effect(fn) 的名字就是这么来的：它执行的是「读数据 + 对外部世界做点什么」这类函数，并且会在数据变化时自动重放。Vue 的渲染函数、watch 回调、computed 的 getter，本质都是 effect。"
+        },
+        {
+          "title": "这版实现还藏着一个 bug",
+          "md": "finally 里写的是 activeEffect = null。只要 effect 里再套一个 effect，内层跑完把 activeEffect 置空，外层后面读的属性就全丢了。现在测试测不出来，因为还没有嵌套的场景。第 7 关会用栈把它修掉。"
+        }
+      ],
+      "skeleton": "/**\n * 第 4 关 · effect：把「谁在读」这件事自动化\n *\n * 到上一关为止，activeEffect 都是外部手动设置的。这一关把它包进来：\n * effect(fn) 负责「设置 activeEffect → 执行 fn → 还原 activeEffect」。\n */\n\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n\n/**\n * 注册一个副作用函数：立刻执行一次，之后它的依赖变化时再执行。\n * 返回 runner，调用 runner() 可以手动再执行一次。\n */\nfunction effect(fn) {\n  const runner = () => {\n    // TODO 1：执行 fn 之前，先让 activeEffect 指向 runner 自己\n    // TODO 2：用 try / finally 执行 fn，并在 finally 里把 activeEffect 还原成 null\n    //         （只写 fn() 不还原，测试「effect 外读属性」那条会红）\n    return fn()\n  }\n  runner()\n  return runner\n}\n",
+      "solution": "/**\n * 第 4 关 · effect：把「谁在读」这件事自动化（参考答案）\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const ok = Reflect.set(t, key, value, receiver)\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner()\n  return runner\n}\n",
+      "tests": "const state = reactive({ count: 1 })\nlet runs = 0\n\neffect(() => { runs++; state.count })\n\ncheck('注册时立刻执行一次', () => same(runs, 1))\ncheck('依赖的属性变化，函数自动重跑', () => { state.count = 2; same(runs, 2) })\ncheck('没被读过的属性变化，不重跑', () => { state.name = 'vue3'; same(runs, 2) })\ncheck('函数里读到的永远是最新值', () => {\n  let seen = 0\n  effect(() => { seen = state.count })\n  state.count = 7\n  same(seen, 7)\n})\ncheck('多个 effect 互不干扰', () => {\n  let a = 0\n  let b = 0\n  effect(() => { a++; state.count })\n  effect(() => { b++; state.count })\n  state.count = 8\n  same(a, 2)\n  same(b, 2)\n})\ncheck('effect 返回的 runner 可以手动再执行一次', () => {\n  let n = 0\n  const runner = effect(() => { n++ })\n  same(n, 1)\n  runner()\n  same(n, 2)\n})\ncheck('effect 执行完之后，activeEffect 是干净的 null', () => {\n  effect(() => {})\n  same(activeEffect, null)\n})\ncheck('effect 里抛错时异常继续抛出，而且 activeEffect 已被还原', () => {\n  let thrown = null\n  try {\n    effect(() => { throw new Error('boom') })\n  } catch (e) {\n    thrown = e.message\n  }\n  same(thrown, 'boom')\n  same(activeEffect, null)\n})\ncheck('手动重跑 runner 之后，后续变化依然收得到', () => {\n  let hit = 0\n  const runner = effect(() => { hit++; state.count })\n  same(hit, 1)\n  runner()\n  same(hit, 2)\n  state.count = 11\n  same(hit, 3)\n})"
+    },
+    {
+      "id": "lv5",
+      "title": "写相同的值，不算变化",
+      "emoji": "🧮",
+      "xp": 40,
+      "goal": "在 set 陷阱里加判断：只有写入成功、并且新旧值真的不同，才去 trigger。",
+      "why": "第 4 关一跑通，你就能看到问题：state.count = 2 连写两次，依赖它的函数会跑两次，第二次纯属白跑。真实项目里父组件重渲染、表单反复赋值，这类「写了但没变」的场景非常密集，它是「莫名其妙卡顿」最常见的来源之一。这一关用一个判断把它挡掉。",
+      "prereq": [
+        {
+          "title": "判断「变没变」要用 Object.is，不是 !==",
+          "md": "大多数时候 old !== value 就够了，但有两个特例会坑人：\n\n- NaN !== NaN 恒为 true。所以 state.n = NaN 写两次，会被当成「变了」，触发两轮更新。\n- +0 和 -0 用 !== 比较是相等的。而它们在 Object.is 里不相等（这个差异通常不影响业务，但知道有差别没坏处）。\n\nObject.is 的行为正好是「除了 +0/-0 之外，和 === 一致，但 NaN 等于自己」：\n\n```js\nold !== value          // NaN 写两次 → true（误判成变了）\n!Object.is(old, value) // NaN 写两次 → false（正确）\n```\n\n所以公式是：写入成功 && 值真的变了。\n\n```js\nif (ok && !Object.is(old, value)) trigger(t, key)\n```"
+        },
+        {
+          "title": "为什么必须先 Reflect.set 再比较",
+          "md": "也可以先把旧值存下来、比较、再写入，逻辑上等价。但顺序上要先写再通知：trigger 会同步执行依赖函数，那些函数读到的必须是**写入之后**的新值。所以标准顺序是：\n\n1. const old = t[key]（写入前记下旧值）\n2. const ok = Reflect.set(...)（真正写入）\n3. if (ok && !Object.is(old, value)) trigger(...)（通知）"
+        }
+      ],
+      "api": [
+        {
+          "name": "reactive（set 陷阱的行为升级）",
+          "sig": "set(t, key, value, receiver): boolean",
+          "args": "t —— 原对象；key —— 属性名；value —— 准备写入的新值；receiver —— 正在写的代理。",
+          "returns": "boolean，Reflect.set 的结果：写入成功 true，失败 false（例如属性只读）。",
+          "example": "const state = reactive({ count: 1 })\nlet runs = 0\neffect(() => { runs++; state.count })\n\nstate.count = 2     // 值真的变了 → runs = 2\nstate.count = 2     // 值没变     → runs 仍然是 2\nstate.count = 3     // 又变了     → runs = 3"
+        }
+      ],
+      "thinking": [
+        {
+          "title": "先确认问题真的存在，再改代码",
+          "md": "改 set 之前我先数了一遍代价：父组件重渲染会把一整套 props 重新赋值下去，其中绝大多数值跟上一次相同。没有这层判断，每个「写了但没变」都会被当成变化，一路放大成整棵子树重算。这不是理论上的浪费，而是「莫名其妙卡顿」最常见的来源之一。所以这一关不是可有可无的优化，而是把「通知」的语义从「有人写」修正成「值真的变了」：语义先对，性能只是顺带的结果。"
+        },
+        {
+          "title": "比较必须用 Object.is，而不是 !==",
+          "md": "我一开始也想用 old !== value，直到想起 NaN：NaN !== NaN 恒为 true，写两次 NaN 会被判成「变了」两次，白跑一轮。Object.is 正好补上这个洞——NaN 等于自己，其余行为和 === 一致（+0/-0 的差异对业务基本没有影响）。改一个字符的成本，换掉一个「为什么这里用 !== 那里不用」的坑。既然这一关的主题就是「精确判断变没变」，判断工具本身也不该有例外。"
+        },
+        {
+          "title": "为什么条件里还要带上 Reflect.set 的返回值",
+          "md": "只写 !Object.is(old, value) 有个盲区：写入可能失败。冻结对象、只读属性、setter 里拒绝，这时原对象上的值并没有变，但 old 与 value 不同，代码照样会 trigger——通知了一次根本没发生的变更，依赖函数重跑后读到的还是旧值，等于白跑还骗了调用方。所以条件必须是「写成功 && 值变了」。把 ok 放进条件几乎不增加成本，却让「通知」和「状态真的改变」严格对齐，这也是我看一个响应式实现靠不靠谱的细节之一。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "先把 set 拆成「记旧值 → 写 → 返回结果」",
+          "think": "先不改通知条件，而是把写入动作拆清楚：写入前记下旧值，写入后接住 Reflect.set 的成功标记，最后原样返回。拆开之后每一步都可见，下一步才有地方安放比较。顺序也不能反：通知必须在真正写入之后发，否则依赖函数读到的还是旧值。",
+          "hint": "在 set 陷阱里依次写 const old = t[key]、const ok = Reflect.set(t, key, value, receiver)，然后无条件 trigger，最后 return ok。",
+          "vocab": [
+            {
+              "term": "Reflect.set 的返回值",
+              "md": "写入成功返回 true，失败（只读、冻结、setter 拒绝）返回 false。它是 set 陷阱唯一能拿到的「这次到底写进去没有」的证据。"
+            }
+          ],
+          "diag": [
+            "set 返回了 undefined：最后少写 return ok，调用方拿不到写入结果。",
+            "原对象没被改：Reflect.set 的参数顺序写错了，或者忘了传 receiver。",
+            "依赖函数读到旧值：trigger 写在了 Reflect.set 前面，通知发得太早。"
+          ],
+          "code": "/**\n * 第 5 关 · 第 1 步：把 set 拆成「记旧值 → 写 → 返回结果」\n *\n * 这一步通知条件还是老样子（写了就通知）。\n * 先把旧值的抓取点、写入结果、返回值三件事分开摆清楚。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner()\n  return runner\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      // 写入前唯一一次机会：把旧值留下来，下一步要拿它比较\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      // 这一步还是「写了就通知」，旧值暂时没派上用场\n      trigger(t, key)\n      return ok\n    }\n  })\n}\n",
+          "test": "{\n  const state = reactive({ count: 1 })\n\n  check('写入成功时，set 返回 true', () => {\n    same(Reflect.set(state, 'count', 2), true)\n  })\n  check('写入之后，原对象上的值也真的变了', () => {\n    const raw = { v: 1 }\n    const s = reactive(raw)\n    s.v = 5\n    same(raw.v, 5)\n    same(s.v, 5)\n  })\n  check('值变了，依赖函数同步就能读到最新值', () => {\n    const s = reactive({ n: 1 })\n    let seen = 0\n    effect(() => { seen = s.n })\n    s.n = 4\n    same(seen, 4)\n  })\n}\n"
+        },
+        {
+          "n": 2,
+          "title": "用 Object.is 把「写了但没变」挡在前面",
+          "think": "脚手架摆好，这一步才加入真正的判断：旧值和新值真的不同，才通知。用 Object.is 而不是 !==，是为了让 NaN 写两次也算「没变」；否则每次写 NaN 都要白跑一轮依赖。这一步还不看写入是否成功，先只解决「变没变」。",
+          "hint": "把无条件的 trigger 包进 if (!Object.is(old, value)) 里；注意是 old 在前、value 在后。",
+          "vocab": [
+            {
+              "term": "Object.is 与 NaN",
+              "md": "Object.is(NaN, NaN) 为 true，所以写两次 NaN 会被判成没变；而 NaN !== NaN 恒为 true，用 !== 就会误判成变了两次。"
+            }
+          ],
+          "diag": [
+            "改新值不重跑：if 写反了（写成 Object.is 而不是 !Object.is），或者 trigger 被整个删掉。",
+            "写相同值仍然重跑：trigger 还留在 if 外面，条件只包住了别的东西。",
+            "NaN 那条红了：比较用了 !==，换成 Object.is 才能把两个 NaN 判成相等。"
+          ],
+          "code": "/**\n * 第 5 关 · 第 2 步：值真的变了，才通知\n *\n * 写入前记下 old，写入后用 Object.is 判断变没变。\n * 注意这里还没检查写入是否成功，那是下一步的事。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner()\n  return runner\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n\n      // 只有值真的变了才通知；Object.is 让 NaN 写两次算「没变」\n      if (!Object.is(old, value)) trigger(t, key)\n\n      return ok\n    }\n  })\n}\n",
+          "test": "{\n  const state = reactive({ count: 1 })\n\n  check('改成一个新值，依赖重跑一次', () => {\n    let runs = 0\n    effect(() => { runs++; state.count })\n    state.count = 2\n    same(runs, 2)\n  })\n  check('连写两次相同的值，第二次不重跑', () => {\n    let runs = 0\n    effect(() => { runs++; state.count })\n    state.count = 5\n    state.count = 5\n    same(runs, 2)\n  })\n  check('NaN 写两次，同样视为没有变化', () => {\n    const s = reactive({ n: 0 })\n    let runs = 0\n    effect(() => { runs++; s.n })\n    s.n = NaN\n    same(runs, 2)\n    s.n = NaN\n    same(runs, 2)\n  })\n}\n"
+        },
+        {
+          "n": 3,
+          "title": "把「写入成功」也纳入条件",
+          "think": "最后补上盲区：写入可能失败。冻结对象、只读属性下 Reflect.set 返回 false，原对象上的值没变，但 old 与 value 不同，只比较值就会通知一次根本没发生的变更。所以条件要扩成「写成功 && 值变了」，同时返回值照旧交给调用方。",
+          "hint": "把 if 的条件改成 ok && !Object.is(old, value)，两个条件用 && 连起来，顺序上先看 ok。",
+          "vocab": [
+            {
+              "term": "写入失败的通知",
+              "md": "没写进去却通知了依赖：依赖函数重跑后读到的还是旧值，调用方还收到一次无意义的执行。这就是必须把 ok 放进条件的原因。"
+            }
+          ],
+          "diag": [
+            "冻结对象那条红了：条件里少了 ok，写入失败时仍然调用了 trigger，于是依赖白跑一次。",
+            "正常改写不再触发或返回值丢了：&& 写成了 ||，或者加条件时把 return ok 一起删掉了。"
+          ],
+          "code": "/**\n * 第 5 关 · 第 3 步：写成功 && 值变了，才通知\n *\n * Reflect.set 可能失败（冻结、只读、setter 拒绝），失败时原对象没变，\n * 也就不该 trigger。条件补上 ok 之后，通知与状态改变严格对齐。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner()\n  return runner\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n\n      // 写成功、并且值真的变了，才值得叫醒依赖\n      if (ok && !Object.is(old, value)) trigger(t, key)\n\n      return ok\n    }\n  })\n}\n",
+          "test": "{\n  check('冻结对象上的写入失败时，依赖不该被叫醒', () => {\n    const raw = Object.freeze({ locked: 1 })\n    const s = reactive(raw)\n    let runs = 0\n    effect(() => { runs++; s.locked })\n    same(Reflect.set(s, 'locked', 2), false)\n    same(runs, 1)\n    same(s.locked, 1)\n  })\n  check('正常对象上照旧：新值触发一次、同值不再触发', () => {\n    const s = reactive({ n: 0 })\n    let runs = 0\n    effect(() => { runs++; s.n })\n    s.n = 1\n    same(runs, 2)\n    s.n = 1\n    same(runs, 2)\n  })\n}\n"
+        }
+      ],
+      "finalCode": "/**\n * 第 5 关 · 写相同的值，不算变化（完整实现）\n *\n * set 陷阱的顺序：记旧值 → 真正写入 → 判断写成功且值变了才通知 → 返回写入结果。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner()\n  return runner\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n",
+      "usage": "// 1) 同一个值反复写，依赖只跑一次\nconst state = reactive({ count: 1 })\nlet runs = 0\n\neffect(() => { runs++; state.count })\n\nstate.count = 2     // 值真的变了 → runs = 2\nstate.count = 2     // 值没变     → runs 仍然是 2\nstate.count = 2     // 还是没变   → runs 仍然是 2\nstate.count = 3     // 又变了     → runs = 3\n\n// 2) 表单里常见的「把上次的值再赋一遍」，现在完全不会惊动下游\nconst form = reactive({ name: '' })\nconst render = effect(() => { console.log('render:', form.name), form.name })\nform.name = 'vue'   // 打印 render: vue\nform.name = 'vue'   // 不打印，值没变\n\n// 3) 写入结果照旧可以拿到：失败（只读/冻结）时返回 false，也不通知\nconst frozen = reactive(Object.freeze({ locked: 1 }))\nlet hits = 0\neffect(() => { hits++; frozen.locked })\nReflect.set(frozen, 'locked', 2)    // false，hits 仍然是 1\nfrozen.locked                       // 1",
+      "hints": [
+        "三步都在同一个 set 陷阱里：先把 old / ok 拆出来，再加 Object.is，最后把 ok 并进条件。其它函数一行都不用动。",
+        "别写成 `if (old !== value)`：测试里有一条会写两次 NaN，用 !== 会误判成「变了」。",
+        "如果测试「写相同的值不重跑」还是红的，先检查是不是把 trigger 写在了 if 外面。"
+      ],
+      "concepts": [
+        {
+          "title": "这个判断能省掉多少工作",
+          "md": "在组件树里，一个父组件重渲染会把一整套 props 重新赋值下去。其中大部分值和上次相同，没有这个判断，每一个都会被当成「变化」触发下游重算，一路放大到整棵子树。Vue3 在 set 陷阱里做这个判断，和在 diff 里做 key 复用是同一类思路：先把不可能变化的排除掉，再算真正需要算的。"
+        }
+      ],
+      "skeleton": "/**\n * 第 5 关 · 写相同的值，不算变化\n *\n * 上一关的 set 陷阱不管值有没有变，只要写了就 trigger。\n * 这一关把它改成：写成功了、并且值真的变了，才通知依赖。\n */\n\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner()\n  return runner\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      // TODO 1：写入之前，先把旧值记下来\n      // TODO 2：真正写入，并接住 Reflect.set 返回的 ok\n      // TODO 3：只有 ok 为真、且 !Object.is(old, value) 时才 trigger(t, key)\n      // TODO 4：return ok\n    }\n  })\n}\n",
+      "solution": "/**\n * 第 5 关 · 写相同的值，不算变化（参考答案）\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect)\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner()\n  return runner\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n",
+      "tests": "const state = reactive({ count: 1 })\nlet runs = 0\neffect(() => { runs++; state.count })\n\ncheck('注册时执行一次', () => same(runs, 1))\ncheck('改成一个新值，重跑一次', () => { state.count = 2; same(runs, 2) })\ncheck('再写一次相同的值，不该重跑', () => { state.count = 2; same(runs, 2) })\ncheck('effect 里读到的一定是最新值', () => {\n  let seen = 0\n  effect(() => { seen = state.count })\n  state.count = 9\n  same(seen, 9)\n})\ncheck('NaN 写两次视为「没有变化」', () => {\n  const s2 = reactive({ n: 0 })\n  let r = 0\n  effect(() => { r++; s2.n })\n  s2.n = NaN\n  same(r, 2)\n  s2.n = NaN\n  same(r, 2)\n})\ncheck('set 依然返回 true，写入本身是成功的', () => {\n  same(Reflect.set(state, 'count', 3), true)\n})\ncheck('只读属性写入失败：返回 false，而且不触发重跑', () => {\n  const frozen = reactive(Object.freeze({ locked: 1 }))\n  let hits = 0\n  effect(() => { hits++; frozen.locked })\n  same(Reflect.set(frozen, 'locked', 2), false)\n  same(hits, 1)\n  same(frozen.locked, 1)\n})\ncheck('连写三个不同值，每次都该通知', () => {\n  const s = reactive({ k: 0 })\n  let hits = 0\n  effect(() => { hits++; s.k })\n  s.k = 1\n  s.k = 2\n  s.k = 3\n  same(hits, 4)\n})"
+    },
+    {
+      "id": "lv6",
+      "title": "分支变了，旧依赖要清账",
+      "emoji": "🧹",
+      "xp": 50,
+      "goal": "实现 cleanupEffect：每轮执行前先把自己上一轮登记的依赖全部作废，再执行、再按这一轮实际读到的重新登记。",
+      "why": "上一关的实现藏着一个 bug：effect 里写 state.flag ? state.a : state.b，第一次执行时读了 flag 和 a。之后 flag 变成 false，effect 重跑、读了 b——但它对 a 的依赖还留在账本上。从此以后，a 怎么变都会把这个 effect 叫醒一次，而它压根不再读 a。跑一次无意义的执行是小事，在真实项目里它会一层层放大成整棵组件树重渲染。",
+      "prereq": [
+        {
+          "title": "依赖是「每轮重新收集」的，不是一次性的",
+          "md": "很多人默认依赖关系在第一次执行时就定死了。实际不是：这一轮走 if 分支读了 a，下一轮走 else 分支读了 b，**依赖表应该跟着换**。\n\n所以 effect 每轮执行的正确姿势是：\n\n1. 先假设上一轮的依赖全部作废 → 清空\n2. 再执行函数 → 读到什么记什么\n\n这就是 cleanup 的意义：不是修补，而是「每轮重新记账」。Vue3 源码里这个函数叫 cleanupEffect，在 effect 每次 setup 时调用。"
+        },
+        {
+          "title": "清理需要「反向指针」",
+          "md": "dep 是「属性 → 用到它的 effect 集合」，这个方向只能回答「这个属性变了该叫醒谁」。可清理要回答反过来的问题：**这个 effect 应该从哪些集合里删掉自己？**\n\n光靠 dep 找不到。所以要在 effect 身上存一份反向清单：\n\n~~~js\ndep.add(activeEffect)          // 正向：属性 → effect\nactiveEffect.deps.push(dep)    // 反向：effect → 它进过哪些 dep\n~~~\n\n两边的增删必须成对：track 时两边都加，cleanup 时两边都删。少写一边，清理就会漏。"
+        }
+      ],
+      "api": [
+        {
+          "name": "cleanupEffect",
+          "sig": "cleanupEffect(eff: Function): void",
+          "args": "eff —— 要清理的 effect（实际传的是 runner）。它身上必须有 deps 数组，记录着自己进过哪些 Set；没有就先兜底成空数组。",
+          "returns": "没有返回值。效果是：每一个 dep 里都不再有 eff，并且 eff.deps 变成长度为 0 的空数组。",
+          "example": "const state = reactive({ flag: true, a: 1, b: 2 })\nlet runs = 0\neffect(() => { runs++; state.flag ? state.a : state.b })\n\nstate.flag = false   // 重跑一次，依赖换成 flag + b\nstate.a++            // 不再触发（a 已经从账本里清掉了）\nruns                 // 仍然是 2"
+        }
+      ],
+      "thinking": [
+        {
+          "title": "先确认「多跑的那一次」真的会发生，再动手改",
+          "md": "我拿上一关的实现跑了一遍分支切换：flag 从 true 变 false，effect 重跑；接着把 a 加一，它又跑了一次，而这次执行里根本没读 a。这一下我才确定问题不是「理论上可能浪费」，而是账本里确实留着一条已经失效的边。\n确认了现象，改法才有方向：问题出在「账本只加不减」，不在 trigger 的判断，也不在 set 的顺序。先定位到出问题的那一行，再写代码，能省掉一大半试错。"
+        },
+        {
+          "title": "为什么清理不能「顺手在 trigger 里跳过」",
+          "md": "也有人会想：在 trigger 遍历 dep 时判断一下这个 effect 还需不需要这个属性，不就行了。可 effect 是函数，它「以后需不需要」只有在下次执行完才知道，trigger 那一刻无法预判。\n而且这种判断要读一次 effect 的依赖状态，等于把成本搬到每次触发上——热点路径反而更贵。Vue3 选择在**执行前**清账：成本只在 effect 真正要跑的时候付一次，语义也干净——上一轮的账，执行前就归零。"
+        },
+        {
+          "title": "反向清单为什么是数组，而不是清理时重新遍历 targetMap",
+          "md": "一个直觉的替代方案：清理时把整个 targetMap 扫一遍，把 eff 从所有 Set 里删掉。这能work，但每次执行都要遍历所有对象的所有属性，成本和「我这个 effect 依赖了几个属性」无关，和数据规模成正比。\n存 deps 数组把成本压到「我进过几个 dep」，而且天然只碰自己那一份，不会误删别人的登记。用一点内存换掉一次全表扫描，在渲染函数这种高频路径上尤其划算。"
+        },
+        {
+          "title": "为什么清空 deps 用 length = 0，而不是换一个新数组",
+          "md": "我一开始写的是 eff.deps = []，看起来更干净。但 deps 是 effect 的身份信息之一，外面（调试工具、或者 effect 自己的其它引用）可能还握着这个数组的引用；换新数组等于让旧引用永远停在过期状态。\n用 length = 0 原地清空，引用不变、内容归零，所有持有者看到的是同一份真相。这个小习惯在真实项目里能免掉一类「我明明清了啊，怎么还触发」的悬案。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "登记依赖时，顺手记下反向指针",
+          "think": "清理要回答的是「我该从哪些集合里删掉自己」，可 dep 只写了正向指针。所以第一步不写清理，先让每次登记都成对地把 dep 记到 effect 身上；只有这份反向清单真的存在，下一步的删除才有名单可循。",
+          "hint": "在 dep.add(activeEffect) 之后，把同一个 dep push 进 activeEffect.deps；push 之前先判断 deps 存不存在、这个 dep 是不是已经记过。",
+          "vocab": [
+            {
+              "term": "反向指针",
+              "md": "dep 只记「属性 → effect」，清理需要反方向：effect 身上存一份 deps 数组，记录「我进过哪些 dep」。两边同时增删，清理才有名单。"
+            },
+            {
+              "term": "deps 不存在时的兜底",
+              "md": "第 2、3 关的测试会把 activeEffect 手动设成普通函数，这种函数身上没有 deps。track 里先建，才不会在跨关回归里报错。"
+            }
+          ],
+          "diag": [
+            "正向账本里查不到这个 effect：track 里漏了 dep.add(activeEffect)，或者 dep 建在了别的 depsMap 上。",
+            "effect 身上没有反向指针：track 里少了把 dep push 进 activeEffect.deps 那一行。",
+            "反向清单里出现了重复：push 之前没用 dep.has(activeEffect) 挡住「已经登记过」的情况。",
+            "两个属性只记了一条：读 b 的时候也要各自 push 一次，一条 dep 对一个属性。",
+            "普通函数登记时报错或没记上：activeEffect.deps 不存在时要先建空数组再 push。"
+          ],
+          "code": "/**\n * 第 6 关 · 第 1 步：登记依赖时顺手记下反向指针\n *\n * 这一步还不清理，只把「这个 effect 进过哪些 dep」记在它自己身上。\n * 没有这份清单，下一步的清理根本不知道该从哪些 Set 里删自己。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    // 反向指针：同时让 effect 记住它进过这个 dep\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  // 反向清单：先给空数组，track 会往里 push 它进过的 dep\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+          "test": "{\n  const raw = { a: 1, b: 2 }\n  const state = reactive(raw)\n  let runs = 0\n  const runner = effect(() => { runs++; state.a })\n\n  check('正向账本里登记了这个 effect', () => {\n    const dep = targetMap.get(raw).get('a')\n    ok(dep.has(runner))\n  })\n  check('effect 身上记下了它进过的那个 dep', () => {\n    same(runner.deps.length, 1)\n    ok(runner.deps[0] === targetMap.get(raw).get('a'))\n  })\n  check('同一个属性读两次，反向清单里也只有一份', () => {\n    runner()\n    runner()\n    same(runner.deps.length, 1)\n  })\n  check('读两个属性，反向清单里就有两条', () => {\n    const r2 = effect(() => { state.a; state.b })\n    same(r2.deps.length, 2)\n  })\n  check('手动把 activeEffect 设成普通函数，也能现建一份清单', () => {\n    const plain = () => { runs++ }\n    activeEffect = plain\n    state.a\n    activeEffect = null\n    same(plain.deps.length, 1)\n  })\n}\n"
+        },
+        {
+          "n": 2,
+          "title": "实现 cleanupEffect：从每个 dep 里把自己摘掉",
+          "think": "名单有了，这一步终于能删。我刻意先不把它接进执行流程：单独实现、单独验证「删除」这个动作本身，这样「删不干净」和「删干净了但时机不对」能分开排错，不用一上来就同时怀疑两件事。",
+          "hint": "遍历 eff.deps 里的每个 dep，调 dep.delete(eff)；遍历完把 eff.deps 的长度清成 0，别重新赋值成新数组。",
+          "vocab": [
+            {
+              "term": "原地清空 length = 0",
+              "md": "用 eff.deps.length = 0 而不是 eff.deps = []：引用不变，所有还握着这个数组的人看到的是同一份真相。"
+            }
+          ],
+          "diag": [
+            "dep 里还有这个 effect：cleanupEffect 没有遍历 eff.deps 并逐个 dep.delete(eff)。",
+            "反向清单没被清空：循环之后少了 eff.deps.length = 0，或者写成了重新赋值。",
+            "清理之后属性变化仍然触发：dep 没删干净，或者删的是另一个 dep 集合。",
+            "重跑之后依赖回不来：说明清理把 effect 的 deps 数组换成了新数组，track 往里 push 的不是同一份。"
+          ],
+          "code": "/**\n * 第 6 关 · 第 2 步：实现 cleanupEffect\n *\n * 把某个 effect 从它进过的每一个 dep 里摘掉，并清空它自己的清单。\n * 这一步还不在执行流程里调用它 —— 先单独把「删」验证清楚。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  // 反向清单在这里派上用场：逐个 dep 把自己摘出去\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  // 原地清空：引用不变，外面握着的还是同一份清单\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+          "test": "{\n  const raw = { a: 1, b: 2 }\n  const state = reactive(raw)\n  let runs = 0\n  const runner = effect(() => { runs++; state.a; state.b })\n  const depA = targetMap.get(raw).get('a')\n  const depB = targetMap.get(raw).get('b')\n\n  check('清理之后，每个 dep 里都不再有这个 effect', () => {\n    same(runner.deps.length, 2)\n    cleanupEffect(runner)\n    same(depA.has(runner), false)\n    same(depB.has(runner), false)\n  })\n  check('清理之后，effect 自己的反向清单也空了', () => {\n    same(runner.deps.length, 0)\n  })\n  check('清理之后，属性变化不再叫醒它', () => {\n    const before = runs\n    state.a = 10\n    same(runs, before)\n  })\n  check('清理之后再执行一次，依赖会重新登记回来', () => {\n    runner()\n    same(runner.deps.length, 2)\n    state.a = 20\n    same(runs, 3)\n  })\n}\n"
+        },
+        {
+          "n": 3,
+          "title": "每轮执行前先清账，再重新收集",
+          "think": "最后一步才是把清理接进执行流程，顺序不能反：先清空上一轮的账，再执行，最后由这一轮的读取重新登记。清理放在执行之后，会把刚登记的也删掉；放在执行中间，则会留下「这轮没读、上轮读过」的残留。",
+          "hint": "在 runner 的开头、设置 activeEffect 之前调用 cleanupEffect(runner)，位置在 try 之前。",
+          "vocab": [
+            {
+              "term": "清理的时机",
+              "md": "必须在设置 activeEffect 之前、在 fn 执行之前。放在执行之后等于「读完再清」，会把这一轮刚登记的依赖也删掉。"
+            }
+          ],
+          "diag": [
+            "切换分支没有重新执行：cleanupEffect 调用位置不对，或者把 runner 自己的 deps 清空后没有重新 track。",
+            "切换后旧分支还在触发：runner 里没有调用 cleanupEffect(runner)，上一轮的 a 还留在 dep 里。",
+            "新分支的属性不触发：清理跑在了 track 之后，把这一轮刚登记的依赖也删掉了。",
+            "切回原分支后旧的属性没生效：说明清理把 deps 数组换成了新数组，track 后续 push 到了另一份上。"
+          ],
+          "code": "/**\n * 第 6 关 · 第 3 步：每轮执行前先清账\n *\n * 执行流程变成三步：清掉上一轮的依赖 → 执行 → 这一轮的读取重新登记。\n * 顺序是语义的一部分：先清后跑，账本里只剩「这一轮真正读到的」。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    // 上一轮的账先归零，接下来读到的才是这一轮的依赖\n    cleanupEffect(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+          "test": "{\n  const state = reactive({ flag: true, a: 1, b: 2 })\n  let runs = 0\n  effect(() => { runs++; state.flag ? state.a : state.b })\n\n  check('切换分支时，effect 会重新执行', () => {\n    state.flag = false\n    same(runs, 2)\n  })\n  check('切换后，旧分支的属性不再触发', () => {\n    state.a++\n    same(runs, 2)\n  })\n  check('切换后，新分支的属性能触发', () => {\n    state.b++\n    same(runs, 3)\n  })\n  check('切回原分支，另一边的属性不再触发', () => {\n    state.flag = true\n    same(runs, 4)\n    state.b++\n    same(runs, 4)\n  })\n}\n"
+        }
+      ],
+      "finalCode": "/**\n * 第 6 关 · 分支变了，旧依赖要清账（完整实现）\n *\n * 两处改动互相配合：\n *   1) track 里登记反向指针：effect.deps 记下「我进过哪些 dep」\n *   2) runner 执行前先 cleanupEffect：上一轮的依赖全部作废，再重新收集\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  // 正向登记 + 反向指针，必须成对出现\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    cleanupEffect(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+      "usage": "// 1) 分支切换：账本跟着分支走，不再留旧账\nconst state = reactive({ flag: true, a: 1, b: 2 })\nlet runs = 0\neffect(() => { runs++; state.flag ? state.a : state.b })\n\nstate.flag = false   // 重跑一次 → runs = 2，依赖换成 flag + b\nstate.a++            // 不触发，runs 仍然是 2\nstate.b++            // 触发 → runs = 3\n\n// 2) 每轮执行前都会清一次，所以反复切换也不会把账越记越多\nstate.flag = true    // runs = 4，依赖换回 flag + a\nstate.b++            // 不触发，runs 仍然是 4\nstate.a++            // 触发 → runs = 5\n\n// 3) 手动清理：把一个 effect 从账本上摘干净（注销、销毁组件时用得上）\nconst runner = effect(() => { state.a })\ncleanupEffect(runner)\nstate.a++            // 不再触发这个 runner\nrunner.deps.length   // 0",
+      "concepts": [
+        {
+          "title": "为什么每轮都要清，而不是「只加不减」",
+          "md": "如果只加不减，账本会随着分支切换越记越多，最后每个 effect 都依赖一切，等于没有依赖追踪。Vue3 的渲染函数每次重渲染都重新收集依赖，靠的就是这套 cleanup + track 的循环。"
+        },
+        {
+          "title": "清理之后留下的空 Set",
+          "md": "清理会让某些属性名下的 Set 变空。这一关不用管它——空 Set 在 trigger 里遍历一次什么也不会发生。真实实现里会顺手把空格子删掉，但那属于内存优化的范畴，先把手上的语义做对。"
+        }
+      ],
+      "skeleton": "/**\n * 第 6 关 · 分支变了，旧依赖要清账\n *\n * 上一关的账本只加不减：effect 换成另一条分支之后，\n * 旧分支里已经不再读的属性，照样一变化就把它叫醒。\n *\n * 这一关要做到：每轮执行前先把自己上一轮的依赖清掉，\n * 再执行、再按这一轮实际读到的重新登记。\n */\n\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  // 只做了正向登记：dep 里有了这个 effect，但 effect 不知道自己进过哪些 dep\n  dep.add(activeEffect)\n}\n\nfunction cleanupEffect(eff) {\n  // 这里还空着：应该从每个 dep 里删掉 eff，并清空 eff 的反向清单\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    // 执行前没有清账：上一轮的依赖会一直留在账本里\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+      "solution": "/**\n * 第 6 关 · 分支变了，旧依赖要清账（完整实现）\n *\n * 两处改动互相配合：\n *   1) track 里登记反向指针：effect.deps 记下「我进过哪些 dep」\n *   2) runner 执行前先 cleanupEffect：上一轮的依赖全部作废，再重新收集\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  // 正向登记 + 反向指针，必须成对出现\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    cleanupEffect(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+      "tests": "const state = reactive({ flag: true, a: 1, b: 2 })\nlet runs = 0\neffect(() => { runs++; state.flag ? state.a : state.b })\n\ncheck('第一次执行', () => same(runs, 1))\ncheck('切换分支会重新执行', () => { state.flag = false; same(runs, 2) })\ncheck('切换后，旧分支的属性变化不再触发', () => { state.a++; same(runs, 2) })\ncheck('切换后，新分支的属性变化能触发', () => { state.b++; same(runs, 3) })\ncheck('切回原分支，另一边的属性不再触发', () => { state.flag = true; same(runs, 4); state.b++; same(runs, 4) })\ncheck('切回后，原来的属性重新生效', () => { state.a++; same(runs, 5) })\n{\n  const raw = { a: 1, b: 2 }\n  const s = reactive(raw)\n  let n = 0\n  const runner = effect(() => { n++; s.a })\n\n  check('第 1 步：正向账本里登记了这个 effect', () => {\n    const dep = targetMap.get(raw).get('a')\n    ok(dep.has(runner))\n  })\n  check('第 1 步：effect 身上记下了它进过的那个 dep', () => {\n    same(runner.deps.length, 1)\n    ok(runner.deps[0] === targetMap.get(raw).get('a'))\n  })\n  check('第 1 步：同一个属性读两次，反向清单里也只有一份', () => {\n    runner()\n    runner()\n    same(runner.deps.length, 1)\n  })\n  check('第 1 步：读两个属性，反向清单里就有两条', () => {\n    const r2 = effect(() => { s.a; s.b })\n    same(r2.deps.length, 2)\n  })\n  check('第 1 步：手动把 activeEffect 设成普通函数，也能现建一份清单', () => {\n    const plain = () => { n++ }\n    activeEffect = plain\n    s.a\n    activeEffect = null\n    same(plain.deps.length, 1)\n  })\n}\n{\n  const raw = { a: 1, b: 2 }\n  const s = reactive(raw)\n  let n = 0\n  const runner = effect(() => { n++; s.a; s.b })\n  const depA = targetMap.get(raw).get('a')\n  const depB = targetMap.get(raw).get('b')\n\n  check('第 2 步：清理之后，每个 dep 里都不再有这个 effect', () => {\n    same(runner.deps.length, 2)\n    cleanupEffect(runner)\n    same(depA.has(runner), false)\n    same(depB.has(runner), false)\n  })\n  check('第 2 步：清理之后，effect 自己的反向清单也空了', () => {\n    same(runner.deps.length, 0)\n  })\n  check('第 2 步：清理之后，属性变化不再叫醒它', () => {\n    const before = n\n    s.a = 10\n    same(n, before)\n  })\n  check('第 2 步：清理之后再执行一次，依赖会重新登记回来', () => {\n    runner()\n    same(runner.deps.length, 2)\n    s.a = 20\n    same(n, 3)\n  })\n}\n{\n  const s = reactive({ flag: true, a: 1, b: 2 })\n  let n = 0\n  effect(() => { n++; s.flag ? s.a : s.b })\n\n  check('第 3 步：切换分支时，effect 会重新执行', () => {\n    s.flag = false\n    same(n, 2)\n  })\n  check('第 3 步：切换后，旧分支的属性不再触发', () => {\n    s.a++\n    same(n, 2)\n  })\n  check('第 3 步：切换后，新分支的属性能触发', () => {\n    s.b++\n    same(n, 3)\n  })\n  check('第 3 步：切回原分支，另一边的属性不再触发', () => {\n    s.flag = true\n    same(n, 4)\n    s.b++\n    same(n, 4)\n  })\n}"
+    },
+    {
+      "id": "lv7",
+      "title": "effect 套 effect：把「当前是谁」换成栈",
+      "emoji": "🪜",
+      "xp": 60,
+      "goal": "用 effectStack 替代「执行完就置空」，让嵌套的 effect 各自收集自己的依赖，互不吞掉对方。",
+      "why": "上一关的 finally 里写的是 activeEffect = null。只要 effect 里再套一个 effect（真实框架里这是常态：父组件渲染时会触发子组件渲染），内层跑完就把 activeEffect 清空了——外层后面读的属性，一条依赖都记不上。表现是「改了数据，外层那个函数再也不更新」，而且极难查，因为看起来一切正常。",
+      "prereq": [
+        {
+          "title": "栈顶就是「当前正在执行的 effect」",
+          "md": "进入一个 effect：把它压栈，activeEffect 指向它。离开时：弹栈，activeEffect 指向**新的栈顶**（而不是 null）。\n\n~~~js\neffectStack.push(runner)\nactiveEffect = runner\n// ...执行...\neffectStack.pop()\nactiveEffect = effectStack[effectStack.length - 1] ?? null\n~~~\n\n栈这个东西在编译器、事件循环、浏览器历史里都是同一个作用：只在两端操作，天然记住「上一层是谁」。用单个变量存 prev 也能work，但嵌套三层、或中途抛错时很容易漏恢复。"
+        },
+        {
+          "title": "为什么必须放在 finally 里",
+          "md": "如果 fn 抛错，后面的 pop 就不会执行，栈里永久留着一个死掉的 runner，activeEffect 也就永远指错人。finally 保证「无论正常返回还是抛错都要收尾」。\n\n这也是 Vue3 源码里 effect 的标准写法：try 里执行 fn，finally 里 pop + 恢复 activeEffect。"
+        }
+      ],
+      "api": [
+        {
+          "name": "effect（嵌套安全版）",
+          "sig": "effect(fn: Function): Function",
+          "args": "签名不变。变化是内部维护方式：从「一个全局变量」换成「一个栈」。",
+          "returns": "runner，和之前一样。",
+          "example": "const state = reactive({ a: 1, b: 2 })\nlet outer = 0\neffect(() => {\n  outer++\n  effect(() => { state.b })   // 内层 effect\n  state.a                     // 这一行必须仍然记在外层名下\n})\n\nstate.a = 2   // 外层要重跑（上一关的实现里，这一行会失效）"
+        }
+      ],
+      "thinking": [
+        {
+          "title": "先问「嵌套时这次读取该算谁的」，再问用什么数据结构",
+          "md": "拿到这一关，我先写了一个最小的嵌套场景：外层 effect 里创建一个内层 effect，内层之后再读外层的属性。跑下来发现外层那次读取根本没进账本——问题不在 track，而在「退出时把 activeEffect 置成了 null」。\n于是问题被重述成一句话：内层退出时，activeEffect 应该指向谁？答案显然是「进入内层之前的那个」。一旦这样问，数据结构就不是「要不要用栈」，而是「什么东西能天然记住上一层」。"
+        },
+        {
+          "title": "为什么用栈，而不是在 effect 里存一个 prev 变量",
+          "md": "最省事的写法是 const prev = activeEffect; activeEffect = runner; ... finally { activeEffect = prev }。它works，而且很多教程就是这么教的。\n但它依赖一个前提：每次赋值都记得先存 prev。只要有一处漏了、或者有人从别的地方直接改 activeEffect，恢复链就断了，而且断了以后表现是「某个函数偶尔不更新」，极难定位。栈把「上一层是谁」变成结构本身：push 和 pop 一一对应，谁也不需要记住上一层的变量。多一层嵌套就多一个栈元素，不需要改代码。"
+        },
+        {
+          "title": "为什么先做「进出配平」，再改「退出后指向谁」",
+          "md": "这两件事我刻意分成两步。原因是它们的失败现象完全一样——都是「依赖莫名其妙丢了」——如果同时改，红了以后你分不清是栈没弹干净，还是弹完指向错了。\n先让 push/pop 成对，确认栈不会越堆越高、异常路径也能收尾；这时嵌套仍然是错的（因为退出时还置 null），但错的原因唯一。再改那一行指向栈顶，测试立刻转绿。把两个可变因素分开，是排错成本最低的做法。"
+        },
+        {
+          "title": "pop 和取栈顶的顺序不能反",
+          "md": "我第一版写成了先取栈顶再 pop：activeEffect = effectStack[effectStack.length - 1]，然后 effectStack.pop()。结果内层退出后 activeEffect 指向的还是它自己——因为它还没被弹掉。\n这种 bug 特别阴：单层调用完全正常，只有嵌套时才错，而且栈里看起来「都对」。正确的顺序是「先把自己弹掉，再看现在栈顶是谁」。一行代码的位置，决定了你是从栈里往外看，还是站在栈里看自己。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "进入时压栈，让栈顶等于「正在执行的那个」",
+          "think": "嵌套的第一件事是进入时登记：谁在执行，栈顶就应该是谁。这一步只做进入侧，退出侧维持原来的置空——先把「当前是谁」从单个变量升级成栈，再谈退出之后该把指针还给谁。",
+          "hint": "在 cleanup 之后、执行 fn 之前，把 runner push 进 effectStack，然后让 activeEffect 指向它。",
+          "vocab": [
+            {
+              "term": "effectStack",
+              "md": "一个模块级的数组，进入 effect 时 push、退出时 pop。栈顶永远等于「此刻正在执行的 effect」，嵌套几层都不会错。"
+            }
+          ],
+          "diag": [
+            "栈里查不到正在执行的那一层：runner 里少了对 effectStack 的 push，或者 push 的不是 runner 自己。",
+            "内层读到的属性记到了外层头上：activeEffect 没有在进入内层时重新指向内层。",
+            "最外层跑完后 activeEffect 不是 null：退出侧的收尾被漏掉了，指针停在上一个执行者身上。"
+          ],
+          "code": "/**\n * 第 7 关 · 第 1 步：进入时压栈\n *\n * 把「此刻谁在执行」从单个变量升级成一个栈：\n * 进入时 push，栈顶就是当前 effect。\n * 退出侧这一步先维持原样（置 null），下一步再谈还给谁。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    cleanupEffect(runner)\n    // 进入：压栈，并让「当前 effect」指向自己\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      activeEffect = null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+          "test": "{\n  const s = reactive({ a: 1, b: 2 })\n\n  check('嵌套时，栈里能查到正在执行的那一层', () => {\n    const base = effectStack.length\n    const depths = []\n    effect(() => {\n      depths.push(effectStack.length - base)\n      effect(() => { depths.push(effectStack.length - base) })\n    })\n    same(depths, [1, 2])\n  })\n  check('内层执行期间读到的属性，只算在内层头上', () => {\n    let outerRuns = 0\n    let innerRuns = 0\n    effect(() => {\n      outerRuns++\n      effect(() => { innerRuns++; s.b })\n    })\n    same([outerRuns, innerRuns], [1, 1])\n    s.b = 1\n    same([outerRuns, innerRuns], [1, 2])\n  })\n  check('最外层跑完后，外部读取不会被记账', () => {\n    effect(() => {})\n    same(activeEffect, null)\n  })\n}\n"
+        },
+        {
+          "n": 2,
+          "title": "退出时弹栈，先把进出配平",
+          "think": "栈先进不出，等于只记了一份越来越长的日志：内层结束后栈还认为它在执行，下一次进入的深度就全错了，异常路径更是直接把栈留脏。这一步只做退出时弹掉自己，把进出配平；activeEffect 暂时仍置 null，恢复给谁留到下一步。",
+          "hint": "在 finally 里先 effectStack.pop()，再把 activeEffect 置为 null。注意顺序：先弹掉自己。",
+          "vocab": [
+            {
+              "term": "进出配平",
+              "md": "栈的 push 和 pop 必须成对。只要有一条路径只 push 不 pop，栈顶就会一直指向一个已经执行完的函数，后面的归属全错。"
+            }
+          ],
+          "diag": [
+            "嵌套跑完栈里还有东西：finally 里少了 effectStack.pop()，每执行一次就多留一层。",
+            "顶层跑完栈不空或指针没归位：pop 写了，但 activeEffect 没有跟着置回 null。",
+            "抛错时栈留脏：pop 写在了 try 里而不是 finally 里，异常一跳过就执行不到。",
+            "手动重跑之后栈不平衡：pop 只在首次执行路径上，runner 再调用时没走同一段收尾。"
+          ],
+          "code": "/**\n * 第 7 关 · 第 2 步：退出时弹栈\n *\n * 进出必须成对：进入时 push，退出时 pop（放在 finally 里，抛错也收尾）。\n * 这一步 activeEffect 仍按老规矩置 null —— 先让栈自己干净。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      // 先把自己弹掉，再收尾；这里还只是置 null\n      effectStack.pop()\n      activeEffect = null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+          "test": "{\n  check('嵌套跑完之后，栈里不留东西', () => {\n    effect(() => { effect(() => {}) })\n    same(effectStack.length, 0)\n  })\n  check('顶层跑完之后，栈空、activeEffect 回到 null', () => {\n    effect(() => {})\n    same(effectStack.length, 0)\n    same(activeEffect, null)\n  })\n  check('内层抛错时，栈同样会被弹干净', () => {\n    try {\n      effect(() => { effect(() => { throw new Error('boom') }) })\n    } catch (e) {}\n    same(effectStack.length, 0)\n    same(activeEffect, null)\n  })\n  check('手动重跑 runner，进出依然平衡', () => {\n    const runner = effect(() => {})\n    runner()\n    runner()\n    same(effectStack.length, 0)\n  })\n}\n"
+        },
+        {
+          "n": 3,
+          "title": "退出时把 activeEffect 交还给新的栈顶",
+          "think": "配平之后问题只剩一句：内层退出，activeEffect 该指向谁？指向 null 会吞掉外层剩下的读取，指向自己会死循环。唯一正确的答案是「新的栈顶」，而栈空时用 ?? null 兜住。",
+          "hint": "把 finally 里的 activeEffect = null 改成 effectStack[effectStack.length - 1] ?? null；顺序仍然是先 pop 再取栈顶。",
+          "vocab": [
+            {
+              "term": "?? null 兜底",
+              "md": "最外层退出后栈是空的，effectStack[effectStack.length - 1] 是 undefined，而 activeEffect 必须是 null——track 里靠 !activeEffect 判断有没有人在读。"
+            }
+          ],
+          "diag": [
+            "嵌套时内外各跑一次就不是 1：说明注册时的 effectStack 环境已经脏了，先检查上一步的收尾。",
+            "内层变化把外层也带跑了：trigger 遍历 dep 时把两个 effect 都叫醒了，通常是 cleanup 没生效、旧依赖还在。",
+            "内层跑完后外层依赖丢了：finally 里仍然把 activeEffect 置成 null，没有交给新的栈顶。",
+            "最外层结束后 activeEffect 不是 null：?? null 兜底漏了，栈空时拿到了 undefined。"
+          ],
+          "code": "/**\n * 第 7 关 · 第 3 步：退出时把指针还给新的栈顶\n *\n * 内层退出后，外层还要继续执行、继续收集依赖，\n * 所以 activeEffect 必须指向「弹栈之后的新栈顶」，栈空时才是 null。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      // 先弹出自己，再把「当前是谁」交还给新的栈顶；栈空时才是 null\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+          "test": "{\n  const state = reactive({ a: 1, b: 2 })\n  let outerRuns = 0\n  let innerRuns = 0\n  effect(() => {\n    outerRuns++\n    effect(() => { innerRuns++; state.b })\n    state.a\n  })\n\n  check('嵌套时内外各执行一次', () => {\n    same(outerRuns, 1)\n    same(innerRuns, 1)\n  })\n  check('内层依赖变化，只重跑内层', () => {\n    state.b = 3\n    same(innerRuns, 2)\n    same(outerRuns, 1)\n  })\n  check('内层跑完后，外层读的属性仍然记在外层名下', () => {\n    state.a = 2\n    same(outerRuns, 2)\n  })\n  check('顶层结束后 activeEffect 回到 null，栈也是空的', () => {\n    same(activeEffect, null)\n    same(effectStack.length, 0)\n  })\n}\n"
+        }
+      ],
+      "finalCode": "/**\n * 第 7 关 · effect 套 effect：把「当前是谁」换成栈（完整实现）\n *\n * 进入时 push + activeEffect = runner；\n * 退出时（finally）先 pop，再把 activeEffect 交给新的栈顶，栈空才置 null。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+      "usage": "// 1) 嵌套 effect：内外各自记账，谁也不吞谁的依赖\nconst state = reactive({ a: 1, b: 2 })\nlet outerRuns = 0\nlet innerRuns = 0\n\neffect(() => {\n  outerRuns++\n  effect(() => { innerRuns++; state.b })   // 组件渲染里挂载子组件，就是这个形状\n  state.a                                   // 这一行必须仍然记在外层名下\n})\n\nstate.b = 3    // 只重跑内层：innerRuns = 2，outerRuns 仍然是 1\nstate.a = 2    // 外层重跑：outerRuns = 2\n\n// 2) 异常也不会把栈留脏\ntry {\n  effect(() => { throw new Error('render failed') })\n} catch (e) {\n  // activeEffect 已经回到 null，effectStack 也是空的\n}\n\n// 3) 手动重跑同样走同一条进出路径\nconst runner = effect(() => { state.a })\nrunner()\nactiveEffect      // null",
+      "concepts": [
+        {
+          "title": "组件树就是天然的嵌套 effect",
+          "md": "父组件的 render effect 执行时会挂载子组件，子组件的 render effect 在内层执行。如果 activeEffect 恢复错，子组件更新完之后父组件的依赖就散了——这类 bug 在线上通常表现为「偶尔不更新」，因为只有在特定渲染顺序下才触发。用栈之后，嵌套多深都不会错。"
+        }
+      ],
+      "skeleton": "/**\n * 第 7 关 · effect 套 effect：把「当前是谁」换成栈\n *\n * 上一关 finally 里把 activeEffect 直接置成了 null。\n * 一旦 effect 里再套一个 effect，内层结束就把外层弄丢了：\n * 外层后面读的属性收不到依赖，之后再也不会被叫醒。\n */\n\nconst targetMap = new WeakMap()\nlet activeEffect = null\n// 栈已经声明好了，但还没被用起来：进入不 push，退出不 pop\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    cleanupEffect(runner)\n    // 进入时没有压栈\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      // 退出时直接把指针扔掉，外层还在等它呢\n      activeEffect = null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+      "solution": "/**\n * 第 7 关 · effect 套 effect：把「当前是谁」换成栈（完整实现）\n *\n * 进入时 push + activeEffect = runner；\n * 退出时（finally）先 pop，再把 activeEffect 交给新的栈顶，栈空才置 null。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) eff()\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+      "tests": "const state = reactive({ a: 1, b: 2 })\nlet outerRuns = 0\nlet innerRuns = 0\n\neffect(() => {\n  outerRuns++\n  effect(() => { innerRuns++; state.b })\n  state.a\n})\n\ncheck('外层与内层各执行一次', () => { same(outerRuns, 1); same(innerRuns, 1) })\ncheck('内层依赖变化，只重跑内层', () => { state.b = 3; same(innerRuns, 2); same(outerRuns, 1) })\ncheck('内层跑完后，外层的依赖没有被弄丢', () => { state.a = 2; same(outerRuns, 2) })\ncheck('外层再变一次，仍然能触发（依赖是持续有效的）', () => { state.a = 3; same(outerRuns, 3) })\n{\n  const s = reactive({ a: 1, b: 2 })\n\n  check('第 1 步：嵌套时，栈里能查到正在执行的那一层', () => {\n    const base = effectStack.length\n    const depths = []\n    effect(() => {\n      depths.push(effectStack.length - base)\n      effect(() => { depths.push(effectStack.length - base) })\n    })\n    same(depths, [1, 2])\n  })\n  check('第 1 步：内层执行期间读到的属性，只算在内层头上', () => {\n    let outer = 0\n    let inner = 0\n    effect(() => {\n      outer++\n      effect(() => { inner++; s.b })\n    })\n    same([outer, inner], [1, 1])\n    s.b = 1\n    same([outer, inner], [1, 2])\n  })\n  check('第 1 步：最外层跑完后，外部读取不会被记账', () => {\n    effect(() => {})\n    same(activeEffect, null)\n  })\n}\n{\n  check('第 2 步：嵌套跑完之后，栈里不留东西', () => {\n    effect(() => { effect(() => {}) })\n    same(effectStack.length, 0)\n  })\n  check('第 2 步：顶层跑完之后，栈空、activeEffect 回到 null', () => {\n    effect(() => {})\n    same(effectStack.length, 0)\n    same(activeEffect, null)\n  })\n  check('第 2 步：内层抛错时，栈同样会被弹干净', () => {\n    try {\n      effect(() => { effect(() => { throw new Error('boom') }) })\n    } catch (e) {}\n    same(effectStack.length, 0)\n    same(activeEffect, null)\n  })\n  check('第 2 步：手动重跑 runner，进出依然平衡', () => {\n    const runner = effect(() => {})\n    runner()\n    runner()\n    same(effectStack.length, 0)\n  })\n}\n{\n  const s = reactive({ a: 1, b: 2 })\n  let outer = 0\n  let inner = 0\n  effect(() => {\n    outer++\n    effect(() => { inner++; s.b })\n    s.a\n  })\n\n  check('第 3 步：嵌套时内外各执行一次', () => {\n    same(outer, 1)\n    same(inner, 1)\n  })\n  check('第 3 步：内层依赖变化，只重跑内层', () => {\n    s.b = 3\n    same(inner, 2)\n    same(outer, 1)\n  })\n  check('第 3 步：内层跑完后，外层读的属性仍然记在外层名下', () => {\n    s.a = 2\n    same(outer, 2)\n  })\n  check('第 3 步：顶层结束后 activeEffect 回到 null，栈也是空的', () => {\n    same(activeEffect, null)\n    same(effectStack.length, 0)\n  })\n}"
+    },
+    {
+      "id": "lv8",
+      "title": "调度器：什么时候执行，交给调用方",
+      "emoji": "⏱️",
+      "xp": 60,
+      "goal": "给 effect 加上 scheduler 选项：依赖变化时不直接执行，而是把「要执行谁」交给调用方；再配一个去重队列，把同一轮的多次触发合并成一次。",
+      "why": "现在同一轮里改 10 个属性，effect 就会同步跑 10 次，其中 9 次是白跑。真实框架不会这么干：它把要执行的 effect 放进队列，等这一轮同步代码跑完，再统一刷新一次——这就是 Vue 的 nextTick 和批量更新。要做到这一点，effect 就不能「触发即执行」，得有一个中间人决定时机。",
+      "prereq": [
+        {
+          "title": "scheduler 的契约：收到的是 effect 本身",
+          "md": "scheduler 不是「执行结果」的回调，它收到的是 **runner 函数本身**：\n\n~~~js\neffect(fn, { scheduler: (eff) => jobs.push(eff) })\n~~~\n\n为什么传函数？因为调度方需要两件事：决定何时执行（先存着）、以及在队列里做去重（同一个 eff 只留一份）。如果直接传结果，这两件事都做不了。\n\nwatch 就是这么实现的：数据变了不重跑回调，而是把回调对应的 effect 丢进队列，等下一次刷新。"
+        },
+        {
+          "title": "同步触发 vs 调度执行，各自付什么代价",
+          "md": "同步执行：改完马上就能读到新状态，但无法合并，一次改 10 个就重渲染 10 次。\n\n调度执行（微任务）：能合并、能保证顺序，代价是「这一轮同步代码里读到的还是旧值」。\n\n这解释了一个常见疑问：Vue 里 state.a = 1 之后 console.log(state.a) 打印的是 1（数据已经写了），但 DOM 要等 nextTick 之后才更新（渲染 effect 被调度了）。数据和视图是两套东西。"
+        },
+        {
+          "title": "队列为什么用 Set：去重是它的默认行为",
+          "md": "同一轮里可能有很多条路把同一个 effect 扔进队列：改 a 触发它、改 b 也触发它。如果按数组存，flush 时它会被执行两次，第二次纯属重复劳动。\n\nSet 的 add 天然去重：同一个函数引用只留一份。再配合「flush 时先拷成数组、再清空队列」，执行过程中重新入队也不会丢——这个细节在第 9 关的 computed 里很关键。"
+        }
+      ],
+      "api": [
+        {
+          "name": "effect（带调度器版）",
+          "sig": "effect(fn: Function, options?: { scheduler?: (eff: Function) => void }): Function",
+          "args": "options.scheduler —— 可选。给了它，依赖变化时不会直接执行 fn，而是调用 scheduler(eff)，由它决定什么时候调 eff()。",
+          "returns": "runner，和之前一样。runner.scheduler 上挂着传进来的调度器（没传就是 undefined）。",
+          "example": "const state = reactive({ n: 1 })\nlet runs = 0\nconst jobs = []\n\neffect(() => { runs++; state.n }, { scheduler: (eff) => jobs.push(eff) })\n// 注册时仍然执行一次 → runs = 1\n\nstate.n = 2      // 不直接执行 → runs 还是 1，jobs 里有 1 个待办\n\njobs[0]()        // 手动执行 → runs = 2"
+        },
+        {
+          "name": "queueJob / flushJobs",
+          "sig": "queueJob(job: Function): void ｜ flushJobs(): void",
+          "args": "queueJob —— 一个现成的 scheduler：把 effect 塞进队列并去重。flushJobs —— 由调用方在合适时机调用，执行队列里所有 job 并清空队列。",
+          "returns": "都没有返回值。queueJob 只入队，不执行；flushJobs 才真正执行。",
+          "example": "const state = reactive({ v: 0 })\nlet runs = 0\neffect(() => { runs++; state.v }, { scheduler: queueJob })\n\nstate.v = 1\nstate.v = 2\nstate.v = 3\nruns              // 1：三次写入只入队一次\n\nflushJobs()\nruns              // 2：真正执行了一次\nstate.v = 4\nflushJobs()\nruns              // 3"
+        }
+      ],
+      "thinking": [
+        {
+          "title": "先问「谁有权决定时机」，再问队列长什么样",
+          "md": "这一关最容易被写歪的地方是：在 trigger 里直接加一个队列、然后自己 flush。那样调用方永远没有机会插入别的动作，批量更新的时机又被内核偷偷决定了。\n我的判断是：内核只负责「把要执行的东西交出去」，至于什么时候执行、要不要合并，全是调用方的事。于是改动收敛成一句：trigger 里看到 scheduler 就调它，看不到才直接跑。队列是实现细节，放在调用方那一侧（这一关最后给了个最小实现）。"
+        },
+        {
+          "title": "为什么传 runner，而不是传「已经跑完的结果」",
+          "md": "如果 scheduler 收到的是执行结果，那它就只能做事后处理，既不能延迟、也不能去重——因为执行已经发生了。\n传函数还带来一个额外好处：同一个 effect 被触发多次，传进去的是同一个函数引用，Set 去重就成立；如果每次传一个新闭包，去重立刻失效。判断一个调度接口设计得好不好，就看它交给你的东西能不能被你「再决定一次」。"
+        },
+        {
+          "title": "先让 trigger 认这个约定，再让 effect 生产它",
+          "md": "我拆成两步：第一步只改 trigger，测试里手动给 runner 挂一个 scheduler 来验证分流；第二步才让 effect 从 options 里把 scheduler 挂上去。\n这样拆的原因很实际：如果同时改两处，测试红了以后你不知道是「trigger 没看 scheduler」还是「effect 没挂 scheduler」。中间那一步用「手动挂」把两侧解耦，任何一边坏了都只有一个嫌疑人。"
+        },
+        {
+          "title": "队列里 clear 的时机：先拷再清，而不是边跑边删",
+          "md": "flush 我写成「先把 Set 拷成数组，立刻 clear，再逐个执行」。顺序看着啰嗦，但它是唯一能同时满足两件事的写法：执行过程中重新入队不会丢（因为队列已经清了），一次 flush 也不会重复执行同一个 job（因为拷出来的是快照）。\n如果写成边遍历边删，执行期间新入队的 job 会在本轮被顺手执行掉，flush 的边界就糊了——「一个 tick 内最多刷新一次」这个承诺也就没了。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "trigger 里分流：有 scheduler 就交给它",
+          "think": "先只改通知那一侧：遍历 dep 时先看这个 effect 有没有 scheduler，有就把「它自己」交出去，没有才直接执行。这一步用测试手动给 runner 挂调度器来验证，不碰 effect 的签名，出问题只可能出在分流这一行。",
+          "hint": "把 trigger 里的 eff() 包进判断：eff.scheduler 存在就调 eff.scheduler(eff)，否则才 eff()。",
+          "vocab": [
+            {
+              "term": "runner.scheduler",
+              "md": "effect 返回的 runner 是普通函数，可以直接挂属性。trigger 遍历 dep 时检查这个属性：有就交给它，没有就直接执行。"
+            }
+          ],
+          "diag": [
+            "依赖变化后函数仍然直接跑了：trigger 里还是无条件 eff()，没有先看 eff.scheduler。",
+            "scheduler 收到的东西不对：传进去的应该是 effect 本身（那个函数），而不是它的返回值。",
+            "手动执行之后没有真正更新：runner 被调度后执行的仍是原来那段逻辑，检查是否误把 scheduler 当成了要执行的函数。"
+          ],
+          "code": "/**\n * 第 8 关 · 第 1 步：trigger 里认 scheduler 这个约定\n *\n * 只改通知侧：有 scheduler 就把 effect 交出去，没有才直接执行。\n * effect 的生产侧（从 options 里挂 scheduler）留到下一步。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    // 有调度器就交给它决定时机；没有才同步执行\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner()\n  return runner\n}\n",
+          "test": "{\n  const state = reactive({ n: 1 })\n  let runs = 0\n  const jobs = []\n  const runner = effect(() => { runs++; state.n })\n  runner.scheduler = (eff) => jobs.push(eff)\n\n  check('运行时挂上 scheduler 后，依赖变化不再直接执行', () => {\n    state.n = 2\n    same(runs, 1)\n    same(jobs.length, 1)\n  })\n  check('交给 scheduler 的是 effect 本身', () => {\n    same(typeof jobs[0], 'function')\n  })\n  check('手动执行交出来的 effect，才真正更新', () => {\n    jobs[0]()\n    same(runs, 2)\n    same(state.n, 2)\n  })\n}\n"
+        },
+        {
+          "n": 2,
+          "title": "effect 把 options.scheduler 挂到 runner 上",
+          "think": "分流写好了，现在让 effect 真的能生产这种 runner：签名加第二个参数 options，把 scheduler 挂到返回的 runner 上。挂的位置要在 runner() 之前，否则首次执行期间触发的那次变化会找不到调度器。",
+          "hint": "把签名改成 effect(fn, options = {})，在 runner.deps = [] 旁边加 runner.scheduler = options.scheduler。",
+          "vocab": [
+            {
+              "term": "options 默认值 {}",
+              "md": "effect(fn, options = {}) 里的默认值不能省：只传一个参数的调用会拿到 undefined，取 options.scheduler 会直接抛 TypeError。"
+            }
+          ],
+          "diag": [
+            "注册时没有立刻执行：effect 里那句 runner() 被误删或写成了 return runner()。",
+            "有 scheduler 时依赖变化仍然直接执行：runner 上没有挂 scheduler，或者挂成了 options.scheduler()。",
+            "scheduler 收到的东西不对：应该把 eff 本身交给它，而不是先调一遍再传结果。",
+            "只传 fn 的调用报错：函数签名少了 options 的默认值 {}。"
+          ],
+          "code": "/**\n * 第 8 关 · 第 2 步：effect 生产带 scheduler 的 runner\n *\n * options 是可选的，scheduler 挂在 runner 上交给 trigger 判断。\n * 注册时的首次执行不受影响：调度只改变「依赖变化之后」的时机。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  // 挂到 runner 上，trigger 遍历 dep 时会读它\n  runner.scheduler = options.scheduler\n  runner()\n  return runner\n}\n",
+          "test": "{\n  const state = reactive({ n: 1 })\n  let runs = 0\n  const jobs = []\n  effect(() => { runs++; state.n }, { scheduler: (eff) => jobs.push(eff) })\n\n  check('注册时仍然立刻执行一次', () => same(runs, 1))\n  check('有 scheduler 时，依赖变化不直接执行，而是交给 scheduler', () => {\n    state.n = 2\n    same(runs, 1)\n    same(jobs.length, 1)\n  })\n  check('scheduler 收到的是 effect 本身，可以直接调用', () => {\n    same(typeof jobs[0], 'function')\n    jobs[0]()\n    same(runs, 2)\n    same(state.n, 2)\n  })\n  check('没传 scheduler 的 effect 仍然同步执行，只传 fn 也不报错', () => {\n    const s2 = reactive({ v: 0 })\n    let r = 0\n    effect(() => { r++; s2.v })\n    s2.v = 1\n    same(r, 2)\n  })\n}\n"
+        },
+        {
+          "n": 3,
+          "title": "给调用方一个去重队列：queueJob + flushJobs",
+          "think": "调度权交出去之后，调用方最常写的第一版就是「push 进数组，然后挨个跑」。但同一轮里同一个 effect 可能被触发很多次，数组会把它们全执行一遍。所以补一个最小实现：Set 去重入队，flush 时先拷快照再清空，保证一次刷新里每个 effect 只跑一次。",
+          "hint": "加一个模块级的 const jobQueue = new Set()；queueJob(job) 里 add，flushJobs() 里先拷贝成数组、clear 队列、再逐个执行。",
+          "vocab": [
+            {
+              "term": "Set 做队列天然去重",
+              "md": "同一个 effect 在一轮里被触发多次，add 到 Set 里只留一份；flush 时先拷成数组、再 clear，执行过程中重新入队才不会丢。"
+            }
+          ],
+          "diag": [
+            "改三次就跑了三次：scheduler 没有用 queueJob，或者 queueJob 里直接执行了 job。",
+            "flush 之后没跑或跑了两次：拷贝、清空、执行这三步的顺序或次数不对。",
+            "flush 完之后队列没清空：少了 jobQueue.clear()，下一次变化会被上一次的残留挡住。",
+            "两个 effect 只跑了一个：queueJob 里用了 Map 的键或者字符串去重，把不同的函数合并成了一份。"
+          ],
+          "code": "/**\n * 第 8 关 · 第 3 步：最小调度队列\n *\n * queueJob 只入队并去重，不执行；flushJobs 由调用方决定何时调用。\n * 真实框架里 flush 挂在微任务上，这一关交给调用方手动触发。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner.scheduler = options.scheduler\n  runner()\n  return runner\n}\n\n/**\n * 最小调度队列：Set 保证同一个 effect 在一轮里只排一次。\n * queueJob 只负责排队，什么时候刷新由调用方决定。\n */\nconst jobQueue = new Set()\n\nfunction queueJob(job) {\n  jobQueue.add(job)\n}\n\nfunction flushJobs() {\n  // 先取快照、立刻清空：执行过程中重新入队的 job 留到下一轮\n  const jobs = [...jobQueue]\n  jobQueue.clear()\n  for (const job of jobs) job()\n}\n",
+          "test": "{\n  const state = reactive({ v: 0 })\n  let runs = 0\n  effect(() => { runs++; state.v }, { scheduler: queueJob })\n\n  check('同一轮改三次，只会入队一次', () => {\n    state.v = 1\n    state.v = 2\n    state.v = 3\n    same(runs, 1)\n    same(jobQueue.size, 1)\n  })\n  check('flush 之后，effect 才真正执行一次', () => {\n    flushJobs()\n    same(runs, 2)\n    same(state.v, 3)\n  })\n  check('flush 会清空队列，下一次变化重新入队', () => {\n    same(jobQueue.size, 0)\n    state.v = 4\n    same(jobQueue.size, 1)\n    flushJobs()\n    same(runs, 3)\n  })\n  check('两个 effect 各自入队一次，flush 后都执行', () => {\n    const s2 = reactive({ x: 0 })\n    let a = 0\n    let b = 0\n    effect(() => { a++; s2.x }, { scheduler: queueJob })\n    effect(() => { b++; s2.x }, { scheduler: queueJob })\n    s2.x = 1\n    same(jobQueue.size, 2)\n    flushJobs()\n    same(a, 2)\n    same(b, 2)\n  })\n}\n"
+        }
+      ],
+      "finalCode": "/**\n * 第 8 关 · 调度器：什么时候执行，交给调用方（完整实现）\n *\n * trigger 发现 eff.scheduler 就把 effect 交出去；\n * effect 负责把 options.scheduler 挂到 runner 上；\n * queueJob / flushJobs 是调用方那一侧的最小去重队列。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner.scheduler = options.scheduler\n  runner()\n  return runner\n}\n\nconst jobQueue = new Set()\n\nfunction queueJob(job) {\n  jobQueue.add(job)\n}\n\nfunction flushJobs() {\n  const jobs = [...jobQueue]\n  jobQueue.clear()\n  for (const job of jobs) job()\n}\n",
+      "usage": "// 1) 最直接的用法：把时机交给自己\nconst state = reactive({ n: 1 })\nlet runs = 0\nconst jobs = []\n\neffect(() => { runs++; state.n }, { scheduler: (eff) => jobs.push(eff) })\n\n// 注册时执行一次 → runs = 1\nstate.n = 2   // 不执行 → runs 还是 1，jobs 里有 1 个待办\njobs[0]()     // 手动执行 → runs = 2\n\n// 2) 配上去重队列：一个 tick 内改多次，只刷新一次\nconst form = reactive({ a: 0, b: 0 })\nlet renders = 0\neffect(() => { renders++; form.a; form.b }, { scheduler: queueJob })\n\nform.a = 1\nform.b = 2\nform.a = 3\nrenders        // 1：还没刷新\nflushJobs()\nrenders        // 2：一次刷新把三次修改合并掉了\n\n// 3) 这就是 nextTick 的雏形：flush 放到微任务里\n// Promise.resolve().then(flushJobs)",
+      "concepts": [
+        {
+          "title": "nextTick 就是「把调度接到微任务上」",
+          "md": "Vue 的 nextTick 并不神秘：调度器把 job 塞进一个 Set 队列，然后用 Promise.then（微任务）在同步代码结束后统一 flush。浏览器渲染前一定会清空微任务，所以「一个 tick 内改多次、只渲染一次」是这么来的。第 8 关你交出的那个 eff，就是可以放进这个队列的东西。"
+        },
+        {
+          "title": "调度之后，「读到旧值」是预期行为",
+          "md": "被调度的 effect 不会立刻执行，所以这一轮同步代码里读到的还是旧值。这不是 bug，而是用「延迟」换「合并」的代价。理解这一点，就不会在 nextTick 之前去读 DOM。"
+        }
+      ],
+      "skeleton": "/**\n * 第 8 关 · 调度器：什么时候执行，交给调用方\n *\n * 现在 trigger 一发现依赖就立刻执行 effect。同一轮改 10 个属性 = 跑 10 次。\n * 这一关把「什么时候跑」变成可选项：effect 传了 scheduler，就交给它决定。\n */\n\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    // 不管有没有调度器，都直接执行了：时机没有交给调用方\n    eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  // 还没有把 options.scheduler 挂到 runner 上\n  runner()\n  return runner\n}\n",
+      "solution": "/**\n * 第 8 关 · 调度器：什么时候执行，交给调用方（完整实现）\n *\n * trigger 发现 eff.scheduler 就把 effect 交出去；\n * effect 负责把 options.scheduler 挂到 runner 上；\n * queueJob / flushJobs 是调用方那一侧的最小去重队列。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner.scheduler = options.scheduler\n  runner()\n  return runner\n}\n\nconst jobQueue = new Set()\n\nfunction queueJob(job) {\n  jobQueue.add(job)\n}\n\nfunction flushJobs() {\n  const jobs = [...jobQueue]\n  jobQueue.clear()\n  for (const job of jobs) job()\n}\n",
+      "tests": "const state = reactive({ n: 1 })\nlet runs = 0\nconst jobs = []\n\neffect(() => { runs++; state.n }, { scheduler: (eff) => jobs.push(eff) })\n\ncheck('注册时仍然立刻执行一次', () => same(runs, 1))\ncheck('有 scheduler 时，依赖变化不直接执行', () => { state.n = 2; same(runs, 1); same(jobs.length, 1) })\ncheck('scheduler 拿到的是 effect 本身（可以直接调用）', () => same(typeof jobs[0], 'function'))\ncheck('手动执行 scheduler 交出来的 effect，才真正更新', () => { jobs[0](); same(runs, 2); same(state.n, 2) })\ncheck('没有 scheduler 的 effect 仍然同步执行', () => {\n  const s2 = reactive({ v: 0 })\n  let r = 0\n  effect(() => { r++; s2.v })\n  s2.v = 1\n  same(r, 2)\n})\ncheck('批量修改时，调用方可以把同一个 effect 去重成一条', () => {\n  const s3 = reactive({ v: 0 })\n  let r = 0\n  const q = []\n  effect(() => { r++; s3.v }, { scheduler: (eff) => { if (!q.includes(eff)) q.push(eff) } })\n  s3.v = 1\n  s3.v = 2\n  s3.v = 3\n  same(q.length, 1)\n  same(r, 1)\n  q[0]()\n  same(r, 2)\n})\n{\n  const s = reactive({ n: 1 })\n  let n = 0\n  const list = []\n  const runner = effect(() => { n++; s.n })\n  runner.scheduler = (eff) => list.push(eff)\n\n  check('第 1 步：运行时挂上 scheduler 后，依赖变化不再直接执行', () => {\n    s.n = 2\n    same(n, 1)\n    same(list.length, 1)\n  })\n  check('第 1 步：交给 scheduler 的是 effect 本身', () => {\n    same(typeof list[0], 'function')\n  })\n  check('第 1 步：手动执行交出来的 effect，才真正更新', () => {\n    list[0]()\n    same(n, 2)\n    same(s.n, 2)\n  })\n}\n{\n  const s = reactive({ n: 1 })\n  let n = 0\n  const list = []\n  effect(() => { n++; s.n }, { scheduler: (eff) => list.push(eff) })\n\n  check('第 2 步：注册时仍然立刻执行一次', () => same(n, 1))\n  check('第 2 步：有 scheduler 时，依赖变化不直接执行，而是交给 scheduler', () => {\n    s.n = 2\n    same(n, 1)\n    same(list.length, 1)\n  })\n  check('第 2 步：scheduler 收到的是 effect 本身，可以直接调用', () => {\n    same(typeof list[0], 'function')\n    list[0]()\n    same(n, 2)\n    same(s.n, 2)\n  })\n  check('第 2 步：没传 scheduler 的 effect 仍然同步执行，只传 fn 也不报错', () => {\n    const s2 = reactive({ v: 0 })\n    let r = 0\n    effect(() => { r++; s2.v })\n    s2.v = 1\n    same(r, 2)\n  })\n}\n{\n  const s = reactive({ v: 0 })\n  let n = 0\n  effect(() => { n++; s.v }, { scheduler: queueJob })\n\n  check('第 3 步：同一轮改三次，只会入队一次', () => {\n    s.v = 1\n    s.v = 2\n    s.v = 3\n    same(n, 1)\n    same(jobQueue.size, 1)\n  })\n  check('第 3 步：flush 之后，effect 才真正执行一次', () => {\n    flushJobs()\n    same(n, 2)\n    same(s.v, 3)\n  })\n  check('第 3 步：flush 会清空队列，下一次变化重新入队', () => {\n    same(jobQueue.size, 0)\n    s.v = 4\n    same(jobQueue.size, 1)\n    flushJobs()\n    same(n, 3)\n  })\n  check('第 3 步：两个 effect 各自入队一次，flush 后都执行', () => {\n    const s2 = reactive({ x: 0 })\n    let a = 0\n    let b = 0\n    effect(() => { a++; s2.x }, { scheduler: queueJob })\n    effect(() => { b++; s2.x }, { scheduler: queueJob })\n    s2.x = 1\n    same(jobQueue.size, 2)\n    flushJobs()\n    same(a, 2)\n    same(b, 2)\n  })\n}"
+    },
+    {
+      "id": "lv9",
+      "title": "computed：懒计算、缓存、还能被依赖",
+      "emoji": "💎",
+      "xp": 80,
+      "goal": "实现 computed(getter)：第一次读取才算，结果缓存；依赖变了下次读才重算；并且能被 effect 当成依赖。",
+      "why": "如果每次读 computed 都重算一遍，它只是个语法糖；如果依赖一变就立刻重算，它比直接用函数还慢。computed 的价值在于「既缓存、又精确地知道自己什么时候该失效」——它是这一季所有零件（effect、track、trigger、scheduler、cleanup）的总装。",
+      "prereq": [
+        {
+          "title": "computed 身上有两层依赖，方向相反",
+          "md": "一个 computed 同时扮演两个角色：\n\n- **它读了谁**：getter 里读 state.a、state.b —— 靠 lazy effect 收集，依赖变了它才知道自己该脏。\n- **谁读了它**：别的 effect 或 computed 读 sum.value —— 靠 track(this, value) 收集，它变了才知道该通知谁。\n\n少任何一层都会出现「该更新时不更新」：只做第一层，依赖 computed 的 effect 永远收不到通知；只做第二层，computed 永远不知道该重算。"
+        },
+        {
+          "title": "脏标记：用一个布尔值代替「算一遍看看」",
+          "md": "computed 不需要在依赖变化时立刻重算。它只需要记一句「我可能过期了」：\n\n~~~js\nthis._dirty = true    // 依赖变了 → 标脏\n// 下次有人读 value：\nif (this._dirty) { this._dirty = false; this._value = 重算() }\nreturn this._value\n~~~\n\n这就是「懒计算 + 缓存」：没人读就一次都不算（比如一个不在当前 tab 里的面板）；有人读，也只在下一次读的时候算一次。\n\n关键顺序：**先把 dirty 置回 false，再执行 getter**。反过来的话，getter 内部只要再读到自己一次，就会永远脏、无限递归。"
+        }
+      ],
+      "api": [
+        {
+          "name": "computed",
+          "sig": "computed(getter: () => any): { value: any }",
+          "args": "getter —— 无参函数，里面读响应式数据并返回一个值。它不会在创建时执行。",
+          "returns": "一个对象，只有 .value 属性：读它拿到缓存值（必要时重算），写它没有意义（这一关不实现 setter）。",
+          "example": "const state = reactive({ a: 1, b: 2 })\nlet computes = 0\nconst sum = computed(() => { computes++; return state.a + state.b })\n\ncomputes          // 0 —— 创建时不计算\n\nsum.value         // 3，此时 computes 变成 1\nsum.value         // 3，仍然只算过 1 次（缓存）\n\nstate.a = 10\ncomputes          // 1 —— 依赖变了，但还没人读，所以不重算\nsum.value         // 12，这次读才重算 → computes = 2"
+        }
+      ],
+      "thinking": [
+        {
+          "title": "先问「什么时候该算」，再问怎么缓存",
+          "md": "拿到这一关，我先列了三种可能的实现：每次读都算、依赖一变就算、没人读就不算且脏了才重算。第一种是语法糖、第二种比直接调函数还慢，只有第三种同时拿到了「省计算」和「结果新」。\n确定了策略，代码形状才定下来：getter 必须包成 lazy effect（创建时不执行），并且必须有一个 dirty 标记来推迟重算。缓存不是目的，它只是「懒」的副产品；如果一开始就想「我要加个缓存」，很容易写成依赖变了也不更新。"
+        },
+        {
+          "title": "为什么先做懒计算，最后才做「通知读过我的人」",
+          "md": "computed 有两层依赖，我刻意分层做。第一层是「它读了谁」——由 lazy effect 负责，这一层决定它什么时候脏；第二层是「谁读了它」——由 track(this, value) 和 scheduler 里的 trigger 负责，这一层决定别人什么时候被叫醒。\n先做第一层，测试能验证「没人读就不算、脏了才重算」；再做第二层，才谈「依赖它的 effect 能自动更新」。反过来的话，第一次读值都算不对，通知得再及时也没有意义。分层推进让每一步的失败现象都很窄。"
+        },
+        {
+          "title": "为什么 track(this, value) 必须无条件调用",
+          "md": "我第一版把 track 写在了 if (this._dirty) 里面，理由是「反正只有重算时值才会变」。结果第二次读同一个 computed 的时候，依赖它的 effect 不再被登记——因为它命中了缓存，没进重算分支。\n后来想明白了：登记依赖和算值是两件事。算不算取决于缓存，登不登记取决于「有人在读我」，每次读都必须登记。把这两件事分开之后，代码反而更短：先算（如果需要），再无条件 track，最后返回值。"
+        },
+        {
+          "title": "scheduler 里那个 if (!this._dirty) 是干什么的",
+          "md": "依赖变化时，computed 的 scheduler 会被调用。如果每次都无脑标脏 + trigger，同一个 tick 里依赖改三次，就会通知下游三次，白白把 effect 叫起来排队。\n所以在标脏之前先看自己脏不脏：已经脏了，说明这一轮已经通知过了，直接返回。这个短路还能避免「重算过程中改数据」引发的重复通知。写响应式的时候，这种「状态没变就别再喊」的判断几乎每一层都要有。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "先把 getter 包成懒 effect",
+          "think": "computed 的第一步不是缓存，而是「创建时不执行」。这需要 effect 支持 lazy：只把 runner 交出去，不立刻调用。先把这个能力补上，computed 的构造才可能做到「没人读就一次都不算」。",
+          "hint": "给 effect 的结尾加条件：只有 !options.lazy 时才 runner()；computed 里用 effect(getter, { lazy: true }) 拿到 runner。",
+          "vocab": [
+            {
+              "term": "lazy effect",
+              "md": "创建时不执行，只把 runner 交出去，等别人需要时再调。computed 的第一个能力就是「没人读就一次都不算」。"
+            }
+          ],
+          "diag": [
+            "创建 computed 时 getter 就跑了：effect 结尾还是无条件 runner()，没有看 options.lazy。",
+            "第一次读拿不到值：get value 里没有调用 lazy effect 交回来的那个 runner。",
+            "lazy 的 effect 注册时就执行了：runner() 没有放进 !options.lazy 的条件里。",
+            "不传 lazy 的 effect 不执行了：条件写反了，变成只有 lazy 才执行。"
+          ],
+          "code": "/**\n * 第 9 关 · 第 1 步：getter 包成 lazy effect\n *\n * effect 增加 lazy 选项：lazy 时只交出 runner，不立刻执行。\n * computed 用它把「什么时候算」的主动权拿在自己手里。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner.scheduler = options.scheduler\n  // lazy 的 effect 不立刻执行：等调用方需要时手动调 runner\n  if (!options.lazy) runner()\n  return runner\n}\n\nconst jobQueue = new Set()\n\nfunction queueJob(job) {\n  jobQueue.add(job)\n}\n\nfunction flushJobs() {\n  const jobs = [...jobQueue]\n  jobQueue.clear()\n  for (const job of jobs) job()\n}\n\n/**\n * 这一步先只做到「懒」：每次读 value 都手动跑一遍 lazy effect。\n * 缓存和通知是后面两步的事。\n */\nclass ComputedRefImpl {\n  constructor(getter) {\n    this._value = undefined\n    this.effect = effect(getter, { lazy: true })\n  }\n\n  get value() {\n    this._value = this.effect()\n    return this._value\n  }\n}\n\nfunction computed(getter) {\n  return new ComputedRefImpl(getter)\n}\n",
+          "test": "{\n  const state = reactive({ a: 1, b: 2 })\n  let computes = 0\n  const sum = computed(() => { computes++; return state.a + state.b })\n\n  check('创建 computed 时不执行 getter', () => same(computes, 0))\n  check('第一次读才算，值也对', () => {\n    same(sum.value, 3)\n    same(computes, 1)\n  })\n  check('lazy 的 effect 不立刻执行，交回来的 runner 调用才执行', () => {\n    let n = 0\n    const runner = effect(() => { n++ }, { lazy: true })\n    same(n, 0)\n    runner()\n    same(n, 1)\n  })\n  check('不传 lazy 的 effect 仍然在注册时立刻执行', () => {\n    let n = 0\n    effect(() => { n++ })\n    same(n, 1)\n  })\n}\n"
+        },
+        {
+          "n": 2,
+          "title": "加脏标记：读过一次就缓存，脏了才重算",
+          "think": "懒已经做到了，但每次读都算一遍，等于没有缓存。这一步加两个字段：_dirty 表示「结果可能过期」，_value 存上一次的结果；读 value 时只在脏的时候重算。注意先把 dirty 置回 false 再算，否则 getter 里再读到自己会无限递归。",
+          "hint": "构造函数里加 this._dirty = true 和 this._value = undefined；get value 里写 if (this._dirty) { this._dirty = false; this._value = this.effect() }，最后 return this._value。",
+          "vocab": [
+            {
+              "term": "脏标记 _dirty",
+              "md": "一个布尔值代替「算一遍看看」：依赖变了只标记「可能过期」，真正重算推迟到下一次读 value 的时候。"
+            }
+          ],
+          "diag": [
+            "第一次读没算出值：get value 少了重算分支，或者 dirty 初值写成了 false。",
+            "读两次算两次：没有缓存，get value 每次都调 this.effect()。",
+            "读很多次仍在重算：dirty 判断写反了，或者算完没有把 dirty 置回 false。"
+          ],
+          "code": "/**\n * 第 9 关 · 第 2 步：脏标记 + 缓存\n *\n * _dirty 为真表示「结果可能过期」，_value 存上一次算出来的值。\n * 读 value：脏了才重算，不脏直接给缓存。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner.scheduler = options.scheduler\n  if (!options.lazy) runner()\n  return runner\n}\n\nconst jobQueue = new Set()\n\nfunction queueJob(job) {\n  jobQueue.add(job)\n}\n\nfunction flushJobs() {\n  const jobs = [...jobQueue]\n  jobQueue.clear()\n  for (const job of jobs) job()\n}\n\nclass ComputedRefImpl {\n  constructor(getter) {\n    this._dirty = true\n    this._value = undefined\n    this.effect = effect(getter, { lazy: true })\n  }\n\n  get value() {\n    if (this._dirty) {\n      // 先置回 false 再算：getter 里如果又读到自己，才不会无限递归\n      this._dirty = false\n      this._value = this.effect()\n    }\n    return this._value\n  }\n}\n\nfunction computed(getter) {\n  return new ComputedRefImpl(getter)\n}\n",
+          "test": "{\n  const state = reactive({ a: 1, b: 2 })\n  let computes = 0\n  const sum = computed(() => { computes++; return state.a + state.b })\n\n  check('第一次读才计算', () => {\n    same(sum.value, 3)\n    same(computes, 1)\n  })\n  check('再读一次用缓存，不重算', () => {\n    same(sum.value, 3)\n    same(sum.value, 3)\n    same(computes, 1)\n  })\n  check('依赖没变时，读多少次都只算一次', () => {\n    same(sum.value, 3)\n    same(computes, 1)\n  })\n}\n"
+        },
+        {
+          "n": 3,
+          "title": "接上第二层依赖：失效就标脏，并且通知读过我的人",
+          "think": "第一层依赖（它读了谁）已经在跑了，靠的是懒 effect。这一步补第二层：scheduler 里标脏并 trigger(this, value)，get value 里无条件 track(this, value)。两层都接上，computed 才能真正「既知道自己过期、又让别人知道该重跑」。",
+          "hint": "构造函数里给 effect 传 scheduler：不脏时先 this._dirty = true 再 trigger(this, \"value\")；get value 里算完（或不需算）之后无条件 track(this, \"value\")。",
+          "vocab": [
+            {
+              "term": "两层依赖",
+              "md": "computed 既要 track 自己读的 data（靠 lazy effect），又要被读过它的 effect track（track(this, value)）。少一层就有一边永远不更新。"
+            }
+          ],
+          "diag": [
+            "依赖变了之后读到的还是旧值：scheduler 没有把 _dirty 置为 true，或者根本没挂 scheduler。",
+            "依赖 computed 的 effect 不更新：scheduler 里只标了脏，没有 trigger(this, \"value\")。",
+            "computed 套 computed 不联动：get value 里少了 track(this, \"value\")，或者 track 只在重算时才调用。",
+            "没人读的时候也在重算：scheduler 里直接调了 this.effect()，把懒计算绕过去了。"
+          ],
+          "code": "/**\n * 第 9 关 · 第 3 步：两层依赖合起来\n *\n * 第一层：getter 包成 lazy effect —— 它读了谁，谁变了就进 scheduler。\n * 第二层：scheduler 标脏并 trigger(this, value)，get value 里 track(this, value)。\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner.scheduler = options.scheduler\n  if (!options.lazy) runner()\n  return runner\n}\n\nconst jobQueue = new Set()\n\nfunction queueJob(job) {\n  jobQueue.add(job)\n}\n\nfunction flushJobs() {\n  const jobs = [...jobQueue]\n  jobQueue.clear()\n  for (const job of jobs) job()\n}\n\nclass ComputedRefImpl {\n  constructor(getter) {\n    this._dirty = true\n    this._value = undefined\n    this.effect = effect(getter, {\n      lazy: true,\n      // 第一层依赖变了：只标脏 + 通知读过我的人，绝不在这里重算\n      scheduler: () => {\n        if (!this._dirty) {\n          this._dirty = true\n          trigger(this, 'value')\n        }\n      }\n    })\n  }\n\n  get value() {\n    if (this._dirty) {\n      this._dirty = false\n      this._value = this.effect()\n    }\n    // 不管算没算，只要有人读，就登记「谁读了我」\n    track(this, 'value')\n    return this._value\n  }\n}\n\nfunction computed(getter) {\n  return new ComputedRefImpl(getter)\n}\n",
+          "test": "{\n  const state = reactive({ a: 1, b: 2 })\n  let computes = 0\n  const sum = computed(() => { computes++; return state.a + state.b })\n\n  check('依赖变了不会立刻重算，下次读才重算', () => {\n    same(sum.value, 3)\n    state.a = 10\n    same(computes, 1)\n    same(sum.value, 12)\n    same(computes, 2)\n  })\n  check('computed 能被 effect 依赖：依赖一变，读它的 effect 自动重跑', () => {\n    let seen = 0\n    effect(() => { seen = sum.value })\n    same(seen, 12)\n    state.b = 20\n    same(seen, 30)\n  })\n  check('computed 可以依赖 computed', () => {\n    const double = computed(() => sum.value * 2)\n    same(double.value, 60)\n    state.a = 0\n    same(double.value, 40)\n  })\n  check('没人读的时候，依赖变化不会触发重算', () => {\n    const s2 = reactive({ n: 1 })\n    let c = 0\n    const v = computed(() => { c++; return s2.n })\n    same(v.value, 1)\n    s2.n = 2\n    same(c, 1)\n  })\n}\n"
+        }
+      ],
+      "finalCode": "/**\n * 第 9 关 · computed：懒计算、缓存、还能被依赖（完整实现）\n *\n * 1) getter 包成 lazy effect：创建时不算\n * 2) _dirty + _value：脏了才重算，不脏给缓存\n * 3) 两层依赖：lazy effect 负责「我读了谁」，track(this, value) 负责「谁读了我」\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner.scheduler = options.scheduler\n  if (!options.lazy) runner()\n  return runner\n}\n\nconst jobQueue = new Set()\n\nfunction queueJob(job) {\n  jobQueue.add(job)\n}\n\nfunction flushJobs() {\n  const jobs = [...jobQueue]\n  jobQueue.clear()\n  for (const job of jobs) job()\n}\n\nclass ComputedRefImpl {\n  constructor(getter) {\n    this._dirty = true\n    this._value = undefined\n    this.effect = effect(getter, {\n      lazy: true,\n      scheduler: () => {\n        if (!this._dirty) {\n          this._dirty = true\n          trigger(this, 'value')\n        }\n      }\n    })\n  }\n\n  get value() {\n    if (this._dirty) {\n      this._dirty = false\n      this._value = this.effect()\n    }\n    track(this, 'value')\n    return this._value\n  }\n}\n\nfunction computed(getter) {\n  return new ComputedRefImpl(getter)\n}\n",
+      "usage": "// 1) 懒 + 缓存：没人读就一次都不算\nconst state = reactive({ a: 1, b: 2 })\nlet computes = 0\nconst sum = computed(() => { computes++; return state.a + state.b })\n\ncomputes      // 0：创建时不计算\nsum.value     // 3，此时 computes = 1\nsum.value     // 3，仍然只算过 1 次（缓存）\n\n// 2) 依赖变了：只标脏，不重算\nstate.a = 10\ncomputes      // 1：还没人读，不重算\nsum.value     // 12，这次读才重算 → computes = 2\n\n// 3) 被 effect 依赖：依赖一变，读它的那个函数自动重跑\nlet seen = 0\neffect(() => { seen = sum.value })\nstate.b = 20\nseen          // 30\n\n// 4) computed 叠 computed\nconst double = computed(() => sum.value * 2)\ndouble.value  // 60\nstate.a = 0\ndouble.value  // 40",
+      "concepts": [
+        {
+          "title": "现在你手上有完整的 Vue3 响应式内核",
+          "md": "把九关连起来看：Proxy 拦截读写 → track 记账 → trigger 通知 → effect 负责「谁在读」→ 同值判断省掉无效触发 → cleanup 让依赖跟着分支走 → effectStack 让嵌套安全 → scheduler 把时机交出去 → computed 在这一套地基上做缓存。Vue3 的 ref、watch、nextTick、甚至是 v-memo，都是这几个零件的不同组合。"
+        },
+        {
+          "title": "computed 与 ref 的区别",
+          "md": "ref 是「可写的响应式格子」，读写直接落到 dep 上；computed 是「由别的数据算出来的格子」，它自己不可写，值由 getter 决定。所以 computed 必须同时管两件事：自己依赖谁、谁依赖它。理解了这两层，再看 Vue 源码里的 ComputedRefImpl 就不会觉得它绕。"
+        }
+      ],
+      "skeleton": "/**\n * 第 9 关 · computed：懒计算、缓存、还能被依赖\n *\n * computed 要同时做到三件事：\n * 1) 创建时不计算（可能根本没人读）\n * 2) 读过一次就把结果缓存住\n * 3) 依赖变了，下一次读才重算；并且读过它的 effect 要被通知\n *\n * 它要用到前面所有零件：lazy effect、scheduler、track、trigger。\n */\n\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner.scheduler = options.scheduler\n  // effect 还不认识 lazy：getter 在这里就会被执行一次\n  runner()\n  return runner\n}\n\nconst jobQueue = new Set()\n\nfunction queueJob(job) {\n  jobQueue.add(job)\n}\n\nfunction flushJobs() {\n  const jobs = [...jobQueue]\n  jobQueue.clear()\n  for (const job of jobs) job()\n}\n\n/**\n * computed 的实现体，目前只搭好了壳：\n * 有 dirty 标记、有 lazy effect，但取值还没实现。\n */\nclass ComputedRefImpl {\n  constructor(getter) {\n    this._dirty = true\n    this._value = undefined\n    this.effect = effect(getter, { lazy: true })\n  }\n\n  get value() {\n    // 还没实现：脏了要重算、要缓存、要登记「谁读了我」\n    throw new Error('computed 的取值还没实现')\n  }\n}\n\nfunction computed(getter) {\n  return new ComputedRefImpl(getter)\n}\n",
+      "solution": "/**\n * 第 9 关 · computed：懒计算、缓存、还能被依赖（完整实现）\n *\n * 1) getter 包成 lazy effect：创建时不算\n * 2) _dirty + _value：脏了才重算，不脏给缓存\n * 3) 两层依赖：lazy effect 负责「我读了谁」，track(this, value) 负责「谁读了我」\n */\nconst targetMap = new WeakMap()\nlet activeEffect = null\nconst effectStack = []\n\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = targetMap.get(target)\n  if (!depsMap) targetMap.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  if (!dep.has(activeEffect)) {\n    dep.add(activeEffect)\n    if (!activeEffect.deps) activeEffect.deps = []\n    activeEffect.deps.push(dep)\n  }\n}\n\nfunction cleanupEffect(eff) {\n  for (const dep of eff.deps ?? []) dep.delete(eff)\n  eff.deps.length = 0\n}\n\nfunction trigger(target, key) {\n  const depsMap = targetMap.get(target)\n  if (!depsMap) return\n  const dep = depsMap.get(key)\n  if (!dep) return\n  for (const eff of [...dep]) {\n    if (eff.scheduler) eff.scheduler(eff)\n    else eff()\n  }\n}\n\nfunction reactive(target) {\n  return new Proxy(target, {\n    get(t, key, receiver) {\n      track(t, key)\n      return Reflect.get(t, key, receiver)\n    },\n    set(t, key, value, receiver) {\n      const old = t[key]\n      const ok = Reflect.set(t, key, value, receiver)\n      if (ok && !Object.is(old, value)) trigger(t, key)\n      return ok\n    }\n  })\n}\n\nfunction effect(fn, options = {}) {\n  const runner = () => {\n    cleanupEffect(runner)\n    effectStack.push(runner)\n    activeEffect = runner\n    try {\n      return fn()\n    } finally {\n      effectStack.pop()\n      activeEffect = effectStack[effectStack.length - 1] ?? null\n    }\n  }\n  runner.deps = []\n  runner.scheduler = options.scheduler\n  if (!options.lazy) runner()\n  return runner\n}\n\nconst jobQueue = new Set()\n\nfunction queueJob(job) {\n  jobQueue.add(job)\n}\n\nfunction flushJobs() {\n  const jobs = [...jobQueue]\n  jobQueue.clear()\n  for (const job of jobs) job()\n}\n\nclass ComputedRefImpl {\n  constructor(getter) {\n    this._dirty = true\n    this._value = undefined\n    this.effect = effect(getter, {\n      lazy: true,\n      scheduler: () => {\n        if (!this._dirty) {\n          this._dirty = true\n          trigger(this, 'value')\n        }\n      }\n    })\n  }\n\n  get value() {\n    if (this._dirty) {\n      this._dirty = false\n      this._value = this.effect()\n    }\n    track(this, 'value')\n    return this._value\n  }\n}\n\nfunction computed(getter) {\n  return new ComputedRefImpl(getter)\n}\n",
+      "tests": "const state = reactive({ a: 1, b: 2 })\nlet computes = 0\nconst sum = computed(() => { computes++; return state.a + state.b })\n\ncheck('创建 computed 时并不计算', () => same(computes, 0))\ncheck('第一次读才计算', () => { same(sum.value, 3); same(computes, 1) })\ncheck('第二次读用缓存，不重算', () => { same(sum.value, 3); same(computes, 1) })\ncheck('依赖变了，不会立刻重算；下次读才重算', () => {\n  state.a = 10\n  same(computes, 1)\n  same(sum.value, 12)\n  same(computes, 2)\n})\ncheck('computed 能被 effect 依赖，跟着更新', () => {\n  let seen = 0\n  effect(() => { seen = sum.value })\n  same(seen, 12)\n  state.b = 20\n  same(seen, 30)\n})\ncheck('computed 可以依赖 computed', () => {\n  const double = computed(() => sum.value * 2)\n  same(double.value, 60)\n  state.a = 0\n  same(double.value, 40)\n})\n{\n  const s = reactive({ a: 1, b: 2 })\n  let c = 0\n  const v = computed(() => { c++; return s.a + s.b })\n\n  check('第 1 步：创建 computed 时不执行 getter', () => same(c, 0))\n  check('第 1 步：第一次读才算，值也对', () => {\n    same(v.value, 3)\n    same(c, 1)\n  })\n  check('第 1 步：lazy 的 effect 不立刻执行，交回来的 runner 调用才执行', () => {\n    let n = 0\n    const runner = effect(() => { n++ }, { lazy: true })\n    same(n, 0)\n    runner()\n    same(n, 1)\n  })\n  check('第 1 步：不传 lazy 的 effect 仍然在注册时立刻执行', () => {\n    let n = 0\n    effect(() => { n++ })\n    same(n, 1)\n  })\n}\n{\n  const s = reactive({ a: 1, b: 2 })\n  let c = 0\n  const v = computed(() => { c++; return s.a + s.b })\n\n  check('第 2 步：第一次读才计算', () => {\n    same(v.value, 3)\n    same(c, 1)\n  })\n  check('第 2 步：再读一次用缓存，不重算', () => {\n    same(v.value, 3)\n    same(v.value, 3)\n    same(c, 1)\n  })\n  check('第 2 步：依赖没变时，读多少次都只算一次', () => {\n    same(v.value, 3)\n    same(c, 1)\n  })\n}\n{\n  const s = reactive({ a: 1, b: 2 })\n  let c = 0\n  const v = computed(() => { c++; return s.a + s.b })\n\n  check('第 3 步：依赖变了不会立刻重算，下次读才重算', () => {\n    same(v.value, 3)\n    s.a = 10\n    same(c, 1)\n    same(v.value, 12)\n    same(c, 2)\n  })\n  check('第 3 步：computed 能被 effect 依赖，依赖一变 effect 自动重跑', () => {\n    let seen = 0\n    effect(() => { seen = v.value })\n    same(seen, 12)\n    s.b = 20\n    same(seen, 30)\n  })\n  check('第 3 步：computed 可以依赖 computed', () => {\n    const double = computed(() => v.value * 2)\n    same(double.value, 60)\n    s.a = 0\n    same(double.value, 40)\n  })\n  check('第 3 步：没人读的时候，依赖变化不会触发重算', () => {\n    const s2 = reactive({ n: 1 })\n    let n = 0\n    const v2 = computed(() => { n++; return s2.n })\n    same(v2.value, 1)\n    s2.n = 2\n    same(n, 1)\n  })\n}"
+    }
+  ]
+}

@@ -128,7 +128,7 @@
       "kind": "web",
       "url": "https://jishuzhan.net/article/1996080726907879425",
       "retrievedAt": "2026-11-09",
-      "note": "Vue3 Diff/PatchFlags 面试题解，flag 数值表核对自 packages/runtime-core/src/vnode.ts PatchFlagTypes"
+      "note": "Vue3 Diff/PatchFlags 练习题解，flag 数值表核对自 packages/runtime-core/src/vnode.ts PatchFlagTypes"
     },
     "tags": [
       "数字记忆",
@@ -139,7 +139,7 @@
       {
         "angle": "加约束",
         "stem": "加约束：把上题改成 `<p :class=\"cls\" @click=\"go\">{{ name }}</p>`，请给出新的 patchFlag 数值组合，并解释事件为何不并入普通 PROPS 而是走 NEED_PATCH 路线、diff 时事件如何比较。",
-        "analysis": "flag = TEXT(1)|CLASS(2)|NEED_PATCH(16)=19，dynamicProps ['class','onClick']。事件是带 invoker 的函数 props：codegen 上归入 PROPS 但 patchProp 走 event 模块；NEED_PATCH 来源于 transformElement 检测到 ref 或带动态指令/缓存事件等『非纯 props』信号时对 props diff 的补充标记（不同版本细节略异，面试答到『事件函数引用每轮新建，diff 靠 invoker 包装比对真实 handler 避免重复 addEventListener』这一层即可得分）。加分：patchEvent 比对 value!==oldValue 后更新 invoker.value，DOM 监听器只挂一次。"
+        "analysis": "flag = TEXT(1)|CLASS(2)|NEED_PATCH(16)=19，dynamicProps ['class','onClick']。事件是带 invoker 的函数 props：codegen 上归入 PROPS 但 patchProp 走 event 模块；NEED_PATCH 来源于 transformElement 检测到 ref 或带动态指令/缓存事件等『非纯 props』信号时对 props diff 的补充标记（不同版本细节略异，答题答到『事件函数引用每轮新建，diff 靠 invoker 包装比对真实 handler 避免重复 addEventListener』这一层即可得分）。加分：patchEvent 比对 value!==oldValue 后更新 invoker.value，DOM 监听器只挂一次。"
       }
     ]
   },
@@ -206,7 +206,7 @@
     "variants": [
       {
         "angle": "反向问",
-        "stem": "反向问：面试官质疑『静态提升听起来很美好，但它会让热更新 HMR 时旧 vnode 引用被复用，是不是可能造成 bug？』请结合 hoisted 节点被存进 render 闭包外的 const、以及 patch 中 sameVNodeType 引用相等直接短路这两点，分析什么情况下 hoist 会引发可见 bug、官方如何兜底。",
+        "stem": "反向问：教练质疑『静态提升听起来很美好，但它会让热更新 HMR 时旧 vnode 引用被复用，是不是可能造成 bug？』请结合 hoisted 节点被存进 render 闭包外的 const、以及 patch 中 sameVNodeType 引用相等直接短路这两点，分析什么情况下 hoist 会引发可见 bug、官方如何兜底。",
         "analysis": "关键机理：hoisted vnode 是模块级 const 对象，多次渲染复用同一实例；若它的 children/dynamicChildren 在运行时被 patch 逻辑**就地修改**（老版本曾把 component 实例挂 vnode.el/component 字段）就会跨渲染残留状态。官方兜底：cloneIfMounted（mounted 的 hoisted vnode 再 mount 前浅克隆，dev 下防复用挂载脏数据）、hoisted 节点 patch 时走 componentUpdate 的 el 重置。真 bug 高发区是手写 render 里共享 vnode 常量 + keep-alive 移动节点。答出 cloneIfMounted 即源码级证据。"
       }
     ]
@@ -432,7 +432,7 @@
     ],
     "analysis": "这题把 hoist 从『少创建对象』的记忆抬到『改变 diff 行为』的理解层。第②问的 cloneIfMounted 是区分背过文档与读过 runtime 源码的标志；第③问预字符串化是 SSR 编译三大优化（hoistString、插值转 concat、component render 缓存）中最常被忘的一个。",
     "gapCheck": [
-      "易漏点：prod 不 clone 的行为差异要在 dev/prod 间说破，否则面试现场会被反问『那生产呢』",
+      "易漏点：prod 不 clone 的行为差异要在 dev/prod 间说破，否则实际讨论时会被反问『那生产呢』",
       "常见误区：把 v-once 当成 hoist 的运行时开关——两者机制层级不同",
       "SSR 加分：hydration  mismatch 排查时 hoisted 节点是常见盲区（devtools 显示旧值）"
     ],
@@ -542,9 +542,9 @@
     "nodeId": "fe.vue.compiler.ast-pipeline",
     "type": "essay",
     "difficulty": 4,
-    "stem": "论述题：面试官说『给我们讲讲 Vue 模板编译吧，从写下 <template> 到浏览器里 DOM 长出来，中间每一步都可能被追问』。请按『编译期三段 + 运行时挂载/更新』的全链路论述，覆盖：产物形态示例、block tree/patchFlag 如何改变 diff、一次点击改 ref 后到 DOM 变化的完整链条，最后评价这套『编译器与运行时协作』设计的得与失。",
+    "stem": "论述题：教练说『给我们讲讲 Vue 模板编译吧，从写下 <template> 到浏览器里 DOM 长出来，中间每一步都可能被追问』。请按『编译期三段 + 运行时挂载/更新』的全链路论述，覆盖：产物形态示例、block tree/patchFlag 如何改变 diff、一次点击改 ref 后到 DOM 变化的完整链条，最后评价这套『编译器与运行时协作』设计的得与失。",
     "answer": {
-      "ref": "参考骨架（应覆盖两条时间线）：【编译期】parse：自研 tokenizer（3.4 双模状态机）出带 loc 的 AST；transform：transformElement 递归打 patchFlag（TEXT/CLASS/PROPS…）、canHoist 提静态、openBlock/createBlock 织 block tree、transformExpression 归类绑定（setup/props/global→_ctx/$setup/全局）、transformIf/For 产 codegenNode；codegen：print 出 ( _ctx,_cache )=>_createBlock(...)，带 sourcemap。示例贴一小段真实产物最佳。【运行时首次】createApp.mount→_createVNode(root)→renderComponentRoot(setupResult)→setupRenderEffect→componentUpdateFn(efffect.run)→patch→mountElement/mountComponent，effect 执行期间 get trap 收集 _ctx 上的读取到 render effect。【更新链】点击 handler 里 count.value++ → MutableRef set → trigger dep → render effect 的 scheduler queueJob(pre-flush,id=uid) → 微任务 flushJobs 排序跑 instance.update → renderComponentRoot 重新读依赖（cleanup 重收集）→ patch(n1=subTree,n2) 沿 n2.block/dc 只走动态节点：TEXT flag 改 text、PROPS+dynamicProps 只比这些 key、组件节点 shouldUpdateComponent 决定是否下钻 → DOM 变更完成；post 队列跑 updated；nextTick 回调随后。【评价】得：编译期掌握全部信息（静态性/动态性/迭代结构），运行时 diff 退化为 O(动态数) 的靶向执行，兼得模板声明性与接近手写的更新成本；tree-shaking 友好。失：模板语言与编译器的耦合成为演进负担（v-if/for 优先级、TS 表达式语法子集、vue-tsc 双轨维护）；AOT/RUNTIME 双编译形态复杂；编译优化收益在小 app 不明显却增加心智（面试八股本身即副作用）；对比 React 无编译器全靠纪律(memo)、对比 Solid signals 彻底消灭 diff——Vue 处在光谱中间且 Vapor 正在向后者滑动。加分：能画一张 ASCII 流程或明确点名 3.4 parser 重写/3.6 vapor 作为演进注脚。"
+      "ref": "参考骨架（应覆盖两条时间线）：【编译期】parse：自研 tokenizer（3.4 双模状态机）出带 loc 的 AST；transform：transformElement 递归打 patchFlag（TEXT/CLASS/PROPS…）、canHoist 提静态、openBlock/createBlock 织 block tree、transformExpression 归类绑定（setup/props/global→_ctx/$setup/全局）、transformIf/For 产 codegenNode；codegen：print 出 ( _ctx,_cache )=>_createBlock(...)，带 sourcemap。示例贴一小段真实产物最佳。【运行时首次】createApp.mount→_createVNode(root)→renderComponentRoot(setupResult)→setupRenderEffect→componentUpdateFn(efffect.run)→patch→mountElement/mountComponent，effect 执行期间 get trap 收集 _ctx 上的读取到 render effect。【更新链】点击 handler 里 count.value++ → MutableRef set → trigger dep → render effect 的 scheduler queueJob(pre-flush,id=uid) → 微任务 flushJobs 排序跑 instance.update → renderComponentRoot 重新读依赖（cleanup 重收集）→ patch(n1=subTree,n2) 沿 n2.block/dc 只走动态节点：TEXT flag 改 text、PROPS+dynamicProps 只比这些 key、组件节点 shouldUpdateComponent 决定是否下钻 → DOM 变更完成；post 队列跑 updated；nextTick 回调随后。【评价】得：编译期掌握全部信息（静态性/动态性/迭代结构），运行时 diff 退化为 O(动态数) 的靶向执行，兼得模板声明性与接近手写的更新成本；tree-shaking 友好。失：模板语言与编译器的耦合成为演进负担（v-if/for 优先级、TS 表达式语法子集、vue-tsc 双轨维护）；AOT/RUNTIME 双编译形态复杂；编译优化收益在小 app 不明显却增加心智（背诵套路本身即副作用）；对比 React 无编译器全靠纪律(memo)、对比 Solid signals 彻底消灭 diff——Vue 处在光谱中间且 Vapor 正在向后者滑动。加分：能画一张 ASCII 流程或明确点名 3.4 parser 重写/3.6 vapor 作为演进注脚。"
     },
     "scoringPoints": [
       {

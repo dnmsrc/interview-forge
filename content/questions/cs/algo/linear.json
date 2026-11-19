@@ -77,7 +77,7 @@
       { "point": "复杂度分析正确：均 O(n) 时间，迭代 O(1)、递归 O(n) 栈空间", "weight": 2 },
       { "point": "能用哨兵或边界用例（空链/单节点）验证代码", "weight": 1 }
     ],
-    "analysis": "反转链表是链表题的『Hello World』，面试官借此看指针基本功。常见失分：①不暂存 next 就改 cur.next 导致断链丢节点；②循环结束返回 cur（此时是 null）而不是 prev；③递归版忘记 head.next=null 造成环；④声称递归版空间 O(1)，忽略调用栈。能主动处理空链表与单节点边界、提到用 dummy 节点做 K 个一组反转的延伸，属于加分。",
+    "analysis": "反转链表是链表题的『Hello World』，教练借此看指针基本功。常见失分：①不暂存 next 就改 cur.next 导致断链丢节点；②循环结束返回 cur（此时是 null）而不是 prev；③递归版忘记 head.next=null 造成环；④声称递归版空间 O(1)，忽略调用栈。能主动处理空链表与单节点边界、提到用 dummy 节点做 K 个一组反转的延伸，属于加分。",
     "gapCheck": [
       "易漏点：修改 next 指针前必须先保存原后继，这是所有链表重连题的通用纪律",
       "常见误区：把递归空间复杂度答成 O(1)——递归深度 n 的调用栈是真实空间成本",
@@ -105,7 +105,7 @@
     "analysis": "正确。有环时快指针先进入环并在环内循环，慢指针进入后相当于快指针以每轮 1 步的相对速度追赶，环长有限所以必然追上，时间 O(n)、空间 O(1)。入口结论可代数推导：设头到入口距离 a、入口到首次相遇点距离 b、相遇点回到入口距离 c，环长 L=b+c。相遇时慢走 a+b、快走 a+b+kL，又因快走两倍路程有 2(a+b)=a+b+kL，得 a=kL-b=(k-1)L+c，即从头走 a 步与从相遇点绕环走整数圈加 c 步恰好同时到达入口。",
     "gapCheck": [
       "易漏点：快指针步进时要同时判 fast 和 fast.next 非空，否则末尾取 next 抛空引用",
-      "常见误区：只记得『能判环』却讲不出入口推导，面试追问环长度也无从下手（相遇后再走一圈计数即可）",
+      "常见误区：只记得『能判环』却讲不出入口推导，追问环长度也无从下手（相遇后再走一圈计数即可）",
       "加分项：能对比哈希表判环 O(n) 空间方案，说明双指针把空间压到 O(1) 的价值"
     ],
     "knowledgeLinks": {
@@ -200,7 +200,7 @@
       { "point": "能用『每个元素至多入出一次』论证两题均为 O(n)，而非 O(n²)", "weight": 2 },
       { "point": "边界处理正确：窗口形成前不出答案、无更高温度时保持 0", "weight": 1 }
     ],
-    "analysis": "这是单调结构的两道招牌题，面试高频。常见失分：①栈里存值而不是下标，导致算不出天数差和窗口过期；②弹出条件的等号处理混乱（窗口最大值中相等元素应弹出旧的，因为新元素更晚过期）；③把复杂度答成 O(n²)，没有掌握『均摊到每元素常数次』的分析；④队首过期用值比较而不是下标。能延伸到柱状图最大矩形、接雨水等单调栈变体属于加分。",
+    "analysis": "这是单调结构的两道招牌题，高频。常见失分：①栈里存值而不是下标，导致算不出天数差和窗口过期；②弹出条件的等号处理混乱（窗口最大值中相等元素应弹出旧的，因为新元素更晚过期）；③把复杂度答成 O(n²)，没有掌握『均摊到每元素常数次』的分析；④队首过期用值比较而不是下标。能延伸到柱状图最大矩形、接雨水等单调栈变体属于加分。",
     "gapCheck": [
       "易漏点：单调结构里通常存下标而非值，下标既能取值又能判位置/过期",
       "常见误区：以为嵌套 while 就是 O(n²)——总弹出次数不超过总入栈次数，整体线性",
@@ -345,7 +345,7 @@
     "difficulty": 4,
     "stem": "手写题：实现一个 `LRUCache` 类，构造函数接收容量 `capacity`，要求 `get(key)` 与 `put(key, value)` 两个方法的平均时间复杂度都为 O(1)。要求：①说明用了哪些数据结构、各自承担什么职责；②处理容量满时的淘汰；③处理已存在 key 的更新与访问提鲜。",
     "answer": {
-      "ref": "设计要点：哈希表 Map 负责 key→链表节点的 O(1) 定位；双向链表（用虚拟头尾哨兵省去空指针判断）维护访问时序，链表头=最近使用、尾=最久未使用。get：key 不存在返回 -1；存在则把该节点摘除并移到头部（提鲜）。put：key 已存在则更新值并提鲜；不存在则新建节点插头部并写入 Map，若超容量则删除尾节点并同步从 Map 删除其 key。利用 JS Map 保持插入顺序的特性还有简化写法（map.delete 再 set 即提鲜，map.keys().next().value 取最旧 key），但答出哈希表+双向链表的通用结构才是面试考点。所有操作平均 O(1)，空间 O(capacity)。",
+      "ref": "设计要点：哈希表 Map 负责 key→链表节点的 O(1) 定位；双向链表（用虚拟头尾哨兵省去空指针判断）维护访问时序，链表头=最近使用、尾=最久未使用。get：key 不存在返回 -1；存在则把该节点摘除并移到头部（提鲜）。put：key 已存在则更新值并提鲜；不存在则新建节点插头部并写入 Map，若超容量则删除尾节点并同步从 Map 删除其 key。利用 JS Map 保持插入顺序的特性还有简化写法（map.delete 再 set 即提鲜，map.keys().next().value 取最旧 key），但答出哈希表+双向链表的通用结构才是考点。所有操作平均 O(1)，空间 O(capacity)。",
       "code": "// 通用写法：哈希表 + 双向链表（虚拟头尾哨兵）\nclass Node {\n  constructor(k, v) { this.k = k; this.v = v; this.prev = null; this.next = null; }\n}\nclass LRUCache {\n  constructor(capacity) {\n    this.cap = capacity;\n    this.map = new Map();\n    this.head = new Node(0, 0); this.tail = new Node(0, 0);\n    this.head.next = this.tail; this.tail.prev = this.head;\n  }\n  // 摘除已知节点 O(1)\n  remove(node) {\n    node.prev.next = node.next;\n    node.next.prev = node.prev;\n  }\n  // 头插 O(1)\n  addToHead(node) {\n    node.next = this.head.next; node.prev = this.head;\n    this.head.next.prev = node; this.head.next = node;\n  }\n  get(key) {\n    if (!this.map.has(key)) return -1;\n    const node = this.map.get(key);\n    this.remove(node); this.addToHead(node);  // 提鲜\n    return node.v;\n  }\n  put(key, value) {\n    if (this.map.has(key)) {\n      const node = this.map.get(key);\n      node.v = value;\n      this.remove(node); this.addToHead(node);\n      return;\n    }\n    if (this.map.size >= this.cap) {           // 淘汰最久未用（尾节点）\n      const old = this.tail.prev;\n      this.remove(old); this.map.delete(old.k);\n    }\n    const node = new Node(key, value);\n    this.map.set(key, node); this.addToHead(node);\n  }\n}\n\n/* JS 简化版：Map 本身保序\nclass LRUCache {\n  constructor(capacity) { this.cap = capacity; this.map = new Map(); }\n  get(key) {\n    if (!this.map.has(key)) return -1;\n    const v = this.map.get(key);\n    this.map.delete(key); this.map.set(key, v);\n    return v;\n  }\n  put(key, value) {\n    if (this.map.has(key)) this.map.delete(key);\n    else if (this.map.size >= this.cap)\n      this.map.delete(this.map.keys().next().value); // 最久未用\n    this.map.set(key, value);\n  }\n}*/"
     },
     "scoringPoints": [

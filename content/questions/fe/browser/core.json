@@ -64,7 +64,7 @@
     "nodeId": "fe.browser.render.pipeline",
     "type": "short",
     "difficulty": 3,
-    "stem": "面试官说：「在地址栏回车到页面出现第一帧，把你所知的每一步讲一遍，并顺手指出每一步对应的优化手段。」请按流水线顺序完整回答，要求覆盖网络段、解析段、布局绘制合成段，并说明主线程与合成器线程的分工。",
+    "stem": "教练说：「在地址栏回车到页面出现第一帧，把你所知的每一步讲一遍，并顺手指出每一步对应的优化手段。」请按流水线顺序完整回答，要求覆盖网络段、解析段、布局绘制合成段，并说明主线程与合成器线程的分工。",
     "answer": {
       "ref": "参考骨架：① 网络段：重定向→DNS（缓存层级/预解析）→TCP/TLS（TTFB；preconnect、HTTP/2 复用、H3 0-RTT）→HTML 字节流响应（压缩、CDN、早刷新）。② 解析段：Chrome 拿到部分 HTML 即增量 parse 建 DOM（无需等全文），head 里 CSS 并行下载构建 CSSOM、二者合并成 render tree；同步 script 暂停解析（优化：defer/async、代码拆分、modulepreload）；字体 FOIT/FOUT 与 font-display（优化：subset、preload）。③ 布局段：layout 计算盒子几何（flex/grid 有两轮测量成本；优化：避免大面积强制同步布局、content-visibility:auto 跳过屏外子树）。④ 绘制段：paint 生成分层 display list/光栅化指令（优化：减少阴影模糊滤镜面积、分层隔离重绘范围）。⑤ 合成段：主线程 commit 给合成器线程，Layer Tree 上传 GPU 纹理，合成线程负责滚动（可从输入优先处理）与 transform/opacity 动画（优化：动画只用 transform/opacity、will-change 精准提层不滥用）。⑥ 首屏之后：样式变更走局部失效→脏矩形重绘的增量循环。分工要点：解析/布局/绘制在主线程，滚动与合成动画可完全在合成线程，这就是「transform 动画不掉主线程帧」的因果链；Long Task 卡住的正是主线程侧的前四步。"
     },

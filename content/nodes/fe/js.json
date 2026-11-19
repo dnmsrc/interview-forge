@@ -1,6 +1,6 @@
 [
   { "id": "fe.js", "title": "JavaScript 核心", "level": 2, "domain": "fe", "stack": "js", "topic": null, "mustMaster": true, "estMinutes": 260,
-    "summary": "类型与转换、作用域闭包、原型链与 this、Promise 与事件循环、DOM 与事件、ES6+，是前端面试占比最高的硬基础" },
+    "summary": "类型与转换、作用域闭包、原型链与 this、Promise 与事件循环、DOM 与事件、ES6+，是前端占比最高的硬基础" },
 
   { "id": "fe.js.basics", "title": "语法、数据类型与转换", "level": 3, "domain": "fe", "stack": "js", "topic": "basics", "mustMaster": true, "estMinutes": 45,
     "summary": "原始类型与引用类型、typeof/装箱、隐式类型转换、相等运算符" },

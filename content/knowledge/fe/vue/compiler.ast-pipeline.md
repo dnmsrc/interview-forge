@@ -75,7 +75,7 @@ export function baseCompile(source, options = {}) {
 - 「runtime compiler 和 SFC 编译产物一模一样」——不完全一样：浏览器里不支持 `prefixIdentifiers: true` 与 module 模式（`baseCompile` 会直接报错），因此少了作用域分析类优化[^2]。
 - 「模板注释都会被丢掉」——不一定：dev 下 `comments` 默认为 true，会进 AST[^3]。
 
-## 面试怎么问
+## 常见问法
 追问链：模板到 DOM 中间经过哪几步 → 编译器凭什么说某段是静态的 → PatchFlag 是什么、怎么参与运行时判定 → block tree 解决什么问题、v-if/v-for 为什么要切块 → 静态提升和预字符串化的区别 → 浏览器内编译和构建期编译差在哪 → `<script setup>` 的 bindingMetadata 起什么作用。
 加分线：把「编译器懂模板 → 运行时才敢靶向更新」这条因果讲透，再对比 [[fe.vue.ecosystem.vue-vs-react]] 里 React 纯运行时 reconciliation 的取舍。
 

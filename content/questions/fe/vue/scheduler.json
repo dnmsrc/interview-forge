@@ -329,7 +329,7 @@
     "variants": [
       {
         "angle": "换问法",
-        "stem": "口头版（不写码）：面试官把你的实现打断后只问三个 why——为什么要 currentFlushPromise 这个变量而不是直接 Promise.resolve().then？为什么 nextTick 不加参数时也返回 promise？为什么 flush 完要把它置 null？逐条回答。",
+        "stem": "口头版（不写码）：教练把你的实现打断后只问三个 why——为什么要 currentFlushPromise 这个变量而不是直接 Promise.resolve().then？为什么 nextTick 不加参数时也返回 promise？为什么 flush 完要把它置 null？逐条回答。",
         "analysis": "①currentFlushPromise 是为了让所有 nextTick 回调能『接在同一条 flush 链后面』并且 flush 微任务全局只注册一次；直接 then 无法表达顺序依赖。②返回 promise 是为 async/await 消费者（await nextTick()），也是 API 演进（3.x 移除回调参数主推 promise 风格）。③置 null：flush 已结束，链的使命完成；不置空则下一轮 flush 不会新建微任务（若以它作存在性判断）或新 nextTick 挂到已完成的旧链上，语义上等于立即执行——碰巧对但掩盖了竞态。三问都是『变量存在的必要性』级考察。"
       }
     ]

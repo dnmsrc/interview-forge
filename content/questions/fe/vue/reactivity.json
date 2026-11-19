@@ -197,7 +197,7 @@
     "variants": [
       {
         "angle": "追问延伸",
-        "stem": "面试官接着问：既然 3.5 已经是双链表，为什么社区还在讨论把它再换成 alien-signals（3.6 探索方向）？双链表还差在哪？",
+        "stem": "教练接着问：既然 3.5 已经是双链表，为什么社区还在讨论把它再换成 alien-signals（3.6 探索方向）？双链表还差在哪？",
         "analysis": "双链表解决的是『增删依赖的存储成本』，但更新传播仍是 push 式遍历订阅者，菱形依赖下需要多次版本检查去重。alien-signals 用全局版本 + 拓扑序（depth-first propagation + pull 阶段）把『同一信号被多个下游感知』的冗余传播降到 O(变化路径)，批量一致性更强，也是 SolidJS 快的原因。答题要点：指出 push 遍历 vs 拓扑拉取的差异，以及 Vue 团队一贯的渐进替换风格。"
       }
     ]
@@ -270,7 +270,7 @@
     "nodeId": "fe.vue.reactivity.proxify",
     "type": "short",
     "difficulty": 2,
-    "stem": "面试官要求结合业务说清『Vue2 的 Object.defineProperty 到底有哪些做不到，逼得 Vue3 换 Proxy』。请列出至少 4 条硬伤，每条附一个可感知的现象或代码场景。",
+    "stem": "教练要求结合业务说清『Vue2 的 Object.defineProperty 到底有哪些做不到，逼得 Vue3 换 Proxy』。请列出至少 4 条硬伤，每条附一个可感知的现象或代码场景。",
     "answer": {
       "ref": "①监听不到新增/删除属性：obj.newProp = 1 或 delete obj.a 不会触发 setter，必须 Vue.set/$delete，表现为往 reactive 对象塞新字段后视图不更新（Vue2 里后端返回的动态字段常踩）。②监听不到数组索引赋值与 length：arr[0]=x、arr.length=0 无感，只能靠变异方法打补丁（push/splice 重写），arr[index] 直接赋值视图不动。③初始化必须递归 defineProperty 全部属性：大对象首屏开销大、新增深层字段不在监听名单，与 Proxy 懒代理对比鲜明。④Map/Set/Date 等集合类型完全无法按 key 追踪，只能整体替换引用。⑤闭包陷阱：getter 里递归读子对象才能收集依赖，无法表达 ITERATE_KEY 这类『遍历语义』的依赖，深度遍历成本 O(n)。Proxy 方案：任意 trap 全拦截 + 懒代理 + 按 key/迭代建 dep，上述全部解决；代价是不支持 IE11、存在 this/原型语义差异（如 Date.getter 需修正）。"
     },
@@ -296,7 +296,7 @@
         "weight": 1
       }
     ],
-    "analysis": "本题考『为什么换』而不是『是什么』。五条硬伤里前两条（新增属性、数组索引）是面试必杀线，能用 Vue.set 的存在反证最好。递归开销与 Map/Set 属于第二梯队，能对照 Vue3 方案作答即满分档。提到 Proxy 局限（不支持 IE、Date/Map 原生 getter 绑死 this 导致 Vue 要做 patch）是把回答从背诵抬到理解层的关键。",
+    "analysis": "本题考『为什么换』而不是『是什么』。五条硬伤里前两条（新增属性、数组索引）是必考线，能用 Vue.set 的存在反证最好。递归开销与 Map/Set 属于第二梯队，能对照 Vue3 方案作答即满分档。提到 Proxy 局限（不支持 IE、Date/Map 原生 getter 绑死 this 导致 Vue 要做 patch）是把回答从背诵抬到理解层的关键。",
     "gapCheck": [
       "易漏点：只背『Proxy 更先进』却说不出任何一个 defineProperty 做不到的具体现象",
       "常见误区：把 Vue2 数组响应式说成『完全失效』——它重写了 7 个变异方法，只是索引赋值失效",
@@ -418,7 +418,7 @@
     "nodeId": "fe.vue.reactivity.effect-dep",
     "type": "code",
     "difficulty": 3,
-    "stem": "手写题（面试白板版，不要求跑通 Vue 全部特性）：实现迷你 `reactive(target)` 与 `effect(fn)`，要求：①get 收集依赖、set 改动后自动重跑 fn；②同一 key 不重复收集；③支持嵌套对象（懒代理即可）。请写出核心代码并口述你的 dep 结构。",
+    "stem": "手写题（白板版，不要求跑通 Vue 全部特性）：实现迷你 `reactive(target)` 与 `effect(fn)`，要求：①get 收集依赖、set 改动后自动重跑 fn；②同一 key 不重复收集；③支持嵌套对象（懒代理即可）。请写出核心代码并口述你的 dep 结构。",
     "answer": {
       "ref": "得分结构：targetMap = new WeakMap(target -> Map(key -> Set(fn)))；activeEffect 全局栈支持嵌套 effect；reactive 用 new Proxy + proxyMap 缓存；get：track 后返回值，值是 object 时 return reactive(v)（懒代理）；set：Reflect 兜底后 trigger 对应 key 的订阅集合并去重执行。附加分：cleanup（run 前先把自己从所有 deps 删掉）防分支泄漏；version 跳过；数组 push 走 ARRAY_ITERATE dep。",
       "code": "let activeEffect = null\nconst bucket = new WeakMap() // target -> Map<key, Set<effect>>\nfunction track(target, key) {\n  if (!activeEffect) return\n  let depsMap = bucket.get(target)\n  if (!depsMap) bucket.set(target, (depsMap = new Map()))\n  let dep = depsMap.get(key)\n  if (!dep) depsMap.set(key, (dep = new Set()))\n  dep.add(activeEffect) // Set 天然去重\n  activeEffect.deps.push(dep)\n}\nfunction trigger(target, key) {\n  const dep = bucket.get(target)?.get(key)\n  if (!dep) return\n  ;[...dep].forEach((fn) => { if (fn !== activeEffect) fn() })\n}\nconst proxyMap = new WeakMap()\nfunction reactive(target) {\n  if (proxyMap.has(target)) return proxyMap.get(target) // 复用代理\n  const proxy = new Proxy(target, {\n    get(t, k, r) {\n      track(t, k)\n      const v = Reflect.get(t, k, r)\n      return typeof v === 'object' && v !== null ? reactive(v) : v // 懒代理\n    },\n    set(t, k, v, r) {\n      const had = Object.prototype.hasOwnProperty.call(t, k)\n      const old = t[k]\n      const ok = Reflect.set(t, k, v, r)\n      if (!had || old !== v) trigger(t, k)\n      return ok\n    },\n  })\n  proxyMap.set(target, proxy)\n  return proxy\n}\nfunction effect(fn) {\n  const effectFn = () => {\n    for (const d of effectFn.deps) d.delete(effectFn) // cleanup 防分支残留\n    effectFn.deps = []\n    const prev = activeEffect\n    activeEffect = effectFn\n    try { return fn() } finally { activeEffect = prev }\n  }\n  effectFn.deps = []\n  effectFn()\n  return effectFn\n}"
@@ -475,7 +475,7 @@
       "kind": "web",
       "url": "https://juejin.cn/post/7469978939273740322",
       "retrievedAt": "2026-11-09",
-      "note": "vue/reactivity 3.5 源码总结文章；手写题原型来自高频面试手写清单"
+      "note": "vue/reactivity 3.5 源码总结文章；手写题原型来自高频手写清单"
     },
     "tags": [
       "手写题",
@@ -486,7 +486,7 @@
       {
         "angle": "加约束",
         "stem": "追加约束重构：给上一题的 effect 加上 lazy 模式与『手动 triggerRef 才执行』的 stop 能力——effect 首次不执行返回 runner，stop() 后永久不再订阅任何 dep。写出 diff 部分并说明 stop 与 cleanup 的关系。",
-        "analysis": "关键增量：effect(fn,{lazy:true}) 时不立即执行；runner 暴露 run；stop 的本质是把自己从 deps 里全部 delete（复用 cleanup 逻辑）并打 stopped 标记，track 时若 sub.stopped=true 则拒绝再入链。关系：cleanup 是『每次 run 前的依赖重置』，stop 是『最后一次 cleanup + 拒绝再订阅』；漏掉 stopped 标记的话，残留的 trigger 引用还能把 stop 过的 effect 拉起来——这是面试官最爱挖的坑。"
+        "analysis": "关键增量：effect(fn,{lazy:true}) 时不立即执行；runner 暴露 run；stop 的本质是把自己从 deps 里全部 delete（复用 cleanup 逻辑）并打 stopped 标记，track 时若 sub.stopped=true 则拒绝再入链。关系：cleanup 是『每次 run 前的依赖重置』，stop 是『最后一次 cleanup + 拒绝再订阅』；漏掉 stopped 标记的话，残留的 trigger 引用还能把 stop 过的 effect 拉起来——这是教练最爱挖的坑。"
       }
     ]
   },
@@ -550,7 +550,7 @@
       "kind": "web",
       "url": "https://zhuanlan.zhihu.com/p/1997984549074923943",
       "retrievedAt": "2026-11-09",
-      "note": "2026 Vue/React 面试对比文，computed 惰性时序为其中高频追问点"
+      "note": "2026 Vue/React 对比文，computed 惰性时序为其中高频追问点"
     },
     "tags": [
       "时序题",

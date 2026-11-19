@@ -65,7 +65,7 @@
     "nodeId": "fe.eco.react.mechanism",
     "type": "short",
     "difficulty": 3,
-    "stem": "你是 Vue 背景候选人，面试官问：「为了让你快速上手我们的 React 项目，请说说你理解的 React 与 Vue 在响应式/渲染上的机制差异、由此产生的 React 特有日常负担，以及 2024 以后范式转移对这两条线的影响。」请完整作答。",
+    "stem": "你是 Vue 背景候选人，教练问：「为了让你快速上手我们的 React 项目，请说说你理解的 React 与 Vue 在响应式/渲染上的机制差异、由此产生的 React 特有日常负担，以及 2024 以后范式转移对这两条线的影响。」请完整作答。",
     "answer": {
       "ref": "参考骨架：(1) 机制差异：React 无响应式订阅——状态是不可变值，更新=创建新引用+调度组件重执行；渲染边界靠开发者用 memo/useMemo/useCallback 画，依赖数组与闭包陷阱（stale closure）是需要肌肉记忆的新语法税；Vue 反过来把边界交给编译器+Proxy 依赖收集，开发者几乎不思考重渲染范围（shallowRef/v-memo 才需要）。代价互换：React 灵活但心智负担在「引用稳定性」，Vue 省心但要理解响应式魔法边界（ref/reactive 解包规则）。(2) React 特有负担清单：受控表单与对象 state 展开合并、useEffect 双调用与严格模式竞态（AbortController 清理）、setState 批处理语义演进（18 起自动批处理含 Promise 场景）、列表 key 与不可变更新习惯、context 穿透 memo 的重渲染放大。(3) 调度对照：Fiber 把 render 拆可中断单元按 lane 优先级抢占（输入高优打断过渡更新），与浏览器 scheduler.yield 同哲学；Vue 更新走微任务 job 队列不分级——useTransition/useDeferredValue 在 Vue 里的近似物是 shallowRef 手动降频。(4) 2024+ 融合风向：React Compiler 编译期自动 memo（消灭手写依赖数组，等于 Vue 早就有的自动化方向）、RSC 把「组件在哪跑」变成架构维度（Vue 阵营对应 Nuxt server components 跟进）；Signals 生态合流（TC39 Stage1、Preact/Solid/Angular 采纳）而 Vue ref 本质是同族实现的先行版——答题亮点是点出「细粒度响应式成为共识，但框架边界仍在：Vue 靠编译模板+effect，Solid/Signals 靠显式订阅，React 靠编译器收敛重渲」的行业全景而非二站队。收尾：上手策略——先把 hooks 规则与引用稳定练成条件反射，再享受 Compiler 红利。"
     },

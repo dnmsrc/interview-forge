@@ -1,0 +1,1259 @@
+/**
+ * 内容源：手写一个 Promise（A+ 语义）
+ *
+ * 为什么单独做一季：Promise 是前端面试里「看起来都会、写起来全错」的典型。
+ * 会 await 不等于理解它——then 的异步派发、链式展开、thenable 递归、只能落定一次，
+ * 每一处都是真实 bug 的来源。这一季不背规范，用可跑的测试把这几个点逐个钉死。
+ *
+ * 沙箱里没有 setTimeout / queueMicrotask，所以「异步派发」用 Promise.resolve().then(...)
+ * 借一次微任务——这恰好也是规范要求的行为（回调不能同步执行）。
+ */
+
+/* ------------------------------------------------------------ 第 1 关测试 */
+const L1S1 = `{
+  check('executor 同步执行', () => {
+    let ran = false
+    new MyPromise(() => { ran = true })
+    same(ran, true)
+  })
+  check('初始状态是 pending', () => {
+    const p = new MyPromise(() => {})
+    same(p.__state, 'pending')
+  })
+  check('resolve 把状态改为 fulfilled 并保存值', () => {
+    const p = new MyPromise((resolve) => resolve(42))
+    same(p.__state, 'fulfilled')
+    same(p.__value, 42)
+  })
+  check('reject 把状态改为 rejected 并保存原因', () => {
+    const p = new MyPromise((_resolve, reject) => reject('boom'))
+    same(p.__state, 'rejected')
+    same(p.__value, 'boom')
+  })
+  check('executor 抛错会被捕获成 rejected', () => {
+    const p = new MyPromise(() => { throw new Error('executor 挂了') })
+    same(p.__state, 'rejected')
+    same(p.__value.message, 'executor 挂了')
+  })
+}`
+
+const L1S2 = `{
+  // 用 await 验证「回调在微任务之后才执行」，不用 setTimeout
+  check('then 的回调异步执行', async () => {
+    const order = []
+    new MyPromise((resolve) => resolve(1)).then(() => order.push('then'))
+    order.push('sync')
+    await Promise.resolve()
+    same(order, ['sync', 'then'])
+  })
+  check('fulfilled 的回调拿到值', async () => {
+    const got = await new MyPromise((resolve) => resolve('v'))
+    same(got, 'v')
+  })
+  check('rejected 的回调拿到原因', async () => {
+    let reason = null
+    await new MyPromise((_r, reject) => reject('bad')).then(null, (e) => { reason = e })
+    same(reason, 'bad')
+  })
+  check('先 then 后 resolve 也能触发', async () => {
+    let resolveFn = null
+    const p = new MyPromise((resolve) => { resolveFn = resolve })
+    const seen = p.then((v) => v * 2)
+    resolveFn(21)
+    same(await seen, 42)
+  })
+  check('多个 then 按注册顺序执行', async () => {
+    const order = []
+    const p = new MyPromise((resolve) => resolve(1))
+    p.then(() => order.push('a'))
+    p.then(() => order.push('b'))
+    await Promise.resolve()
+    same(order, ['a', 'b'])
+  })
+}`
+
+const L1S3 = `{
+  check('重复 resolve 只认第一次', () => {
+    const p = new MyPromise((resolve) => { resolve(1); resolve(2) })
+    same(p.__value, 1)
+  })
+  check('resolve 之后再 reject 无效', () => {
+    const p = new MyPromise((resolve, reject) => { resolve('ok'); reject('bad') })
+    same(p.__state, 'fulfilled')
+    same(p.__value, 'ok')
+  })
+  check('reject 之后再 resolve 无效', () => {
+    const p = new MyPromise((_r, reject) => { reject('bad'); _r('ok') })
+    same(p.__state, 'rejected')
+  })
+  check('executor 里 resolve 之后抛错，状态不再改变', () => {
+    const p = new MyPromise((resolve) => { resolve(1); throw new Error('晚了') })
+    same(p.__state, 'fulfilled')
+    same(p.__value, 1)
+  })
+}`
+
+/* ------------------------------------------------------------ 第 2 关测试 */
+const L2S1 = `{
+  check('then 返回一个新的 MyPromise', () => {
+    const p = new MyPromise((resolve) => resolve(1))
+    const next = p.then((v) => v)
+    ok(next instanceof MyPromise)
+    ok(next !== p)
+  })
+  check('回调的返回值透传给下一个 then', async () => {
+    const p = new MyPromise((resolve) => resolve(1))
+    const got = await p.then((v) => v * 2).then((v) => v + 1)
+    same(got, 3)
+  })
+  check('链上任意一环可以先注册后落定', async () => {
+    let resolveFn = null
+    const p = new MyPromise((resolve) => { resolveFn = resolve })
+    const chain = p.then((v) => v + '!')
+    resolveFn('hi')
+    same(await chain, 'hi!')
+  })
+  check('不同 then 分支互不影响', async () => {
+    const p = new MyPromise((resolve) => resolve(10))
+    const a = p.then((v) => v + 1)
+    const b = p.then((v) => v + 2)
+    same([await a, await b], [11, 12])
+  })
+}`
+
+const L2S2 = `{
+  check('回调返回另一个 MyPromise 时，链会等它落定', async () => {
+    const p = new MyPromise((resolve) => resolve(1))
+    const got = await p.then(() => new MyPromise((resolve) => resolve('inner')))
+    same(got, 'inner')
+  })
+  check('回调返回普通 thenable 也会被展开', async () => {
+    const thenable = { then(resolve) { resolve('thenable-value') } }
+    const got = await new MyPromise((resolve) => resolve(1)).then(() => thenable)
+    same(got, 'thenable-value')
+  })
+  check('回调返回 reject 的 promise 时，链也 reject', async () => {
+    let reason = null
+    await new MyPromise((resolve) => resolve(1))
+      .then(() => new MyPromise((_r, reject) => reject('inner-bad')))
+      .then(null, (e) => { reason = e })
+    same(reason, 'inner-bad')
+  })
+  check('thenable 的 then 只被调用一次', async () => {
+    let calls = 0
+    const thenable = { then(resolve) { calls++; resolve(1); resolve(2) } }
+    const got = await new MyPromise((resolve) => resolve(0)).then(() => thenable)
+    same(got, 1)
+    same(calls, 1)
+  })
+}`
+
+const L2S3 = `{
+  check('回调里抛错会变成 reject', async () => {
+    let reason = null
+    await new MyPromise((resolve) => resolve(1))
+      .then(() => { throw new Error('回调炸了') })
+      .then(null, (e) => { reason = e.message })
+    same(reason, '回调炸了')
+  })
+  check('非函数参数穿透 fulfilled', async () => {
+    const got = await new MyPromise((resolve) => resolve('keep'))
+      .then(null)
+      .then(undefined)
+    same(got, 'keep')
+  })
+  check('非函数参数穿透 rejected', async () => {
+    let reason = null
+    await new MyPromise((_r, reject) => reject('keep-bad'))
+      .then((v) => v)
+      .then(null, null)
+      .then(null, (e) => { reason = e })
+    same(reason, 'keep-bad')
+  })
+  check('链式 catch 之后还能继续 then', async () => {
+    const got = await new MyPromise((_r, reject) => reject('err'))
+      .then(null, () => 'recovered')
+      .then((v) => v + '!')
+    same(got, 'recovered!')
+  })
+}`
+
+/* ------------------------------------------------------------ 第 3 关测试 */
+const L3S1 = `{
+  check('MyPromise.resolve 包住普通值', async () => {
+    same(await MyPromise.resolve(42), 42)
+  })
+  check('MyPromise.resolve 展开 thenable', async () => {
+    same(await MyPromise.resolve({ then(r) { r('t') } }), 't')
+  })
+  check('MyPromise.resolve 遇到 MyPromise 实例直接返回它', () => {
+    const p = MyPromise.resolve(1)
+    same(MyPromise.resolve(p), p)
+  })
+  check('MyPromise.reject 让链进入 rejected', async () => {
+    let reason = null
+    await MyPromise.reject('nope').then(null, (e) => { reason = e })
+    same(reason, 'nope')
+  })
+}`
+
+const L3S2 = `{
+  check('all 按输入顺序收集结果', async () => {
+    const items = [MyPromise.resolve(1), 2, MyPromise.resolve(3)]
+    same(await MyPromise.all(items), [1, 2, 3])
+  })
+  check('all 空数组立即成功', async () => {
+    same(await MyPromise.all([]), [])
+  })
+  check('all 中有一个失败就整体失败', async () => {
+    let reason = null
+    await MyPromise.all([MyPromise.resolve(1), MyPromise.reject('bad')]).then(null, (e) => { reason = e })
+    same(reason, 'bad')
+  })
+  check('all 会包装普通值（不是 promise 也能用）', async () => {
+    same(await MyPromise.all(['a', 'b']), ['a', 'b'])
+  })
+}`
+
+const L3S3 = `{
+  check('race 取最先落定的那个', async () => {
+    const slow = MyPromise.resolve(1).then(() => 'slow')
+    const fast = MyPromise.resolve(2)
+    same(await MyPromise.race([slow, fast]), 2)
+  })
+  check('race 遇到 reject 也立即失败', async () => {
+    let reason = null
+    await MyPromise.race([MyPromise.reject('first-bad'), MyPromise.resolve(1)]).then(null, (e) => { reason = e })
+    same(reason, 'first-bad')
+  })
+  check('allSettled 区分 fulfilled / rejected', async () => {
+    const rows = await MyPromise.allSettled([MyPromise.resolve(1), MyPromise.reject('bad')])
+    same(rows.length, 2)
+    same(rows[0].status, 'fulfilled')
+    same(rows[0].value, 1)
+    same(rows[1].status, 'rejected')
+    same(rows[1].reason, 'bad')
+  })
+}`
+
+/* ------------------------------------------------------------ 共享实现 */
+/** 第 1 关完整实现：状态机 + then + 只能落定一次 */
+const L1_FINAL = `/**
+ * 第 1 关 · Promise 状态机 + then + 异步派发
+ *
+ * 三个内部约定（测试会用到）：
+ *   p.__state —— 'pending' | 'fulfilled' | 'rejected'
+ *   p.__value —— 落定时的值 / 原因
+ *   p.__cbs   —— 还没执行的 then 回调
+ */
+function MyPromise(executor) {
+  this.__state = 'pending'
+  this.__value = undefined
+  this.__cbs = []
+
+  const resolve = (value) => settle(this, 'fulfilled', value)
+  const reject = (reason) => settle(this, 'rejected', reason)
+
+  try {
+    executor(resolve, reject)
+  } catch (e) {
+    reject(e)
+  }
+}
+
+function settle(p, state, value) {
+  // 只能落定一次：后面的 resolve / reject 全部忽略
+  if (p.__state !== 'pending') return
+  p.__state = state
+  p.__value = value
+  const cbs = p.__cbs
+  p.__cbs = []
+  // 回调必须异步执行：借一次微任务
+  for (const cb of cbs) Promise.resolve().then(cb)
+}
+
+MyPromise.prototype.then = function (onFulfilled, onRejected) {
+  return new MyPromise((resolve, reject) => {
+    const handle = () => {
+      try {
+        const cb = this.__state === 'fulfilled' ? onFulfilled : onRejected
+        if (typeof cb !== 'function') return
+        resolve(cb(this.__value))
+      } catch (e) {
+        reject(e)
+      }
+    }
+    if (this.__state === 'pending') this.__cbs.push(handle)
+    else Promise.resolve().then(handle)
+  })
+}
+`
+
+/** 第 2 关完整实现：then 链 + thenable 递归展开 + 错误与穿透 */
+const L2_FINAL = `/**
+ * 第 2 关 · 完整的 then 链
+ *
+ * 关键在 resolvePromise：resolve 一个值时，如果它是 thenable，
+ * 要「接管」它的状态，而不是把它当普通值存下来。
+ */
+function MyPromise(executor) {
+  this.__state = 'pending'
+  this.__value = undefined
+  this.__cbs = []
+
+  const resolve = (value) => resolvePromise(this, value)
+  const reject = (reason) => settle(this, 'rejected', reason)
+
+  try {
+    executor(resolve, reject)
+  } catch (e) {
+    reject(e)
+  }
+}
+
+function settle(p, state, value) {
+  if (p.__state !== 'pending') return
+  p.__state = state
+  p.__value = value
+  const cbs = p.__cbs
+  p.__cbs = []
+  for (const cb of cbs) Promise.resolve().then(cb)
+}
+
+function resolvePromise(p, value) {
+  if (value === p) return settle(p, 'rejected', new TypeError('不能 resolve 自己'))
+  if (value && (typeof value === 'object' || typeof value === 'function')) {
+    let then
+    try {
+      then = value.then
+    } catch (e) {
+      return settle(p, 'rejected', e)
+    }
+    if (typeof then === 'function') {
+      let called = false
+      try {
+        then.call(
+          value,
+          (v) => { if (called) return; called = true; resolvePromise(p, v) },
+          (r) => { if (called) return; called = true; settle(p, 'rejected', r) }
+        )
+      } catch (e) {
+        if (!called) { called = true; settle(p, 'rejected', e) }
+      }
+      return
+    }
+  }
+  settle(p, 'fulfilled', value)
+}
+
+MyPromise.prototype.then = function (onFulfilled, onRejected) {
+  return new MyPromise((resolve, reject) => {
+    const handle = () => {
+      try {
+        const cb = this.__state === 'fulfilled' ? onFulfilled : onRejected
+        if (typeof cb !== 'function') {
+          if (this.__state === 'fulfilled') resolve(this.__value)
+          else reject(this.__value)
+          return
+        }
+        resolve(cb(this.__value))
+      } catch (e) {
+        reject(e)
+      }
+    }
+    if (this.__state === 'pending') this.__cbs.push(handle)
+    else Promise.resolve().then(handle)
+  })
+}
+`
+
+/** 第 3 关完整实现：静态方法 */
+const L3_FINAL = L2_FINAL + `
+MyPromise.resolve = function (value) {
+  if (value instanceof MyPromise) return value
+  return new MyPromise((resolve) => resolve(value))
+}
+
+MyPromise.reject = function (reason) {
+  return new MyPromise((_resolve, reject) => reject(reason))
+}
+
+MyPromise.all = function (items) {
+  return new MyPromise((resolve, reject) => {
+    const list = Array.from(items ?? [])
+    if (!list.length) return resolve([])
+    const out = new Array(list.length)
+    let left = list.length
+    list.forEach((item, i) => {
+      MyPromise.resolve(item).then((v) => {
+        out[i] = v
+        if (--left === 0) resolve(out)
+      }, reject)
+    })
+  })
+}
+
+MyPromise.race = function (items) {
+  return new MyPromise((resolve, reject) => {
+    for (const item of Array.from(items ?? [])) MyPromise.resolve(item).then(resolve, reject)
+  })
+}
+
+MyPromise.allSettled = function (items) {
+  return MyPromise.all(
+    Array.from(items ?? []).map((item) =>
+      MyPromise.resolve(item).then(
+        (value) => ({ status: 'fulfilled', value }),
+        (reason) => ({ status: 'rejected', reason })
+      )
+    )
+  )
+}
+`
+
+export default {
+  id: 'promise-aplus',
+  version: 3,
+  domain: 'fe',
+  title: '从零写一个 Promise',
+  emoji: '🪄',
+  tagline: '3 关 11 步：状态机 → then 链 → 静态方法，每一处语义都有测试盯着。',
+  stack: ['JavaScript', 'Promise', '异步'],
+  intro: 'Promise 是「会用」和「会写」差距最大的一块：几乎所有人每天都在 await，但说不清 then 为什么异步、链式返回 promise 时发生了什么、thenable 什么时候被展开。这一季从一行状态机开始，把 A+ 规范里真正会被面试追问的语义逐条写成能跑通的代码，每步都有测试。',
+  outcome: '做完你手上有一个能 await、能链式、能展开 thenable、只能落定一次的 MyPromise，还能通过 all/race/allSettled。面试被问「then 为什么必须异步」「返回 promise 怎么处理」「为什么 Promise 能解决回调地狱」，你可以直接讲你写过的这三个坑。',
+  levels: [
+    /* ---------------------------------------------------------- 第 1 关 */
+    {
+      id: 'lv1',
+      title: '状态机：一个 Promise 只能落定一次',
+      emoji: '🎚️',
+      xp: 40,
+      goal: '写出 MyPromise 构造函数，实现 pending/fulfilled/rejected 单向迁移、只能落定一次，以及「回调异步执行」的 then。',
+      why: '所有 Promise 行为都能从状态机推出来：then 是「状态确定后执行回调」，链是「新建一个 promise 接住返回值」，错误传播是「回调抛错就让新 promise 变 rejected」。状态机错了，后面每一步都会长得像对的、跑起来是错的。',
+      thinking: [
+        {
+          title: '先问「状态存哪」，再问「回调什么时候跑」',
+          md: `拿到「写一个 Promise」，我先拆成两个互不干扰的问题：**状态怎么存、什么时候允许变**；**回调什么时候执行**。
+
+第一个问题的答案是「三个状态 + 一个值 + 一个只进不退的闸」，第二个问题的答案是「必须晚于当前同步代码」——否则 \`then\` 里拿到的顺序会和同步代码交错，回调地狱里最讨厌的「执行顺序不可预测」就回来了。
+
+分开想的好处是：状态机可以单独测（读 __state），异步派发也可以单独测（用微任务验证顺序），两个都对了再拼。`
+        },
+        {
+          title: '为什么「只能落定一次」要用闸，而不是靠调用方自觉',
+          md: `resolve 和 reject 都是普通函数，任何地方都能调。如果状态机不做闸，\`resolve(1); reject(2)\` 就会让状态回退——这是真实世界里最常见的 Promise bug：一个异步操作超时 reject 之后，慢请求又 resolve 了一次。
+
+闸只有一个判断：\`if (state !== 'pending') return\`。它把「状态单向」这件事从约定变成机制。这也是为什么第 3 步单独为它写测试：没有闸的实现在「重复 resolve」这一条上会立刻红。`
+        },
+        {
+          title: '为什么用 __state / __value 当观察孔',
+          md: `测试没法在 then 还没实现时验证状态，所以我给实例挂了两个调试字段：\`__state\` 和 \`__value\`。
+
+这不是为了测试作弊：它和 Vue 关卡里的 \`__raw\` 一样，是「把内部状态暴露成一个可观察的事实」。真实实现里这些字段会藏在闭包里，但教学阶段把它们放在实例上，能让你**看见**状态机是怎么走的，而不是只能从回调结果反推。`
+        }
+      ],
+      prereq: [
+        {
+          title: 'Promise 的三个状态与单向迁移',
+          md: `\`\`\`text
+pending ──resolve(value)──> fulfilled   （终态）
+pending ──reject(reason)──> rejected    （终态）
+\`\`\`
+
+两个性质：
+1. **一旦离开 pending，就再也不会变**。再调 resolve/reject 都被忽略。
+2. **resolve 一个 thenable 时，不是「存下它」，而是「接管它的状态」**——这部分第 2 关再展开。
+
+executor 是同步执行的；它内部抛错等价于 reject。`
+        },
+        {
+          title: '回调为什么必须异步执行',
+          md: `\`\`\`js
+const p = Promise.resolve(1)
+p.then(() => console.log('then'))
+console.log('sync')
+// 输出：sync, then
+\`\`\`
+
+规范要求 then 的回调放在微任务队列里，保证「注册回调」不会插队到当前同步代码中间。
+
+沙箱里没有 queueMicrotask / setTimeout，所以用 \`Promise.resolve().then(cb)\` 借一次微任务——原生 Promise 本来就在做这件事，我们只是借它当调度器。`
+        }
+      ],
+      api: [
+        {
+          name: 'MyPromise',
+          sig: 'new MyPromise(executor)  /  p.then(onFulfilled, onRejected): MyPromise',
+          args: 'executor 是 (resolve, reject) => void，同步调用。onFulfilled 接收落定值，onRejected 接收失败原因（本关先不做链式语义）。',
+          returns: '实例上有 __state / __value 两个调试字段；then 返回一条新链（本关只需要它能拿到值）。',
+          example: `const p = new MyPromise((resolve) => resolve(42))
+p.__state     // 'fulfilled'
+p.__value     // 42
+
+p.then((v) => console.log(v))   // 下一轮微任务里打印 42`
+        }
+      ],
+      stages: [
+        {
+          n: 1,
+          title: '状态机：构造、resolve、reject',
+          think: '先只写「状态怎么变」，不写 then。验收靠 __state/__value 两个观察孔，这样 then 还没写也能确认状态机是对的。executor 抛错必须变成 rejected——这是新手最容易漏的一条。',
+          hint: '构造函数里初始化 __state 为 pending、__value 为 undefined、__cbs 为 []；定义 resolve/reject 两个闭包函数改状态；try { executor(resolve, reject) } catch (e) { reject(e) }。',
+          diag: [
+            'executor 没有被同步调用：构造函数里直接 executor(resolve, reject)，不要放进微任务。',
+            '初始状态不是 pending：__state 初始化为 "pending"。',
+            'resolve 没记值：把 value 存进 __value，状态改 fulfilled。',
+            'reject 没记原因：reason 存进 __value，状态改 rejected。',
+            'executor 抛错没接住：用 try/catch 包住 executor，catch 里 reject(e)。'
+          ],
+          vocab: [
+            { term: 'executor', md: 'new Promise(fn) 里的 fn，接收 resolve/reject 两个函数，由构造函数同步调用。' }
+          ],
+          code: `function MyPromise(executor) {
+  this.__state = 'pending'
+  this.__value = undefined
+  this.__cbs = []
+
+  const resolve = (value) => {
+    this.__state = 'fulfilled'
+    this.__value = value
+  }
+  const reject = (reason) => {
+    this.__state = 'rejected'
+    this.__value = reason
+  }
+
+  try {
+    executor(resolve, reject)
+  } catch (e) {
+    reject(e)
+  }
+}
+`,
+          test: L1S1
+        },
+        {
+          n: 2,
+          title: 'then：把回调排到微任务里',
+          think: '状态会变了，接下来让外部能观察。这里有两个设计点：如果已经落定，回调要异步执行（不能同步调用）；如果还在 pending，回调要存起来，等落定时再统一派发。这样「先 then 后 resolve」也能工作。',
+          hint: 'then 里判断 __state：pending 就把 handle 推进 __cbs；已落定就用 Promise.resolve().then(handle)。resolve/reject 里在改完状态后，把 __cbs 里排队的回调逐个用微任务派发并清空。',
+          diag: [
+            '回调被同步执行：已落定时要 Promise.resolve().then(handle)，不能直接 handle()。',
+            'fulfilled 的回调没拿到值：onFulfilled 的参数应该是 this.__value。',
+            'rejected 分支没接上：根据 __state 选 onFulfilled 还是 onRejected。',
+            '先 then 后 resolve 不触发：pending 时要把 handle 存进 __cbs，落定时统一派发。',
+            '多个 then 只触发一个：__cbs 是数组，派发时逐个执行，别只取第一个。'
+          ],
+          code: `function MyPromise(executor) {
+  this.__state = 'pending'
+  this.__value = undefined
+  this.__cbs = []
+
+  const resolve = (value) => settle(this, 'fulfilled', value)
+  const reject = (reason) => settle(this, 'rejected', reason)
+
+  try {
+    executor(resolve, reject)
+  } catch (e) {
+    reject(e)
+  }
+}
+
+function settle(p, state, value) {
+  p.__state = state
+  p.__value = value
+  const cbs = p.__cbs
+  p.__cbs = []
+  for (const cb of cbs) Promise.resolve().then(cb)
+}
+
+MyPromise.prototype.then = function (onFulfilled, onRejected) {
+  return new MyPromise((resolve, reject) => {
+    const handle = () => {
+      try {
+        const cb = this.__state === 'fulfilled' ? onFulfilled : onRejected
+        if (typeof cb !== 'function') return
+        resolve(cb(this.__value))
+      } catch (e) {
+        reject(e)
+      }
+    }
+    if (this.__state === 'pending') this.__cbs.push(handle)
+    else Promise.resolve().then(handle)
+  })
+}
+`,
+          test: L1S2
+        },
+        {
+          n: 3,
+          title: '闸：只能落定一次',
+          think: '最后补上「状态单向」的闸。这一条最容易在真实项目里造成事故（超时 reject 之后又 resolve），但单看代码又很容易忘。我把它放在 settle 的入口，一处收口，所有 resolve/reject 路径都被覆盖。',
+          hint: 'settle 函数第一行：状态不是 pending 就直接 return。不需要在 resolve/reject 里各写一遍。',
+          diag: [
+            '重复 resolve 覆盖了第一次的值：settle 入口要判断状态是否还是 pending。',
+            '先 resolve 后 reject 改成了 rejected：闸必须在 settle 里统一判断，覆盖两条路径。',
+            '先 reject 后 resolve 同理：两条路都要被同一个闸挡住。',
+            'executor 里 resolve 之后抛错又覆盖状态：catch 走的是 reject → settle，闸会挡住。'
+          ],
+          vocab: [
+            { term: '单向状态机', md: '状态只能前进不能回退。Promise 一旦 fulfilled/rejected 就是终态，这是它「可靠」的来源。' }
+          ],
+          code: `function MyPromise(executor) {
+  this.__state = 'pending'
+  this.__value = undefined
+  this.__cbs = []
+
+  const resolve = (value) => settle(this, 'fulfilled', value)
+  const reject = (reason) => settle(this, 'rejected', reason)
+
+  try {
+    executor(resolve, reject)
+  } catch (e) {
+    reject(e)
+  }
+}
+
+function settle(p, state, value) {
+  if (p.__state !== 'pending') return
+  p.__state = state
+  p.__value = value
+  const cbs = p.__cbs
+  p.__cbs = []
+  for (const cb of cbs) Promise.resolve().then(cb)
+}
+
+MyPromise.prototype.then = function (onFulfilled, onRejected) {
+  return new MyPromise((resolve, reject) => {
+    const handle = () => {
+      try {
+        const cb = this.__state === 'fulfilled' ? onFulfilled : onRejected
+        if (typeof cb !== 'function') return
+        resolve(cb(this.__value))
+      } catch (e) {
+        reject(e)
+      }
+    }
+    if (this.__state === 'pending') this.__cbs.push(handle)
+    else Promise.resolve().then(handle)
+  })
+}
+`,
+          test: L1S3
+        }
+      ],
+      finalCode: L1_FINAL,
+      usage: `const p = new MyPromise((resolve) => resolve(1))
+
+// 回调在微任务里执行：先 sync、后 then
+p.then((v) => console.log('then', v))
+console.log('sync')
+
+// 只能落定一次：后面的 reject 被闸挡住
+const guard = new MyPromise((resolve, reject) => {
+  resolve('first')
+  reject('second')
+})
+guard.then((v) => console.log(v))   // first`,
+      hints: [
+        '先让 __state 测试全绿，再写 then。状态机和异步派发是两个独立的问题。',
+        'then 里「已落定」和「还在 pending」必须走两条不同路径：一个排微任务，一个先存起来。',
+        '验证异步派发最省事的写法：记一个 order 数组，push 完再 await，看顺序。'
+      ],
+      concepts: [
+        {
+          title: '为什么 async/await 能取代 Promise 链',
+          md: 'async 函数会把每个 await 之后的代码包成 then 回调。所以 await 能拿到值、能 try/catch 错误，靠的全是 Promise 的 then 语义。你把这一关写对，async/await 的行为就是「自动展开的 then」。'
+        }
+      ],
+      skeleton: `/**
+ * 第 1 关 · Promise 状态机：补完构造函数、settle、then
+ *
+ * 步骤：
+ *   1) 状态机（resolve/reject）
+ *   2) then + 异步派发
+ *   3) 只能落定一次的闸
+ */
+function MyPromise(executor) {
+  // TODO：__state / __value / __cbs
+}
+
+function settle(p, state, value) {
+  // TODO：闸 + 改状态 + 派发排队回调
+}
+
+MyPromise.prototype.then = function (onFulfilled, onRejected) {
+  // TODO：已落定排微任务；还在 pending 先存起来
+}
+`,
+      solution: L1_FINAL,
+      tests: [L1S1, L1S2, L1S3].join('\n\n')
+    },
+    /* ---------------------------------------------------------- 第 2 关 */
+    {
+      id: 'lv2',
+      title: 'then 链：返回值、thenable 与错误',
+      emoji: '⛓️',
+      xp: 45,
+      goal: '让 then 返回新 promise 并正确处理三种返回值：普通值、thenable/promise、回调抛出的错误。',
+      why: '链式调用是 Promise 存在的理由。它的行为不是「把值往下传」这么简单：返回值可能是另一个 promise，要等它；可能是普通值，要包成 fulfilled；也可能回调直接抛错，要转成 rejected。这三种情况处理不对，await 的语义就会跟着错。',
+      thinking: [
+        {
+          title: 'then 为什么要「新建一个 promise」，而不是复用自己',
+          md: `如果 then 直接把回调结果写在原 promise 上，那链式就变成了「同一个对象反复改状态」——违反「只能落定一次」；也没法让不同分支（\`p.then(a)\` 和 \`p.then(b)\`）各自拿到独立结果。
+
+所以 then 必须 \`return new MyPromise(...)\`，回调在某个时刻执行、把结果交给新 promise 的 resolve。这是「链」的物理结构：一条链就是一串 promise，每个接上一个的输出。`
+        },
+        {
+          title: 'thenable 展开：为什么不能直接 resolve(value)',
+          md: `如果回调返回另一个 promise，直接 \`resolve(那个promise)\` 会把 promise 对象本身当成值存下来，下游拿到的就是一个 Promise 实例（然后 await 会再展开一次，看起来像对的，但结构已经歪了）。
+
+正确做法是在 resolve 里判断：值是不是 thenable？是就取出它的 then、把自己挂上去，等它落定再以同样的规则继续处理。这个递归就是 \`resolvePromise\`，也是 A+ 规范的核心。`
+        },
+        {
+          title: '为什么错误要变成「reject 新 promise」，而不是 throw 出去',
+          md: `回调是在微任务里执行的，此时调用栈早就退出了——抛错没有地方接。所以唯一的正确出口是把错误转成新 promise 的 rejected。
+
+这条设计让「错误」成为链上的一等公民：任何一环抛错，后面的 then(onFulfilled) 全部跳过，直到遇到 onRejected。这就是 catch 的语义来源。`
+        }
+      ],
+      prereq: [
+        {
+          title: 'thenable 的判断与展开',
+          md: `\`\`\`js
+// 任何带 then 方法的对象/函数都算 thenable
+if (value && (typeof value === 'object' || typeof value === 'function')) {
+  const then = value.then
+  if (typeof then === 'function') then.call(value, onOk, onErr)
+  else 当作普通值
+}
+\`\`\`
+
+注意两点：
+1. 读 \`value.then\` 可能抛错（getter），要 try/catch。
+2. then 可能被调用多次（脏 thenable），要加一个 called 闸只接受第一次。`
+        },
+        {
+          title: '非函数参数的「穿透」',
+          md: `\`p.then(null).then(v => ...)\` 里第一个 then 没有回调，值应该原样传到下一个。
+
+规则：onFulfilled 不是函数 → 新 promise 直接 resolve 原值；onRejected 不是函数 → 直接 reject 原因。
+
+这条容易被忽略，但它决定了 \`p.catch(fn)\` 之后还能不能继续 \`.then\`。`
+        }
+      ],
+      api: [
+        {
+          name: 'then（完整语义）',
+          sig: 'p.then(onFulfilled?, onRejected?): MyPromise',
+          args: '两个参数都可以省略或不是函数（视为穿透）。回调可以返回普通值、thenable、MyPromise，或抛错。',
+          returns: '新的 MyPromise：回调返回值决定它 fulfilled 的值；抛错/返回 rejected promise 决定它 rejected。',
+          example: `MyPromise.resolve(1)
+  .then((v) => v * 2)          // 2
+  .then((v) => MyPromise.resolve(v + 1))   // 等内层，得 3
+  .then((v) => { throw new Error('x') })
+  .then(null, (e) => e.message) // 'x'`
+        }
+      ],
+      stages: [
+        {
+          n: 1,
+          title: 'then 返回新 promise，值往下传',
+          think: '先把「链」的骨架搭出来：then 返回新 promise，回调结果交给它的 resolve。这一步先不处理 thenable 和抛错——那两个是独立的问题，混进来会分不清红在哪。',
+          hint: 'then 里 return new MyPromise((resolve, reject) => {...})；在 handle 里按原 promise 的状态挑回调；回调返回值直接 resolve(cb(value))。',
+          diag: [
+            'then 没有返回新 promise：return new MyPromise(...)，否则链断了。',
+            '回调返回值没交给 resolve：resolve(cb(this.__value))。',
+            'rejected 分支回调传错了：状态是 rejected 时用 onRejected。',
+            '多个分支互相影响：每个 then 都应该新建独立的 promise。'
+          ],
+          code: `function MyPromise(executor) {
+  this.__state = 'pending'
+  this.__value = undefined
+  this.__cbs = []
+
+  const resolve = (value) => settle(this, 'fulfilled', value)
+  const reject = (reason) => settle(this, 'rejected', reason)
+
+  try {
+    executor(resolve, reject)
+  } catch (e) {
+    reject(e)
+  }
+}
+
+function settle(p, state, value) {
+  if (p.__state !== 'pending') return
+  p.__state = state
+  p.__value = value
+  const cbs = p.__cbs
+  p.__cbs = []
+  for (const cb of cbs) Promise.resolve().then(cb)
+}
+
+MyPromise.prototype.then = function (onFulfilled, onRejected) {
+  return new MyPromise((resolve, reject) => {
+    const handle = () => {
+      const cb = this.__state === 'fulfilled' ? onFulfilled : onRejected
+      if (typeof cb === 'function') resolve(cb(this.__value))
+    }
+    if (this.__state === 'pending') this.__cbs.push(handle)
+    else Promise.resolve().then(handle)
+  })
+}
+`,
+          test: L2S1
+        },
+        {
+          n: 2,
+          title: 'thenable 展开：resolvePromise',
+          think: '现在处理「回调返回 promise」。核心判断是：resolve 的值如果是 thenable，就接管它的状态，而不是把对象存下来。这里要防三件事：读 then 抛错、then 被多次调用、递归。',
+          hint: '写 resolvePromise(p, value)：value === p 直接 reject（环）；value 是对象/函数且 then 是函数 → then.call(value, 成功回调, 失败回调)，加 called 闸；否则 settle fulfilled。然后把构造函数的 resolve 和 then 新 promise 的 resolve 都换成它。',
+          diag: [
+            '返回 promise 被当成普通值存了：resolve 要经过 resolvePromise，不能直接 settle。',
+            'then 被调用多次导致状态反复：加 called 标志，只接受第一次。',
+            '读 value.then 抛错没接住：try/catch 后 settle rejected。',
+            '环引用（resolve 自己）没处理：value === p 时 reject TypeError。'
+          ],
+          vocab: [
+            { term: 'thenable', md: '带 then 方法的对象。Promise 只认这个协议，所以类 Promise 的对象也能被 await。' },
+            { term: 'A+ 规范', md: 'Promises/A+ 只规定 then 的行为，不规定怎么实现。它用 872 个测试用例覆盖这些边界。' }
+          ],
+          code: `function MyPromise(executor) {
+  this.__state = 'pending'
+  this.__value = undefined
+  this.__cbs = []
+
+  const resolve = (value) => resolvePromise(this, value)
+  const reject = (reason) => settle(this, 'rejected', reason)
+
+  try {
+    executor(resolve, reject)
+  } catch (e) {
+    reject(e)
+  }
+}
+
+function settle(p, state, value) {
+  if (p.__state !== 'pending') return
+  p.__state = state
+  p.__value = value
+  const cbs = p.__cbs
+  p.__cbs = []
+  for (const cb of cbs) Promise.resolve().then(cb)
+}
+
+function resolvePromise(p, value) {
+  if (value === p) return settle(p, 'rejected', new TypeError('不能 resolve 自己'))
+  if (value && (typeof value === 'object' || typeof value === 'function')) {
+    let then
+    try {
+      then = value.then
+    } catch (e) {
+      return settle(p, 'rejected', e)
+    }
+    if (typeof then === 'function') {
+      let called = false
+      try {
+        then.call(
+          value,
+          (v) => { if (called) return; called = true; resolvePromise(p, v) },
+          (r) => { if (called) return; called = true; settle(p, 'rejected', r) }
+        )
+      } catch (e) {
+        if (!called) { called = true; settle(p, 'rejected', e) }
+      }
+      return
+    }
+  }
+  settle(p, 'fulfilled', value)
+}
+
+MyPromise.prototype.then = function (onFulfilled, onRejected) {
+  return new MyPromise((resolve, reject) => {
+    const handle = () => {
+      try {
+        const cb = this.__state === 'fulfilled' ? onFulfilled : onRejected
+        if (typeof cb !== 'function') {
+          resolve(this.__value)
+          return
+        }
+        resolve(cb(this.__value))
+      } catch (e) {
+        reject(e)
+      }
+    }
+    if (this.__state === 'pending') this.__cbs.push(handle)
+    else Promise.resolve().then(handle)
+  })
+}
+`,
+          test: L2S2
+        },
+        {
+          n: 3,
+          title: '错误与穿透：让 catch 成立',
+          think: '最后补两条语义：回调抛错变成新 promise 的 rejected；回调不是函数时值原样穿透。第二条决定了 p.catch 之后还能继续 then，漏了它链会在 catch 处断掉。',
+          hint: 'handle 里用 try/catch 包住 cb 调用，catch 里 reject(e)；cb 不是函数时：fulfilled 状态 resolve 原值、rejected 状态 reject 原因。',
+          diag: [
+            '回调抛错后链卡住：catch 里必须 reject(e)，否则新 promise 永远 pending。',
+            '穿透用了 resolve 却丢掉 rejected：rejected 状态要 reject(this.__value)。',
+            'then 里先判断 cb 再判断状态：顺序错了会把 rejected 的值 resolve 出去。',
+            'catch 之后无法继续 then：穿透没实现，链在空参数处断了。'
+          ],
+          code: `function MyPromise(executor) {
+  this.__state = 'pending'
+  this.__value = undefined
+  this.__cbs = []
+
+  const resolve = (value) => resolvePromise(this, value)
+  const reject = (reason) => settle(this, 'rejected', reason)
+
+  try {
+    executor(resolve, reject)
+  } catch (e) {
+    reject(e)
+  }
+}
+
+function settle(p, state, value) {
+  if (p.__state !== 'pending') return
+  p.__state = state
+  p.__value = value
+  const cbs = p.__cbs
+  p.__cbs = []
+  for (const cb of cbs) Promise.resolve().then(cb)
+}
+
+function resolvePromise(p, value) {
+  if (value === p) return settle(p, 'rejected', new TypeError('不能 resolve 自己'))
+  if (value && (typeof value === 'object' || typeof value === 'function')) {
+    let then
+    try {
+      then = value.then
+    } catch (e) {
+      return settle(p, 'rejected', e)
+    }
+    if (typeof then === 'function') {
+      let called = false
+      try {
+        then.call(
+          value,
+          (v) => { if (called) return; called = true; resolvePromise(p, v) },
+          (r) => { if (called) return; called = true; settle(p, 'rejected', r) }
+        )
+      } catch (e) {
+        if (!called) { called = true; settle(p, 'rejected', e) }
+      }
+      return
+    }
+  }
+  settle(p, 'fulfilled', value)
+}
+
+MyPromise.prototype.then = function (onFulfilled, onRejected) {
+  return new MyPromise((resolve, reject) => {
+    const handle = () => {
+      try {
+        const cb = this.__state === 'fulfilled' ? onFulfilled : onRejected
+        if (typeof cb !== 'function') {
+          if (this.__state === 'fulfilled') resolve(this.__value)
+          else reject(this.__value)
+          return
+        }
+        resolve(cb(this.__value))
+      } catch (e) {
+        reject(e)
+      }
+    }
+    if (this.__state === 'pending') this.__cbs.push(handle)
+    else Promise.resolve().then(handle)
+  })
+}
+`,
+          test: L2S3
+        }
+      ],
+      finalCode: L2_FINAL,
+      usage: `const p = new MyPromise((resolve) => resolve(1))
+
+p.then((v) => v + 1)                 // 2
+ .then((v) => MyPromise.resolve(v))  // 等内层
+ .then((v) => { throw new Error('x') })
+ .then(null, (e) => e.message)       // 'x'
+ .then((msg) => console.log(msg))
+
+// 穿透：
+new MyPromise((resolve) => resolve('a')).then(null).then((v) => console.log(v))  // a`,
+      hints: [
+        'thenable 展开是最容易写出「看起来对」的一段：用「返回普通 thenable」「返回 promise」「then 调两次」三个用例把边界钉住。',
+        '错误不需要特殊的 catch：then 的第二个参数就是 catch，只要把抛错转成 rejected。',
+        '调试链式问题时，在每一环后面打印状态，比读代码快。'
+      ],
+      concepts: [
+        {
+          title: '回调地狱是怎么被解决的',
+          md: '嵌套回调的问题是「错误处理和返回值都要在每一层手动管」。链式把这两件事收编了：返回值自动传给下一环，抛错自动变成 rejected 直到被 catch。本质上它是一台「单子」，把值和错误都包在统一的容器里。'
+        }
+      ],
+      skeleton: `/**
+ * 第 2 关 · then 链：补完 resolvePromise / then 的错误与穿透
+ *
+ * 第 1 关的状态机已经在这里，不要重写。
+ */
+function MyPromise(executor) {
+  this.__state = 'pending'
+  this.__value = undefined
+  this.__cbs = []
+  const resolve = (value) => resolvePromise(this, value)
+  const reject = (reason) => settle(this, 'rejected', reason)
+  try { executor(resolve, reject) } catch (e) { reject(e) }
+}
+
+function settle(p, state, value) {
+  if (p.__state !== 'pending') return
+  p.__state = state
+  p.__value = value
+  const cbs = p.__cbs
+  p.__cbs = []
+  for (const cb of cbs) Promise.resolve().then(cb)
+}
+
+function resolvePromise(p, value) {
+  // TODO：环判断 / thenable 取出 then / called 闸 / 否则 settle fulfilled
+  settle(p, 'fulfilled', value)
+}
+
+MyPromise.prototype.then = function (onFulfilled, onRejected) {
+  // TODO：返回新 promise；回调抛错转 reject；非函数穿透
+  return new MyPromise(() => {})
+}
+`,
+      solution: L2_FINAL,
+      tests: [L2S1, L2S2, L2S3].join('\n\n')
+    },
+    /* ---------------------------------------------------------- 第 3 关 */
+    {
+      id: 'lv3',
+      title: '静态方法：resolve / all / race / allSettled',
+      emoji: '🧰',
+      xp: 50,
+      goal: '补齐 MyPromise.resolve/reject、all、race、allSettled，并让它们复用同一个 resolvePromise。',
+      why: '面试里问 Promise 的静态方法，考的不是 API 记忆，而是「并发控制」的语义：all 为什么按输入顺序、race 为什么第一个落定算、allSettled 为什么永远不会 reject。这些都能用前两关的零件拼出来。',
+      thinking: [
+        {
+          title: '静态方法不该另造一套状态机',
+          md: `MyPromise.resolve 看起来是「新建一个已完成的 promise」，其实它最重要的工作是**展开 thenable**——和实例的 resolve 走同一条 \`resolvePromise\`。
+
+如果另写一套「如果 value 是 promise 就返回它，否则包装」，你会发现和链式展开的边界不一致（比如 then 抛错、then 被多次调用）。复用同一个函数，行为自然一致。`
+        },
+        {
+          title: 'all 的两个坑：顺序与包装',
+          md: `all 返回的数组必须和输入顺序一致，不能按完成先后——所以要按下标写回结果，并数「还剩几个」。
+
+另一个坑是输入可能包含普通值，必须先用 MyPromise.resolve 包一层再 then；直接对普通值调 then 会崩。`
+        },
+        {
+          title: 'race / allSettled 是 all 的变形',
+          md: `race 就是「谁先落定谁赢」：对每个输入注册 resolve 和 reject，先到先得，后面的忽略（靠 Promise 的只能落定一次天然实现）。
+
+allSettled 则是「全部结束」：把每个 promise 先映射成「结果对象」（永远 fulfilled），再交给 all。这两个都能用已有的零件拼，不需要新机制。`
+        }
+      ],
+      prereq: [
+        {
+          title: '三个静态方法的语义',
+          md: `- \`resolve(v)\`：v 是 thenable 就等它；是 MyPromise 实例就原样返回。
+- \`all(list)\`：全部 fulfilled → 按顺序给结果数组；任意一个 rejected → 整体 rejected（短路）。
+- \`race(list)\`：第一个落定的（无论 fulfilled 还是 rejected）决定结果。
+- \`allSettled(list)\`：等全部结束，每项给 { status, value } 或 { status, reason }，永远不会 rejected。`
+        },
+        {
+          title: '为什么 all 要用下标写回',
+          md: `\`\`\`js
+const out = new Array(list.length)
+let left = list.length
+list.forEach((item, i) => {
+  MyPromise.resolve(item).then((v) => {
+    out[i] = v
+    if (--left === 0) resolve(out)
+  }, reject)
+})
+\`\`\`
+
+用 \`i\` 写回而不是 \`out.push\`：push 会按完成顺序排列，和输入顺序对不上。`
+        }
+      ],
+      api: [
+        {
+          name: '静态方法',
+          sig: 'MyPromise.resolve(v) / MyPromise.reject(r) / MyPromise.all(list) / MyPromise.race(list) / MyPromise.allSettled(list)',
+          args: 'list 是数组或可迭代对象；元素可以是 MyPromise、thenable 或普通值。',
+          returns: '都是 MyPromise。all 返回按输入顺序排列的结果数组；race 返回第一个落定的值/原因；allSettled 返回 { status, value|reason } 数组。',
+          example: `await MyPromise.all([1, MyPromise.resolve(2), { then(r) { r(3) } }])
+// [1, 2, 3]
+
+await MyPromise.race([MyPromise.resolve('fast'), MyPromise.resolve('slow')])
+// 'fast'
+
+await MyPromise.allSettled([MyPromise.resolve(1), MyPromise.reject('x')])
+// [{status:'fulfilled',value:1}, {status:'rejected',reason:'x'}]`
+        }
+      ],
+      stages: [
+        {
+          n: 1,
+          title: 'resolve / reject：复用展开逻辑',
+          think: '先做最简单的两个。关键判断：resolve 遇到 MyPromise 实例要原样返回（规范行为），遇到 thenable 要展开；reject 不展开任何东西——它就是纯 rejected。',
+          hint: 'MyPromise.resolve：value instanceof MyPromise 直接 return value；否则 new MyPromise((resolve) => resolve(value))。MyPromise.reject：new MyPromise((_r, reject) => reject(reason))。',
+          diag: [
+            'resolve 没有展开 thenable：new MyPromise 里的 resolve 走的是 resolvePromise，会自动展开。',
+            'resolve 遇到实例又包了一层：先判断 instanceof MyPromise 并直接返回。',
+            'reject 把错误值展开了：reject 是纯 rejected，不要套 resolve。',
+            '返回的不是 MyPromise：静态方法必须返回实例，测试会 await 它。'
+          ],
+          code: L2_FINAL + `
+MyPromise.resolve = function (value) {
+  if (value instanceof MyPromise) return value
+  return new MyPromise((resolve) => resolve(value))
+}
+
+MyPromise.reject = function (reason) {
+  return new MyPromise((_resolve, reject) => reject(reason))
+}
+`,
+          test: L3S1
+        },
+        {
+          n: 2,
+          title: 'all：顺序、包装、短路',
+          think: 'all 的语义看着简单，坑都在细节：元素要先包装（可能是普通值）、结果要按下标写回（不能按完成顺序）、任意一个失败要短路。三个点各写一条测试。',
+          hint: 'new MyPromise((resolve, reject) => {...})；Array.from 取列表；空数组直接 resolve([])；forEach 里 MyPromise.resolve(item).then(v => 写回并计数, reject)。',
+          diag: [
+            '结果顺序不对：用下标 out[i] = v，不要 push；同时维护 --left 计数，归零才 resolve。',
+            '空数组没有立即成功：list.length === 0 时 resolve([])。',
+            '失败没有短路：then 的第二个参数直接传 reject。',
+            '普通值直接 .then 崩了：每个元素先 MyPromise.resolve 包一层。'
+          ],
+          code: L2_FINAL + `
+MyPromise.resolve = function (value) {
+  if (value instanceof MyPromise) return value
+  return new MyPromise((resolve) => resolve(value))
+}
+
+MyPromise.reject = function (reason) {
+  return new MyPromise((_resolve, reject) => reject(reason))
+}
+
+MyPromise.all = function (items) {
+  return new MyPromise((resolve, reject) => {
+    const list = Array.from(items ?? [])
+    if (!list.length) return resolve([])
+    const out = new Array(list.length)
+    let left = list.length
+    list.forEach((item, i) => {
+      MyPromise.resolve(item).then((v) => {
+        out[i] = v
+        if (--left === 0) resolve(out)
+      }, reject)
+    })
+  })
+}
+`,
+          test: L3S2
+        },
+        {
+          n: 3,
+          title: 'race 与 allSettled：all 的两种变形',
+          think: '最后两个方法都是「用 all 的思路变形」：race 把「谁先」交给回调先到先得；allSettled 把每个 promise 先映射成永远 fulfilled 的结果对象再 all。理解了这个对应关系，就不用背实现。',
+          hint: 'race：new MyPromise((resolve, reject) => { for (const item of Array.from(items)) MyPromise.resolve(item).then(resolve, reject) })。allSettled：先 map 成 then(成功→{status:"fulfilled",value}, 失败→{status:"rejected",reason})，再 MyPromise.all。',
+          diag: [
+            'race 没取到先落定的那个：对每个输入都要 then(resolve, reject)，先到先得。',
+            'race 的 reject 没有参与竞争：then 的两个参数都要传。',
+            'allSettled 有失败就整体 reject：它必须永远 fulfilled，失败要转成结果对象（fulfilled 用 value、rejected 用 reason）。'
+          ],
+          code: L3_FINAL,
+          test: L3S3
+        }
+      ],
+      finalCode: L3_FINAL,
+      usage: `await MyPromise.all([1, MyPromise.resolve(2), { then(r) { r(3) } }])
+// [1, 2, 3]
+
+await MyPromise.race([MyPromise.resolve('fast'), MyPromise.resolve('slow')])
+// 'fast'
+
+await MyPromise.allSettled([MyPromise.resolve(1), MyPromise.reject('x')])
+// [{ status: 'fulfilled', value: 1 }, { status: 'rejected', reason: 'x' }]`,
+      hints: [
+        '静态方法全部复用 resolvePromise：展开 thenable 的规则只有一份，行为才一致。',
+        'all 的三条测试（顺序、普通值、短路）是最小验证集，缺一条都会掩盖 bug。',
+        'race 空数组按规范永远不会落定——不要去「修」它。'
+      ],
+      concepts: [
+        {
+          title: '并发控制与 Promise 的边界',
+          md: 'all 是「全部成功才算成功」，race 是「先完成者胜」，allSettled 是「收集全部结果」。真正的并发限流（最多 N 个同时跑）不在 Promise 里，要自己用队列 + 计数实现——这一季不展开，但你要知道 Promise 本身不控制并发。'
+        }
+      ],
+      skeleton: `/**
+ * 第 3 关 · 静态方法：补完 resolve/reject/all/race/allSettled
+ *
+ * 第 2 关的完整 then 链已经在这里，不要重写。
+ */
+function MyPromise(executor) {
+  this.__state = 'pending'
+  this.__value = undefined
+  this.__cbs = []
+  const resolve = (value) => resolvePromise(this, value)
+  const reject = (reason) => settle(this, 'rejected', reason)
+  try { executor(resolve, reject) } catch (e) { reject(e) }
+}
+
+function settle(p, state, value) {
+  if (p.__state !== 'pending') return
+  p.__state = state
+  p.__value = value
+  const cbs = p.__cbs
+  p.__cbs = []
+  for (const cb of cbs) Promise.resolve().then(cb)
+}
+
+function resolvePromise(p, value) {
+  settle(p, 'fulfilled', value)
+}
+
+MyPromise.prototype.then = function (onFulfilled, onRejected) {
+  return new MyPromise(() => {})
+}
+
+MyPromise.resolve = function (value) {
+  // TODO
+  return new MyPromise((resolve) => resolve(value))
+}
+
+MyPromise.reject = function (reason) {
+  // TODO
+  return new MyPromise((_resolve, reject) => reject(reason))
+}
+
+MyPromise.all = function (items) {
+  // TODO
+  return MyPromise.resolve([])
+}
+
+MyPromise.race = function (items) {
+  // TODO
+  return MyPromise.resolve()
+}
+
+MyPromise.allSettled = function (items) {
+  // TODO
+  return MyPromise.resolve([])
+}
+`,
+      solution: L3_FINAL,
+      tests: [L3S1, L3S2, L3S3].join('\n\n')
+    }
+  ]
+}

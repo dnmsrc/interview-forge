@@ -31,7 +31,7 @@
     "summary": "要能讲受检异常与运行时异常的区别、try-catch-finally 与 try-with-resources、throw/throws、自定义异常；泛型类/方法、通配符 ? extends/super、类型擦除" },
 
   { "id": "be.java.concurrent", "title": "并发编程", "level": 3, "domain": "be", "stack": "java", "topic": "concurrent", "mustMaster": true, "estMinutes": 90,
-    "summary": "线程生命周期、synchronized 与 Lock、volatile 与 JMM、线程池、ThreadLocal，是后端中高级面试核心" },
+    "summary": "线程生命周期、synchronized 与 Lock、volatile 与 JMM、线程池、ThreadLocal，是后端中高级核心考点" },
 
   { "id": "be.java.concurrent.thread-basics", "title": "线程创建、生命周期与 synchronized", "level": 4, "domain": "be", "stack": "java", "topic": "concurrent",
     "prerequisites": ["be.java.core.collection"],

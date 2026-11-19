@@ -134,7 +134,7 @@
     "variants": [
       {
         "angle": "反向问",
-        "stem": "反向追问：面试官质疑『Vue 官方一面教人用 Pinia，一面又在 provide-inject 页写这套 readonly+actions 的手搓 store，是不是精神分裂？』请给出你的裁决标准：什么信号出现时你从 provide/inject 升级到 Pinia，反过来呢？",
+        "stem": "反向追问：教练质疑『Vue 官方一面教人用 Pinia，一面又在 provide-inject 页写这套 readonly+actions 的手搓 store，是不是精神分裂？』请给出你的裁决标准：什么信号出现时你从 provide/inject 升级到 Pinia，反过来呢？",
         "analysis": "裁决轴：①状态要不要跨路由持久/devtools 调试/时间旅行→要就 Pinia；②依赖注入的作用域是不是『组件树局部』（主题、表单上下文、复合组件内部）→是就 provide/inject，天然随组件卸载释放；③SSR 每请求隔离：Pinia 要建实例，provide 天然隔离——微前端局部态反而适合 DI；④团队协作规模：DI 总线无类型集中注册表，三人以上失控。反向降级信号：store 里出现大量只在单页面用的 transient 状态时把它收回 provide/composable。答『非此即彼』的直接扣分——考的是灰度决策。"
       }
     ]

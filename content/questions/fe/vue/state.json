@@ -4,7 +4,7 @@
     "nodeId": "fe.vue.state.pinia-vs-vuex",
     "type": "single",
     "difficulty": 1,
-    "stem": "面试官问『Pinia 凭什么取代 Vuex 成为官方状态库』，下列哪一条**不是**真实原因：",
+    "stem": "教练问『Pinia 凭什么取代 Vuex 成为官方状态库』，下列哪一条**不是**真实原因：",
     "options": [
       {
         "key": "A",
@@ -104,7 +104,7 @@
         "D"
       ]
     },
-    "analysis": "A 对：wrapActionWithLogger/wrap 逻辑含 $patch 批处理（action 内多次赋值合成一个 patch 供 devtools 回放）+ try/catch 上报。B 对：storeToRefs 只枚举 state+getters（函数值跳过），返回 computed/ref，解构安全——面试常考『为什么解构 store 会丢响应』正是绕过了这层。D 对：hotUpdate 通过 mergeReactiveObjects 原位改结构、不销毁实例保活订阅。C 错反了：store 是 **reactive** 对象（toRefs 语义的来源），属性读写天然响应，根本不存在『整体替换引用』的要求。",
+    "analysis": "A 对：wrapActionWithLogger/wrap 逻辑含 $patch 批处理（action 内多次赋值合成一个 patch 供 devtools 回放）+ try/catch 上报。B 对：storeToRefs 只枚举 state+getters（函数值跳过），返回 computed/ref，解构安全——常考『为什么解构 store 会丢响应』正是绕过了这层。D 对：hotUpdate 通过 mergeReactiveObjects 原位改结构、不销毁实例保活订阅。C 错反了：store 是 **reactive** 对象（toRefs 语义的来源），属性读写天然响应，根本不存在『整体替换引用』的要求。",
     "gapCheck": [
       "易漏点：store 里 ref 会被 reactive 解包（unwrapRef），所以 store.count 直接可用——这与 setup store 返回 ref 的直觉相反",
       "常见误区：把 storeToRefs 用在整个 store 上还期待拿到方法（actions 要单独解构直接用）",
@@ -287,7 +287,7 @@
     "variants": [
       {
         "angle": "换问法",
-        "stem": "白板版（限时 4 分钟）：只画一张『数据从后端到屏幕』的分层图（不许出现 store 名词堆砌），标出每一层的**所有权**（谁创建、谁能写、谁失效），然后回答面试官一句质疑：『你们这图里 Pinia 只有一小块，是不是说明不需要状态库？』",
+        "stem": "白板版（限时 4 分钟）：只画一张『数据从后端到屏幕』的分层图（不许出现 store 名词堆砌），标出每一层的**所有权**（谁创建、谁能写、谁失效），然后回答教练一句质疑：『你们这图里 Pinia 只有一小块，是不是说明不需要状态库？』",
         "analysis": "合格图骨架：HTTP→Query Cache(所有权:query lib，失效:stalence/invalidate)→组件投影(所有权:组件)；URL(所有权:地址栏，浏览器前进后退可写)；Pinia 小块(所有权:业务动作，仅 session/cart/flags)；localStorage(所有权:设备偏好)。质疑回应：不是不需要而是**克制使用**——状态库的价值在『少数真·全局客户端态』的可审计与生命周期外置；把该图的 Pinia 面积画小恰恰是架构成熟度，画大才是灾难（双源+巨型 store 耦合）。此变体测的是用图说话+接受挑战的姿态，所有权一词贯穿即高分。"
       }
     ]
@@ -456,7 +456,7 @@
     "gapCheck": [
       "易漏点：把「去掉 mutation」理解成「失去可追踪性」是最常见误区：$subscribe/$onAction/$patch 提供了更贴合组合式范式的追踪方式",
       "常见误区：Vuex4 只是 Vue 3 的版本适配层，不要把「还在维护」误读成「官方默认选择」",
-      "排查线索：面试追问「团队已有大量 Vuex 模块怎么迁」时应给路径：按 namespaced 模块逐个平铺成独立 store、namespaced getter 转 computed、commit 转 action，并临时保留一层兼容 facade"
+      "排查线索：追问「团队已有大量 Vuex 模块怎么迁」时应给路径：按 namespaced 模块逐个平铺成独立 store、namespaced getter 转 computed、commit 转 action，并临时保留一层兼容 facade"
     ],
     "knowledgeLinks": {
       "prereq": [

@@ -235,7 +235,7 @@
     "prerequisites": ["fe.vue.ecosystem", "fe.vue.reactivity.effect-dep"],
     "related": ["fe.vue.ecosystem.vue-vs-react", "fe.vue.compiler.ast-pipeline"],
     "mustMaster": false, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 25,
-    "summary": "要能讲 Vapor 跳过 vnode 直接生成 DOM 操作代码、与 signals 细粒度更新的配合、vue-vapor 渐进采用方式、3.6 alien-signals 替换 dep 图的收益与风险、对现有组件库兼容性影响、面试怎么答『Vue 会不会变』" },
+    "summary": "要能讲 Vapor 跳过 vnode 直接生成 DOM 操作代码、与 signals 细粒度更新的配合、vue-vapor 渐进采用方式、3.6 alien-signals 替换 dep 图的收益与风险、对现有组件库兼容性影响、怎么答『Vue 会不会变』" },
 
   { "id": "fe.vue.ecosystem.vue-vs-react", "title": "Vue 与 React 机制对比：响应式粒度与 diff 哲学", "level": 4, "domain": "fe", "stack": "vue", "topic": "ecosystem",
     "prerequisites": ["fe.vue.ecosystem", "fe.vue.runtime.diff-key", "fe.vue.reactivity.proxify"],

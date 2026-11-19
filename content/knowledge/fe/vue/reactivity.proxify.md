@@ -55,7 +55,7 @@ function createReactiveObject(target, isReadonly, baseHandlers, collectionHandle
 }
 ```
 
-**懒代理的证据在 get 陷阱末尾**：`BaseReactiveHandler.get` 取到属性值以后，最后一句是 `if (isObject(res)) return isReadonly ? readonly(res) : reactive(res)`[^4]。也就是说深层对象是「读到才包」，源码注释同时点明这样绕开了自引用造成的循环递归。官方文档用的是同一句话：nested objects are also wrapped with `reactive()` **when accessed**[^1]。由此可以推出三条面试爱问的行为差异：初始 `reactive(deepBigTree)` 只创建一个 Proxy；从未访问过的分支永远不会建立依赖；`proxy.nested === rawNested` 恒为 false（新塞进去的裸对象，读出来已经是代理）[^1]。
+**懒代理的证据在 get 陷阱末尾**：`BaseReactiveHandler.get` 取到属性值以后，最后一句是 `if (isObject(res)) return isReadonly ? readonly(res) : reactive(res)`[^4]。也就是说深层对象是「读到才包」，源码注释同时点明这样绕开了自引用造成的循环递归。官方文档用的是同一句话：nested objects are also wrapped with `reactive()` **when accessed**[^1]。由此可以推出三条常被问到的行为差异：初始 `reactive(deepBigTree)` 只创建一个 Proxy；从未访问过的分支永远不会建立依赖；`proxy.nested === rawNested` 恒为 false（新塞进去的裸对象，读出来已经是代理）[^1]。
 
 get 陷阱的完整顺序值得背下来（v3.5.45）[^4]：
 
@@ -89,7 +89,7 @@ set 陷阱的关键在两处：写入前先 `toRaw` 新旧值，并且「旧值�
 - 「解构出来的字段还能响应」——错。解构基本类型等于拿走了值，不再经过陷阱；要保响应就用 `toRef` / `toRefs`[^1]。
 - 「Symbol 都会被收集」——错。内置 symbol 与非可跟踪键被显式跳过[^4]。
 
-## 面试怎么问
+## 常见问法
 追问链：为什么用 Proxy 而不是 defineProperty → 五个陷阱分别覆盖什么操作 → 懒代理在源码哪一行、为什么不当场递归 → 冻结对象和 markRaw 怎么处理 → 数组为什么要单独插装（3.5 改了什么）→ ref 为什么还要用 getter/setter → Proxy 的局限是什么。
 加分线：把「引用稳定 → diff 跳过」「深响应 ≠ 深转换」这两条讲成因果；再顺手对比 [[fe.vue.ecosystem.vue-vs-react]] 的更新传播模型。
 

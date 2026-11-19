@@ -1,6 +1,6 @@
 [
   { "id": "cs.design.capacity", "title": "容量估算与架构方法论", "level": 3, "domain": "cs", "stack": "design", "topic": "capacity", "mustMaster": true, "estMinutes": 90,
-    "summary": "back-of-envelope 容量估算（QPS/带宽/存储）、架构权衡方法论（CAP/BASE、自顶向下拆解）、垂直与水平扩展——系统设计面试的开场基本功，决定方案是否有量化依据" },
+    "summary": "back-of-envelope 容量估算（QPS/带宽/存储）、架构权衡方法论（CAP/BASE、自顶向下拆解）、垂直与水平扩展——系统设计的开场基本功，决定方案是否有量化依据" },
   { "id": "cs.design.cache", "title": "缓存体系", "level": 3, "domain": "cs", "stack": "design", "topic": "cache", "mustMaster": true, "estMinutes": 90,
     "summary": "四大缓存读写模式、穿透/击穿/雪崩三大问题、缓存与数据库一致性、热点 key 与大 key 治理、多级缓存——高并发系统性价比最高的加速层，也是事故高发区" },
   { "id": "cs.design.sharding", "title": "数据库扩展与分库分表", "level": 3, "domain": "cs", "stack": "design", "topic": "sharding", "mustMaster": true, "estMinutes": 90,
@@ -10,16 +10,16 @@
   { "id": "cs.design.limit", "title": "限流熔断与高可用", "level": 3, "domain": "cs", "stack": "design", "topic": "limit", "mustMaster": true, "estMinutes": 90,
     "summary": "四大限流算法及单机/分布式实现、熔断器三态与舱壁隔离降级、主备/双活/多活容灾与 SLA——保护系统在流量洪峰与依赖故障下存活的防线" },
   { "id": "cs.design.cases", "title": "经典系统设计实战", "level": 3, "domain": "cs", "stack": "design", "topic": "cases", "mustMaster": true, "estMinutes": 100,
-    "summary": "秒杀/抢券、信息流 Feed 流、短链/排行榜/计数三类高频实战，串联容量估算→整体架构→组件选型→瓶颈权衡的完整面试答题链路" },
+    "summary": "秒杀/抢券、信息流 Feed 流、短链/排行榜/计数三类高频实战，串联容量估算→整体架构→组件选型→瓶颈权衡的完整答题链路" },
 
   { "id": "cs.design.capacity.estimation", "title": "容量估算与 back-of-envelope（QPS/带宽/存储）", "level": 4, "domain": "cs", "stack": "design", "topic": "capacity",
     "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
-    "summary": "要能讲清系统设计面试开场的量化估算套路：从 DAU/日活与行为比例推峰值 QPS（日均与峰值的倍数关系、二八定律）、按对象大小与留存周期估算存储容量、按报文大小估算带宽并留峰值余量；熟记常用数量级（万/亿/KB/MB/Gbps 换算）与『先估量级、不纠结精确值、显式假设、留 2~5 倍冗余』的估算纪律，并能用估算结果反推机器数与缓存容量" },
+    "summary": "要能讲清系统设计题开场的量化估算套路：从 DAU/日活与行为比例推峰值 QPS（日均与峰值的倍数关系、二八定律）、按对象大小与留存周期估算存储容量、按报文大小估算带宽并留峰值余量；熟记常用数量级（万/亿/KB/MB/Gbps 换算）与『先估量级、不纠结精确值、显式假设、留 2~5 倍冗余』的估算纪律，并能用估算结果反推机器数与缓存容量" },
 
-  { "id": "cs.design.capacity.ddia-tradeoff", "title": "架构设计方法论与权衡（CAP/BASE、自顶向下、面试框架）", "level": 4, "domain": "cs", "stack": "design", "topic": "capacity",
+  { "id": "cs.design.capacity.ddia-tradeoff", "title": "架构设计方法论与权衡（CAP/BASE、自顶向下、答题框架）", "level": 4, "domain": "cs", "stack": "design", "topic": "capacity",
     "prerequisites": ["cs.design.capacity.estimation"],
     "mustMaster": true, "masteryThreshold": 2, "unlockOverrideAllowed": true, "estMinutes": 30,
-    "summary": "要能讲清系统设计面试的标准答题框架（澄清需求→容量估算→整体架构→组件选型→瓶颈与扩展）；理解 CAP 三选二的真实含义（分区容错必然、CP 与 AP 的取舍）、BASE 最终一致性与 ACID 的对比；能在可用性、一致性、延迟、成本、可维护性之间做有据可依的权衡，避免『上来就上微服务/上消息队列』的堆组件式回答" },
+    "summary": "要能讲清系统设计题的标准答题框架（澄清需求→容量估算→整体架构→组件选型→瓶颈与扩展）；理解 CAP 三选二的真实含义（分区容错必然、CP 与 AP 的取舍）、BASE 最终一致性与 ACID 的对比；能在可用性、一致性、延迟、成本、可维护性之间做有据可依的权衡，避免『上来就上微服务/上消息队列』的堆组件式回答" },
 
   { "id": "cs.design.capacity.scalability", "title": "垂直 vs 水平扩展、无状态化与分层架构", "level": 4, "domain": "cs", "stack": "design", "topic": "capacity",
     "prerequisites": ["cs.design.capacity.ddia-tradeoff"],

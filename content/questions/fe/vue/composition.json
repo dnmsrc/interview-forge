@@ -78,7 +78,7 @@
     "nodeId": "fe.vue.composition.options-vs-composition",
     "type": "single",
     "difficulty": 2,
-    "stem": "重构一个 800 行的选项式『商品编辑器』组件时，面试官问『你为什么迁组合式』。下列**不属于**组合式 API 真实优势的说法是：",
+    "stem": "重构一个 800 行的选项式『商品编辑器』组件时，教练问『你为什么迁组合式』。下列**不属于**组合式 API 真实优势的说法是：",
     "options": [
       {
         "key": "A",
@@ -106,7 +106,7 @@
     "gapCheck": [
       "易漏点：迁移收益还有『按需引入的 tree-shaking』（全量注册 vs 用到什么打包什么）常被漏",
       "常见误区：把 Vue3 性能提升全部记在组合式头上（大头是 Proxy+编译优化）",
-      "反向诚实：组合式的代价——心智门槛、闭包 .value 噪音、新手更易写出失控 effect，面试敢讲代价更加分"
+      "反向诚实：组合式的代价——心智门槛、闭包 .value 噪音、新手更易写出失控 effect，答题时敢讲代价更加分"
     ],
     "knowledgeLinks": {
       "prereq": [
@@ -368,7 +368,7 @@
     "gapCheck": [
       "易漏点：『Vue 没有脏检查』要说成立论基于可变数据+代理，React 的 diff 便宜靠不可变浅比较——两条哲学线别混在一处讲",
       "常见误区：把 defineModel/useMemo 类比成受控组件互译时忽略双向 vs 单向的流派差",
-      "证据更新：面试前查一遍 signals 提案最新 stage 与 React Compiler 状态，说旧版本号会被真玩家抓"
+      "证据更新：答题前查一遍 signals 提案最新 stage 与 React Compiler 状态，说旧版本号会被真玩家抓"
     ],
     "knowledgeLinks": {
       "prereq": [
@@ -390,7 +390,7 @@
       "kind": "web",
       "url": "https://zhuanlan.zhihu.com/p/1997984549074923943",
       "retrievedAt": "2026-11-09",
-      "note": "Vue3 vs React19 面试对比文（含话术框架）；事实锚另见 releaserun.com 2026 框架指南"
+      "note": "Vue3 vs React19 对比文（含话术框架）；事实锚另见 releaserun.com 2026 框架指南"
     },
     "tags": [
       "对比压轴",
@@ -400,7 +400,7 @@
     "variants": [
       {
         "angle": "反向问",
-        "stem": "反向布道题：面试官是 Vue 死忠，偏过头问你『React 那边是不是连 useState 更新都会丢、全靠 useEffect 缝合？』请用三句话以内替 React 正名（每句一个硬机制），再补一句 Vue 阵营对这个对比最常见的夸大。",
+        "stem": "反向布道题：教练是 Vue 死忠，偏过头问你『React 那边是不是连 useState 更新都会丢、全靠 useEffect 缝合？』请用三句话以内替 React 正名（每句一个硬机制），再补一句 Vue 阵营对这个对比最常见的夸大。",
         "analysis": "正名三连：①useState 批处理是队列语义不丢更新（updater 函数串行基于 prev，3.5 后连 Promise/setTimeout 都自动批）；②effect 竞态有官方清理函数协议 + AbortController 组合，StrictMode 双调用就是暴露它的探针；③并发特性（useTransition/useDeferredValue）把『卡顿』变成可调度的优先级问题，这是 Vue 目前给不了的。Vue 阵营常见夸大：『Vue 性能必然更好』——忽略细粒度收益只在特定形态成立、大型列表两边都靠虚拟化、React Compiler 抹平 memo 差距。三句+自嘲的结构，测的是立场弹性。"
       }
     ]

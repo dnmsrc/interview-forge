@@ -74,7 +74,7 @@
       "followUps": ["为什么标准用法要求 try/finally 中 remove()？写一个正确模板。", "父子线程/线程池间要传递 ThreadLocal 上下文，InheritableThreadLocal 为什么不够，TTL 怎么解决？"]
     },
     "openBookAllowed": true,
-    "source": { "kind": "web", "url": "https://zhuanlan.zhihu.com/p/717079676", "retrievedAt": "2026-11-12", "note": "高赞面试题：ThreadLocal 弱引用 key+强引用 value 与线程池泄漏治理" },
+    "source": { "kind": "web", "url": "https://zhuanlan.zhihu.com/p/717079676", "retrievedAt": "2026-11-12", "note": "高赞练习题：ThreadLocal 弱引用 key+强引用 value 与线程池泄漏治理" },
     "tags": ["工程战例", "ThreadLocal", "内存泄漏", "线程池", "弱引用"]
   },
   {

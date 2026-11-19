@@ -154,7 +154,7 @@
         "weight": 1
       }
     ],
-    "analysis": "指南原文就是按 prefill/decode/infra 三层组织的，答题照此结构最省力。区分度在两处：①手段与病因配对（『为什么流式是感知优化不是物理提速』——总计算没少但首字提前+可提前打断）；②Agent 语境的自觉——官方指南面向单次调用，面试官等的是你主动补『多轮 Agent 的延迟=Σ每轮，减少轮次优于优化单轮』。丢分大户是把 batching 当延迟手段（它提吞吐反增单请求延迟，方向反了）。",
+    "analysis": "指南原文就是按 prefill/decode/infra 三层组织的，答题照此结构最省力。区分度在两处：①手段与病因配对（『为什么流式是感知优化不是物理提速』——总计算没少但首字提前+可提前打断）；②Agent 语境的自觉——官方指南面向单次调用，真正要看的是你主动补『多轮 Agent 的延迟=Σ每轮，减少轮次优于优化单轮』。丢分大户是把 batching 当延迟手段（它提吞吐反增单请求延迟，方向反了）。",
     "gapCheck": [
       "易漏点：batching 的吞吐-延迟张力要主动点破，这是该题最经典的反直觉点",
       "常见误区：把『降低温度/贪心』当延迟手段——采样策略几乎不影响 TPOT（除非 speculative 接受率变化）",
@@ -618,20 +618,23 @@
     "nodeId": "ai.serving.infer-serving.kv-cache-batching",
     "type": "essay",
     "difficulty": 3,
-    "stem": "假设你在负责一个 LLM 在线推理服务，线上出现“吞吐尚可，但首 token 延迟升高、长尾请求明显”的现象。面试官请你现场论述：KV Cache、PagedAttention 与连续批处理分别解决什么问题？它们如何协同影响吞吐、显存利用和尾延迟？你会从哪些角度定位这类问题？",
+    "stem": "假设你在负责一个 LLM 在线推理服务，线上出现“吞吐尚可，但首 token 延迟升高、长尾请求明显”的现象。请你现场论述：KV Cache、PagedAttention 与连续批处理分别解决什么问题？它们如何协同影响吞吐、显存利用和尾延迟？你会从哪些角度定位这类问题？",
     "options": [],
     "answer": {
       "keys": [],
-      "ref": []
+      "ref": "【一·先分段】TTFT 是 prefill+排队，TPOT 是 decode 单步。先看两个分位数：如果 TTFT 涨而 TPOT 稳，问题在排队与 prefill；如果两者一起涨，才轮到 decode 资源不足。别一上来就扩容，扩容只能解决算力型瓶颈。\n【二·可能的成因】①队列等待：并发上限打满、连续批处理里长请求占住 decode 步；②prefill 重复：prefix cache 没命中（系统提示、few-shot 示例没复用），每次都在重算长前缀；③长 prompt 抢占：没开 chunked prefill，一个超长请求把整步占满；④显存压力：KV Cache 碎片、block 配置不当、频繁 swap/spill 或 page 驱逐抖动；⑤调度公平性：优先级/长度分级缺失，短请求被长请求饿死——这正是\"吞吐尚可但 P99 难看\"的典型画像。\n【三·怎么定位】按请求打点拆三段：排队时延 / prefill 时延 / decode 每步时延；看 P50/P90/P99 三条线而不是均值；同步看显存水位、KV block 利用率、队列长度分布、请求长度分布、prefix 命中率；再挑一条 P99 trace 数它经历了多少 step、中间有没有被抢占或驱逐。\n【四·治理】开 chunked prefill 并把长请求切块；限制 max_num_seqs / max_num_batched_tokens，给队列设水位告警；按长度或 SLA 分队列，短请求走快车道；把公共前缀（系统提示、工具 schema）做成 prefix cache；block size 按实际序列长度分布调；最后加超时、降级和背压，别让雪崩自己恢复。"
     },
     "openBookAllowed": true,
     "source": {
       "kind": "self-authored",
-      "note": "bank_update 自动生成",
+      "note": "R26 补齐：原 AI 生成稿缺答案与解析",
       "retrievedAt": "2026-11-15"
     },
     "tags": [
-      "自动生成"
+      "推理服务",
+      "TTFT",
+      "长尾延迟",
+      "调度"
     ],
     "status": "active",
     "meta": {
@@ -640,31 +643,93 @@
       "history": []
     },
     "scoringPoints": [
-      "结论正确且给出机制",
-      "覆盖关键边界或失败场景",
-      "能联系相关考点延伸"
-    ]
+      {
+        "point": "先用 TTFT/TPOT 两分法判断是排队还是算力，而不是直接扩容",
+        "weight": 3
+      },
+      {
+        "point": "覆盖排队、prefill 重复、长请求抢占、KV 显存压力、调度公平性中至少三类",
+        "weight": 3
+      },
+      {
+        "point": "定位手段说到分段计时与分位数（P50/P90/P99），不只看均值",
+        "weight": 2
+      },
+      {
+        "point": "治理措施与成因一一对应，且提到背压/超时这类兜底",
+        "weight": 2
+      },
+      {
+        "point": "点明\"吞吐尚可但长尾难看\"通常是调度公平性问题",
+        "weight": 2
+      }
+    ],
+    "analysis": "这题考的是\"会不会拆维度\"，不是\"知不知道 KV Cache\"。全部堆概念、最后说\"加机器\"的答案会被追问到哑：扩容对排队型和公平性型长尾基本无效，甚至因为并发变多让 P99 更差。正确路径是先分 TTFT/TPOT，再看分位数，再对应到队列、prefill 复算、抢占、显存四类根因。另一处暗礁是只讲均值——长尾问题看均值等于没看。",
+    "gapCheck": [
+      "易漏点：TTFT 里包含排队时间，\"首 token 慢\"不一定是 prefill 算得慢",
+      "常见误区：把 P99 高直接归因于算力不足，忽略调度公平性和长请求拖累",
+      "加分弹药：提到 chunked prefill 与 prefix cache 命中率是两个立刻能验证的开关",
+      "结构自救：成因与治理一一对齐写，别列完问题再列一堆无关优化项"
+    ],
+    "knowledgeLinks": {
+      "prereq": [
+        "ai.serving.infer-serving.kv-cache-batching"
+      ],
+      "related": [
+        "ai.serving.infer-serving.cost-latency",
+        "ai.serving.infer-serving.quantize-accel"
+      ],
+      "followUps": [
+        "P99 高但 P50 正常，你会先看哪三个指标？",
+        "prefix cache 命中率从 80% 掉到 20%，TTFT 大概会怎么变，为什么？",
+        "连续批处理下，怎么避免一个超长请求把整批短请求拖住？"
+      ]
+    }
   },
   {
     "id": "Q-ai-serving-infer-serving-k-vmt60",
     "nodeId": "ai.serving.infer-serving.kv-cache-batching",
     "type": "essay",
     "difficulty": 3,
-    "stem": "在 LLM 推理服务中，如果面试官请你从系统优化角度解释：KV Cache、PagedAttention 和连续批处理分别解决什么问题？它们如何协同提升吞吐与显存利用率？同时请说明可能带来的显存碎片、调度公平性或长尾延迟风险，以及你会考虑哪些缓解思路。",
+    "stem": "在 LLM 推理服务中，如果请你从系统优化角度解释：KV Cache、PagedAttention 和连续批处理分别解决什么问题？它们如何协同提升吞吐与显存利用率？同时请说明可能带来的显存碎片、调度公平性或长尾延迟风险，以及你会考虑哪些缓解思路。",
     "options": [],
     "answer": {
       "ref": "要点：1）KV Cache 缓存历史 token 的 Key/Value 张量，避免自回归解码时重复计算前缀 attention，代价是显存占用随 batch、序列长度、层数、头数和 dtype 增长；2）PagedAttention 将 KV Cache 按固定大小 block/page 管理，通过 block table 将逻辑 token 位置映射到非连续物理块，降低预留显存和外部碎片，并支持动态增长、共享或复制语义；3）连续批处理让请求在 decode 过程中动态加入/退出，不必等待整批完成，提高 GPU 利用率和吞吐；4）三者协同：KV Cache 决定单请求状态大小，PagedAttention 决定这些状态能否被紧凑、灵活地放入显存，连续批处理决定这些空闲容量能否被新请求及时复用；5）风险包括 block 过小导致元数据开销、block 过大导致尾部浪费、长 prefill 抢占 decode、高优先级请求饿死低优先级请求、长序列导致显存压力与排队延迟；6）缓解思路包括合理选择 block size、限制最大序列长度/并发、使用抢占与 swap/spill、chunked prefill、优先级与公平调度、prefix cache 复用公共前缀、监控显存水位与队列延迟。",
       "judge": "manual"
     },
     "scoringPoints": [
-      "能准确说明 KV Cache 的作用是缓存历史 K/V 以避免重复计算，而不是简单等同于模型权重缓存",
-      "能指出 KV Cache 显存占用与 batch size、序列长度、模型层数、注意力头数、head_dim、dtype 等因素相关",
-      "能解释 PagedAttention 的核心是把 KV Cache 切成固定大小 block/page，并用 block table 做逻辑到物理的非连续映射",
-      "能说明 PagedAttention 相比连续预分配 KV Cache 可降低显存碎片和过度预留，提升可服务请求数",
-      "能解释连续批处理是在请求完成或显存/调度条件允许时动态加入新请求、移除已完成请求，而不是固定 batch 同步执行",
-      "能把三者串起来：KV Cache 提供状态复用，PagedAttention 提供显存管理，连续批处理提供请求级调度复用",
-      "能识别至少一个真实风险，如显存碎片、调度不公平、长 prefill 拖慢 decode、长尾延迟或显存 OOM",
-      "能给出至少两个合理缓解思路，如 block size 调优、max_model_len/max_num_seqs 限制、抢占、swap/spill、chunked prefill、公平调度、prefix cache"
+      {
+        "point": "能准确说明 KV Cache 的作用是缓存历史 K/V 以避免重复计算，而不是简单等同于模型权重缓存",
+        "weight": 2
+      },
+      {
+        "point": "能指出 KV Cache 显存占用与 batch size、序列长度、模型层数、注意力头数、head_dim、dtype 等因素相关",
+        "weight": 2
+      },
+      {
+        "point": "能解释 PagedAttention 的核心是把 KV Cache 切成固定大小 block/page，并用 block table 做逻辑到物理的非连续映射",
+        "weight": 2
+      },
+      {
+        "point": "能说明 PagedAttention 相比连续预分配 KV Cache 可降低显存碎片和过度预留，提升可服务请求数",
+        "weight": 2
+      },
+      {
+        "point": "能解释连续批处理是在请求完成或显存/调度条件允许时动态加入新请求、移除已完成请求，而不是固定 batch 同步执行",
+        "weight": 2
+      },
+      {
+        "point": "能把三者串起来：KV Cache 提供状态复用，PagedAttention 提供显存管理，连续批处理提供请求级调度复用",
+        "weight": 2
+      },
+      {
+        "point": "能识别至少一个真实风险，如显存碎片、调度不公平、长 prefill 拖慢 decode、长尾延迟或显存 OOM",
+        "weight": 2
+      },
+      {
+        "point": "能给出至少两个合理缓解思路，如 block size 调优、max_model_len/max_num_seqs 限制、抢占、swap/spill、chunked prefill、公平调度、prefix cache",
+        "weight": 2
+      }
     ],
     "analysis": "常见错误理解包括：把 KV Cache 误解为缓存整个 prompt 文本或模型参数；把 PagedAttention 误解为普通分页内存管理而不涉及 KV Cache 的 block table 映射；把连续批处理误解为简单增大 batch size。正确理解应区分三层：KV Cache 是计算复用机制，PagedAttention 是显存布局与碎片控制机制，连续批处理是请求生命周期调度机制。若只说“提升吞吐”而不说明显存碎片、调度公平性和长尾延迟，则属于不完整回答。",
     "gapCheck": [
@@ -675,7 +740,16 @@
       "是否提到风险与缓解，而不是只讲收益"
     ],
     "knowledgeLinks": {
-      "prereq": []
+      "prereq": [],
+      "related": [
+        "ai.serving.infer-serving.cost-latency",
+        "ai.serving.infer-serving.quantize-accel"
+      ],
+      "followUps": [
+        "block size 调大调小分别换来什么、牺牲什么？",
+        "连续批处理下怎么防止长 prefill 抢占 decode 的 GPU 时间？",
+        "prefix cache 与 PagedAttention 的 block 复用是同一件事吗？"
+      ]
     },
     "openBookAllowed": true,
     "source": {

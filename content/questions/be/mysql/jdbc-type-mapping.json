@@ -78,7 +78,7 @@
       "followUps": ["setScale(2, RoundingMode.HALF_UP) 里的 HALF_UP 是什么取整？", "BigDecimal 是不可变对象，做加法后为什么要接收返回值？"]
     },
     "openBookAllowed": false,
-    "source": { "kind": "self-authored", "note": "BigDecimal 经典面试题，结合项目金额比较" },
+    "source": { "kind": "self-authored", "note": "BigDecimal 经典练习题，结合项目金额比较" },
     "tags": ["BigDecimal", "equals 与 compareTo", "高频坑", "闭卷题"],
     "status": "active",
     "meta": { "created": "2026-11-11", "version": 1, "history": [] }

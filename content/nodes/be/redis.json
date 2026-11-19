@@ -92,7 +92,7 @@
     "topic": "cache",
     "mustMaster": true,
     "estMinutes": 60,
-    "summary": "缓存穿透/击穿/雪崩、缓存与数据库一致性、分布式锁，是后端面试与生产事故的高频区"
+    "summary": "缓存穿透/击穿/雪崩、缓存与数据库一致性、分布式锁，是后端与生产事故的高频区"
   },
   {
     "id": "be.redis.cache.patterns",

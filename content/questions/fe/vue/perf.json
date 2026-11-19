@@ -178,7 +178,7 @@
         "weight": 1
       }
     ],
-    "analysis": "虚拟列表的面试深度就在这三个数学细节。①看似简单但 clamp 漏写、ceil/floor 反了的人过半；②要能落到 transform 不触发 layout 而 top 触发的渲染原理层；③是『用过 vueuc 』与『读过 virtual-scroller 源码』的分界：上方修正必须同步补 scrollTop 否则视口内容瞬间跳——这是所有虚拟滚动库最核心的稳定不变式。",
+    "analysis": "虚拟列表的深度就在这三个数学细节。①看似简单但 clamp 漏写、ceil/floor 反了的人过半；②要能落到 transform 不触发 layout 而 top 触发的渲染原理层；③是『用过 vueuc 』与『读过 virtual-scroller 源码』的分界：上方修正必须同步补 scrollTop 否则视口内容瞬间跳——这是所有虚拟滚动库最核心的稳定不变式。",
     "gapCheck": [
       "易漏点：水平虚拟列表/瀑布流的双列锚点更复杂（两条前缀和），答题时可主动圈定单列范围",
       "常见误区：以为 ResizeObserver 逐行观察就行——5 万行 observer 本身开销大，通常只测视口内+缓冲行",

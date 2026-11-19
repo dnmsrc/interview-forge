@@ -4,7 +4,7 @@
     "nodeId": "cs.devops.k8s.arch-object",
     "type": "single",
     "difficulty": 1,
-    "stem": "面试官：Kubernetes 集群里，所有 REST 请求（kubectl、控制器、kubelet 回传）唯一的统一入口，并且负责鉴权、校验对象的组件是：",
+    "stem": "教练：Kubernetes 集群里，所有 REST 请求（kubectl、控制器、kubelet 回传）唯一的统一入口，并且负责鉴权、校验对象的组件是：",
     "options": [
       { "key": "A", "text": "kube-apiserver：所有组件都通过它读写 etcd 中的集群状态，自身是无状态的、可水平扩展" },
       { "key": "B", "text": "etcd：所有组件直接连 etcd 读写对象，apiserver 只负责 kubectl 的界面" },
@@ -60,7 +60,7 @@
     "nodeId": "cs.devops.k8s.arch-object",
     "type": "multiple",
     "difficulty": 3,
-    "stem": "面试官：关于 Pod、ReplicaSet、Deployment、Service 四个核心对象的关系，下列说法**正确**的有：",
+    "stem": "教练：关于 Pod、ReplicaSet、Deployment、Service 四个核心对象的关系，下列说法**正确**的有：",
     "options": [
       { "key": "A", "text": "Pod 是最小调度单位，同 Pod 内容器共享网络 namespace（同一 IP、可通过 localhost 互访）与可共享存储卷" },
       { "key": "B", "text": "ReplicaSet 保证任意时刻匹配标签的 Pod 副本数接近期望值，Deployment 通过管理 ReplicaSet 实现发布与回滚" },
@@ -124,7 +124,7 @@
     "nodeId": "cs.devops.k8s.arch-object",
     "type": "short",
     "difficulty": 4,
-    "stem": "面试官：请描述从执行 `kubectl apply` 提交一个 Deployment，到 Pod 在某节点上真正跑起来，中间经过哪些组件、各自做了什么？并说明这套链路体现了什么设计思想。",
+    "stem": "教练：请描述从执行 `kubectl apply` 提交一个 Deployment，到 Pod 在某节点上真正跑起来，中间经过哪些组件、各自做了什么？并说明这套链路体现了什么设计思想。",
     "answer": {
       "ref": "参考骨架：\n【链路】①kubectl 把 YAML 组装成 REST 请求发给 kube-apiserver；②apiserver 依次做认证、鉴权（RBAC）、准入控制（含默认值注入与 webhook）、对象 schema 校验，通过后写入 etcd 并返回；③Deployment controller（在 controller-manager 内）watch 到新对象，按 replicas 创建 ReplicaSet 对象，再由 ReplicaSet controller 创建 Pod 对象（此时 nodeName 为空，处于 Pending）；④scheduler watch 到未绑定的 Pod，执行过滤（资源 requests 是否够、nodeSelector/亲和性/污点容忍、端口冲突等）与打分，选出节点后通过 apiserver 写回绑定（binding）；⑤目标节点的 kubelet watch 到有绑定到本节点的 Pod，调用 CRI（容器运行时接口）让 containerd 等运行时拉镜像、创建存储卷（CSI）与网络（CNI 分配 Pod IP），再按顺序启动容器；⑥kubelet 持续上报 Pod 状态与探针结果，Service 相关的 Endpoint/EndpointSlice 由控制器更新，kube-proxy 据此刷新转发规则，Pod 进入可服务状态。\n【设计思想】声明式+调谐循环：所有协作通过 apiserver 中对象状态的变化驱动，组件之间不直接 RPC，而是 list-watch 解耦；每个控制器只负责把自己关心的一类对象向期望状态收敛，职责单一、可独立演进；apiserver+etcd 成为唯一事实源与串行化入口，保证鉴权、审计与一致性；全部环节异步，天然支持重试与自愈，故障表现为『状态迟迟不收敛』，排障抓手是看对象事件与各控制器日志。"
     },
@@ -157,7 +157,7 @@
     "nodeId": "cs.devops.k8s.schedule-probe",
     "type": "single",
     "difficulty": 2,
-    "stem": "面试官：某 Java 服务启动慢（JVM 预热约 40 秒），团队把 livenessProbe 的 initialDelaySeconds 设得很短，导致服务还没起来就被探测失败、反复重启。下列修法**最合理**的是：",
+    "stem": "教练：某 Java 服务启动慢（JVM 预热约 40 秒），团队把 livenessProbe 的 initialDelaySeconds 设得很短，导致服务还没起来就被探测失败、反复重启。下列修法**最合理**的是：",
     "options": [
       { "key": "A", "text": "配置 startupProbe 覆盖慢启动期（给足够高的 failureThreshold×periodSeconds 容忍启动时间），startup 成功前 liveness/readiness 探针暂停，成功后再由它们接管" },
       { "key": "B", "text": "把 liveness 探针直接删掉，启动慢就不应该做存活检测" },
@@ -188,7 +188,7 @@
     "nodeId": "cs.devops.k8s.schedule-probe",
     "type": "multiple",
     "difficulty": 3,
-    "stem": "面试官：关于 resources.requests 与 limits，下列说法**正确**的有：",
+    "stem": "教练：关于 resources.requests 与 limits，下列说法**正确**的有：",
     "options": [
       { "key": "A", "text": "requests 是调度依据：scheduler 按节点可分配资源与所有 Pod 的 requests 之和判断能否放下，与实时占用无关" },
       { "key": "B", "text": "CPU 超过 limit 会被限流（throttling）而不是被杀；内存超过 limit 则触发 OOMKilled、容器被内核杀死重启" },
@@ -278,7 +278,7 @@
     "nodeId": "cs.devops.k8s.schedule-probe",
     "type": "short",
     "difficulty": 4,
-    "stem": "面试官：线上一组 Pod 反复重启，`kubectl describe` 看到退出原因是 OOMKilled、退出码 137。请给出完整排查思路：怎么区分是应用真泄漏还是 limit 设小了？确认原因后分别怎么治理？另外节点级内存压力和单容器 limit 触发的 OOM 有什么区别？",
+    "stem": "教练：线上一组 Pod 反复重启，`kubectl describe` 看到退出原因是 OOMKilled、退出码 137。请给出完整排查思路：怎么区分是应用真泄漏还是 limit 设小了？确认原因后分别怎么治理？另外节点级内存压力和单容器 limit 触发的 OOM 有什么区别？",
     "answer": {
       "ref": "参考骨架：\n【先看证据】①kubectl describe pod 看 lastState.terminated.reason=OOMKilled、exit code 137（128+9，SIGKILL），确认是内核 OOM killer 而非应用自己退出；②对比容器内存监控曲线（container_memory_working_set 等）与 limits.memory：若每次都精准贴着 limit 被杀，倾向 limit 问题或泄漏；若曲线长期单调上涨不回落，倾向泄漏。\n【区分两种根因】limit 设小：用量稳定在某个健康平台值（与业务量正相关、重启后同样爬到该值），但该值高于拍脑袋设的 limit；用历史监控看同服务在更大 limit 下稳定运行的水位、JVM/运行时堆参数是否与容器配额匹配（JVM 需识别 cgroup 上限，否则堆外内存+堆超 limit）。真泄漏：每次重启后内存持续单调增长、增长间隔与流量无关或随时间恶化，堆 dump/运行时剖析可见对象无法回收，常见于缓存无上限、连接/文件句柄未释放、ThreadLocal/全局集合堆积。\n【治理】limit 过小→基于 P95/P99 真实用量上调 limit 并同步调整 requests，JVM 用 MaxRAMPercentage 之类参数让堆适配容器；真泄漏→修代码（有界缓存、淘汰策略、资源 try-with-resources/close），临时手段是加内存争取修复窗口并加重启兜底告警。\n【节点级 vs 容器级】容器超自己的 limit：cgroup 级 OOM，只杀该 cgroup 内进程、事件里 reason=OOMKilled，节点本身资源尚可。节点级压力：kubelet 监控节点可用内存，先按 QoS 驱逐（BestEffort→Burstable→Guaranteed 顺序），驱逐的 Pod 显示 Evicted；若驱逐不及时触发节点内核 OOM killer，会按 oom_score 在整机选进程杀，可能波及无关 Pod 甚至系统进程。还要排查 requests 超卖比例、节点上是否有失控的 BestEffort 负载。"
     },
@@ -311,7 +311,7 @@
     "nodeId": "cs.devops.k8s.network-config",
     "type": "single",
     "difficulty": 2,
-    "stem": "面试官：集群内部一个服务想通过稳定的虚拟 IP 和 DNS 名访问一组 Pod，且这个入口不需要暴露到集群外。应选择的 Service 类型是：",
+    "stem": "教练：集群内部一个服务想通过稳定的虚拟 IP 和 DNS 名访问一组 Pod，且这个入口不需要暴露到集群外。应选择的 Service 类型是：",
     "options": [
       { "key": "A", "text": "ClusterIP：分配仅集群内可达的虚拟 IP，配合 CoreDNS 提供 <svc>.<ns>.svc 域名解析" },
       { "key": "B", "text": "NodePort：在每个节点上开放一个高端口，靠 节点IP:端口 从集群外访问" },
@@ -342,7 +342,7 @@
     "nodeId": "cs.devops.k8s.network-config",
     "type": "single",
     "difficulty": 3,
-    "stem": "面试官：关于 K8s 的 Ingress、CNI 网络模型与 Secret，下列说法**最准确**的是：",
+    "stem": "教练：关于 K8s 的 Ingress、CNI 网络模型与 Secret，下列说法**最准确**的是：",
     "options": [
       { "key": "A", "text": "Ingress 只是按 Host/路径转发的七层路由规则声明，真正执行规则的是 Ingress Controller（常同时承担 TLS 终结）；CNI 插件负责为 Pod 分配 IP 并实现跨节点免 NAT 直连" },
       { "key": "B", "text": "Ingress 内置在 kubelet 里、无需额外组件就能生效；Pod 跨节点通信默认要经过 SNAT 做地址转换" },
@@ -398,7 +398,7 @@
     "nodeId": "cs.devops.k8s.release-ops",
     "type": "single",
     "difficulty": 3,
-    "stem": "面试官：Deployment 滚动更新时，maxSurge=1、maxUnavailable=0（相对副本数的百分比也可）。下列对发布过程的描述，**正确**的是：",
+    "stem": "教练：Deployment 滚动更新时，maxSurge=1、maxUnavailable=0（相对副本数的百分比也可）。下列对发布过程的描述，**正确**的是：",
     "options": [
       { "key": "A", "text": "先多出 1 个副本创建新版本 Pod，等新 Pod 就绪后再终止 1 个旧 Pod，全程可用副本数不少于期望值，代价是发布期间最多多占 1 份资源" },
       { "key": "B", "text": "先杀 1 个旧 Pod 再建 1 个新 Pod，发布期间可用副本数必然少于期望值" },
@@ -488,7 +488,7 @@
     "nodeId": "cs.devops.k8s.release-ops",
     "type": "multiple",
     "difficulty": 4,
-    "stem": "面试官：`kubectl get pods` 显示一个 Pod 长期 Pending，另一个处于 CrashLoopBackOff。下列成因与排查方向的配对，**合理**的有：",
+    "stem": "教练：`kubectl get pods` 显示一个 Pod 长期 Pending，另一个处于 CrashLoopBackOff。下列成因与排查方向的配对，**合理**的有：",
     "options": [
       { "key": "A", "text": "Pending 且 events 提示 Insufficient memory/cpu：节点 requests 容量不足，排查节点资源水位、requests 是否虚高、集群是否需要加节点" },
       { "key": "B", "text": "Pending 且有 nodeSelector/污点相关事件：调度约束无法满足，排查标签、污点容忍（toleration）与亲和性配置" },
@@ -512,14 +512,14 @@
     },
     "openBookAllowed": true,
     "source": { "kind": "self-authored", "note": "Pending 与 CrashLoopBackOff 排障多选题" },
-    "tags": ["排障", "Pending", "CrashLoopBackOff", "调度", "面试高频"]
+    "tags": ["排障", "Pending", "CrashLoopBackOff", "调度", "高频"]
   },
   {
     "id": "Q-cs-devops-k8s-0018",
     "nodeId": "cs.devops.k8s.release-ops",
     "type": "short",
     "difficulty": 5,
-    "stem": "面试官：团队希望把几十个服务的 K8s 清单工程化管理，目前每个环境一套手写 YAML、版本散乱、回滚靠翻聊天记录。请说明 Helm 解决了什么问题、chart/values/release 三个概念如何协作，并对比它与 Kustomize 的思路差异；再讲讲一套可靠的发布回滚机制应该怎么建。",
+    "stem": "教练：团队希望把几十个服务的 K8s 清单工程化管理，目前每个环境一套手写 YAML、版本散乱、回滚靠翻聊天记录。请说明 Helm 解决了什么问题、chart/values/release 三个概念如何协作，并对比它与 Kustomize 的思路差异；再讲讲一套可靠的发布回滚机制应该怎么建。",
     "answer": {
       "ref": "参考骨架：\n【痛点】裸 YAML 数量膨胀、环境差异靠复制粘贴、模板没有版本概念、参数散落在文件里，回滚与评审都缺抓手。\n【Helm 三概念】chart 是打包好的图表（模板 templates + 默认值 values.yaml + 元数据 Chart.yaml），描述一类应用的完整资源集合；values 是参数层，默认值之外可用 -f 或 --set 按环境覆盖，实现一套模板多环境实例化；release 是某次安装/升级在集群里产生的一个具体实例，带版本号，每次 upgrade 生成新 revision 并存历史，rollback 可按 revision 一键回退到上一版 values 与模板渲染结果。三者关系是『模板（chart）×参数（values）=实例（release）』。\n【与 Kustomize 对比】Helm 是模板引擎思路：Go template 渲染，表达力强（条件、循环、函数），有 chart 仓库与版本发布体系，但模板深了可读性差、调试要看渲染结果；Kustomize 是无模板的覆盖叠加思路：保留原生 YAML，用 base + overlay（kustomization.yaml）做 patch、命名空间/前缀/镜像替换，不用学习模板语言、Git 原生友好，但复杂逻辑表达不如模板灵活。选型上标准化程度高、要分发复用选 Helm；纯配置分层、希望 YAML 原样可读可选 Kustomize，二者也可结合（Helm 渲染后再叠 Kustomize）。\n【发布回滚机制】①所有变更走 Git 评审与 CI 渲染检查（helm template/lint、dry-run、kubectl diff），禁止手工 kubectl edit；②镜像用不可变标签、release 版本与 Git commit 关联；③升级用 helm upgrade --install 并记录 revision，配合 readiness 与发布后冒烟校验，失败自动 helm rollback；④回滚预案区分应用层（rollback revision，快）与数据层（schema 迁移要求前向兼容，老代码能读新结构）；⑤发布历史、values 与变更说明归档，配合监控告警在发布窗口盯 SLO，形成可审计闭环。"
     },

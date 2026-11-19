@@ -34,7 +34,7 @@
     "gapCheck": [
       "易漏点：3.5 还有 Reactive Iterator（对象迭代按 key 精确触发）与 v-slot 自动插入等小项，答题清单越全越显功底",
       "常见误区：把『Vue3.6 将内置 alien-signals』当成已发生事实——引用社区进展要标注版本号与不确定性",
-      "追问延伸：面试官会问『你们项目现在锁哪个小版本、升级 3.5 动过什么 codemod』（propsDestructure 行为开关是典型回归点）"
+      "追问延伸：教练会问『你们项目现在锁哪个小版本、升级 3.5 动过什么 codemod』（propsDestructure 行为开关是典型回归点）"
     ],
     "knowledgeLinks": {
       "prereq": [
@@ -115,7 +115,7 @@
     "gapCheck": [
       "易漏点：别忘了提两家**都放弃**的路径：Vue 不做 RSC、React 不采纳代理可变对象——放弃的理由比选择的理由更显理解深度",
       "常见误区：拿 benchmark 数字当论点——js-framework-benchmark 只测 CRUD 表格形态，天然偏 Vue 系，要点破测试偏差",
-      "时间敏感：本题所有 2026 断言都应会前刷新（Vapor 是否 stable、Signals 提案 stage 几），面试里说错版本号比不说更伤"
+      "时间敏感：本题所有 2026 断言都应会前刷新（Vapor 是否 stable、Signals 提案 stage 几），实际讨论里说错版本号比不说更伤"
     ],
     "knowledgeLinks": {
       "prereq": [
@@ -149,7 +149,7 @@
     "variants": [
       {
         "angle": "换问法",
-        "stem": "立场切换版：面试官命令你『接下来 3 分钟只能当 React 律师——为 React 反驳 Vue 阵营最常用的三个指控（响应式黑盒、性能靠编译器作弊、中文社区八股化），每个指控给一句反驳加一个不得不承认的事实』，最后一句你必须自己拆 React 最疼的短板。",
+        "stem": "立场切换版：教练命令你『接下来 3 分钟只能当 React 律师——为 React 反驳 Vue 阵营最常用的三个指控（响应式黑盒、性能靠编译器作弊、中文社区八股化），每个指控给一句反驳加一个不得不承认的事实』，最后一句你必须自己拆 React 最疼的短板。",
         "analysis": "合格辩护词样本：①『响应式黑盒』→ 反驳：React 的隐式魔法更多（hooks 调用序依赖、reconciler 时机、Compiler 插 memo），Vue 的代理至少可 toRaw/debug 具象化；承认：嵌套解构丢响应确实是新手税。②『编译器作弊』→ 反驳：静态优化是两家共识路线（React Compiler 同做），信息在 DSL 里本就是设计目标；承认：离开模板（JSX in Vue）收益打折是真实现象。③『八股化』是社会议题非技术议题，可用『React 的闭包陷阱教程同样铺天盖地』对冲。自拆短板首选：stale closure/deps 纪律的学习曲线与 Compiler 采用后的调试断层（编译前后代码不一致的心智成本）。评分看『钢人论证』质量：把对方论点最强形式立起来再拆，稻草人直接减分。"
       }
     ]

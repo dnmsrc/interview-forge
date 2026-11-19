@@ -632,7 +632,7 @@
     },
     "analysis": "preload 是「本页马上要用、现在就取」的高优先级提示，as 缺失会双下载，字体即使同源也必须 crossorigin（CORS 模式加载）；prefetch 是「下一页可能用、低优先级捡空闲带宽」；fetchpriority=high 能把 LCP 图片的 Load 优先级提到 High，Chrome 实测优先于默认调度。三者时机与优先级各不相同，混用会适得其反（把 prefetch 当 preload 会来不及）。",
     "gapCheck": [
-      "易漏点：preload 必须配 as，字体必须 crossorigin，这两个是最常见的面试考点级细节",
+      "易漏点：preload 必须配 as，字体必须 crossorigin，这两个是最常见的考点级细节",
       "常见误区：以为 preload 越多首屏越快——过度 preload 抢占关键资源带宽反而拖慢 LCP",
       "加分项：知道 modulepreload 用于预载 ESM 依赖图、Speculation Rules 悬停级 prerender 已稳定可用"
     ],
@@ -1258,7 +1258,7 @@
     "answer": {
       "judge": false
     },
-    "analysis": "错误，两个分句都不成立。其一，带凭证请求（fetch 的 credentials:\"include\" 或 XHR withCredentials）不允许 ACAO 使用通配符 *，服务端必须回显具体的 Origin 值，同时返回 Access-Control-Allow-Credentials: true，否则浏览器拦截响应。其二，Cookie 要跨站发送必须设置 SameSite=None，而规范强制 SameSite=None 必须同时带 Secure（仅 HTTPS 下生效），缺少 Secure 的这类 Cookie 会被浏览器直接拒绝。补充：跨站 Cookie 还受第三方 Cookie 策略影响，现代浏览器对第三方 Cookie 限制趋严，SameSite=Lax（默认）下跨站子请求默认不带 Cookie，这是面试高频坑。",
+    "analysis": "错误，两个分句都不成立。其一，带凭证请求（fetch 的 credentials:\"include\" 或 XHR withCredentials）不允许 ACAO 使用通配符 *，服务端必须回显具体的 Origin 值，同时返回 Access-Control-Allow-Credentials: true，否则浏览器拦截响应。其二，Cookie 要跨站发送必须设置 SameSite=None，而规范强制 SameSite=None 必须同时带 Secure（仅 HTTPS 下生效），缺少 Secure 的这类 Cookie 会被浏览器直接拒绝。补充：跨站 Cookie 还受第三方 Cookie 策略影响，现代浏览器对第三方 Cookie 限制趋严，SameSite=Lax（默认）下跨站子请求默认不带 Cookie，这是高频坑。",
     "gapCheck": [
       "易漏点：带凭证时 ACAO 不能用 *，必须回显具体 Origin 且配 Access-Control-Allow-Credentials: true。",
       "常见误区：以为 SameSite=None 可单独使用，实际必须搭配 Secure，否则 Cookie 被拒。",

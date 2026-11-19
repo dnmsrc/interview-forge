@@ -4,7 +4,7 @@
     "nodeId": "cs.devops.docker.namespace-cgroup",
     "type": "single",
     "difficulty": 1,
-    "stem": "面试官：都说容器是『受限的普通进程』，Linux 上 Docker 主要靠两类内核能力实现容器化。下列关于 namespace 与 cgroup 分工的描述，**最准确**的是：",
+    "stem": "教练：都说容器是『受限的普通进程』，Linux 上 Docker 主要靠两类内核能力实现容器化。下列关于 namespace 与 cgroup 分工的描述，**最准确**的是：",
     "options": [
       {
         "key": "A",
@@ -64,7 +64,7 @@
     "nodeId": "cs.devops.docker.namespace-cgroup",
     "type": "multiple",
     "difficulty": 3,
-    "stem": "面试官：关于 Linux namespace 的隔离类别以及容器与虚拟机的对比，下列说法**正确**的有：",
+    "stem": "教练：关于 Linux namespace 的隔离类别以及容器与虚拟机的对比，下列说法**正确**的有：",
     "options": [
       {
         "key": "A",
@@ -240,7 +240,7 @@
     "nodeId": "cs.devops.docker.namespace-cgroup",
     "type": "short",
     "difficulty": 4,
-    "stem": "面试官：请从隔离边界、启动速度、资源开销、安全性和适用场景五个维度对比容器与虚拟机，并解释为什么容器普及后虚拟机并没有被淘汰，反而出现了『容器跑在虚拟机里』的主流云上架构。",
+    "stem": "教练：请从隔离边界、启动速度、资源开销、安全性和适用场景五个维度对比容器与虚拟机，并解释为什么容器普及后虚拟机并没有被淘汰，反而出现了『容器跑在虚拟机里』的主流云上架构。",
     "answer": {
       "ref": "参考骨架：\n【隔离边界】容器共享宿主内核，靠 namespace 隔离视图、cgroup 限制资源，进程级隔离；虚拟机经 Hypervisor 硬件虚拟化，自带完整 Guest OS 与独立内核，隔离到内核/硬件级别，故障域更硬。\n【启动速度】容器本质是进程，秒级/毫秒级启动，适合弹性伸缩与快速发布；虚拟机要引导完整操作系统，通常数十秒到分钟级。\n【资源开销】容器无 Guest OS 内存与系统服务开销，密度高，一台物理机可跑几十上百个；每个 VM 都要预留内核与系统守护进程的内存，密度低。\n【安全性】VM 隔离强度更高，容器逃逸（借助内核漏洞或危险挂载）可能波及宿主机与同机容器；容器需配合非 root 运行、capability 裁剪、seccomp、只读根文件系统、user namespace 乃至沙箱运行时加固。\n【适用场景】容器适合微服务、CI/CD、弹性工作负载、同构技术栈；VM 适合强隔离多租户、需要不同内核/操作系统、遗留单体、合规要求硬件级隔离的场景。\n【为什么容器跑在 VM 里】①安全纵深：VM 提供的内核级边界正好补上容器共享内核的短板，云上一个节点（VM）出容器逃逸，影响被限制在这台 VM 内；②资源交付与调度成熟：云厂商用 VM 做弹性资源池、配额与计费单元，容器平台（托管 K8s）在 VM 节点上调度容器，兼顾基础设施成熟度与应用层弹性；③运维体系兼容：VM 快照、安全组、VPC 网络等既有能力可直接复用。代价是多一层虚拟化开销，但硬件辅助虚拟化成熟后该开销通常可接受，安全与工程收益更大。"
     },
@@ -293,7 +293,7 @@
     "nodeId": "cs.devops.docker.image-dockerfile",
     "type": "single",
     "difficulty": 2,
-    "stem": "面试官：一份 Dockerfile 中先 `COPY package.json ./` 再 `RUN npm install`，然后才 `COPY . .`。这样调整指令顺序的主要目的是：",
+    "stem": "教练：一份 Dockerfile 中先 `COPY package.json ./` 再 `RUN npm install`，然后才 `COPY . .`。这样调整指令顺序的主要目的是：",
     "options": [
       {
         "key": "A",
@@ -352,7 +352,7 @@
     "nodeId": "cs.devops.docker.image-dockerfile",
     "type": "multiple",
     "difficulty": 3,
-    "stem": "面试官：下列 Dockerfile/镜像工程实践中，属于公认最佳实践的有：",
+    "stem": "教练：下列 Dockerfile/镜像工程实践中，属于公认最佳实践的有：",
     "options": [
       {
         "key": "A",
@@ -512,7 +512,7 @@
     "nodeId": "cs.devops.docker.image-dockerfile",
     "type": "short",
     "difficulty": 3,
-    "stem": "面试官：线上一个服务镜像从 1.2GB 膨胀到了 1.8GB，拉取慢、节点磁盘告急。请给出一套系统性的镜像瘦身方案，并说明每一项为什么能减小体积或带来什么附加收益。",
+    "stem": "教练：线上一个服务镜像从 1.2GB 膨胀到了 1.8GB，拉取慢、节点磁盘告急。请给出一套系统性的镜像瘦身方案，并说明每一项为什么能减小体积或带来什么附加收益。",
     "answer": {
       "ref": "参考骨架：\n①多阶段构建：编译器、SDK、devDependencies、构建中间产物只留在 builder，运行镜像只拷产物与生产依赖，通常是体积下降最显著的一刀，同时缩小攻击面。\n②换精简基础镜像：从完整发行版（如 debian/fat 镜像）换成 alpine/slim 乃至 distroless；注意 musl libc 兼容性与原生依赖，distroless 无 shell 需配套 debug 容器排障。\n③同层清理包管理缓存：apt-get install 后同 RUN 内 rm -rf /var/lib/apt/lists/*、apk add --no-cache、npm/pip 清缓存；关键认知是联合文件系统中『下一层删除上一层文件』不会缩小镜像，只产生 whiteout 标记。\n④合并 RUN 指令、去除调试工具与文档：减少层数与无用文件，调试工具改用按需启动的临时 sidecar/debug 镜像。\n⑤规范 .dockerignore：排除 node_modules、.git、日志、测试数据、本地构建产物，避免它们进入构建上下文与镜像层。\n⑥依赖治理：npm/pip 只装生产依赖（--omit=dev / requirements 分离），定期移除不再使用的依赖，锁版本避免重复打包。\n⑦构建产物自检：用 docker history 看每层体积定位大头、dive 等工具分析文件分布、镜像漏洞扫描同步看攻击面；CI 里设镜像体积阈值门禁防止回弹。\n附加收益：小镜像拉取快、扩容时节点就绪时间短、磁盘与网络带宽压力小；文件越少潜在 CVE 面越小；分层合理还能提高层缓存命中率、加快流水线。"
     },
@@ -647,7 +647,7 @@
     "nodeId": "cs.devops.docker.network-volume",
     "type": "multiple",
     "difficulty": 4,
-    "stem": "面试官：安全评审发现一批容器以 root 运行且挂了 docker.sock。下列加固措施中，**合理且有效**的有：",
+    "stem": "教练：安全评审发现一批容器以 root 运行且挂了 docker.sock。下列加固措施中，**合理且有效**的有：",
     "options": [
       {
         "key": "A",
