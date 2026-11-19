@@ -1,21 +1,29 @@
 <script setup lang="ts">
-import { onActivated, onMounted, ref, computed } from 'vue'
+import { computed, onActivated, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Icon from '../components/Icon.vue'
 import { toast, DOMAIN_LABEL } from '../lib/ui'
 import { ipc } from '../lib/ipc'
-import type { ProjectCard } from '@shared/api'
+import type { ProjectCard, ProjectCoverage } from '@shared/api'
 
 /**
- * 项目列表：目前内容目录里只有一个项目，但按列表写。
- * 项目进度与做题体系是两条互不相干的线：这里只读 project 自己的进度，
- * 不碰 store 里的题目/掌握度，避免用户以为「做项目能清掉今日到期复习」。
+ * 项目列表：按领域分栏的项目卡片墙 + 一张「知识图谱覆盖」总览。
+ *
+ * 为什么改成网格而不是一行一个：
+ * 项目数量会随「把图谱知识点都收编成项目关卡」的目标持续增长，纵向列表
+ * 每个项目占一屏 1/6，项目一多就要拖滚动条找。卡片墙让同样一屏能扫到 6-9 个，
+ * 领域内一眼看到哪些在等你。
+ *
+ * 覆盖总览回答的是另一个问题：「做完这些项目，图谱里的知识点是不是都摸过了」。
+ * 没有这个数，项目闯关和知识图谱就是两条各说各话的线。
  */
 const router = useRouter()
 const rows = ref<ProjectCard[]>([])
+const coverage = ref<ProjectCoverage | null>(null)
 const loading = ref(true)
 const error = ref('')
 const loaded = ref(false)
+const gapOpen = ref(false)
 
 /** silent=true 用于从关卡页返回时刷新，不闪骨架屏 */
 async function load(silent = false) {
@@ -31,6 +39,13 @@ async function load(silent = false) {
     }
   } finally {
     if (!silent) loading.value = false
+  }
+  // 覆盖统计不影响列表可用：单独 try，拿不到就退回「不显示总览」
+  try {
+    coverage.value = await ipc.project.coverage()
+  } catch (e: unknown) {
+    console.warn('[project] 覆盖统计加载失败', e)
+    coverage.value = null
   }
 }
 
@@ -86,6 +101,22 @@ const groups = computed(() => {
   }
   return out
 })
+
+/** 覆盖缺口按技术栈分组：补内容的人一眼看到「这一块还没人接」 */
+const gapGroups = computed(() => {
+  const cov = coverage.value
+  if (!cov?.gaps.length) return []
+  const m = new Map<string, { key: string; label: string; items: ProjectCoverage['gaps'] }>()
+  for (const g of cov.gaps) {
+    const b = m.get(g.stack) ?? { key: g.stack, label: g.stack, items: [] }
+    b.items.push(g)
+    m.set(g.stack, b)
+  }
+  const order = cov.byStack.map((b) => b.key)
+  return [...m.values()].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key))
+})
+
+const coverPct = computed(() => (coverage.value ? Math.round(coverage.value.ratio * 1000) / 10 : 0))
 </script>
 
 <template>
@@ -93,9 +124,49 @@ const groups = computed(() => {
     <header class="page-head">
       <div class="grow col">
         <h1><Icon name="zap" :size="21" class="hd-ic" /> 项目闯关</h1>
-        <p>从零敲一个能跑的东西，每关都有红绿反馈。</p>
+        <p>从零敲一个能跑的东西，每关都有红绿反馈。目标是让知识图谱里的知识点，都能在这里被写一遍。</p>
       </div>
     </header>
+
+    <!-- 覆盖总览：项目闯关与知识图谱的唯一对账窗口 -->
+    <section v-if="coverage" class="cov card" aria-label="知识图谱覆盖总览">
+      <div class="cov-head">
+        <span class="cov-kicker"><Icon name="graph" :size="15" /> 知识图谱覆盖</span>
+        <span class="cov-num num">{{ coverage.covered }}</span>
+        <span class="cov-of">/ {{ coverage.totalTargets }} 个知识点</span>
+        <span class="pill" :class="coverPct >= 100 ? 'ok' : coverPct >= 60 ? 'info' : 'lock'">{{ coverPct }}%</span>
+        <span class="grow" />
+        <button v-if="coverage.missing" class="btn ghost cov-toggle" type="button" @click="gapOpen = !gapOpen">
+          <Icon :name="gapOpen ? 'chevronDown' : 'chevron'" :size="13" />
+          {{ gapOpen ? '收起缺口' : `还没收编的 ${coverage.missing} 个` }}
+        </button>
+      </div>
+      <div class="bar" :class="{ accent: coverPct < 100, ok: coverPct >= 100 }"><i :style="{ width: `${coverPct}%` }" /></div>
+      <div class="cov-doms">
+        <span v-for="d in coverage.byDomain" :key="d.key" class="cov-dom">
+          <b>{{ DOMAIN_LABEL[d.key] ?? d.key }}</b>
+          <span class="num faint">{{ d.covered }}/{{ d.total }}</span>
+          <i class="cov-mini"><i :style="{ width: `${Math.round(d.ratio * 100)}%` }" /></i>
+        </span>
+        <span v-if="coverage.unmappedLevels" class="cov-warn" :title="`有 ${coverage.unmappedLevels} 关还没声明讲透哪些知识点，不参与覆盖统计`">
+          <Icon name="alert" :size="12" /> {{ coverage.unmappedLevels }} 关未标注知识点
+        </span>
+      </div>
+
+      <div v-if="gapOpen && gapGroups.length" class="cov-gaps">
+        <div v-for="g in gapGroups" :key="g.key" class="cov-gap-row">
+          <span class="cov-gap-stack">{{ g.label }}</span>
+          <span class="cov-gap-items">
+            <span v-for="n in g.items" :key="n.id" class="cov-gap-item" :class="{ must: n.mustMaster }" :title="`${n.id}\n${n.title}`">
+              {{ n.title }}
+            </span>
+          </span>
+        </div>
+        <p class="micro faint cov-gap-note">
+          这些知识点目前没有对应的项目关卡。虚线框是必掌握（mustMaster），会优先补。
+        </p>
+      </div>
+    </section>
 
     <div class="note card flat">
       <Icon name="layers" :size="16" class="note-ic" />
@@ -125,34 +196,39 @@ const groups = computed(() => {
         <div class="plist">
           <article
             v-for="p in g.rows" :key="p.id" class="card lift pcard"
+            role="button" tabindex="0"
             @click="open(p)"
+            @keydown.enter="open(p)"
           >
-            <span class="pemoji" aria-hidden="true">{{ p.emoji }}</span>
-
-            <div class="pmain">
-              <div class="phead">
-                <h3 class="ptitle">{{ p.title }}</h3>
-                <span v-if="p.finished" class="pill ok"><Icon name="check" :size="12" /> 已通关</span>
-                <span v-else-if="p.started" class="pill info">进行中</span>
+            <div class="pcard-top">
+              <span class="pemoji" aria-hidden="true">{{ p.emoji }}</span>
+              <div class="pmain">
+                <div class="phead">
+                  <h3 class="ptitle">{{ p.title }}</h3>
+                  <span v-if="p.finished" class="pill ok"><Icon name="check" :size="12" /> 已通关</span>
+                  <span v-else-if="p.started" class="pill info">进行中</span>
+                </div>
+                <p class="ptag">{{ p.tagline }}</p>
               </div>
-              <p class="ptag">{{ p.tagline }}</p>
+            </div>
 
-              <div class="pmeta">
-                <span v-for="s in p.stack" :key="s" class="pill lock">{{ s }}</span>
-                <span class="pill purple"><Icon name="layers" :size="12" /> {{ p.levelCount }} 关</span>
-              </div>
+            <div class="pmeta">
+              <span v-for="s in p.stack.slice(0, 3)" :key="s" class="pill lock">{{ s }}</span>
+              <span class="pill purple"><Icon name="layers" :size="12" /> {{ p.levelCount }} 关</span>
+              <span v-if="p.nodeCount" class="pill purple" :title="`覆盖 ${p.nodeCount} 个知识图谱节点`">
+                <Icon name="brain" :size="12" /> {{ p.nodeCount }}
+              </span>
+            </div>
 
-              <div class="pprog">
-                <div class="bar" :class="{ accent: !p.finished }"><i :style="{ width: `${pct(p)}%` }" /></div>
-                <span class="tiny faint num">{{ p.doneCount }} / {{ p.levelCount }} 关</span>
-              </div>
+            <div class="pprog">
+              <div class="bar" :class="{ accent: !p.finished, ok: p.finished }"><i :style="{ width: `${pct(p)}%` }" /></div>
+              <span class="tiny faint num">{{ p.doneCount }} / {{ p.levelCount }} 关</span>
             </div>
 
             <div class="pact">
               <button class="btn" :class="{ primary: !p.finished }" @click.stop="open(p)">
                 <Icon :name="ctaIcon(p)" :size="14" /> {{ cta(p) }}
               </button>
-              <span class="micro faint">进度自动保存</span>
             </div>
           </article>
         </div>
@@ -179,6 +255,36 @@ const groups = computed(() => {
 }
 .note-ic { color: var(--accent); margin-top: 1px; flex: 0 0 auto }
 
+/* ---------- 覆盖总览 ---------- */
+.cov { display: grid; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5) }
+.cov-head { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap }
+.cov-kicker {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-sm); font-weight: 650; color: var(--text-dim);
+  margin-right: var(--sp-2);
+}
+.cov-kicker :deep(.ic) { color: var(--purple) }
+.cov-num { font-size: var(--fs-xl); font-weight: 700; line-height: 1 }
+.cov-of { font-size: var(--fs-sm); color: var(--text-faint) }
+.cov-toggle { padding: 3px 10px; font-size: var(--fs-xs); margin-left: auto }
+.cov .bar { height: 7px }
+.cov-doms { display: flex; align-items: center; gap: var(--sp-4); flex-wrap: wrap }
+.cov-dom { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--text-dim) }
+.cov-dom b { font-weight: 600 }
+.cov-mini { display: inline-block; width: 54px; height: 4px; border-radius: var(--r-pill); background: var(--surface-3); overflow: hidden }
+.cov-mini i { display: block; height: 100%; background: color-mix(in oklab, var(--purple) 70%, var(--accent)); border-radius: inherit }
+.cov-warn { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--text-faint) }
+.cov-gaps { display: grid; gap: 7px; padding-top: var(--sp-2); border-top: 1px dashed var(--border) }
+.cov-gap-row { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: var(--sp-3); align-items: start }
+.cov-gap-stack { font-size: var(--fs-xs); color: var(--text-faint); font-weight: 600; padding-top: 2px }
+.cov-gap-items { display: flex; flex-wrap: wrap; gap: 5px }
+.cov-gap-item {
+  font-size: var(--fs-xs); padding: 2px 7px; border-radius: var(--r-pill);
+  border: 1px solid var(--border); color: var(--text-dim); background: var(--surface-2);
+}
+.cov-gap-item.must { border-style: dashed; border-color: color-mix(in oklab, var(--warn) 55%, var(--border)); color: var(--text) }
+.cov-gap-note { margin: 0 }
+
 .sk-card { display: block }
 .pgroups { display: grid; gap: var(--sp-5) }
 .pgroup-head {
@@ -187,39 +293,42 @@ const groups = computed(() => {
   border-bottom: 1px solid var(--border);
   margin-bottom: var(--sp-3);
 }
-.pgroup-head h2 {
-  margin: 0; font-size: var(--fs-md); font-weight: 650; letter-spacing: -.01em;
-}
-.plist { display: grid; gap: var(--sp-3) }
+.pgroup-head h2 { margin: 0; font-size: var(--fs-md); font-weight: 650; letter-spacing: -.01em }
+
+/* 卡片墙：一屏能扫到多个项目 */
+.plist { display: grid; grid-template-columns: repeat(auto-fill, minmax(308px, 1fr)); gap: var(--sp-3) }
 .pcard {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--sp-4);
-  padding: var(--sp-4) var(--sp-5);
+  display: flex; flex-direction: column; gap: var(--sp-3);
+  padding: var(--sp-4);
   cursor: pointer;
+  min-width: 0;
 }
 .pcard:focus-visible { box-shadow: var(--ring) }
+.pcard-top { display: flex; align-items: flex-start; gap: var(--sp-3); min-width: 0 }
 .pemoji {
-  width: 56px; height: 56px; flex: 0 0 56px;
+  width: 46px; height: 46px; flex: 0 0 46px;
   display: grid; place-content: center;
-  font-size: 28px; line-height: 1;
-  border-radius: var(--r-lg);
+  font-size: 23px; line-height: 1;
+  border-radius: var(--r-md);
   background: color-mix(in oklab, var(--accent) 8%, var(--surface-2));
   border: 1px solid var(--border);
 }
-.pmain { min-width: 0; display: grid; gap: 6px }
+.pmain { min-width: 0; display: grid; gap: 4px; flex: 1 1 auto }
 .phead { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap }
-.ptitle { margin: 0; font-size: var(--fs-md); font-weight: 650; letter-spacing: -.01em }
-.ptag { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: 1.6; overflow-wrap: anywhere }
-.pmeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap }
-.pprog { display: flex; align-items: center; gap: var(--sp-3); margin-top: 2px; max-width: 420px }
-.pprog .bar { flex: 1 1 auto; height: 6px }
+.ptitle { margin: 0; font-size: var(--fs-base); font-weight: 650; letter-spacing: -.01em }
+.ptag {
+  margin: 0; color: var(--text-dim); font-size: var(--fs-xs); line-height: 1.55;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.pmeta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-height: 22px }
+.pprog { display: flex; align-items: center; gap: var(--sp-2) }
+.pprog .bar { flex: 1 1 auto; height: 5px }
 .pprog .num { flex: 0 0 auto }
-.pact { display: flex; flex-direction: column; align-items: flex-end; gap: 6px }
+.pact { display: flex; align-items: center; gap: var(--sp-2); margin-top: auto }
+.pact .btn { flex: 1 1 auto; justify-content: center }
 
-@media (max-width: 820px) {
-  .pcard { grid-template-columns: auto minmax(0, 1fr) }
-  .pact { grid-column: 2; flex-direction: row; align-items: center; justify-content: flex-start }
+@media (max-width: 640px) {
+  .plist { grid-template-columns: minmax(0, 1fr) }
+  .cov-gap-row { grid-template-columns: minmax(0, 1fr); gap: 4px }
 }
 </style>

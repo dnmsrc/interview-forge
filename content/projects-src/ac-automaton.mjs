@@ -220,6 +220,7 @@ export default {
       xp: 30,
       goal: '实现 Trie 节点、插入、精确查找、前缀判断与「以某前缀开头的模式数」。',
       why: 'AC 自动机的地基是 Trie。它把「he / she / his / hers」这种共享前缀的模式压成一棵树，查一个词只需要走词的长度步，与模式总数无关。这一关先把这个结构写扎实——后面 fail 指针的每一步都在树上移动。',
+      nodes: ['cs.algo.tree.trie', 'cs.algo.linear.hash-table'],
       thinking: [
         {
           title: '为什么不是哈希表存模式',
@@ -745,6 +746,7 @@ function walkWords(root) {
       xp: 45,
       goal: '用 BFS 建出每个节点的 fail 指针，写出单次扫描的 match，并让输出链自动展开后缀模式。',
       why: '没有 fail 指针，匹配失败只能回到根、从下一个字符重来——那就是朴素算法的复杂度。fail 指针记录「当前前缀的最长真后缀」，失败时退到那里继续，不丢已经匹配的信息。这是 AC 自动机真正的核心。',
+      nodes: ['cs.algo.tree.trie', 'cs.algo.graph.bfs-dfs'],
       thinking: [
         {
           title: 'fail 指针到底是什么',
@@ -1431,6 +1433,7 @@ function match(root, text) {
       xp: 50,
       goal: '用 AC 自动机实现敏感词遮蔽、去重排序的 findAll，并量化它相对朴素多模式匹配的优势。',
       why: '会写自动机不等于能用：真实需求是「把命中的词遮掉」，这里面有重叠（abc 与 bc）、相邻、长度取哪个的问题；还有「你凭什么说它快」——这一关把复杂度变成可打印的数字。',
+      nodes: ['cs.algo.complexity.big-o-amortized', 'cs.algo.tree.trie'],
       thinking: [
         {
           title: '遮蔽的难点不是遮，是重叠',

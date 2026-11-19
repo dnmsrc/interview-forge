@@ -289,6 +289,7 @@ export default {
       xp: 40,
       goal: '把文档集建成倒排统计，并对 query 打出 BM25 分数、排出榜单（含 k1/b 两个参数）。',
       why: '真实 RAG 的第一路召回几乎总是关键词检索：它便宜、可解释、对专有名词和编号特别准。BM25 是这一路的工业默认值，但公式看着吓人——这一关把它拆成「分词 → 统计 → 打分」三步，每一步都能独立跑测试。',
+      nodes: ['ai.rag.retrieval-pipeline.hybrid-retrieval'],
       thinking: [
         {
           title: '先问「相关」到底指什么，再谈公式',
@@ -724,6 +725,7 @@ function bm25Rank(index, query, opts = {}) {
       xp: 40,
       goal: '实现余弦相似度、topK 召回与向量归一化，并让检索在维度不一致时明确报错。',
       why: '关键词路有一个解决不了的盲区：用户说「响应式」，文档写「Proxy 拦截」——字面上一个词都不重合，但语义是同一件事。向量检索就是为这个盲区存在的。这一关不训练 embedding（那需要模型），只把「拿到向量之后怎么算相似、怎么排序」写对。',
+      nodes: ['ai.rag.retrieval-pipeline.hybrid-retrieval', 'ai.rag.retrieval-pipeline.rerank-compress'],
       thinking: [
         {
           title: '为什么用余弦，而不是欧氏距离',
@@ -1198,6 +1200,7 @@ function searchVectors(store, query, k) {
       xp: 50,
       goal: '实现 RRF 名次融合，写出 hybridSearch 入口，并用一组语料证明融合结果补上了两路各自的盲区。',
       why: '两路各自都有盲区，但它们错的地方不一样。难点不在「都跑一遍」，而在「怎么合成」：BM25 的分数没有上界，余弦在 [-1, 1]，直接相加等于让 BM25 说了算。RRF 用名次绕开量纲问题——这也是工业界混合检索最常用的默认做法。',
+      nodes: ['ai.rag.retrieval-pipeline.hybrid-retrieval', 'ai.rag.retrieval-pipeline.rerank-compress'],
       thinking: [
         {
           title: '为什么不能把两路分数直接相加',

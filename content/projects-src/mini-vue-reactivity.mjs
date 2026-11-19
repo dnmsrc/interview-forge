@@ -29,6 +29,7 @@ export default {
       regress: false,
       goal: '写出 reactive(obj)：它返回一个「替身」，读、写、删、查都会先经过你写的函数，最后才落到原对象上。从空白开始写，每写完一步都能立刻跑测试。',
       why: '响应式的全部魔法都发生在「读」和「写」这两个瞬间。可 JavaScript 默认不给你插手的机会：state.count 这一行，引擎直接把值给你了，你没有任何机会知道「有人在读 count」。Proxy 就是那个能插手的口子。这一关先把口子接到「读、写、删、查」四个位置，并且每接一个就跑一次测试——不靠猜，靠红绿确认自己接对了。',
+      nodes: ['fe.vue.reactivity.proxify'],
       thinking: [
         {
           title: '先问「我要在哪一刻插手」，再问「用什么工具」',
@@ -677,6 +678,7 @@ activeEffect = null
 targetMap.get(raw).get('count').has(fn)   // true`
         }
       ],
+      nodes: ['fe.vue.reactivity.effect-dep'],
       thinking: [
         {
           title: '先做「只记不通知」的一半，而不是一口气写完',
@@ -1131,6 +1133,7 @@ activeEffect = null
 state.count = 2      // 触发 → runs 变成 1`
         }
       ],
+      nodes: ['fe.vue.reactivity.effect-dep'],
       thinking: [
         {
           title: '触发不是「重新执行所有函数」，而是拿账本点名',
@@ -1581,6 +1584,7 @@ state.count = 2     // 自动再打印一次「count 变了：2」
 runner()            // 手动再执行一次`
         }
       ],
+      nodes: ['fe.vue.reactivity.effect-dep'],
       thinking: [
         {
           title: '这一关真正要交出去的，不是 effect，而是 runner',
@@ -2169,6 +2173,7 @@ state.count = 2     // 值没变     → runs 仍然是 2
 state.count = 3     // 又变了     → runs = 3`
         }
       ],
+      nodes: ['fe.vue.reactivity.effect-dep'],
       thinking: [
         {
           title: '先确认问题真的存在，再改代码',
@@ -2751,6 +2756,7 @@ state.a++            // 不再触发（a 已经从账本里清掉了）
 runs                 // 仍然是 2`
         }
       ],
+      nodes: ['fe.vue.reactivity.effect-dep'],
       thinking: [
         {
           title: '先确认「多跑的那一次」真的会发生，再动手改',
@@ -3472,6 +3478,7 @@ effect(() => {
 state.a = 2   // 外层要重跑（上一关的实现里，这一行会失效）`
         }
       ],
+      nodes: ['fe.vue.reactivity.effect-dep'],
       thinking: [
         {
           title: '先问「嵌套时这次读取该算谁的」，再问用什么数据结构',
@@ -4237,6 +4244,7 @@ flushJobs()
 runs              // 3`
         }
       ],
+      nodes: ['fe.vue.scheduler.flush-jobs', 'fe.vue.reactivity.effect-dep'],
       thinking: [
         {
           title: '先问「谁有权决定时机」，再问队列长什么样',
@@ -5073,6 +5081,7 @@ computes          // 1 —— 依赖变了，但还没人读，所以不重算
 sum.value         // 12，这次读才重算 → computes = 2`
         }
       ],
+      nodes: ['fe.vue.reactivity.computed-watch', 'fe.vue.reactivity.effect-dep'],
       thinking: [
         {
           title: '先问「什么时候该算」，再问怎么缓存',

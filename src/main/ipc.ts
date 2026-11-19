@@ -225,7 +225,8 @@ export const impl = {
     async resetLevel(projectId, levelId) { return projectSvc.projectResetLevel(String(projectId), String(levelId)) },
     async revertLevel(projectId, levelId) { return projectSvc.projectRevertLevel(String(projectId), String(levelId)) },
     async stepAnswer(projectId, levelId, step) { return projectSvc.projectStepAnswer(String(projectId), String(levelId), Number(step)) },
-    async resetAll(projectId) { return projectSvc.projectResetAll(String(projectId)) }
+    async resetAll(projectId) { return projectSvc.projectResetAll(String(projectId)) },
+    async coverage() { return projectSvc.projectCoverage() }
   },
 
   // 从零开始：清空全部学习进度（不动 AI 配置与题库缓存）

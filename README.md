@@ -35,6 +35,8 @@
 
 当前 9 个项目、33 关，按领域分栏（前端 / 后端 / 公共基础 / AI Agent）：
 
+> **和知识图谱的关系**：每个关卡在 `nodes` 里显式声明它讲透的知识点，项目页按知识点 topic 分章、项目列表顶部有「知识图谱覆盖」总览（当前 **25 / 402 → 6.2%**，缺口清单可展开）。目标是把图谱里 402 个 L3/L4 知识点全部收编成关卡，覆盖口径、机检与补齐路线见 [项目闯关 · 知识图谱覆盖](docs/design/PROJECT-COVERAGE.md)。
+
 | 方向 | 项目 | 关数 | 做什么 |
 | --- | --- | --- | --- |
 | 前端 | 从零写一个响应式内核 | 9 | Proxy 拦截 → 依赖收集 → 精确触发 → 分支清理 → 嵌套栈 → 调度器 → computed |
@@ -50,8 +52,9 @@
 内容源在 `content/projects-src/*.mjs`（用模板字符串写每步完整代码/测试/参考解），构建时序列化成 `content/projects/*.json` 给主进程读。改内容后：
 
 ```bash
-npm run project:build   # 构建 JSON，同时校验：结构 + domain + 每步答案（过本步、不过下一步）+ finalCode + 参考解全绿 + 骨架必红
+npm run project:build   # 构建 JSON，同时校验：结构 + domain + nodes 合法性 + 每步答案（过本步、不过下一步）+ finalCode + 参考解全绿 + 骨架必红
 npm run project:check   # 直接对产出的 JSON 再校验一遍（CI 用）
+npm run project:coverage            # 覆盖率报表（按领域/技术栈）；--gaps 看未覆盖清单，--check --min=100 设门槛
 ```
 
 新增一个项目 = 在 `content/projects-src/` 加一个 `.mjs`（带 `domain`），不用碰任何代码。写法与字段契约见 [项目闯关关卡规范](docs/design/PROJECT-LEVELS.md)，动笔前的质量线与迁移配方见 [项目闯关内容生产手册](docs/project-authoring.md)。

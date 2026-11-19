@@ -20,6 +20,7 @@ import { readdirSync, readFileSync, writeFileSync, existsSync, mkdirSync } from 
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { validateProject, dryRunProject, runLevel } from '../src/shared/project-core.mjs'
+import { computeCoverage } from '../src/shared/project-coverage.mjs'
 
 const root = join(import.meta.dirname, '..')
 const srcDir = join(root, 'content', 'projects-src')
@@ -45,6 +46,57 @@ if (!files.length) {
   process.exit(1)
 }
 
+/**
+ * 覆盖契约的底座：关卡声明的 nodes 必须真的存在于知识图谱。
+ *
+ * 「项目闯关要涵盖图谱里所有知识点」这件事只有变成机检才守得住：
+ * 手写 id 一个字母错，构建就失败，而不是等到覆盖率报表里出现一个「永远补不上」的幽灵节点。
+ */
+const graphNodeIds = new Set()
+const graphNodes = []
+{
+  const nodesDir = join(root, 'content', 'nodes')
+  if (!existsSync(nodesDir)) {
+    console.error(`✗ 知识点目录不存在：${nodesDir}`)
+    process.exit(1)
+  }
+  for (const rel of readdirSync(nodesDir, { recursive: true })) {
+    if (typeof rel !== 'string' || !rel.endsWith('.json') || rel.endsWith('_skeleton.json')) continue
+    try {
+      const data = JSON.parse(readFileSync(join(nodesDir, rel), 'utf8'))
+      const list = Array.isArray(data) ? data : data?.nodes
+      if (Array.isArray(list)) {
+        for (const n of list) if (n?.id) { graphNodeIds.add(n.id); graphNodes.push(n) }
+      }
+    } catch (e) {
+      console.error(`✗ 解析知识点文件 ${rel} 失败：${e?.message ?? e}`)
+      process.exit(1)
+    }
+  }
+  if (!graphNodeIds.size) {
+    console.error('✗ 知识图谱是空的，无法校验覆盖映射')
+    process.exit(1)
+  }
+}
+
+/** 每关必须声明讲透哪些知识点；id 必须存在、同一关不许重复 */
+function validateLevelNodes(project) {
+  const errs = []
+  for (const lv of project.levels) {
+    const list = Array.isArray(lv.nodes) ? lv.nodes : []
+    if (!list.length) { errs.push(`${lv.id} 没声明 nodes：这一关讲透图谱里的哪些知识点？`); continue }
+    const seen = new Set()
+    for (const raw of list) {
+      const id = String(raw ?? '').trim()
+      if (!id) { errs.push(`${lv.id} 的 nodes 里有空 id`); continue }
+      if (!graphNodeIds.has(id)) errs.push(`${lv.id} 的 nodes 引用了图谱里不存在的节点：${id}`)
+      else if (seen.has(id)) errs.push(`${lv.id} 的 nodes 重复声明：${id}`)
+      seen.add(id)
+    }
+  }
+  return errs
+}
+
 for (const file of files) {
   if (only && !file.includes(only)) continue
   console.log(`\n▸ ${file}`)
@@ -61,6 +113,13 @@ for (const file of files) {
   const structErrs = validateProject(project)
   if (structErrs.length) {
     structErrs.forEach(fail)
+    continue
+  }
+
+  // 覆盖映射：nodes 必须存在、非空、不许重复
+  const nodeErrs = validateLevelNodes(project)
+  if (nodeErrs.length) {
+    nodeErrs.forEach(fail)
     continue
   }
 
@@ -129,6 +188,18 @@ for (const file of files) {
 if (failed) {
   console.error(`\n✗ 共有 ${failed} 处问题，未写文件。`)
   process.exit(1)
+}
+
+// 构建完顺手报一次全站覆盖：补内容的人不用再单独跑一遍报告
+if (!dry && !only) {
+  const built = []
+  for (const f of readdirSync(outDir)) {
+    if (!f.endsWith('.json')) continue
+    try { built.push(JSON.parse(readFileSync(join(outDir, f), 'utf8'))) } catch { /* 忽略坏文件：上面的构建已经拦过 */ }
+  }
+  const cov = computeCoverage(built, graphNodes)
+  console.log(`\n覆盖：${cov.totalTargets} 个知识点（L3/L4）中已收编 ${cov.covered} 个（${(cov.ratio * 100).toFixed(1)}%），还差 ${cov.missing} 个`)
+  if (cov.missing) console.log('  未覆盖清单：node scripts/project-coverage.mjs --gaps')
 }
 
 // 构建完顺手提醒：JSON 是产物，改内容要改 .mjs

@@ -430,6 +430,7 @@ export default {
       xp: 40,
       goal: '写出 MyPromise 构造函数，实现 pending/fulfilled/rejected 单向迁移、只能落定一次，以及「回调异步执行」的 then。',
       why: '所有 Promise 行为都能从状态机推出来：then 是「状态确定后执行回调」，链是「新建一个 promise 接住返回值」，错误传播是「回调抛错就让新 promise 变 rejected」。状态机错了，后面每一步都会长得像对的、跑起来是错的。',
+      nodes: ['fe.js.async.promise', 'fe.js.async.event-loop'],
       thinking: [
         {
           title: '先问「状态存哪」，再问「回调什么时候跑」',
@@ -697,6 +698,7 @@ MyPromise.prototype.then = function (onFulfilled, onRejected) {
       xp: 45,
       goal: '让 then 返回新 promise 并正确处理三种返回值：普通值、thenable/promise、回调抛出的错误。',
       why: '链式调用是 Promise 存在的理由。它的行为不是「把值往下传」这么简单：返回值可能是另一个 promise，要等它；可能是普通值，要包成 fulfilled；也可能回调直接抛错，要转成 rejected。这三种情况处理不对，await 的语义就会跟着错。',
+      nodes: ['fe.js.async.promise'],
       thinking: [
         {
           title: 'then 为什么要「新建一个 promise」，而不是复用自己',
@@ -1040,6 +1042,7 @@ MyPromise.prototype.then = function (onFulfilled, onRejected) {
       xp: 50,
       goal: '补齐 MyPromise.resolve/reject、all、race、allSettled，并让它们复用同一个 resolvePromise。',
       why: '面试里问 Promise 的静态方法，考的不是 API 记忆，而是「并发控制」的语义：all 为什么按输入顺序、race 为什么第一个落定算、allSettled 为什么永远不会 reject。这些都能用前两关的零件拼出来。',
+      nodes: ['fe.js.async.promise'],
       thinking: [
         {
           title: '静态方法不该另造一套状态机',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue'
+import { computed, nextTick, onActivated, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from '../components/Icon.vue'
 import { dialog, toast } from '../lib/ui'
@@ -7,9 +7,19 @@ import { ipc } from '../lib/ipc'
 import type { ProjectDetail, ProjectLevelCard } from '@shared/api'
 
 /**
- * 关卡地图：一个项目一条纵向闯关路径。
- * 状态只有三种可见态——已通关 / 这一关现在能做 / 还没解锁。
- * 不再拆「已尝试但没通过」这种中间态：attempts 只在内容上提示，不参与解锁判定。
+ * 关卡地图：按「章节」分组的关卡网格。
+ *
+ * 为什么不再是纵向一关一张大卡片：
+ * 关卡数量是按「覆盖知识图谱全部知识点」的目标长的——9 项目已经 33 关，
+ * 补齐后还会明显变多。纵向路径在 33 关时要滚十几屏，找某一关只能靠拖滚动条，
+ * 这正是用户说的「太反人类」。
+ *
+ * 现在一关一张小方格：一屏能看到一章的全部关卡，章与章之间靠标题分隔；
+ * 顶部工具条粘住，可以按「未通关 / 已通关」筛、按标题或知识点搜。
+ * 关卡顺序、解锁状态、当前关高亮全部保留，只是把「一条长路」折成了「一面墙」。
+ *
+ * 章节从哪来：每关在 nodes 里声明的第一个知识点所属的 topic（服务端已按图谱标题转成中文）。
+ * 没写 nodes 的老关卡归入「主线」。
  */
 const route = useRoute()
 const router = useRouter()
@@ -23,6 +33,8 @@ const resetting = ref(false)
 
 const levels = computed(() => detail.value?.levels ?? [])
 const nextId = computed(() => detail.value?.nextLevelId ?? null)
+const doneCount = computed(() => detail.value?.doneCount ?? 0)
+const todoCount = computed(() => Math.max(0, levels.value.length - doneCount.value))
 /**
  * 「有没有进度可清」不能只看 doneCount：用户可能第 2 步写了一半就退出了，
  * 没通关但库里有草稿和尝试次数。只看通关数会把重做按钮置灰，
@@ -106,7 +118,88 @@ function resetAll() {
   })
 }
 
-onMounted(() => { void load() })
+/** 筛选：全部 / 未通关 / 已通关。几十关时「只看没做的」比按顺序翻快得多。 */
+type Filter = 'all' | 'todo' | 'done'
+const filter = ref<Filter>('all')
+const query = ref('')
+
+const chapters = computed(() => {
+  const out: { key: string; title: string; rows: ProjectLevelCard[] }[] = []
+  const map = new Map<string, { key: string; title: string; rows: ProjectLevelCard[] }>()
+  for (const lv of levels.value) {
+    const key = lv.chapter?.key ?? '_main'
+    const title = lv.chapter?.title ?? '主线'
+    let ch = map.get(key)
+    if (!ch) {
+      ch = { key, title, rows: [] }
+      map.set(key, ch)
+      out.push(ch)
+    }
+    ch.rows.push(lv)
+  }
+  return out
+})
+
+const shown = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  return chapters.value
+    .map((ch) => ({
+      ...ch,
+      rows: ch.rows.filter((lv) => {
+        if (filter.value === 'done' && !lv.done) return false
+        if (filter.value === 'todo' && lv.done) return false
+        if (!q) return true
+        return (
+          lv.title.toLowerCase().includes(q) ||
+          lv.goal.toLowerCase().includes(q) ||
+          lv.nodes.some((id) => id.toLowerCase().includes(q))
+        )
+      })
+    }))
+    .filter((ch) => ch.rows.length)
+})
+const shownCount = computed(() => shown.value.reduce((n, ch) => n + ch.rows.length, 0))
+const doneIn = (rows: ProjectLevelCard[]) => rows.filter((lv) => lv.done).length
+
+/**
+ * 章节里实际包含哪几关（如「1–7、9」）。
+ *
+ * 一关归哪个章，看的是它声明的知识点 topic，不是关卡序号：一个项目里章可能被
+ * 后面的关「回头」再进一次（mini-vue 第 9 关 computed 又属于响应式）。
+ * 直接写「第 1–9 关」会骗人，所以按实际编号压缩成区间列出来。
+ */
+function rangeLabel(rows: ProjectLevelCard[]): string {
+  const nums = rows.map((r) => r.index + 1)
+  if (!nums.length) return ''
+  const out: string[] = []
+  let start = nums[0]
+  let prev = nums[0]
+  for (let i = 1; i < nums.length; i++) {
+    const n = nums[i]
+    if (n === prev + 1) { prev = n; continue }
+    out.push(start === prev ? `${start}` : `${start}–${prev}`)
+    start = prev = n
+  }
+  out.push(start === prev ? `${start}` : `${start}–${prev}`)
+  return out.join('、')
+}
+
+/**
+ * 进页面时把当前该做的那关滚进视野。
+ * 关卡多了以后「我在第 24 关，打开却停在第 1 关」会让人先找一遍路。
+ * 只在首次进页面做，返回时不抢滚动位置（用户可能正在回看前面的关）。
+ */
+const firstScroll = ref(true)
+function scrollToCurrent() {
+  if (!firstScroll.value) return
+  firstScroll.value = false
+  void nextTick(() => {
+    const el = document.querySelector('.lv-tile.current')
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  })
+}
+
+onMounted(() => { void load().then(scrollToCurrent) })
 // 从工作台通关后返回地图：KeepAlive 复用了旧实例，必须重新拉一次进度
 onActivated(() => { if (loaded.value) void load(true) })
 </script>
@@ -141,11 +234,14 @@ onActivated(() => { if (loaded.value) void load(true) })
           <div class="row board-meta">
             <span v-for="s in detail.stack" :key="s" class="pill lock">{{ s }}</span>
             <span class="pill purple"><Icon name="layers" :size="12" /> {{ detail.levelCount }} 关</span>
+            <span v-if="detail.nodeCount" class="pill purple" :title="`这个项目讲透了知识图谱里的 ${detail.nodeCount} 个知识点`">
+              <Icon name="brain" :size="12" /> {{ detail.nodeCount }} 个知识点
+            </span>
           </div>
         </div>
         <div class="board-prog">
           <div class="board-prog-num">
-            <b class="num">{{ detail.doneCount }}</b><span class="faint num">/ {{ detail.levelCount }} 关</span>
+            <b class="num">{{ doneCount }}</b><span class="faint num">/ {{ detail.levelCount }} 关</span>
           </div>
           <div class="bar accent"><i :style="{ width: `${pct}%` }" /></div>
           <span class="micro faint">{{ pct }}%</span>
@@ -162,67 +258,92 @@ onActivated(() => { if (loaded.value) void load(true) })
         </button>
       </header>
 
-      <p v-if="detail.intro" class="intro card flat">{{ detail.intro }}</p>
-
       <div v-if="detail.finished" class="finish-banner">
         <span class="finish-ic"><Icon name="trophy" :size="28" /></span>
         <div class="grow col">
           <b>这个项目你已经全部做完</b>
-          <span class="tiny muted">每一关都通过过。可以点任意节点回去复盘，看看当时是怎么写的。</span>
+          <span class="tiny muted">每一关都通过过。可以点任意方格回去复盘，看看当时是怎么写的。</span>
         </div>
         <button v-if="levels.length" class="btn" @click="openLevel(levels[0])">
           <Icon name="book" :size="14" /> 回顾第 1 关
         </button>
       </div>
 
-      <div class="section-title">关卡路径</div>
-
-      <ol class="lv-path">
-        <li
-          v-for="lv in levels" :key="lv.id"
-          class="lv-step"
-          :class="{ done: lv.done, current: isCurrent(lv), locked: !lv.unlocked }"
-        >
-          <div class="lv-rail">
-            <span
-              class="lv-node"
-              :class="{ done: lv.done, current: isCurrent(lv), locked: !lv.unlocked }"
-              :title="lv.done ? '已通关' : lv.unlocked ? '可以开始' : '还没解锁'"
-            >
-              <Icon v-if="lv.done" name="check" :size="20" />
-              <Icon v-else-if="!lv.unlocked" name="lock" :size="17" />
-              <span v-else class="num lv-node-no">{{ lv.index + 1 }}</span>
-            </span>
-          </div>
-
-          <button
-            type="button"
-            class="lv-card"
-            :disabled="!lv.unlocked"
-            :aria-label="lv.done ? `复盘第 ${lv.index + 1} 关：${lv.title}` : lv.unlocked ? `进入第 ${lv.index + 1} 关：${lv.title}` : `第 ${lv.index + 1} 关尚未解锁`"
-            @click="openLevel(lv)"
-          >
-            <div class="lv-card-top">
-              <span class="lv-no">第 {{ lv.index + 1 }} 关</span>
-              <span class="lv-emoji" aria-hidden="true">{{ lv.emoji }}</span>
-              <span class="lv-title ellip" :title="lv.title">{{ lv.title }}</span>
-              <span v-if="lv.done" class="pill ok"><Icon name="check" :size="11" /> 已通关</span>
-              <span v-else-if="isCurrent(lv)" class="pill info"><Icon name="play" :size="11" /> 现在做这关</span>
-              <span v-else class="pill lock"><Icon name="lock" :size="11" /> 未解锁</span>
-            </div>
-
-            <div class="lv-card-meta">
-              <span class="pill purple"><Icon name="zap" :size="11" /> {{ lv.xp }} XP</span>
-              <span class="pill lock"><Icon name="target" :size="11" /> {{ lv.caseCount }} 个检查点</span>
-              <span v-if="lv.attempts > 0" class="micro faint">已尝试 {{ lv.attempts }} 次</span>
-              <span class="grow" />
-              <span v-if="lv.done" class="lv-go">复盘 <Icon name="arrowRight" :size="13" /></span>
-              <span v-else-if="!lv.unlocked" class="lv-go locked-txt">通关第 {{ lv.index }} 关后解锁</span>
-              <span v-else class="lv-go">进入 <Icon name="arrowRight" :size="13" /></span>
-            </div>
+      <!-- 粘在顶上的工具条：筛状态 + 搜标题/知识点。33 关以上时它是唯一比滚动条快的入口 -->
+      <div class="board-bar">
+        <div class="seg" role="tablist" aria-label="筛选关卡">
+          <button type="button" :class="{ on: filter === 'all' }" @click="filter = 'all'">
+            全部 <span class="n">{{ levels.length }}</span>
           </button>
-        </li>
-      </ol>
+          <button type="button" :class="{ on: filter === 'todo' }" @click="filter = 'todo'">
+            没做 <span class="n">{{ todoCount }}</span>
+          </button>
+          <button type="button" :class="{ on: filter === 'done' }" @click="filter = 'done'">
+            已通关 <span class="n">{{ doneCount }}</span>
+          </button>
+        </div>
+        <label class="lv-search">
+          <Icon name="search" :size="14" class="faint" />
+          <input v-model="query" type="search" placeholder="搜关卡标题或知识点 id" aria-label="搜索关卡" />
+        </label>
+        <span class="grow" />
+        <span class="micro faint">{{ shownCount }} 关在显示</span>
+      </div>
+
+      <div v-if="shown.length" class="chapters">
+        <section v-for="ch in shown" :key="ch.key" class="chapter card">
+          <header class="chapter-head">
+            <h3>{{ ch.title }}</h3>
+            <span class="micro faint">关 {{ rangeLabel(ch.rows) }} · 已过 {{ doneIn(ch.rows) }}</span>
+          </header>
+
+          <div class="lv-grid">
+            <button
+              v-for="lv in ch.rows" :key="lv.id"
+              type="button"
+              class="lv-tile"
+              :class="{ done: lv.done, current: isCurrent(lv), locked: !lv.unlocked }"
+              :disabled="!lv.unlocked"
+              :aria-label="lv.done ? `复盘第 ${lv.index + 1} 关：${lv.title}` : lv.unlocked ? `进入第 ${lv.index + 1} 关：${lv.title}` : `第 ${lv.index + 1} 关尚未解锁`"
+              :title="`第 ${lv.index + 1} 关 · ${lv.title}`"
+              @click="openLevel(lv)"
+            >
+              <span class="lv-tile-top">
+                <span class="lv-tile-no num">{{ lv.index + 1 }}</span>
+                <span class="lv-tile-emoji" aria-hidden="true">{{ lv.emoji }}</span>
+                <span class="lv-tile-state">
+                  <Icon v-if="lv.done" name="check" :size="15" />
+                  <Icon v-else-if="isCurrent(lv)" name="play" :size="14" />
+                  <Icon v-else-if="!lv.unlocked" name="lock" :size="13" />
+                </span>
+              </span>
+              <span class="lv-tile-title">{{ lv.title }}</span>
+              <span class="lv-tile-meta">
+                <span class="num">{{ lv.xp }} XP</span>
+                <span class="dot" aria-hidden="true">·</span>
+                <span>{{ lv.caseCount }} 检查点</span>
+                <template v-if="lv.nodes.length">
+                  <span class="dot" aria-hidden="true">·</span>
+                  <span class="lv-tile-nodes num">{{ lv.nodes.length }} 知识点</span>
+                </template>
+              </span>
+              <span v-if="isCurrent(lv)" class="lv-tile-flag">现在做这关</span>
+              <span v-else-if="!lv.unlocked" class="lv-tile-flag muted">通关上一关后解锁</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <div v-else class="empty card">
+        <span class="ic"><Icon name="search" :size="24" /></span>
+        <span class="t">没有符合条件的关卡</span>
+        <span class="d">换个关键词，或把筛选切回「全部」。</span>
+        <span class="cta">
+          <button class="btn ghost" type="button" @click="filter = 'all'; query = ''">
+            <Icon name="refresh" :size="14" /> 清空筛选
+          </button>
+        </span>
+      </div>
 
       <p v-if="detail.outcome" class="outcome">
         <Icon name="flag" :size="14" class="outcome-ic" />
@@ -252,9 +373,9 @@ onActivated(() => { if (loaded.value) void load(true) })
   box-shadow: var(--sh-1);
 }
 .board-emoji {
-  width: 60px; height: 60px; flex: 0 0 60px;
+  width: 58px; height: 58px; flex: 0 0 58px;
   display: grid; place-content: center;
-  font-size: 30px; line-height: 1;
+  font-size: 29px; line-height: 1;
   border-radius: var(--r-lg);
   background: color-mix(in oklab, var(--accent) 9%, var(--surface-2));
   border: 1px solid var(--border);
@@ -269,8 +390,6 @@ onActivated(() => { if (loaded.value) void load(true) })
 .board-prog-num b { font-size: var(--fs-lg); color: var(--text) }
 .board-prog .micro { text-align: right }
 
-.intro { margin: 0; color: var(--text-dim); font-size: var(--fs-sm); line-height: 1.75; background: var(--surface-2) }
-
 .finish-banner {
   display: flex; align-items: center; gap: var(--sp-4);
   padding: var(--sp-4) var(--sp-5);
@@ -283,101 +402,103 @@ onActivated(() => { if (loaded.value) void load(true) })
 .finish-banner b { font-size: var(--fs-md) }
 .finish-banner .col { gap: 3px }
 
-/* ---------- 纵向关卡路径 ---------- */
-.lv-path { list-style: none; margin: 0; padding: 0; display: grid }
-.lv-step {
-  position: relative;
-  display: grid;
-  grid-template-columns: 52px minmax(0, 1fr);
-  gap: var(--sp-3);
-  padding-bottom: var(--sp-4);
+/* ---------- 粘顶工具条 ---------- */
+.board-bar {
+  position: sticky; top: calc(var(--sp-5) * -1); z-index: 6;
+  display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap;
+  padding: var(--sp-2) 0;
+  background: color-mix(in oklab, var(--bg) 92%, transparent);
+  backdrop-filter: blur(10px) saturate(1.3);
+  border-bottom: 1px solid var(--border);
 }
-/* 连接线：从本节点圆环下沿连到下一节点，已通关的一段走 --ok */
-.lv-step:not(:last-child)::before {
-  content: '';
-  position: absolute;
-  left: 25px;
-  top: 44px;
-  bottom: 0;
-  width: 2px;
-  border-radius: 2px;
-  background: var(--border);
+.seg { display: inline-flex; gap: 2px; padding: 3px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-pill) }
+.seg button {
+  border: 0; background: transparent; font: inherit; font-size: var(--fs-sm); color: var(--text-dim);
+  padding: 4px 11px; border-radius: var(--r-pill); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 5px;
+  transition: background-color var(--dur-fast), color var(--dur-fast);
 }
-.lv-step.done:not(:last-child)::before { background: var(--ok) }
+.seg button:hover { color: var(--text) }
+.seg button.on { background: var(--surface); color: var(--text); box-shadow: var(--sh-1); font-weight: 600 }
+.seg .n { font-size: var(--fs-xs); color: var(--text-faint); font-variant-numeric: tabular-nums }
+.seg button.on .n { color: var(--accent-2) }
+.lv-search {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 11px; min-width: 190px;
+  border: 1px solid var(--border); border-radius: var(--r-pill); background: var(--surface);
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
+}
+.lv-search:focus-within { border-color: var(--accent); box-shadow: var(--ring-soft) }
+.lv-search input { border: 0; outline: 0; background: transparent; font: inherit; font-size: var(--fs-sm); color: var(--text); width: 100%; min-width: 0 }
+.lv-search input::placeholder { color: var(--text-faint) }
 
-.lv-rail { display: flex; justify-content: center; padding-top: 2px }
-.lv-node {
-  position: relative;
-  z-index: 1;
-  width: 44px; height: 44px;
-  display: grid; place-content: center;
-  border-radius: 50%;
-  background: var(--surface-2);
-  border: 2px solid var(--border-2);
-  color: var(--text-dim);
-  font-weight: 700;
-}
-.lv-node.done {
-  color: var(--ok);
-  border-color: var(--ok);
-  background: color-mix(in oklab, var(--ok) 13%, var(--surface));
-}
-.lv-node.current {
-  color: var(--accent-2);
-  border-color: var(--accent);
-  background: color-mix(in oklab, var(--accent) 10%, var(--surface));
-  box-shadow: var(--ring-soft);
-  animation: node-pulse 2.2s var(--ease-in-out) infinite;
-}
-.lv-node.locked { color: var(--text-faint); background: var(--surface-3) }
-.lv-node-no { font-size: var(--fs-md) }
-@keyframes node-pulse {
-  0%, 100% { box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 14%, transparent) }
-  50% { box-shadow: 0 0 0 7px color-mix(in oklab, var(--accent) 0%, transparent) }
-}
+/* ---------- 章节网格 ---------- */
+.chapters { display: grid; gap: var(--sp-4) }
+.chapter { padding: var(--sp-4); display: grid; gap: var(--sp-3) }
+.chapter-head { display: flex; align-items: baseline; gap: var(--sp-3); flex-wrap: wrap }
+.chapter-head h3 { margin: 0; font-size: var(--fs-md); font-weight: 650; letter-spacing: -.01em }
+.lv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: var(--sp-2) }
 
-.lv-card {
-  width: 100%;
-  min-width: 0;
-  text-align: left;
-  font: inherit;
-  color: var(--text);
-  padding: var(--sp-3) var(--sp-4);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
-  box-shadow: var(--sh-1);
-  cursor: pointer;
+.lv-tile {
+  position: relative;
+  display: grid; gap: 6px; align-content: start;
+  min-height: 108px;
+  padding: var(--sp-3);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface-2); color: var(--text);
+  font: inherit; text-align: left; cursor: pointer;
   transition: border-color var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast) var(--ease-out), background-color var(--dur-fast);
 }
-.lv-card:hover:not(:disabled) {
-  border-color: color-mix(in oklab, var(--accent) 38%, var(--border));
-  box-shadow: var(--sh-2);
+.lv-tile:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--accent) 40%, var(--border));
+  background: var(--surface);
+  box-shadow: var(--sh-1);
   transform: translateY(-1px);
 }
-.lv-card:active:not(:disabled) { transform: scale(.995) }
-.lv-card:focus-visible { box-shadow: var(--ring) }
-.lv-step.done .lv-card { border-color: color-mix(in oklab, var(--ok) 26%, var(--border)) }
-.lv-step.current .lv-card {
+.lv-tile:active:not(:disabled) { transform: scale(.995) }
+.lv-tile:focus-visible { box-shadow: var(--ring) }
+.lv-tile.done { border-color: color-mix(in oklab, var(--ok) 30%, var(--border)); background: color-mix(in oklab, var(--ok) 5%, var(--surface)) }
+.lv-tile.current {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 16%, transparent), var(--sh-1);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 15%, transparent), var(--sh-1);
 }
-.lv-step.locked .lv-card {
-  cursor: not-allowed;
-  color: var(--text-faint);
-  background: repeating-linear-gradient(135deg, var(--surface) 0 8px, var(--surface-2) 8px 16px);
+.lv-tile.locked {
+  cursor: not-allowed; color: var(--text-faint);
+  background: repeating-linear-gradient(135deg, var(--surface-2) 0 8px, var(--surface-3) 8px 16px);
   box-shadow: none;
 }
 
-.lv-card-top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap }
-.lv-no { font-size: var(--fs-xs); font-weight: 650; color: var(--text-faint); flex: 0 0 auto }
-.lv-emoji { font-size: 16px; line-height: 1; flex: 0 0 auto }
-.lv-title { flex: 1 1 140px; min-width: 0; font-size: var(--fs-base); font-weight: 620 }
-.lv-card-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 8px }
-.lv-go { display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-xs); font-weight: 600; color: var(--accent-2); flex: 0 0 auto }
-.lv-step.locked .lv-go { color: var(--text-faint); font-weight: 500 }
-.lv-step.done .lv-go { color: var(--ok) }
-.locked-txt { font-weight: 500 }
+.lv-tile-top { display: flex; align-items: center; gap: 6px }
+.lv-tile-no {
+  width: 21px; height: 21px; flex: 0 0 21px;
+  display: grid; place-content: center;
+  border-radius: 50%; background: var(--surface-3);
+  font-size: var(--fs-xs); font-weight: 700; color: var(--text-dim);
+}
+.lv-tile.done .lv-tile-no { background: color-mix(in oklab, var(--ok) 15%, var(--surface)); color: var(--ok) }
+.lv-tile.current .lv-tile-no { background: color-mix(in oklab, var(--accent) 16%, var(--surface)); color: var(--accent-2) }
+.lv-tile-emoji { font-size: 14px; line-height: 1 }
+.lv-tile-state { margin-left: auto; color: var(--ok); display: inline-flex }
+.lv-tile.current .lv-tile-state { color: var(--accent-2) }
+.lv-tile.locked .lv-tile-state { color: var(--text-faint) }
+
+.lv-tile-title {
+  font-size: var(--fs-sm); font-weight: 620; line-height: 1.45;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  min-height: calc(1.45em * 2);
+}
+.lv-tile-meta {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  font-size: var(--fs-xs); color: var(--text-faint);
+}
+.lv-tile-meta .dot { opacity: .5 }
+.lv-tile-nodes { color: color-mix(in oklab, var(--purple) 80%, var(--text-faint)) }
+.lv-tile-flag {
+  font-size: var(--fs-xs); font-weight: 650; color: var(--accent-2);
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.lv-tile-flag.muted { color: var(--text-faint); font-weight: 500 }
 
 .outcome {
   display: flex; align-items: flex-start; gap: 7px;
@@ -397,8 +518,7 @@ onActivated(() => { if (loaded.value) void load(true) })
   .board-head { flex-wrap: wrap }
   .board-prog { flex: 1 1 100% }
   .board-prog .micro { text-align: left }
-}
-@media (prefers-reduced-motion: reduce) {
-  .lv-node.current { animation: none }
+  .lv-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) }
+  .lv-search { flex: 1 1 100%; min-width: 0 }
 }
 </style>

@@ -308,6 +308,7 @@ export default {
       xp: 40,
       goal: '实现 parseToolCall(text)：从模型返回的一段文本里，稳定地取出 { tool, args }；不是工具调用就返回 null。',
       why: '模型只会输出文本。不管是 OpenAI 的 tool_calls 字段，还是让模型自己吐 JSON，程序这一侧都必须做同一件事：把「我要调 get_weather，参数是上海」变成可以执行的结构。解析写得糙，Agent 就会在第一步莫名其妙地崩——模型多打了一行解释、用代码块把 JSON 包起来、或者干脆返回了纯文本。',
+      nodes: ['ai.tools.tool-calling.function-calling'],
       thinking: [
         {
           title: '先问「谁保证格式」，再写解析',
@@ -469,6 +470,7 @@ function parseToolCall(text) {
       xp: 45,
       goal: '实现 createRegistry()：register(name, handler) 注册工具，invoke(name, args) 执行它，并把「找不到工具 / 工具抛错」都变成返回值而不是异常。',
       why: 'Agent 会调用几十个工具，其中任何一个都可能抛错、超时、参数不对。如果工具一抛错就冒泡，整个对话直接中断——用户看到的是「Agent 挂了」，而不是「查天气失败，你可以重试」。所以工具执行层的第一职责不是执行，而是**隔离失败**。',
+      nodes: ['ai.tools.tool-calling.tool-design-routing'],
       thinking: [
         {
           title: '为什么注册表要「返回自身」',
@@ -685,6 +687,7 @@ function createRegistry() {
       xp: 60,
       goal: '实现 runAgent：反复调用模型，遇到工具调用就执行并把结果喂回去，直到模型给出最终回答或用完轮数。',
       why: '前两关是零件，这一关是发动机。Agent 和「一次问答」的区别只有一件事：**它可以把执行结果带回上下文，再想一轮**。这段 while 循环只有二十行，但面试里问的「Agent 怎么决定下一步」「为什么会死循环」「工具失败怎么办」全在这二十行里。',
+      nodes: ['ai.harness.agent-loop.loop-dynamics', 'ai.tools.tool-calling.function-calling', 'ai.memory.memory-skill.session-state'],
       thinking: [
         {
           title: '为什么循环条件要写成 turns < maxTurns，而不是 while (true)',

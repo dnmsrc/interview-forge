@@ -16,12 +16,24 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { contentRoot, all, get, run, tx } from '../db'
 import { runLevel, runStages } from '../../shared/project-core.mjs'
+import { computeCoverage, indexNodes, topicKey } from '../../shared/project-coverage.mjs'
 import { recordProjectLevel } from './game'
-import type { ProjectCard, ProjectDetail, ProjectLevelCard, ProjectRunResult, ProjectStageRun } from '../../shared/api'
+import type {
+  CoverageBucket, ProjectCard, ProjectCoverage, ProjectDetail, ProjectLevelCard,
+  ProjectRunResult, ProjectStageRun
+} from '../../shared/api'
+
+/** 知识图谱节点（content/nodes 下的文件都是这种数组；本服务只用其中几段） */
+interface GraphNode {
+  id: string; title?: string; level?: number
+  domain?: string; stack?: string; topic?: string; mustMaster?: boolean
+}
 
 interface LevelFile {
   id: string; title: string; emoji?: string; xp?: number
   goal: string; why?: string; task?: string
+  /** 这一关讲透并验证的知识点（知识图谱节点 id）；构建时校验存在性 */
+  nodes?: string[]
   prereq?: { title: string; md: string }[]
   api?: { name: string; sig: string; args: string; returns: string; example: string }[]
   steps?: { todo: string; title: string; how: string; code?: string }[]
@@ -52,6 +64,57 @@ interface ProjectFile {
 const DEFAULT_XP = 40
 
 function projectsDir() { return join(contentRoot(), 'projects') }
+function nodesDir() { return join(contentRoot(), 'nodes') }
+
+/**
+ * 读知识图谱节点。覆盖统计只需要 id/title/level/topic 这几段，所以不做过滤、
+ * 也不缓存——450 个小文件单次几毫秒，改了内容重启即生效，比维护失效逻辑便宜。
+ */
+function loadGraphNodes(): GraphNode[] {
+  const dir = nodesDir()
+  if (!existsSync(dir)) return []
+  const out: GraphNode[] = []
+  for (const rel of readdirSync(dir, { recursive: true }) as string[]) {
+    if (!rel.endsWith('.json') || rel.endsWith('_skeleton.json')) continue
+    try {
+      const data = JSON.parse(readFileSync(join(dir, rel), 'utf8'))
+      const list = Array.isArray(data) ? data : data?.nodes
+      if (Array.isArray(list)) out.push(...list)
+    } catch (e: any) {
+      console.error(`[project] 解析知识点文件 ${rel} 失败：${e?.message ?? e}`)
+    }
+  }
+  return out
+}
+
+/**
+ * 关卡所属章节：取这一关声明的第一个知识点的 topic（domain.stack.topic），
+ * 用该 topic 在知识图谱里的中文标题当章节名。
+ *
+ * 为什么按 topic 分组而不是每 N 关硬切：关卡和知识点的映射本来就要写，
+ * 顺手用它决定「这一关属于哪一章」，章节就永远和内容对得上；
+ * 硬切出来的「第 1-6 关」既没有语义，内容一改顺序就错。
+ */
+function chapterOf(lv: LevelFile, nodeMap: Map<string, any>): { key: string; title: string } | null {
+  const list = Array.isArray(lv.nodes) ? lv.nodes : []
+  const first = list.find((id) => nodeMap.has(id))
+  if (!first) return null
+  const key = topicKey(first)
+  const parent = nodeMap.get(key)
+  const fallback = String(key.split('.')[2] ?? key).replace(/-/g, ' ')
+  return { key, title: parent?.title ?? fallback }
+}
+
+/** 项目声明了哪些知识点（去重、只算图谱里存在的） */
+function projectNodeIds(p: ProjectFile, nodeMap: Map<string, any>): string[] {
+  const seen = new Set<string>()
+  for (const lv of p.levels) {
+    for (const id of lv.nodes ?? []) {
+      if (nodeMap.has(id)) seen.add(id)
+    }
+  }
+  return [...seen]
+}
 
 /** 读全部项目文件。内容是小文件，读盘一次的开销远小于 IPC 往返，不做缓存以免改了 json 看不到变化。 */
 function loadAll(): ProjectFile[] {
@@ -227,6 +290,7 @@ function countCases(tests: string): number {
 }
 
 export function projectList(): ProjectCard[] {
+  const nodeMap = indexNodes(loadGraphNodes()) as Map<string, any>
   return loadAll().map((p) => {
     const prog = progressMap(p.id)
     const doneCount = p.levels.filter((l) => prog.get(l.id)?.done).length
@@ -234,6 +298,7 @@ export function projectList(): ProjectCard[] {
     return {
       id: p.id, domain: p.domain ?? '', title: p.title, emoji: p.emoji ?? '🧩', tagline: p.tagline ?? '',
       stack: p.stack ?? [], levelCount: p.levels.length, doneCount,
+      nodeCount: projectNodeIds(p, nodeMap).length,
       nextLevelId: next?.id ?? null,
       started: doneCount > 0, finished: doneCount === p.levels.length
     }
@@ -243,6 +308,9 @@ export function projectList(): ProjectCard[] {
 export function projectDetail(id: string): ProjectDetail {
   const p = loadOne(id)
   const prog = progressMap(id)
+  const nodeMap = indexNodes(loadGraphNodes()) as Map<string, any>
+  const coveredNodes = projectNodeIds(p, nodeMap)
+  const allTargets = [...nodeMap.values()].filter((n) => Number(n?.level ?? 0) >= 3).length
   const doneCount = p.levels.filter((l) => prog.get(l.id)?.done).length
   const levels: ProjectLevelCard[] = p.levels.map((lv, idx) => {
     const pr = prog.get(lv.id)
@@ -261,6 +329,9 @@ export function projectDetail(id: string): ProjectDetail {
       prereq: lv.prereq ?? [], api: lv.api ?? [], steps: lv.steps ?? [],
       hints: lv.hints ?? [], concepts: lv.concepts ?? [], xp: lv.xp ?? DEFAULT_XP,
       thinking: lv.thinking ?? [],
+      // 知识点映射：这一关讲透的知识点 + 据它推出的章节（前端按章节分网格）
+      nodes: (lv.nodes ?? []).filter((n) => nodeMap.has(n)),
+      chapter: chapterOf(lv, nodeMap),
       // 阶段：测试源码留在主进程，只给检查点个数。
       // 这一步的完整代码在「这一步已经通过」或整关通关后下发：中途要自己写出来才看得到。
       // 例外是「连续失败到门槛、主动点了看答案」的步骤——那几步的 code 也要下发，
@@ -290,9 +361,15 @@ export function projectDetail(id: string): ProjectDetail {
   return {
     id: p.id, domain: p.domain ?? '', title: p.title, emoji: p.emoji ?? '🧩', tagline: p.tagline ?? '',
     stack: p.stack ?? [], levelCount: p.levels.length, doneCount,
+    nodeCount: coveredNodes.length,
     nextLevelId: p.levels.find((l) => !prog.get(l.id)?.done)?.id ?? null,
     started: doneCount > 0, finished: doneCount === p.levels.length,
-    intro: p.intro ?? '', outcome: p.outcome ?? '', levels
+    intro: p.intro ?? '', outcome: p.outcome ?? '', levels,
+    coverage: {
+      covered: coveredNodes.length,
+      total: allTargets,
+      ratio: allTargets ? coveredNodes.length / allTargets : 0
+    }
   }
 }
 
@@ -564,4 +641,28 @@ export function projectRevertLevel(projectId: string, levelId: string) {
 export function projectResetAll(projectId: string) {
   run(`DELETE FROM project_progress WHERE project_id=?`, [projectId])
   return { ok: true }
+}
+
+/**
+ * 全站覆盖总览：知识图谱的 402 个知识点（L3/L4），被所有项目关卡收编了多少。
+ *
+ * 这个数不是给作者看的 KPI，是给学习者看的进度尺度：项目闯关要回答
+ * 「我做完这些，图谱里的东西是不是都摸过了」。没覆盖的节点直接列出来，
+ * 缺什么一目了然，补内容的人不用再另开一张表。
+ */
+export function projectCoverage(): ProjectCoverage {
+  const nodes = loadGraphNodes()
+  const cov = computeCoverage(loadAll(), nodes)
+  return {
+    totalTargets: cov.totalTargets,
+    covered: cov.covered,
+    missing: cov.missing,
+    ratio: cov.ratio,
+    byDomain: cov.byDomain as CoverageBucket[],
+    byStack: cov.byStack as CoverageBucket[],
+    gaps: (cov.missingNodes as any[]).map((n) => ({
+      id: n.id, title: n.title, stack: n.stack, topic: n.topic, mustMaster: n.mustMaster
+    })),
+    unmappedLevels: cov.unmappedLevels.length
+  }
 }

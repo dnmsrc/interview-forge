@@ -122,8 +122,30 @@ export interface ProjectCard {
   domain: string
   title: string; emoji: string; tagline: string; stack: string[]
   levelCount: number; doneCount: number
+  /** 这个项目在知识图谱里收编了多少个知识点（关卡 nodes 去重）。列表上给「覆盖」一个数。 */
+  nodeCount: number
   nextLevelId: string | null   // 下一个该做的关卡；全部完成时为 null
   started: boolean; finished: boolean
+}
+
+/** 覆盖统计桶：按领域 / 技术栈各切一刀 */
+export interface CoverageBucket {
+  key: string; total: number; covered: number; ratio: number
+}
+
+/** 项目闯关 → 知识图谱的覆盖总览（口径见 src/shared/project-coverage.mjs） */
+export interface ProjectCoverage {
+  /** 计入覆盖的目标知识点数（图谱 L3 + L4） */
+  totalTargets: number
+  covered: number
+  missing: number
+  ratio: number
+  byDomain: CoverageBucket[]
+  byStack: CoverageBucket[]
+  /** 未收编的知识点；前端按 stack 分组展示 */
+  gaps: { id: string; title: string; stack: string; topic: string; mustMaster: boolean }[]
+  /** 还没在 nodes 里声明知识点的关卡数 */
+  unmappedLevels: number
 }
 export interface ProjectConcept { title: string; md: string }
 /** 前置知识：动手前必须先看懂的概念。不读完就写不出来，所以放在任务之前、默认展开。 */
@@ -166,6 +188,16 @@ export interface ProjectLevelCard {
   hints: string[]; concepts: ProjectConcept[]; xp: number
   /** 思维链（v3 关卡才有；旧的 TODO 填空式关卡为空数组） */
   thinking: ProjectThinking[]
+  /**
+   * 这一关讲透、并在检查点里验证的知识点 id（知识图谱节点）。
+   * 不是标签：覆盖统计与章节分组都靠它；构建时校验 id 必须存在于图谱。
+   */
+  nodes: string[]
+  /**
+   * 关卡所属章节（由 nodes 的首个知识点 topic 推出）：同一 topic 的关卡排在同一个网格里。
+   * 没有映射的老关卡为 null，前端归入「主线」。
+   */
+  chapter: { key: string; title: string } | null
   /** 分阶段（v3 关卡才有）；为空时按 steps/TODO 的老流程走 */
   stages: ProjectStage[]
   /**
@@ -190,6 +222,8 @@ export interface ProjectLevelCard {
 }
 export interface ProjectDetail extends ProjectCard {
   intro: string; outcome: string; levels: ProjectLevelCard[]
+  /** 这个项目收编的知识点 / 全书目标知识点总数，给页头「覆盖」一个进度 */
+  coverage: { covered: number; total: number; ratio: number }
 }
 export interface ProjectRunCase { name: string; ok: boolean; message: string
   /**
@@ -257,7 +291,7 @@ export const API_METHODS: Record<string, string[]> = {
   ai: ['endpoints', 'saveEndpoints', 'test', 'usage', 'byTask', 'errors', 'tutorStatus', 'tutorStart', 'tutorStop', 'tutorLog', 'tutorSetMode', 'tutorSetModel', 'tutorCatalog'],
   settings: ['all', 'get', 'set'],
   game: ['overview', 'badges', 'events', 'drainEvents', 'bosses', 'chapters', 'reportExplorer'],
-  project: ['list', 'detail', 'run', 'saveDraft', 'resetLevel', 'revertLevel', 'stepAnswer', 'resetAll'],
+  project: ['list', 'detail', 'run', 'saveDraft', 'resetLevel', 'revertLevel', 'stepAnswer', 'resetAll', 'coverage'],
   progress: ['summary', 'resetAll']
 }
 
@@ -460,6 +494,11 @@ export interface ForgeApi {
      */
     stepAnswer(projectId: string, levelId: string, step: number): Promise<{ code: string; step: number }>
     resetAll(projectId: string): Promise<{ ok: boolean }>
+    /**
+     * 全站覆盖总览：知识图谱里多少个知识点已经被项目闯关收编。
+     * 口径与 scripts/project-coverage.mjs 共用 src/shared/project-coverage.mjs。
+     */
+    coverage(): Promise<ProjectCoverage>
   }
   /** 学习进度总账：设置页「从零开始」用它列清单、清空后回报清掉了什么 */
   progress: {

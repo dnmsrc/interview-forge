@@ -44,7 +44,8 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.web.json && tsc --noEmit -p tsconfig.node.json",
     "tutor:fetch": "node scripts/tutor-fetch.mjs",
     "project:check": "node scripts/qa/project-content.test.mjs",
-    "project:build": "node scripts/project-build.mjs"
+    "project:build": "node scripts/project-build.mjs",
+    "project:coverage": "node scripts/project-coverage.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

@@ -19,6 +19,9 @@
       "regress": false,
       "goal": "写出 reactive(obj)：它返回一个「替身」，读、写、删、查都会先经过你写的函数，最后才落到原对象上。从空白开始写，每写完一步都能立刻跑测试。",
       "why": "响应式的全部魔法都发生在「读」和「写」这两个瞬间。可 JavaScript 默认不给你插手的机会：state.count 这一行，引擎直接把值给你了，你没有任何机会知道「有人在读 count」。Proxy 就是那个能插手的口子。这一关先把口子接到「读、写、删、查」四个位置，并且每接一个就跑一次测试——不靠猜，靠红绿确认自己接对了。",
+      "nodes": [
+        "fe.vue.reactivity.proxify"
+      ],
       "thinking": [
         {
           "title": "先问「我要在哪一刻插手」，再问「用什么工具」",
@@ -232,6 +235,9 @@
           "example": "const raw = { count: 1 }\nconst state = reactive(raw)\nconst fn = () => state.count\n\nactiveEffect = fn\nstate.count            // 触发 get → track(raw, 'count')\nactiveEffect = null\n\ntargetMap.get(raw).get('count').has(fn)   // true"
         }
       ],
+      "nodes": [
+        "fe.vue.reactivity.effect-dep"
+      ],
       "thinking": [
         {
           "title": "先做「只记不通知」的一半，而不是一口气写完",
@@ -357,6 +363,9 @@
           "example": "const raw = { count: 1 }\nconst state = reactive(raw)\nlet runs = 0\n\nactiveEffect = () => { runs++ }\nstate.count          // 记账\nactiveEffect = null\n\nstate.count = 2      // 触发 → runs 变成 1"
         }
       ],
+      "nodes": [
+        "fe.vue.reactivity.effect-dep"
+      ],
       "thinking": [
         {
           "title": "触发不是「重新执行所有函数」，而是拿账本点名",
@@ -453,6 +462,9 @@
           "returns": "runner —— 一个可以被再次调用的函数。调用 runner() 会重新执行一遍 fn，并重新收集依赖。",
           "example": "const state = reactive({ count: 1 })\n\nconst runner = effect(() => {\n  console.log('count 变了：', state.count)\n})\n// 立刻打印一次「count 变了：1」\n\nstate.count = 2     // 自动再打印一次「count 变了：2」\n\nrunner()            // 手动再执行一次"
         }
+      ],
+      "nodes": [
+        "fe.vue.reactivity.effect-dep"
       ],
       "thinking": [
         {
@@ -574,6 +586,9 @@
           "example": "const state = reactive({ count: 1 })\nlet runs = 0\neffect(() => { runs++; state.count })\n\nstate.count = 2     // 值真的变了 → runs = 2\nstate.count = 2     // 值没变     → runs 仍然是 2\nstate.count = 3     // 又变了     → runs = 3"
         }
       ],
+      "nodes": [
+        "fe.vue.reactivity.effect-dep"
+      ],
       "thinking": [
         {
           "title": "先确认问题真的存在，再改代码",
@@ -688,6 +703,9 @@
           "returns": "没有返回值。效果是：每一个 dep 里都不再有 eff，并且 eff.deps 变成长度为 0 的空数组。",
           "example": "const state = reactive({ flag: true, a: 1, b: 2 })\nlet runs = 0\neffect(() => { runs++; state.flag ? state.a : state.b })\n\nstate.flag = false   // 重跑一次，依赖换成 flag + b\nstate.a++            // 不再触发（a 已经从账本里清掉了）\nruns                 // 仍然是 2"
         }
+      ],
+      "nodes": [
+        "fe.vue.reactivity.effect-dep"
       ],
       "thinking": [
         {
@@ -815,6 +833,9 @@
           "returns": "runner，和之前一样。",
           "example": "const state = reactive({ a: 1, b: 2 })\nlet outer = 0\neffect(() => {\n  outer++\n  effect(() => { state.b })   // 内层 effect\n  state.a                     // 这一行必须仍然记在外层名下\n})\n\nstate.a = 2   // 外层要重跑（上一关的实现里，这一行会失效）"
         }
+      ],
+      "nodes": [
+        "fe.vue.reactivity.effect-dep"
       ],
       "thinking": [
         {
@@ -944,6 +965,10 @@
           "example": "const state = reactive({ v: 0 })\nlet runs = 0\neffect(() => { runs++; state.v }, { scheduler: queueJob })\n\nstate.v = 1\nstate.v = 2\nstate.v = 3\nruns              // 1：三次写入只入队一次\n\nflushJobs()\nruns              // 2：真正执行了一次\nstate.v = 4\nflushJobs()\nruns              // 3"
         }
       ],
+      "nodes": [
+        "fe.vue.scheduler.flush-jobs",
+        "fe.vue.reactivity.effect-dep"
+      ],
       "thinking": [
         {
           "title": "先问「谁有权决定时机」，再问队列长什么样",
@@ -1064,6 +1089,10 @@
           "returns": "一个对象，只有 .value 属性：读它拿到缓存值（必要时重算），写它没有意义（这一关不实现 setter）。",
           "example": "const state = reactive({ a: 1, b: 2 })\nlet computes = 0\nconst sum = computed(() => { computes++; return state.a + state.b })\n\ncomputes          // 0 —— 创建时不计算\n\nsum.value         // 3，此时 computes 变成 1\nsum.value         // 3，仍然只算过 1 次（缓存）\n\nstate.a = 10\ncomputes          // 1 —— 依赖变了，但还没人读，所以不重算\nsum.value         // 12，这次读才重算 → computes = 2"
         }
+      ],
+      "nodes": [
+        "fe.vue.reactivity.computed-watch",
+        "fe.vue.reactivity.effect-dep"
       ],
       "thinking": [
         {

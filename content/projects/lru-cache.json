@@ -20,6 +20,9 @@
       "xp": 40,
       "goal": "用 Map 实现 LRUCache：get 命中要把 key 提到「最近使用」，put 超出容量要淘汰「最久未使用」的那个。",
       "why": "很多人一上来就写双向链表，结果指针绕晕了、语义还是错的。正确顺序是先把行为定义清楚：命中之后顺序怎么变、满了淘汰谁、更新已有 key 算不算「又用了一次」。这一关用 Map 先把这些规则用测试钉死，第 3 关换成链表时就有参照。",
+      "nodes": [
+        "cs.algo.linear.hash-table"
+      ],
       "thinking": [
         {
           "title": "先问「最近使用」存哪，再问用什么数据结构",
@@ -128,6 +131,9 @@
       "xp": 50,
       "goal": "实现带头尾哨兵的双向链表 DoublyLinkedList：addFirst、remove、moveToFirst、removeLast、size。",
       "why": "LRU 需要频繁做两件事：「把某个节点移到最前」和「删掉最后一个」。数组做这两件事都要移动其余元素（O(n)）。双向链表只要有节点引用，改几个指针就是 O(1)——这就是它存在的唯一理由。这一关先把指针操作练熟，第 3 关才有零件可用。",
+      "nodes": [
+        "cs.algo.linear.array-linkedlist"
+      ],
       "thinking": [
         {
           "title": "为什么先单独练链表，而不是直接进第 3 关",
@@ -230,6 +236,11 @@
       "xp": 70,
       "goal": "用「哈希表 + 双向链表」重写 LRUCache：get 和 put 都是 O(1)，并且通过第 1 关的全部行为测试。",
       "why": "这一关把两个零件合起来，也是面试真正的答案形态：**Map 负责「key → 节点」的 O(1) 定位，链表负责「谁最近用过」的 O(1) 维护**。为什么缺一不可？只用 Map，你没法在 O(1) 里拿到「最久未使用」并把它删掉（Map 的插入顺序是黑盒）；只用链表，你找 key 要 O(n)。",
+      "nodes": [
+        "cs.algo.linear.hash-table",
+        "cs.algo.linear.array-linkedlist",
+        "cs.algo.complexity.big-o-amortized"
+      ],
       "thinking": [
         {
           "title": "为什么两个结构要「共用同一个节点对象」",

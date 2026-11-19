@@ -19,6 +19,10 @@
       "xp": 40,
       "goal": "实现 deepClone(value)：递归复制对象和数组，遇到循环引用不会爆栈，Date / Map / Set 也能正确复制。",
       "why": "「深拷贝」是面试里最常见的现场题，也是项目里最容易出事的地方：改了一份数据，另一份跟着变；或者日志里一打印就是 `RangeError: Maximum call stack size exceeded`——因为对象里有个指回自己的引用。这两个坑这一关都会踩到，也都得亲手解决。",
+      "nodes": [
+        "fe.js.basics.types",
+        "fe.js.es6.modern"
+      ],
       "thinking": [
         {
           "title": "先问「拷贝到什么程度算完」，再问怎么递归",
@@ -133,6 +137,11 @@
       "xp": 45,
       "goal": "实现一个 EventEmitter：能注册、能触发、能解绑，且 once 注册的监听器只执行一次。",
       "why": "事件总线是「解耦」最朴素的实现：组件之间不直接调用，而是发一个事件名。写它不是为了造轮子——每个前端项目、Node 的 EventEmitter、Vue 的 mitt，核心都是这三十行。而且 once + off 的组合里藏着一个很典型的坑：包装函数注册进去之后，用原函数根本删不掉。",
+      "nodes": [
+        "fe.js.scope.closure",
+        "fe.js.oop.this",
+        "fe.js.es6.modern"
+      ],
       "thinking": [
         {
           "title": "先定数据结构，再定四个方法",
@@ -251,6 +260,10 @@
       "xp": 45,
       "goal": "实现 curry(fn)：可以分多次传参，参数凑够 fn 声明的个数才真正执行；不够就继续返回函数等着。",
       "why": "柯里化的价值不在炫技，而在「固定一部分参数、复用剩下的部分」：把 log(level, msg) 柯里化成 error = curry(log)(\"error\")，之后到处调用 error(\"xxx\") 就行。面试里考它是因为它同时考闭包、函数参数个数（fn.length）和递归返回函数的思维。",
+      "nodes": [
+        "fe.js.scope.closure",
+        "fe.js.es6.modern"
+      ],
       "thinking": [
         {
           "title": "为什么用 fn.length 而不是自己数参数",
