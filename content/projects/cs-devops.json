@@ -1,0 +1,637 @@
+{
+  "id": "cs-devops",
+  "version": 3,
+  "domain": "cs",
+  "cumulative": false,
+  "title": "系统设计与 DevOps：限流熔断、短链、容器与流水线",
+  "emoji": "⚙️",
+  "xp": 65,
+  "tagline": "5 关：限流/熔断/秒杀 → 短链与号段发号 → Dockerfile 与层缓存 → K8s 调度探针滚动 → CI/CD DAG 与制品。",
+  "stack": [
+    "系统设计",
+    "DevOps"
+  ],
+  "intro": "系统设计和 DevOps 面试最容易停在高空：能说「用令牌桶」「用滚动更新」，但一算具体数字就含糊。这个项目把这几章全部落成可运行的小实现：限流器状态机、熔断三态、号段发号器、Dockerfile 解析与层缓存、K8s 调度过滤与滚动步进、流水线 DAG 拓扑。",
+  "outcome": "你能手写四种限流器并说清各自的内存与边界代价、解释号段发号器为什么省 DB、把 Dockerfile 拆成可复用层、算出 K8s 滚动更新的每一步副本数、给流水线排出并行波次。",
+  "levels": [
+    {
+      "id": "lv1",
+      "title": "限流、熔断、秒杀：把「保护下游」算清楚",
+      "emoji": "🚦",
+      "xp": 55,
+      "goal": "实现四种限流器（固定窗口/滑动日志/令牌桶/漏桶）、三态熔断器，以及多路时间线合并与幂等秒杀扣减。",
+      "why": "限流和熔断是保护下游的两个闸门，但面试里最常见的失分是「只会背名字、不会算边界」：固定窗口在窗口交界处会放过 2 倍流量、滑动日志为什么吃内存、令牌桶的 capacity 和 rate 分别管什么、熔断半开为什么要限制探测数。这一关把这些全部变成可运行的数字。",
+      "nodes": [
+        "cs.design.limit",
+        "cs.design.limit.algorithm",
+        "cs.design.limit.circuit-breaker",
+        "cs.design.cases",
+        "cs.design.cases.feed-timeline",
+        "cs.design.cases.seckill"
+      ],
+      "thinking": [
+        {
+          "title": "四种限流器的差别只在「状态记什么」",
+          "md": "固定窗口只记 `{窗口起点, 计数}`，最省内存，但窗口交界存在双倍突发：900ms 打满 100，1000ms 又打满 100，1 秒内实际放过 200。\n\n滑动日志记每条请求的时间戳，精确但内存 O(limit)。令牌桶记 `{令牌数, 上次刷新时间}`，桶容量决定能扛多大的突发，rate 决定长期平均速率。漏桶把「请求」当成水先排队再匀速漏出，天然平滑但会增加延迟。"
+        },
+        {
+          "title": "熔断不是「失败几次就断开」，是状态机",
+          "md": "closed → open → half-open → closed/open 的每一次迁移都有触发条件：连续失败达到阈值、冷却期到期、半开探测成功够数。\n\n最容易被追问的一点：**半开时为什么要限制探测数量**。如果冷却一到期就放全部流量进来，下游还没恢复就会被二次打垮——半开只允许少量探测，探测成功才逐步放开。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "闭包保存跨请求状态",
+          "md": "限流器要在多次调用之间记住「这个窗口已经放了多少」，所以返回的对象必须闭包住可变状态。`createLimiter` 返回的 `allow(now)` 每次调用都读写同一份闭包变量。"
+        },
+        {
+          "title": "时间由调用方传入",
+          "md": "判题沙箱没有 `Date.now()` 的确定性（也不允许定时器），所以 `now` 一律由调用方传入。好处是测试能精确制造「刚好 999ms」这种边界，坏处是实现里绝不能偷偷读真实时钟。"
+        }
+      ],
+      "api": [
+        {
+          "name": "createLimiter",
+          "sig": "createLimiter({ kind, limit, windowMs, capacity, rate }) => { allow(now) }",
+          "args": "kind 取 fixed / sliding-log / token / leaky；fixed 用 limit + windowMs；sliding-log 用 limit + windowMs；token 与 leaky 用 capacity + rate（每秒）。",
+          "returns": "allow(now) 返回 true 表示放行、false 表示拒绝。",
+          "example": "const l = createLimiter({ kind: 'token', capacity: 5, rate: 10 })\\nl.allow(0)  // true（初始满桶）\\nl.allow(100) // true（补了 1 个令牌）"
+        },
+        {
+          "name": "createBreaker",
+          "sig": "createBreaker({ failureThreshold, successThreshold, openMs }) => { call(ok, now), state(now) }",
+          "args": "failureThreshold 连续失败多少次打开；successThreshold 半开要成功多少次才恢复；openMs 冷却时长。",
+          "returns": "call 返回 { allowed, state }；state(now) 返回当前状态（会把「冷却已到期」算进去）。",
+          "example": "const b = createBreaker({ failureThreshold: 3, successThreshold: 2, openMs: 1000 })\\nb.call(false, 0); b.call(false, 10); b.call(false, 20)  // 第 3 次后 open"
+        },
+        {
+          "name": "createSeckill 与 mergeFeeds",
+          "sig": "createSeckill({ stock, perUser }) => { grab(userId, now), stock() }；mergeFeeds(lists, limit) => items[]",
+          "args": "stock 初始库存；perUser 每人限购数（可选）。mergeFeeds 的 lists 是若干条已按时间倒序的时间线。",
+          "returns": "grab 返回 { code, seq, stock }，code 为 OK / SOLD_OUT / LIMIT；mergeFeeds 返回合并去重后的前 limit 条。",
+          "example": "const s = createSeckill({ stock: 2 })\\ns.grab('u1', 0).code  // 'OK'\\ns.grab('u1', 1).code  // 'OK'（幂等，同 seq）"
+        }
+      ],
+      "usage": "const limiter = createLimiter({ kind: 'token', capacity: 100, rate: 50 })\n// 网关入口：\nif (!limiter.allow(now)) return res.status(429).end()\n\nconst breaker = createBreaker({ failureThreshold: 5, successThreshold: 3, openMs: 30000 })\nconst r = breaker.call(await callDownstream(), Date.now())\nif (!r.allowed) return fallback()",
+      "hints": [
+        "第 1 步：固定窗口用 floor(now / windowMs) 算窗口号，变了就清零；令牌桶先补令牌再判断，别把「补」写两次。",
+        "第 2 步：call 里先处理「open 且已到期 → half-open」这件事，再判断是否短路，否则到期后仍然拒。",
+        "第 3 步：秒杀幂等靠「先查 Map 里这个用户有没有记录」，有就直接返回首次结果，绝对不能再扣库存。"
+      ],
+      "concepts": [
+        {
+          "title": "为什么线上很少用纯固定窗口",
+          "md": "固定窗口的双倍突发是真实事故来源：两个相邻窗口各打满，下游在交界处承受 2 倍 QPS。常见做法是滑动窗口（把窗口切成若干小格滚动统计）或令牌桶（用桶容量吃掉突发）。\n\n滑动日志最精确但每请求一行内存，高 QPS 下就是内存炸弹；生产上更常见的是「滑动窗口计数」——用几个固定格子做加权近似。"
+        },
+        {
+          "title": "秒杀的三道闸：限流、库存、幂等",
+          "md": "秒杀链路里限流在最前面（网关），库存扣减在中间（Redis 原子脚本），幂等在最里层（用户 ID 去重）。三者顺序不能换：先限流把无效流量挡在外面，否则库存扣减的 Redis 会被打穿。\n\n这里用 Map 模拟幂等表；线上这个表就是 Redis 里 `seckill:order:{userId}` 的 SETNX。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "四种限流器",
+          "think": "先把「状态记什么」这件事写出来：固定窗口记窗口号与计数，滑动日志记时间戳数组，令牌桶/漏桶记水位与上次时间。四个分支共用同一个 allow 接口，测试才能横向对比。",
+          "hint": "固定窗口：win = floor(now / windowMs) * windowMs，win 变了就 count = 0。令牌桶：先 tokens = min(capacity, tokens + 经过时间 × rate)，再判断 tokens >= 1。",
+          "code": "const WINDOWS = new Map()\n\nfunction createLimiter(opts) {\n  const kind = opts.kind\n  let start = null\n  let count = 0\n  let log = []\n  let tokens = opts.capacity || 0\n  let level = 0\n  let last = 0\n\n  return {\n    allow(now) {\n      if (kind === 'fixed') {\n        const win = Math.floor(now / opts.windowMs) * opts.windowMs\n        if (win !== start) { start = win; count = 0 }\n        if (count >= opts.limit) return false\n        count++\n        return true\n      }\n      if (kind === 'sliding-log') {\n        log = log.filter((t) => now - t < opts.windowMs)\n        if (log.length >= opts.limit) return false\n        log.push(now)\n        return true\n      }\n      if (kind === 'token') {\n        const elapsed = now - last\n        tokens = Math.min(opts.capacity, tokens + (elapsed / 1000) * opts.rate)\n        last = now\n        if (tokens < 1) return false\n        tokens -= 1\n        return true\n      }\n      const elapsed = now - last\n      level = Math.max(0, level - (elapsed / 1000) * opts.rate)\n      last = now\n      if (level >= opts.capacity) return false\n      level += 1\n      return true\n    }\n  }\n}",
+          "test": "{\n  check('固定窗口：窗口内限额用满后拒绝', () => {\n    const l = createLimiter({ kind: 'fixed', limit: 3, windowMs: 1000 })\n    same([l.allow(0), l.allow(100), l.allow(200)], [true, true, true])\n    same(l.allow(300), false, '第 4 个请求必须被拒')\n  })\n  check('固定窗口：跨窗口后重新计数', () => {\n    const l = createLimiter({ kind: 'fixed', limit: 2, windowMs: 1000 })\n    l.allow(0); l.allow(10)\n    same(l.allow(900), false)\n    same(l.allow(1000), true, '1000 属于下一个窗口')\n  })\n  check('滑动日志：窗口滑走后放行（固定窗口做不到）', () => {\n    const l = createLimiter({ kind: 'sliding-log', limit: 2, windowMs: 1000 })\n    same(l.allow(0), true)\n    same(l.allow(500), true)\n    same(l.allow(999), false, '0ms 那条还在窗口内')\n    same(l.allow(1001), true, '0ms 已滑出窗口')\n  })\n  check('令牌桶：初始容量 + 按速率补令牌', () => {\n    const l = createLimiter({ kind: 'token', capacity: 5, rate: 10 })\n    const burst = []\n    for (let i = 0; i < 6; i++) burst.push(l.allow(0))\n    same(burst, [true, true, true, true, true, false], '容量 5，第 6 个没令牌')\n    same(l.allow(100), true, '100ms 补 1 个令牌')\n    same(l.allow(150), false, '再过 50ms 只攒下 0.5 个')\n  })\n  check('漏桶：水位封顶，按速率匀速漏出', () => {\n    const l = createLimiter({ kind: 'leaky', capacity: 3, rate: 10 })\n    same([l.allow(0), l.allow(0), l.allow(0)], [true, true, true])\n    same(l.allow(0), false, '水位到顶')\n    same(l.allow(100), true, '100ms 漏掉 1 个单位')\n  })\n}",
+          "diag": [
+            "固定窗口用 now 直接当窗口起点（应该按 windowMs 向下取整）。",
+            "滑动日志忘了先过滤掉过期的 timestamp，数组无限增长。",
+            "令牌桶把 last 更新放进了拒绝分支，导致拒绝之后不再补令牌。",
+            "令牌桶漏了 Math.min(capacity, ...) 上限，空闲很久后能一次放出巨额令牌。",
+            "漏桶把 now - last 算成了 now - start，第一次调用就有巨大水位。"
+          ]
+        },
+        {
+          "n": 2,
+          "title": "熔断状态机",
+          "think": "状态机要有三段：判断是否该从 open 迁到 half-open、短路、记录结果。最容易漏的是「到期那一下必须同时清空 successes」，否则上轮半开的计数会污染下一轮。",
+          "hint": "call 第一步就先 tick(now)；open 直接返回 allowed:false；失败时如果当前是 half-open 或者失败数达阈值，一律 open 并 openUntil = now + openMs。",
+          "code": "const WINDOWS = new Map()\n\nfunction createLimiter(opts) {\n  const kind = opts.kind\n  let start = null\n  let count = 0\n  let log = []\n  let tokens = opts.capacity || 0\n  let level = 0\n  let last = 0\n\n  return {\n    allow(now) {\n      if (kind === 'fixed') {\n        const win = Math.floor(now / opts.windowMs) * opts.windowMs\n        if (win !== start) { start = win; count = 0 }\n        if (count >= opts.limit) return false\n        count++\n        return true\n      }\n      if (kind === 'sliding-log') {\n        log = log.filter((t) => now - t < opts.windowMs)\n        if (log.length >= opts.limit) return false\n        log.push(now)\n        return true\n      }\n      if (kind === 'token') {\n        const elapsed = now - last\n        tokens = Math.min(opts.capacity, tokens + (elapsed / 1000) * opts.rate)\n        last = now\n        if (tokens < 1) return false\n        tokens -= 1\n        return true\n      }\n      const elapsed = now - last\n      level = Math.max(0, level - (elapsed / 1000) * opts.rate)\n      last = now\n      if (level >= opts.capacity) return false\n      level += 1\n      return true\n    }\n  }\n}\n\nfunction createBreaker(opts) {\n  const failureThreshold = opts.failureThreshold\n  const successThreshold = opts.successThreshold\n  const openMs = opts.openMs\n\n  let state = 'closed'\n  let failures = 0\n  let successes = 0\n  let openUntil = 0\n\n  function tick(now) {\n    if (state === 'open' && now >= openUntil) {\n      state = 'half-open'\n      successes = 0\n    }\n  }\n\n  return {\n    call(ok, now) {\n      tick(now)\n      if (state === 'open') return { allowed: false, state: 'open' }\n      if (ok) {\n        failures = 0\n        if (state === 'half-open') {\n          successes++\n          if (successes >= successThreshold) { state = 'closed'; successes = 0 }\n        }\n        return { allowed: true, state }\n      }\n      failures++\n      if (state === 'half-open' || failures >= failureThreshold) {\n        state = 'open'\n        openUntil = now + openMs\n        failures = 0\n        successes = 0\n      }\n      return { allowed: true, state }\n    },\n    state(now) {\n      tick(now)\n      return state\n    }\n  }\n}",
+          "test": "{\n  check('连续失败达到阈值 → 打开并短路', () => {\n    const b = createBreaker({ failureThreshold: 3, successThreshold: 2, openMs: 1000 })\n    same([b.call(false, 0).allowed, b.call(false, 10).allowed], [true, true])\n    const r = b.call(false, 20)\n    same(r.allowed, true, '触发那次本身还是放行的')\n    same(r.state, 'open')\n    same(b.call(true, 30).allowed, false, '打开期间一律不进下游')\n  })\n  check('一次成功就把失败计数清零', () => {\n    const b = createBreaker({ failureThreshold: 3, successThreshold: 1, openMs: 1000 })\n    b.call(false, 0); b.call(true, 10); b.call(false, 20); b.call(false, 30)\n    same(b.state(30), 'closed', '中间那次成功打断了连续失败')\n  })\n  check('冷却到期进入半开，放行探测', () => {\n    const b = createBreaker({ failureThreshold: 2, successThreshold: 1, openMs: 1000 })\n    b.call(false, 0); b.call(false, 1)\n    same(b.call(true, 500).allowed, false, '还没到期')\n    const probe = b.call(true, 1002)\n    same(probe.allowed, true)\n    same(probe.state, 'closed', '够 successThreshold 就恢复')\n  })\n  check('半开时探测失败 → 立刻回到打开并重新计时', () => {\n    const b = createBreaker({ failureThreshold: 1, successThreshold: 1, openMs: 1000 })\n    b.call(false, 0)\n    b.call(false, 1001)\n    same(b.state(1500), 'open')\n    same(b.call(true, 1999).allowed, false)\n    same(b.call(true, 2002).state, 'closed')\n  })\n  check('半开要攒够 successThreshold 次成功才关闭', () => {\n    const b = createBreaker({ failureThreshold: 1, successThreshold: 2, openMs: 1000 })\n    b.call(false, 0)\n    same(b.call(true, 1001).allowed, true)\n    same(b.state(1001), 'half-open', '只成功 1 次还不够')\n    same(b.call(true, 1002).state, 'closed')\n  })\n}",
+          "diag": [
+            "只判断了 now >= openUntil 却忘了把 state 改成 half-open，于是永远短路。",
+            "成功时没有把 failures 清零，导致零散失败也能攒到阈值。",
+            "半开探测失败后没有重设 openUntil，冷却期从第一次打开算起，等于没冷却。",
+            "触发打开的那一次调用被短路了（它应该正常走到下游，失败才是触发原因）。",
+            "state(now) 没调用 tick，调用方看到的状态永远停在 open。"
+          ]
+        },
+        {
+          "n": 3,
+          "title": "时间线合并与秒杀扣减",
+          "think": "feed 合并是典型的 k 路归并：每个关注对象的时间线已经有序，合并后取前 N；跨时间线可能同一条内容，要按 id 去重。秒杀则是「幂等 + 库存」两件事，先查幂等表再扣库存。",
+          "hint": "mergeFeeds 收集时用 Set 按 id 去重（保留先遇到的），然后按 t 倒序排序 slice(0, limit)。秒杀重复请求直接返回 prev，不要再次 left--。",
+          "code": "const WINDOWS = new Map()\n\nfunction createLimiter(opts) {\n  const kind = opts.kind\n  let start = null\n  let count = 0\n  let log = []\n  let tokens = opts.capacity || 0\n  let level = 0\n  let last = 0\n\n  return {\n    allow(now) {\n      if (kind === 'fixed') {\n        const win = Math.floor(now / opts.windowMs) * opts.windowMs\n        if (win !== start) { start = win; count = 0 }\n        if (count >= opts.limit) return false\n        count++\n        return true\n      }\n      if (kind === 'sliding-log') {\n        log = log.filter((t) => now - t < opts.windowMs)\n        if (log.length >= opts.limit) return false\n        log.push(now)\n        return true\n      }\n      if (kind === 'token') {\n        const elapsed = now - last\n        tokens = Math.min(opts.capacity, tokens + (elapsed / 1000) * opts.rate)\n        last = now\n        if (tokens < 1) return false\n        tokens -= 1\n        return true\n      }\n      const elapsed = now - last\n      level = Math.max(0, level - (elapsed / 1000) * opts.rate)\n      last = now\n      if (level >= opts.capacity) return false\n      level += 1\n      return true\n    }\n  }\n}\n\nfunction createBreaker(opts) {\n  const failureThreshold = opts.failureThreshold\n  const successThreshold = opts.successThreshold\n  const openMs = opts.openMs\n\n  let state = 'closed'\n  let failures = 0\n  let successes = 0\n  let openUntil = 0\n\n  function tick(now) {\n    if (state === 'open' && now >= openUntil) {\n      state = 'half-open'\n      successes = 0\n    }\n  }\n\n  return {\n    call(ok, now) {\n      tick(now)\n      if (state === 'open') return { allowed: false, state: 'open' }\n      if (ok) {\n        failures = 0\n        if (state === 'half-open') {\n          successes++\n          if (successes >= successThreshold) { state = 'closed'; successes = 0 }\n        }\n        return { allowed: true, state }\n      }\n      failures++\n      if (state === 'half-open' || failures >= failureThreshold) {\n        state = 'open'\n        openUntil = now + openMs\n        failures = 0\n        successes = 0\n      }\n      return { allowed: true, state }\n    },\n    state(now) {\n      tick(now)\n      return state\n    }\n  }\n}\n\nfunction mergeFeeds(lists, limit) {\n  if (!limit || limit <= 0) return []\n  const seen = new Set()\n  const all = []\n  lists.forEach((list, source) => {\n    for (const item of list) {\n      if (seen.has(item.id)) continue\n      seen.add(item.id)\n      all.push({ id: item.id, t: item.t, source })\n    }\n  })\n  all.sort((a, b) => b.t - a.t)\n  return all.slice(0, limit)\n}\n\nfunction createSeckill(opts) {\n  let left = opts.stock\n  const buyers = new Map()\n  let seq = 0\n\n  return {\n    grab(userId, now) {\n      const prev = buyers.get(userId)\n      if (prev) {\n        if (!opts.perUser) return { code: 'OK', seq: prev.seq, stock: left }\n        if (prev.count >= opts.perUser) {\n          return { code: 'LIMIT', seq: prev.seq, stock: left }\n        }\n        prev.count++\n        left--\n        return { code: 'OK', seq: prev.seq, stock: left }\n      }\n      if (left <= 0) return { code: 'SOLD_OUT', seq: -1, stock: left }\n      seq++\n      buyers.set(userId, { count: 1, seq })\n      left--\n      return { code: 'OK', seq, stock: left }\n    },\n    stock() { return left }\n  }\n}",
+          "test": "{\n  check('多路时间线合并：按时间倒序取前 N', () => {\n    const a = [{ id: 'p1', t: 100 }, { id: 'p2', t: 50 }]\n    const b = [{ id: 'p3', t: 90 }, { id: 'p4', t: 10 }]\n    const out = mergeFeeds([a, b], 3)\n    same(out.map((x) => x.id), ['p1', 'p3', 'p2'])\n    same(out.map((x) => x.source), [0, 1, 0])\n  })\n  check('同一条内容在多个时间线里只出现一次', () => {\n    const out = mergeFeeds([[{ id: 'x', t: 5 }], [{ id: 'x', t: 5 }, { id: 'y', t: 4 }]], 10)\n    same(out.map((x) => x.id), ['x', 'y'])\n  })\n  check('空列表与 limit=0 的边界', () => {\n    same(mergeFeeds([[], []], 5), [])\n    same(mergeFeeds([[{ id: 'a', t: 1 }]], 0), [])\n  })\n  check('秒杀：卖完为止，绝不超卖', () => {\n    const s = createSeckill({ stock: 2 })\n    same(s.grab('u1', 0).code, 'OK')\n    same(s.grab('u2', 0).code, 'OK')\n    same(s.grab('u3', 0).code, 'SOLD_OUT')\n    same(s.stock(), 0)\n  })\n  check('秒杀：同一用户重复请求幂等', () => {\n    const s = createSeckill({ stock: 5 })\n    const r1 = s.grab('u1', 0)\n    const r2 = s.grab('u1', 100)\n    same(r2.code, 'OK')\n    same(r2.seq, r1.seq, '返回首次结果，不重复扣减')\n    same(s.stock(), 4)\n  })\n  check('秒杀：每人限购', () => {\n    const s = createSeckill({ stock: 10, perUser: 2 })\n    s.grab('u1', 0); s.grab('u1', 0)\n    same(s.grab('u1', 0).code, 'LIMIT')\n  })\n}",
+          "diag": [
+            "mergeFeeds 没有去重，同一条内容在两条时间线里出现两次。",
+            "排序写成升序，或者 sort 回调返回值符号反了。",
+            "limit 为 0 时仍然返回了数据（没有提前 return []）。",
+            "重复请求时又扣了一次库存（幂等失败）。",
+            "perUser 判断放在扣库存之后，导致超限请求也把库存吃掉了。",
+            "秒杀返回的 seq 每次都自增，幂等场景下拿不到「首次结果」。"
+          ]
+        }
+      ],
+      "skeleton": "function createLimiter(opts) {\n  // TODO: fixed / sliding-log / token / leaky 四种状态机\n  throw new Error('createLimiter 还没实现')\n}\n\nfunction createBreaker(opts) {\n  // TODO: closed / open / half-open 三态迁移\n  throw new Error('createBreaker 还没实现')\n}\n\nfunction mergeFeeds(lists, limit) {\n  // TODO: 多路合并 + 按 id 去重 + 取前 N\n  throw new Error('mergeFeeds 还没实现')\n}\n\nfunction createSeckill(opts) {\n  // TODO: 库存扣减 + 幂等 + 每人限购\n  throw new Error('createSeckill 还没实现')\n}",
+      "solution": "const WINDOWS = new Map()\n\nfunction createLimiter(opts) {\n  const kind = opts.kind\n  let start = null\n  let count = 0\n  let log = []\n  let tokens = opts.capacity || 0\n  let level = 0\n  let last = 0\n\n  return {\n    allow(now) {\n      if (kind === 'fixed') {\n        const win = Math.floor(now / opts.windowMs) * opts.windowMs\n        if (win !== start) { start = win; count = 0 }\n        if (count >= opts.limit) return false\n        count++\n        return true\n      }\n      if (kind === 'sliding-log') {\n        log = log.filter((t) => now - t < opts.windowMs)\n        if (log.length >= opts.limit) return false\n        log.push(now)\n        return true\n      }\n      if (kind === 'token') {\n        const elapsed = now - last\n        tokens = Math.min(opts.capacity, tokens + (elapsed / 1000) * opts.rate)\n        last = now\n        if (tokens < 1) return false\n        tokens -= 1\n        return true\n      }\n      const elapsed = now - last\n      level = Math.max(0, level - (elapsed / 1000) * opts.rate)\n      last = now\n      if (level >= opts.capacity) return false\n      level += 1\n      return true\n    }\n  }\n}\n\nfunction createBreaker(opts) {\n  const failureThreshold = opts.failureThreshold\n  const successThreshold = opts.successThreshold\n  const openMs = opts.openMs\n\n  let state = 'closed'\n  let failures = 0\n  let successes = 0\n  let openUntil = 0\n\n  function tick(now) {\n    if (state === 'open' && now >= openUntil) {\n      state = 'half-open'\n      successes = 0\n    }\n  }\n\n  return {\n    call(ok, now) {\n      tick(now)\n      if (state === 'open') return { allowed: false, state: 'open' }\n      if (ok) {\n        failures = 0\n        if (state === 'half-open') {\n          successes++\n          if (successes >= successThreshold) { state = 'closed'; successes = 0 }\n        }\n        return { allowed: true, state }\n      }\n      failures++\n      if (state === 'half-open' || failures >= failureThreshold) {\n        state = 'open'\n        openUntil = now + openMs\n        failures = 0\n        successes = 0\n      }\n      return { allowed: true, state }\n    },\n    state(now) {\n      tick(now)\n      return state\n    }\n  }\n}\n\nfunction mergeFeeds(lists, limit) {\n  if (!limit || limit <= 0) return []\n  const seen = new Set()\n  const all = []\n  lists.forEach((list, source) => {\n    for (const item of list) {\n      if (seen.has(item.id)) continue\n      seen.add(item.id)\n      all.push({ id: item.id, t: item.t, source })\n    }\n  })\n  all.sort((a, b) => b.t - a.t)\n  return all.slice(0, limit)\n}\n\nfunction createSeckill(opts) {\n  let left = opts.stock\n  const buyers = new Map()\n  let seq = 0\n\n  return {\n    grab(userId, now) {\n      const prev = buyers.get(userId)\n      if (prev) {\n        if (!opts.perUser) return { code: 'OK', seq: prev.seq, stock: left }\n        if (prev.count >= opts.perUser) {\n          return { code: 'LIMIT', seq: prev.seq, stock: left }\n        }\n        prev.count++\n        left--\n        return { code: 'OK', seq: prev.seq, stock: left }\n      }\n      if (left <= 0) return { code: 'SOLD_OUT', seq: -1, stock: left }\n      seq++\n      buyers.set(userId, { count: 1, seq })\n      left--\n      return { code: 'OK', seq, stock: left }\n    },\n    stock() { return left }\n  }\n}",
+      "finalCode": "const WINDOWS = new Map()\n\nfunction createLimiter(opts) {\n  const kind = opts.kind\n  let start = null\n  let count = 0\n  let log = []\n  let tokens = opts.capacity || 0\n  let level = 0\n  let last = 0\n\n  return {\n    allow(now) {\n      if (kind === 'fixed') {\n        const win = Math.floor(now / opts.windowMs) * opts.windowMs\n        if (win !== start) { start = win; count = 0 }\n        if (count >= opts.limit) return false\n        count++\n        return true\n      }\n      if (kind === 'sliding-log') {\n        log = log.filter((t) => now - t < opts.windowMs)\n        if (log.length >= opts.limit) return false\n        log.push(now)\n        return true\n      }\n      if (kind === 'token') {\n        const elapsed = now - last\n        tokens = Math.min(opts.capacity, tokens + (elapsed / 1000) * opts.rate)\n        last = now\n        if (tokens < 1) return false\n        tokens -= 1\n        return true\n      }\n      const elapsed = now - last\n      level = Math.max(0, level - (elapsed / 1000) * opts.rate)\n      last = now\n      if (level >= opts.capacity) return false\n      level += 1\n      return true\n    }\n  }\n}\n\nfunction createBreaker(opts) {\n  const failureThreshold = opts.failureThreshold\n  const successThreshold = opts.successThreshold\n  const openMs = opts.openMs\n\n  let state = 'closed'\n  let failures = 0\n  let successes = 0\n  let openUntil = 0\n\n  function tick(now) {\n    if (state === 'open' && now >= openUntil) {\n      state = 'half-open'\n      successes = 0\n    }\n  }\n\n  return {\n    call(ok, now) {\n      tick(now)\n      if (state === 'open') return { allowed: false, state: 'open' }\n      if (ok) {\n        failures = 0\n        if (state === 'half-open') {\n          successes++\n          if (successes >= successThreshold) { state = 'closed'; successes = 0 }\n        }\n        return { allowed: true, state }\n      }\n      failures++\n      if (state === 'half-open' || failures >= failureThreshold) {\n        state = 'open'\n        openUntil = now + openMs\n        failures = 0\n        successes = 0\n      }\n      return { allowed: true, state }\n    },\n    state(now) {\n      tick(now)\n      return state\n    }\n  }\n}\n\nfunction mergeFeeds(lists, limit) {\n  if (!limit || limit <= 0) return []\n  const seen = new Set()\n  const all = []\n  lists.forEach((list, source) => {\n    for (const item of list) {\n      if (seen.has(item.id)) continue\n      seen.add(item.id)\n      all.push({ id: item.id, t: item.t, source })\n    }\n  })\n  all.sort((a, b) => b.t - a.t)\n  return all.slice(0, limit)\n}\n\nfunction createSeckill(opts) {\n  let left = opts.stock\n  const buyers = new Map()\n  let seq = 0\n\n  return {\n    grab(userId, now) {\n      const prev = buyers.get(userId)\n      if (prev) {\n        if (!opts.perUser) return { code: 'OK', seq: prev.seq, stock: left }\n        if (prev.count >= opts.perUser) {\n          return { code: 'LIMIT', seq: prev.seq, stock: left }\n        }\n        prev.count++\n        left--\n        return { code: 'OK', seq: prev.seq, stock: left }\n      }\n      if (left <= 0) return { code: 'SOLD_OUT', seq: -1, stock: left }\n      seq++\n      buyers.set(userId, { count: 1, seq })\n      left--\n      return { code: 'OK', seq, stock: left }\n    },\n    stock() { return left }\n  }\n}",
+      "tests": "{\n  check('固定窗口：窗口内限额用满后拒绝', () => {\n    const l = createLimiter({ kind: 'fixed', limit: 3, windowMs: 1000 })\n    same([l.allow(0), l.allow(100), l.allow(200)], [true, true, true])\n    same(l.allow(300), false, '第 4 个请求必须被拒')\n  })\n  check('固定窗口：跨窗口后重新计数', () => {\n    const l = createLimiter({ kind: 'fixed', limit: 2, windowMs: 1000 })\n    l.allow(0); l.allow(10)\n    same(l.allow(900), false)\n    same(l.allow(1000), true, '1000 属于下一个窗口')\n  })\n  check('滑动日志：窗口滑走后放行（固定窗口做不到）', () => {\n    const l = createLimiter({ kind: 'sliding-log', limit: 2, windowMs: 1000 })\n    same(l.allow(0), true)\n    same(l.allow(500), true)\n    same(l.allow(999), false, '0ms 那条还在窗口内')\n    same(l.allow(1001), true, '0ms 已滑出窗口')\n  })\n  check('令牌桶：初始容量 + 按速率补令牌', () => {\n    const l = createLimiter({ kind: 'token', capacity: 5, rate: 10 })\n    const burst = []\n    for (let i = 0; i < 6; i++) burst.push(l.allow(0))\n    same(burst, [true, true, true, true, true, false], '容量 5，第 6 个没令牌')\n    same(l.allow(100), true, '100ms 补 1 个令牌')\n    same(l.allow(150), false, '再过 50ms 只攒下 0.5 个')\n  })\n  check('漏桶：水位封顶，按速率匀速漏出', () => {\n    const l = createLimiter({ kind: 'leaky', capacity: 3, rate: 10 })\n    same([l.allow(0), l.allow(0), l.allow(0)], [true, true, true])\n    same(l.allow(0), false, '水位到顶')\n    same(l.allow(100), true, '100ms 漏掉 1 个单位')\n  })\n}\n{\n  check('连续失败达到阈值 → 打开并短路', () => {\n    const b = createBreaker({ failureThreshold: 3, successThreshold: 2, openMs: 1000 })\n    same([b.call(false, 0).allowed, b.call(false, 10).allowed], [true, true])\n    const r = b.call(false, 20)\n    same(r.allowed, true, '触发那次本身还是放行的')\n    same(r.state, 'open')\n    same(b.call(true, 30).allowed, false, '打开期间一律不进下游')\n  })\n  check('一次成功就把失败计数清零', () => {\n    const b = createBreaker({ failureThreshold: 3, successThreshold: 1, openMs: 1000 })\n    b.call(false, 0); b.call(true, 10); b.call(false, 20); b.call(false, 30)\n    same(b.state(30), 'closed', '中间那次成功打断了连续失败')\n  })\n  check('冷却到期进入半开，放行探测', () => {\n    const b = createBreaker({ failureThreshold: 2, successThreshold: 1, openMs: 1000 })\n    b.call(false, 0); b.call(false, 1)\n    same(b.call(true, 500).allowed, false, '还没到期')\n    const probe = b.call(true, 1002)\n    same(probe.allowed, true)\n    same(probe.state, 'closed', '够 successThreshold 就恢复')\n  })\n  check('半开时探测失败 → 立刻回到打开并重新计时', () => {\n    const b = createBreaker({ failureThreshold: 1, successThreshold: 1, openMs: 1000 })\n    b.call(false, 0)\n    b.call(false, 1001)\n    same(b.state(1500), 'open')\n    same(b.call(true, 1999).allowed, false)\n    same(b.call(true, 2002).state, 'closed')\n  })\n  check('半开要攒够 successThreshold 次成功才关闭', () => {\n    const b = createBreaker({ failureThreshold: 1, successThreshold: 2, openMs: 1000 })\n    b.call(false, 0)\n    same(b.call(true, 1001).allowed, true)\n    same(b.state(1001), 'half-open', '只成功 1 次还不够')\n    same(b.call(true, 1002).state, 'closed')\n  })\n}\n{\n  check('多路时间线合并：按时间倒序取前 N', () => {\n    const a = [{ id: 'p1', t: 100 }, { id: 'p2', t: 50 }]\n    const b = [{ id: 'p3', t: 90 }, { id: 'p4', t: 10 }]\n    const out = mergeFeeds([a, b], 3)\n    same(out.map((x) => x.id), ['p1', 'p3', 'p2'])\n    same(out.map((x) => x.source), [0, 1, 0])\n  })\n  check('同一条内容在多个时间线里只出现一次', () => {\n    const out = mergeFeeds([[{ id: 'x', t: 5 }], [{ id: 'x', t: 5 }, { id: 'y', t: 4 }]], 10)\n    same(out.map((x) => x.id), ['x', 'y'])\n  })\n  check('空列表与 limit=0 的边界', () => {\n    same(mergeFeeds([[], []], 5), [])\n    same(mergeFeeds([[{ id: 'a', t: 1 }]], 0), [])\n  })\n  check('秒杀：卖完为止，绝不超卖', () => {\n    const s = createSeckill({ stock: 2 })\n    same(s.grab('u1', 0).code, 'OK')\n    same(s.grab('u2', 0).code, 'OK')\n    same(s.grab('u3', 0).code, 'SOLD_OUT')\n    same(s.stock(), 0)\n  })\n  check('秒杀：同一用户重复请求幂等', () => {\n    const s = createSeckill({ stock: 5 })\n    const r1 = s.grab('u1', 0)\n    const r2 = s.grab('u1', 100)\n    same(r2.code, 'OK')\n    same(r2.seq, r1.seq, '返回首次结果，不重复扣减')\n    same(s.stock(), 4)\n  })\n  check('秒杀：每人限购', () => {\n    const s = createSeckill({ stock: 10, perUser: 2 })\n    s.grab('u1', 0); s.grab('u1', 0)\n    same(s.grab('u1', 0).code, 'LIMIT')\n  })\n}"
+    },
+    {
+      "id": "lv2",
+      "title": "短链服务：62 进制、号段发号器与别名冲突",
+      "emoji": "🔗",
+      "xp": 45,
+      "goal": "实现 base62 编解码、号段式发号器和短链服务（创建/解析/幂等/自定义别名冲突）。",
+      "why": "短链是系统设计面试的入门题，但真正问下去会落到三个细节：为什么用 62 进制而不是 64（URL 安全）、号段发号器为什么比每请求查一次 DB 好、自定义别名冲突时先查后写为什么有并发漏洞。这一关把这三件事都写成可测的函数。",
+      "nodes": [
+        "cs.design.cases.shortlink"
+      ],
+      "thinking": [
+        {
+          "title": "短码 = 一个数字换一种进制",
+          "md": "短链本质是「给长 URL 分配一个自增 ID，再把 ID 用 62 进制写出来」。62 = 10 数字 + 26 小写 + 26 大写，全部是 URL 安全字符，不需要转义。\n\n6 位 62 进制能表示 62^6 ≈ 568 亿条；7 位约 3.5 万亿。所以「短码不会不够用」这句话要先算一遍再说。"
+        },
+        {
+          "title": "号段模式省的是数据库往返，不是数字",
+          "md": "每来一个请求就 `UPDATE seq SET v = v + 1` 并读回，DB 是瓶颈。号段模式一次拿 1000 个号，本地内存发号，DB 压力降到 1/1000。代价是重启会浪费一段号（可接受，短码本来就不要求连续）。\n\n多实例之间靠「每个实例拿不同号段」保证不撞号——这正是 `createSegmentAllocator` 要表达的东西。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "进制转换的边界",
+          "md": "编码 0 要特殊处理（循环条件是 x > 0，0 会返回空串）。解码要拒绝非法字符——`indexOf` 返回 -1 时必须立刻返回错误，否则会把非法字符当成 0 号字符。"
+        },
+        {
+          "title": "Map 的两张索引",
+          "md": "短链服务要支持「按码查 URL」和「按 URL 查码」两个方向，所以需要两张 Map。只存一张的话，重复提交同一个 URL 会生成两个不同的短码，白白浪费号段。"
+        }
+      ],
+      "api": [
+        {
+          "name": "base62Encode / base62Decode",
+          "sig": "base62Encode(n: number) => string；base62Decode(s: string) => number",
+          "args": "n 是非负整数；s 只允许 0-9a-zA-Z。",
+          "returns": "encode 返回 62 进制字符串（0 → \"0\"）；decode 遇到非法字符返回 -1。",
+          "example": "base62Encode(62)            // '10'\\nbase62Decode('zz')          // 3843\\nbase62Decode('a-b')         // -1"
+        },
+        {
+          "name": "createSegmentAllocator / createIdGenerator",
+          "sig": "createSegmentAllocator({ step }) => { next(), count() }；createIdGenerator({ alloc }) => { next() }",
+          "args": "step 是每次从中心拿的号段长度；alloc 是共享的号段分配器（模拟数据库）。",
+          "returns": "alloc.next() 返回 { start, end }；generator.next() 返回递增的唯一 ID。",
+          "example": "const alloc = createSegmentAllocator({ step: 3 })\\nconst g = createIdGenerator({ alloc })\\n[g.next(), g.next(), g.next(), g.next()]  // [0,1,2,3]，第 4 个触发第二段"
+        },
+        {
+          "name": "createShortlink",
+          "sig": "createShortlink({ generator }) => { create(url, custom?), resolve(code), size() }",
+          "args": "custom 是可选自定义别名。",
+          "returns": "create 返回 { code, url }；别名冲突时返回 { code: \"CONFLICT\" } 且不覆盖旧映射；resolve 未知码返回 null。",
+          "example": "const s = createShortlink({ generator: createIdGenerator({ alloc }) })\\nconst r = s.create('https://example.com/x')\\ns.resolve(r.code)  // 'https://example.com/x'"
+        }
+      ],
+      "usage": "POST /api/short\nconst r = link.create(body.url, body.alias)\nif (r.code === 'CONFLICT') return res.status(409).json({ error: 'alias taken' })\nreturn res.json({ short: r.code })\n\nGET /:code\nconst url = link.resolve(req.params.code)\nif (!url) return res.status(404).end()\nres.redirect(301, url)",
+      "hints": [
+        "第 1 步：编码时把数字 mod 62 得到的字符拼到前面（不是后面），最后记得 0 的特例。",
+        "第 2 步：generator 只在 cur > max 时才向 alloc 要新段；alloc 自己维护 cursor，每次返回 [cursor, cursor+step-1]。",
+        "第 3 步：create 顺序是先处理 custom（冲突检查）、再查 byUrl 幂等、最后才发新号。"
+      ],
+      "concepts": [
+        {
+          "title": "301 还是 302",
+          "md": "301 永久重定向会被浏览器缓存，后续点击不经过你的服务器（省流量，但统计丢失）；302/307 每次都回来，能统计点击。短链服务默认用 302，除非确定这条链接永不改动。"
+        },
+        {
+          "title": "自定义别名的并发漏洞",
+          "md": "先 `has(alias)` 再 `set(alias)` 是两步操作，两个并发请求可能都通过检查。正确做法是 DB 唯一索引 + 捕获冲突异常，或者 Redis `SETNX`。本关的 Map 是单线程语义，所以冲突检查成立——线上必须换原子操作。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "base62 编解码",
+          "think": "编码是「不断除以 62，余数当字符」，注意拼的方向；解码是「不断乘 62 加位值」。先把这两个跑通，后面所有短码都靠它。",
+          "hint": "编码循环里 out = B62[x % 62] + out，x = floor(x / 62)；解码时 d = B62.indexOf(ch)，d < 0 直接 return -1。",
+          "code": "const B62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'\n\nfunction base62Encode(n) {\n  if (n === 0) return '0'\n  let out = ''\n  let x = n\n  while (x > 0) {\n    out = B62[x % 62] + out\n    x = Math.floor(x / 62)\n  }\n  return out\n}\n\nfunction base62Decode(s) {\n  if (!s) return -1\n  let n = 0\n  for (const ch of s) {\n    const d = B62.indexOf(ch)\n    if (d < 0) return -1\n    n = n * 62 + d\n  }\n  return n\n}",
+          "test": "{\n  check('base62 基本映射', () => {\n    same(base62Encode(0), '0')\n    same(base62Encode(35), 'z')\n    same(base62Encode(61), 'Z')\n    same(base62Encode(62), '10')\n    same(base62Encode(3843), 'ZZ')\n    same(base62Decode('10'), 62)\n    same(base62Decode('ZZ'), 3843)\n    same(base62Decode('zz'), 2205)\n  })\n  check('编解码往返一批数字', () => {\n    for (const n of [1, 7, 61, 1234, 100000, 2147483647]) {\n      same(base62Decode(base62Encode(n)), n, 'n = ' + n)\n    }\n  })\n  check('同数量级下比十进制短', () => {\n    const n = 123456789\n    same(String(n).length > base62Encode(n).length, true)\n    same(base62Encode(n).length, 5)\n  })\n  check('非法字符返回 -1', () => {\n    same(base62Decode('a-b'), -1)\n    same(base62Decode(''), -1)\n    same(base62Decode('0!1'), -1)\n  })\n}",
+          "diag": [
+            "编码 0 返回了空串（循环条件 x > 0 直接跳过）。",
+            "字符拼到了末尾，导致得到反序字符串。",
+            "解码没检查 indexOf 返回 -1，非法字符被当成 0 号字符。",
+            "编码里用了 x / 62 而不是 Math.floor（小数下标取不到字符）。"
+          ]
+        },
+        {
+          "n": 2,
+          "title": "号段发号器",
+          "think": "把「拿号段」和「发号」分成两个对象：allocator 负责从中心领一段，generator 只负责在段内递增。这样多个 generator 共享一个 allocator 就自然不撞号。",
+          "hint": "allocator 每次 next() 返回 [cursor, cursor+step-1] 并把 cursor += step；generator 维护 cur/max，cur > max 时才向 allocator 要新段。",
+          "code": "const B62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'\n\nfunction base62Encode(n) {\n  if (n === 0) return '0'\n  let out = ''\n  let x = n\n  while (x > 0) {\n    out = B62[x % 62] + out\n    x = Math.floor(x / 62)\n  }\n  return out\n}\n\nfunction base62Decode(s) {\n  if (!s) return -1\n  let n = 0\n  for (const ch of s) {\n    const d = B62.indexOf(ch)\n    if (d < 0) return -1\n    n = n * 62 + d\n  }\n  return n\n}\n\nfunction createSegmentAllocator(opts) {\n  const step = opts.step\n  let cursor = 0\n  let calls = 0\n  return {\n    next() {\n      const start = cursor\n      cursor += step\n      calls++\n      return { start, end: cursor - 1 }\n    },\n    count() { return calls }\n  }\n}\n\nfunction createIdGenerator(opts) {\n  const alloc = opts.alloc\n  let cur = 0\n  let max = -1\n\n  return {\n    next() {\n      if (cur > max) {\n        const seg = alloc.next()\n        cur = seg.start\n        max = seg.end\n      }\n      return cur++\n    }\n  }\n}",
+          "test": "{\n  check('号段发号：一段内连续递增', () => {\n    const alloc = createSegmentAllocator({ step: 5 })\n    const g = createIdGenerator({ alloc })\n    same([g.next(), g.next(), g.next()], [0, 1, 2])\n    same(alloc.count(), 1, '一段还没用完，不该回源')\n  })\n  check('号段耗尽才回源一次', () => {\n    const alloc = createSegmentAllocator({ step: 3 })\n    const g = createIdGenerator({ alloc })\n    same([0, 1, 2, 3, 4].map(() => g.next()), [0, 1, 2, 3, 4])\n    same(alloc.count(), 2, '6 个号用了 2 段')\n  })\n  check('两个实例共享分配器不会撞号', () => {\n    const alloc = createSegmentAllocator({ step: 4 })\n    const a = createIdGenerator({ alloc })\n    const b = createIdGenerator({ alloc })\n    const ids = [a.next(), b.next(), a.next(), b.next()]\n    same(new Set(ids).size, 4)\n    ok(ids.every((x) => x >= 0))\n  })\n  check('多实例连续取号全局唯一', () => {\n    const alloc = createSegmentAllocator({ step: 2 })\n    const a = createIdGenerator({ alloc })\n    const b = createIdGenerator({ alloc })\n    const ids = []\n    for (let i = 0; i < 6; i++) ids.push(i % 2 ? b.next() : a.next())\n    same(new Set(ids).size, 6)\n    same(Math.max.apply(null, ids) - Math.min.apply(null, ids) >= 5, true)\n  })\n}",
+          "diag": [
+            "generator 每次 next 都去要新段，号段模式等于没用。",
+            "allocator 自增写成 cursor += 1，不同实例会拿到重叠区间。",
+            "generator 返回 cur++ 之后又 ++，跳号。",
+            "新段判断写成 cur >= max（会漏掉最后几个号）。"
+          ]
+        },
+        {
+          "n": 3,
+          "title": "短链服务",
+          "think": "三个入口：自定义别名、幂等创建、发新码。顺序很重要——先判冲突再查幂等再发号，否则冲突请求会白吃一个号。",
+          "hint": "custom 分支只动 byCode；普通分支先查 byUrl，命中直接返回缓存的 { code, url }，没命中才 gen.next() 并同时写两张表。",
+          "code": "const B62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'\n\nfunction base62Encode(n) {\n  if (n === 0) return '0'\n  let out = ''\n  let x = n\n  while (x > 0) {\n    out = B62[x % 62] + out\n    x = Math.floor(x / 62)\n  }\n  return out\n}\n\nfunction base62Decode(s) {\n  if (!s) return -1\n  let n = 0\n  for (const ch of s) {\n    const d = B62.indexOf(ch)\n    if (d < 0) return -1\n    n = n * 62 + d\n  }\n  return n\n}\n\nfunction createSegmentAllocator(opts) {\n  const step = opts.step\n  let cursor = 0\n  let calls = 0\n  return {\n    next() {\n      const start = cursor\n      cursor += step\n      calls++\n      return { start, end: cursor - 1 }\n    },\n    count() { return calls }\n  }\n}\n\nfunction createIdGenerator(opts) {\n  const alloc = opts.alloc\n  let cur = 0\n  let max = -1\n\n  return {\n    next() {\n      if (cur > max) {\n        const seg = alloc.next()\n        cur = seg.start\n        max = seg.end\n      }\n      return cur++\n    }\n  }\n}\n\nfunction createShortlink(opts) {\n  const gen = opts.generator\n  const byCode = new Map()\n  const byUrl = new Map()\n\n  return {\n    create(url, custom) {\n      if (custom) {\n        if (byCode.has(custom)) return { code: 'CONFLICT' }\n        byCode.set(custom, url)\n        return { code: custom, url }\n      }\n      const hit = byUrl.get(url)\n      if (hit) return hit\n      const code = base62Encode(gen.next())\n      byCode.set(code, url)\n      const rec = { code, url }\n      byUrl.set(url, rec)\n      return rec\n    },\n    resolve(code) {\n      const url = byCode.get(code)\n      return url === undefined ? null : url\n    },\n    size() { return byCode.size }\n  }\n}",
+          "test": "{\n  check('创建短链后能解析回原 URL', () => {\n    const alloc = createSegmentAllocator({ step: 10 })\n    const s = createShortlink({ generator: createIdGenerator({ alloc }) })\n    const r = s.create('https://example.com/a/very/long/path?q=1')\n    same(r.code.length <= 7, true)\n    same(s.resolve(r.code), 'https://example.com/a/very/long/path?q=1')\n  })\n  check('同 URL 重复创建返回同一个码（幂等）', () => {\n    const s = createShortlink({ generator: createIdGenerator({ alloc: createSegmentAllocator({ step: 5 }) }) })\n    const a = s.create('https://a.dev')\n    const b = s.create('https://a.dev')\n    same(b.code, a.code)\n    same(s.size(), 1)\n  })\n  check('自定义别名可用', () => {\n    const s = createShortlink({ generator: createIdGenerator({ alloc: createSegmentAllocator({ step: 5 }) }) })\n    const r = s.create('https://b.dev', 'promo')\n    same(r.code, 'promo')\n    same(s.resolve('promo'), 'https://b.dev')\n  })\n  check('自定义别名冲突要拒绝，且不覆盖旧映射', () => {\n    const s = createShortlink({ generator: createIdGenerator({ alloc: createSegmentAllocator({ step: 5 }) }) })\n    s.create('https://x.dev', 'promo')\n    const r = s.create('https://y.dev', 'promo')\n    same(r.code, 'CONFLICT')\n    same(s.resolve('promo'), 'https://x.dev', '旧映射保持不变')\n  })\n  check('解析未知短码返回 null', () => {\n    const s = createShortlink({ generator: createIdGenerator({ alloc: createSegmentAllocator({ step: 5 }) }) })\n    same(s.resolve('nope'), null)\n  })\n}",
+          "diag": [
+            "别名冲突时仍然写了 byCode，把旧映射覆盖了。",
+            "同 URL 没有查 byUrl，重复创建生成两个短码。",
+            "resolve 用 byCode.get(code) 后没判 undefined，返回了 undefined 而不是 null。",
+            "自定义别名同时写进了 byUrl，导致后续同 URL 创建走到别名分支。",
+            "size() 返回了 byUrl 的大小（无法反映实际短码数量）。"
+          ]
+        }
+      ],
+      "skeleton": "function base62Encode(n) {\n  // TODO: 十进制 → 62 进制（0-9a-zA-Z）\n  throw new Error('base62Encode 还没实现')\n}\n\nfunction base62Decode(s) {\n  // TODO: 62 进制 → 十进制，非法字符返回 -1\n  throw new Error('base62Decode 还没实现')\n}\n\nfunction createSegmentAllocator(opts) {\n  // TODO: 按 step 分配号段\n  throw new Error('createSegmentAllocator 还没实现')\n}\n\nfunction createIdGenerator(opts) {\n  // TODO: 段内递增，耗尽才回源\n  throw new Error('createIdGenerator 还没实现')\n}",
+      "solution": "const B62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'\n\nfunction base62Encode(n) {\n  if (n === 0) return '0'\n  let out = ''\n  let x = n\n  while (x > 0) {\n    out = B62[x % 62] + out\n    x = Math.floor(x / 62)\n  }\n  return out\n}\n\nfunction base62Decode(s) {\n  if (!s) return -1\n  let n = 0\n  for (const ch of s) {\n    const d = B62.indexOf(ch)\n    if (d < 0) return -1\n    n = n * 62 + d\n  }\n  return n\n}\n\nfunction createSegmentAllocator(opts) {\n  const step = opts.step\n  let cursor = 0\n  let calls = 0\n  return {\n    next() {\n      const start = cursor\n      cursor += step\n      calls++\n      return { start, end: cursor - 1 }\n    },\n    count() { return calls }\n  }\n}\n\nfunction createIdGenerator(opts) {\n  const alloc = opts.alloc\n  let cur = 0\n  let max = -1\n\n  return {\n    next() {\n      if (cur > max) {\n        const seg = alloc.next()\n        cur = seg.start\n        max = seg.end\n      }\n      return cur++\n    }\n  }\n}\n\nfunction createShortlink(opts) {\n  const gen = opts.generator\n  const byCode = new Map()\n  const byUrl = new Map()\n\n  return {\n    create(url, custom) {\n      if (custom) {\n        if (byCode.has(custom)) return { code: 'CONFLICT' }\n        byCode.set(custom, url)\n        return { code: custom, url }\n      }\n      const hit = byUrl.get(url)\n      if (hit) return hit\n      const code = base62Encode(gen.next())\n      byCode.set(code, url)\n      const rec = { code, url }\n      byUrl.set(url, rec)\n      return rec\n    },\n    resolve(code) {\n      const url = byCode.get(code)\n      return url === undefined ? null : url\n    },\n    size() { return byCode.size }\n  }\n}",
+      "finalCode": "const B62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'\n\nfunction base62Encode(n) {\n  if (n === 0) return '0'\n  let out = ''\n  let x = n\n  while (x > 0) {\n    out = B62[x % 62] + out\n    x = Math.floor(x / 62)\n  }\n  return out\n}\n\nfunction base62Decode(s) {\n  if (!s) return -1\n  let n = 0\n  for (const ch of s) {\n    const d = B62.indexOf(ch)\n    if (d < 0) return -1\n    n = n * 62 + d\n  }\n  return n\n}\n\nfunction createSegmentAllocator(opts) {\n  const step = opts.step\n  let cursor = 0\n  let calls = 0\n  return {\n    next() {\n      const start = cursor\n      cursor += step\n      calls++\n      return { start, end: cursor - 1 }\n    },\n    count() { return calls }\n  }\n}\n\nfunction createIdGenerator(opts) {\n  const alloc = opts.alloc\n  let cur = 0\n  let max = -1\n\n  return {\n    next() {\n      if (cur > max) {\n        const seg = alloc.next()\n        cur = seg.start\n        max = seg.end\n      }\n      return cur++\n    }\n  }\n}\n\nfunction createShortlink(opts) {\n  const gen = opts.generator\n  const byCode = new Map()\n  const byUrl = new Map()\n\n  return {\n    create(url, custom) {\n      if (custom) {\n        if (byCode.has(custom)) return { code: 'CONFLICT' }\n        byCode.set(custom, url)\n        return { code: custom, url }\n      }\n      const hit = byUrl.get(url)\n      if (hit) return hit\n      const code = base62Encode(gen.next())\n      byCode.set(code, url)\n      const rec = { code, url }\n      byUrl.set(url, rec)\n      return rec\n    },\n    resolve(code) {\n      const url = byCode.get(code)\n      return url === undefined ? null : url\n    },\n    size() { return byCode.size }\n  }\n}",
+      "tests": "{\n  check('base62 基本映射', () => {\n    same(base62Encode(0), '0')\n    same(base62Encode(35), 'z')\n    same(base62Encode(61), 'Z')\n    same(base62Encode(62), '10')\n    same(base62Encode(3843), 'ZZ')\n    same(base62Decode('10'), 62)\n    same(base62Decode('ZZ'), 3843)\n    same(base62Decode('zz'), 2205)\n  })\n  check('编解码往返一批数字', () => {\n    for (const n of [1, 7, 61, 1234, 100000, 2147483647]) {\n      same(base62Decode(base62Encode(n)), n, 'n = ' + n)\n    }\n  })\n  check('同数量级下比十进制短', () => {\n    const n = 123456789\n    same(String(n).length > base62Encode(n).length, true)\n    same(base62Encode(n).length, 5)\n  })\n  check('非法字符返回 -1', () => {\n    same(base62Decode('a-b'), -1)\n    same(base62Decode(''), -1)\n    same(base62Decode('0!1'), -1)\n  })\n}\n{\n  check('号段发号：一段内连续递增', () => {\n    const alloc = createSegmentAllocator({ step: 5 })\n    const g = createIdGenerator({ alloc })\n    same([g.next(), g.next(), g.next()], [0, 1, 2])\n    same(alloc.count(), 1, '一段还没用完，不该回源')\n  })\n  check('号段耗尽才回源一次', () => {\n    const alloc = createSegmentAllocator({ step: 3 })\n    const g = createIdGenerator({ alloc })\n    same([0, 1, 2, 3, 4].map(() => g.next()), [0, 1, 2, 3, 4])\n    same(alloc.count(), 2, '6 个号用了 2 段')\n  })\n  check('两个实例共享分配器不会撞号', () => {\n    const alloc = createSegmentAllocator({ step: 4 })\n    const a = createIdGenerator({ alloc })\n    const b = createIdGenerator({ alloc })\n    const ids = [a.next(), b.next(), a.next(), b.next()]\n    same(new Set(ids).size, 4)\n    ok(ids.every((x) => x >= 0))\n  })\n  check('多实例连续取号全局唯一', () => {\n    const alloc = createSegmentAllocator({ step: 2 })\n    const a = createIdGenerator({ alloc })\n    const b = createIdGenerator({ alloc })\n    const ids = []\n    for (let i = 0; i < 6; i++) ids.push(i % 2 ? b.next() : a.next())\n    same(new Set(ids).size, 6)\n    same(Math.max.apply(null, ids) - Math.min.apply(null, ids) >= 5, true)\n  })\n}\n{\n  check('创建短链后能解析回原 URL', () => {\n    const alloc = createSegmentAllocator({ step: 10 })\n    const s = createShortlink({ generator: createIdGenerator({ alloc }) })\n    const r = s.create('https://example.com/a/very/long/path?q=1')\n    same(r.code.length <= 7, true)\n    same(s.resolve(r.code), 'https://example.com/a/very/long/path?q=1')\n  })\n  check('同 URL 重复创建返回同一个码（幂等）', () => {\n    const s = createShortlink({ generator: createIdGenerator({ alloc: createSegmentAllocator({ step: 5 }) }) })\n    const a = s.create('https://a.dev')\n    const b = s.create('https://a.dev')\n    same(b.code, a.code)\n    same(s.size(), 1)\n  })\n  check('自定义别名可用', () => {\n    const s = createShortlink({ generator: createIdGenerator({ alloc: createSegmentAllocator({ step: 5 }) }) })\n    const r = s.create('https://b.dev', 'promo')\n    same(r.code, 'promo')\n    same(s.resolve('promo'), 'https://b.dev')\n  })\n  check('自定义别名冲突要拒绝，且不覆盖旧映射', () => {\n    const s = createShortlink({ generator: createIdGenerator({ alloc: createSegmentAllocator({ step: 5 }) }) })\n    s.create('https://x.dev', 'promo')\n    const r = s.create('https://y.dev', 'promo')\n    same(r.code, 'CONFLICT')\n    same(s.resolve('promo'), 'https://x.dev', '旧映射保持不变')\n  })\n  check('解析未知短码返回 null', () => {\n    const s = createShortlink({ generator: createIdGenerator({ alloc: createSegmentAllocator({ step: 5 }) }) })\n    same(s.resolve('nope'), null)\n  })\n}"
+    },
+    {
+      "id": "lv3",
+      "title": "Docker：Dockerfile 解析、层缓存与资源限额",
+      "emoji": "🐳",
+      "xp": 50,
+      "goal": "解析多阶段 Dockerfile、判断哪些层还能复用，并把 CPU/内存限额换算成核数与 MiB。",
+      "why": "「Docker 会吗」这个问题真正的分水岭是层缓存：知道把 COPY package.json 放在 COPY . . 前面的人，改一次业务代码只重建 2 层；不知道的人每次全量重建，CI 从 2 分钟变 12 分钟。这一关把 Dockerfile 解析成结构、把缓存失效算成层号，把 cgroup 限额算成数字。",
+      "nodes": [
+        "cs.devops.docker",
+        "cs.devops.docker.image-dockerfile",
+        "cs.devops.docker.namespace-cgroup",
+        "cs.devops.docker.network-volume"
+      ],
+      "thinking": [
+        {
+          "title": "Dockerfile 是一串「层」，FROM 是分界线",
+          "md": "每个 FROM 开一个新阶段，后面的指令归属该阶段。`COPY`/`RUN`/`ADD` 各产生一层，层不可变——所以「按变化频率排序」是 Dockerfile 的第一原则：先装依赖（很少变），再拷源码（经常变）。\n\n多阶段构建的价值在最后一行 `COPY --from=build`：构建工具链留在 build 阶段，最终镜像只带产物。这能把 1GB 的 node_modules 挡在运行镜像之外。"
+        },
+        {
+          "title": "namespace 管「看得见什么」，cgroup 管「用多少」",
+          "md": "两个机制常被混在一起讲。namespace 隔离的是视图——PID、网络、挂载点、主机名，容器里看不到宿主的进程；cgroup 限制的是资源量——CPU 时间片、内存上限、IO 带宽。\n\n面试常问「容器里 free 看到的是宿主内存还是容器内存」：默认看宿主（因为 /proc 没隔离成 cgroup 视图），这是很多「容器内存跑超了却没被 OOM」的根源。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "字符串解析要处理空行与注释",
+          "md": "Dockerfile 里 `#` 开头是注释、空行要跳过，否则会把注释行当成命令行。行首行尾的空白也常被忽略——所以解析第一步是 trim + 过滤。"
+        },
+        {
+          "title": "COPY 的路径匹配是前缀匹配",
+          "md": "`COPY src ./src` 意味着 src 目录下任何文件变化都会让这层失效。所以判断「某层是否命中」是判断 changed 文件是否等于该路径或以 `路径/` 开头，而不是字符串包含。"
+        }
+      ],
+      "api": [
+        {
+          "name": "parseDockerfile",
+          "sig": "parseDockerfile(text) => { stages: [{ index, name, base, instructions, expose }], finalStage }",
+          "args": "text 是 Dockerfile 全文；instructions 里每项是 { cmd, args }，COPY 带 --from 时额外有 copyFrom。",
+          "returns": "stages 按出现顺序排列；finalStage 是最后一个阶段的下标（空文本为 -1）。",
+          "example": "parseDockerfile(DF).stages[1].expose  // [80, 443]\\nparseDockerfile(DF).stages[1].instructions[0].copyFrom  // 'build'"
+        },
+        {
+          "name": "layerCache",
+          "sig": "layerCache(text, changedFiles) => { layers, rebuildFrom }",
+          "args": "changedFiles 是本次改动过的文件路径数组。",
+          "returns": "layers 每项 { stage, cmd, cache }，只包含 COPY/ADD/RUN；rebuildFrom 是第一个失效层的下标，全命中为 -1。",
+          "example": "layerCache(DF, ['src/a.ts'])  // { layers: [cache,cache,失效,失效], rebuildFrom: 2 }"
+        },
+        {
+          "name": "containerLimits / isOvercommitted",
+          "sig": "containerLimits({ cpuQuota, cpuPeriod, cpuShares, memoryBytes }) => { cores, sharesPct, memoryMiB }",
+          "args": "cpuQuota 默认按 period=100000 解释；未提供的字段为 null。",
+          "returns": "cores 是 quota/period；sharesPct 是 shares/1024×100；memoryMiB 是字节/1024/1024。",
+          "example": "containerLimits({ cpuQuota: 50000 }).cores  // 0.5\\ncontainerLimits({ memoryBytes: 536870912 }).memoryMiB  // 512"
+        }
+      ],
+      "usage": "docker build --cache-from=registry/app:latest -t app:$(git rev-parse --short HEAD) .\ndocker run --cpus=0.5 --memory=512m --network=app-net -v /data:/data app:dev\n\ndocker stats --no-stream   # 看实际用量",
+      "hints": [
+        "第 1 步：逐行 trim，先判 FROM 开新阶段，再判 COPY 的 --from= 参数，最后把 EXPOSE 的数字 push 进当前阶段。",
+        "第 2 步：把每阶段指令拍平成层（只留 COPY/ADD/RUN），COPY 的参数用「等于或路径前缀」匹配 changed。",
+        "第 3 步：cores = quota / period；没有 quota 就是 null，不要默认 1。"
+      ],
+      "concepts": [
+        {
+          "title": "为什么缓存失效是「从这层往后全废」",
+          "md": "层是不可变的，每层记录「父层 ID + 指令」。父层变了，子层的 cache key 就变了，所以缓存判断是前缀性质：一旦某层失效，后面的层即使指令相同也必须重建。\n\n这也是为什么把 `COPY . .` 放在最后：它前面所有层都稳定，只有它和之后失效。"
+        },
+        {
+          "title": "cpuShares 不是份额，是权重",
+          "md": "shares 只在 CPU 争抢时按比例分配。512 vs 1024 意味着「同一时刻两个容器都想用 CPU 时，1024 的那个拿两倍时间片」；如果只有一个容器在跑，它能吃掉整个核。所以 shares 不能当限额用——限额要用 cpuQuota（cfs_quota）。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "解析 Dockerfile",
+          "think": "先把文本变成结构：每个 FROM 一个阶段，指令带命令和参数，EXPOSE 单独收集。COPY 的 --from 要抽出来——它是多阶段构建的关键信息。",
+          "hint": "按行 trim 后跳过空行和 # 注释；FROM 的 args 里找 AS（大小写不敏感）取阶段名；EXPOSE 参数逐个 Number。",
+          "code": "function parseDockerfile(text) {\n  const stages = []\n  let current = null\n\n  for (const raw of String(text || '').split('\\n')) {\n    const line = raw.trim()\n    if (!line || line.startsWith('#')) continue\n    const parts = line.split(/\\s+/)\n    const cmd = parts[0].toUpperCase()\n    const args = parts.slice(1)\n\n    if (cmd === 'FROM') {\n      const asIdx = args.findIndex((a) => a.toUpperCase() === 'AS')\n      const base = args[0]\n      const name = asIdx >= 0 ? args[asIdx + 1] : null\n      current = { index: stages.length, name, base, instructions: [], expose: [] }\n      stages.push(current)\n      continue\n    }\n    if (!current) continue\n\n    const ins = { cmd, args }\n    if (cmd === 'COPY' || cmd === 'ADD') {\n      const fromIdx = args.findIndex((a) => a.startsWith('--from='))\n      if (fromIdx >= 0) {\n        ins.copyFrom = args[fromIdx].slice('--from='.length)\n        ins.args = args.filter((a) => !a.startsWith('--from='))\n        ins.args = ins.args.filter((a) => !a.startsWith('--'))\n      }\n    }\n    if (cmd === 'EXPOSE') {\n      for (const a of args) current.expose.push(Number(a))\n    }\n    current.instructions.push(ins)\n  }\n\n  return { stages, finalStage: stages.length ? stages.length - 1 : -1 }\n}",
+          "test": "{\n  var DF = [\n    'FROM node:20-alpine AS build',\n    'WORKDIR /app',\n    'COPY package.json pnpm-lock.yaml ./',\n    'RUN pnpm install',\n    'COPY . .',\n    'RUN pnpm build',\n    '',\n    'FROM nginx:1.27-alpine AS runtime',\n    'COPY --from=build /app/dist /usr/share/nginx/html',\n    'EXPOSE 80 443',\n    'CMD [\"nginx\", \"-g\", \"daemon off;\"]'\n  ].join('\\n')\n\n  check('多阶段：阶段名与基础镜像', () => {\n    const d = parseDockerfile(DF)\n    same(d.stages.length, 2)\n    same(d.stages.map((s) => s.name), ['build', 'runtime'])\n    same(d.stages.map((s) => s.base), ['node:20-alpine', 'nginx:1.27-alpine'])\n  })\n  check('最终阶段是最后一个 FROM', () => {\n    const d = parseDockerfile(DF)\n    same(d.finalStage, 1)\n    same(d.stages[1].instructions.map((i) => i.cmd), ['COPY', 'EXPOSE', 'CMD'])\n  })\n  check('EXPOSE 收集端口', () => {\n    const d = parseDockerfile(DF)\n    same(d.stages[1].expose, [80, 443])\n    same(d.stages[0].expose, [])\n  })\n  check('COPY --from 记录来源阶段', () => {\n    const d = parseDockerfile(DF)\n    const copy = d.stages[1].instructions[0]\n    same(copy.cmd, 'COPY')\n    same(copy.copyFrom, 'build')\n    same(copy.args.join(' '), '/app/dist /usr/share/nginx/html')\n  })\n  check('空文本返回空阶段', () => {\n    same(parseDockerfile('').stages, [])\n    same(parseDockerfile('   \\n  ').stages, [])\n  })\n}",
+          "diag": [
+            "没有跳过 # 注释行，被当成指令。",
+            "FROM 行里没处理 AS（阶段名变成 \"AS\" 或 undefined）。",
+            "EXPOSE 里用了 args[0]，只收到第一个端口。",
+            "COPY 的 --from 没有从 args 里剔除，导致路径匹配时把 --from 也当文件名。",
+            "空文本时 finalStage 返回 0（应该是 -1）。"
+          ]
+        },
+        {
+          "n": 2,
+          "title": "层缓存与失效点",
+          "think": "缓存判断的核心是「这条 COPY 涉及的文件里有没有改动过的」。只要有交集，这一层和它之后的所有层都失效。",
+          "hint": "collect 层时维护 layers 数组；判断失效用 f === a 或 f.startsWith(a + \"/\")，注意 a 末尾可能带 ./。",
+          "code": "function parseDockerfile(text) {\n  const stages = []\n  let current = null\n\n  for (const raw of String(text || '').split('\\n')) {\n    const line = raw.trim()\n    if (!line || line.startsWith('#')) continue\n    const parts = line.split(/\\s+/)\n    const cmd = parts[0].toUpperCase()\n    const args = parts.slice(1)\n\n    if (cmd === 'FROM') {\n      const asIdx = args.findIndex((a) => a.toUpperCase() === 'AS')\n      const base = args[0]\n      const name = asIdx >= 0 ? args[asIdx + 1] : null\n      current = { index: stages.length, name, base, instructions: [], expose: [] }\n      stages.push(current)\n      continue\n    }\n    if (!current) continue\n\n    const ins = { cmd, args }\n    if (cmd === 'COPY' || cmd === 'ADD') {\n      const fromIdx = args.findIndex((a) => a.startsWith('--from='))\n      if (fromIdx >= 0) {\n        ins.copyFrom = args[fromIdx].slice('--from='.length)\n        ins.args = args.filter((a) => !a.startsWith('--from='))\n        ins.args = ins.args.filter((a) => !a.startsWith('--'))\n      }\n    }\n    if (cmd === 'EXPOSE') {\n      for (const a of args) current.expose.push(Number(a))\n    }\n    current.instructions.push(ins)\n  }\n\n  return { stages, finalStage: stages.length ? stages.length - 1 : -1 }\n}\n\nfunction layerCache(text, changedFiles) {\n  const d = parseDockerfile(text)\n  const changed = changedFiles || []\n  const layers = []\n  let rebuildFrom = -1\n  let broken = false\n\n  for (const stage of d.stages) {\n    for (const ins of stage.instructions) {\n      if (ins.cmd !== 'COPY' && ins.cmd !== 'RUN' && ins.cmd !== 'ADD') continue\n      let cache = true\n      if (ins.cmd === 'COPY' || ins.cmd === 'ADD') {\n        for (const f of changed) {\n          if (ins.args.some((a) => f === a || f.startsWith(a.replace(/\\.\\/?$/, '') + '/'))) {\n            cache = false\n            break\n          }\n        }\n      }\n      if (!cache) broken = true\n      if (broken) cache = false\n      if (!cache && rebuildFrom < 0) rebuildFrom = layers.length\n      layers.push({ stage: stage.index, cmd: ins.cmd, cache })\n    }\n  }\n  return { layers, rebuildFrom }\n}",
+          "test": "{\n  var DF = [\n    'FROM node:20-alpine',\n    'WORKDIR /app',\n    'COPY package.json pnpm-lock.yaml ./',\n    'RUN pnpm install',\n    'COPY src ./src',\n    'RUN pnpm build'\n  ].join('\\n')\n\n  check('只改源码：依赖安装层命中缓存', () => {\n    const r = layerCache(DF, ['src/a.ts'])\n    same(r.layers.map((l) => l.cache), [true, true, false, false])\n    same(r.rebuildFrom, 2)\n  })\n  check('改 lockfile：从 COPY 依赖那层就失效', () => {\n    const r = layerCache(DF, ['pnpm-lock.yaml'])\n    same(r.rebuildFrom, 0)\n    same(r.layers.every((l) => l.cache === false), true)\n  })\n  check('没有文件变化：全部命中', () => {\n    const r = layerCache(DF, [])\n    same(r.rebuildFrom, -1)\n    same(r.layers.every((l) => l.cache), true)\n  })\n  check('目录前缀匹配（COPY src ./src 命中 src/a/b.ts）', () => {\n    same(layerCache(DF, ['src/a/b.ts']).rebuildFrom, 2)\n    same(layerCache(DF, ['srcx/a.ts']).rebuildFrom, -1, 'srcx 不是 src 的子路径')\n  })\n  check('层只统计 COPY / RUN / ADD', () => {\n    const r = layerCache(DF, [])\n    same(r.layers.map((l) => l.cmd), ['COPY', 'RUN', 'COPY', 'RUN'])\n  })\n}",
+          "diag": [
+            "把 WORKDIR / FROM 也算成层（缓存层只有 COPY/ADD/RUN）。",
+            "路径匹配写成 includes，srcx/a.ts 会误命中 ../src/...（应该判断前缀 + 斜杠）。",
+            "失效后没有让后续层一起失效（rebuildFrom 只记了第一个，应把后续全标 cache=false）。",
+            "没有任何改动时 rebuildFrom 返回了 0 而不是 -1。",
+            "COPY 的多个源文件只看了第一个。"
+          ]
+        },
+        {
+          "n": 3,
+          "title": "cgroup 限额换算",
+          "think": "三个数字三套单位：quota/period 是核数，shares/1024 是权重百分比，bytes 换 MiB。没设置的项要保留 null，不能默认成 0 或 1——这决定了调用方能不能区分「不限额」和「限额为 0」。",
+          "hint": "period 默认 100000；cores = quota / period；memoryMiB = bytes / 1024 / 1024。",
+          "code": "function parseDockerfile(text) {\n  const stages = []\n  let current = null\n\n  for (const raw of String(text || '').split('\\n')) {\n    const line = raw.trim()\n    if (!line || line.startsWith('#')) continue\n    const parts = line.split(/\\s+/)\n    const cmd = parts[0].toUpperCase()\n    const args = parts.slice(1)\n\n    if (cmd === 'FROM') {\n      const asIdx = args.findIndex((a) => a.toUpperCase() === 'AS')\n      const base = args[0]\n      const name = asIdx >= 0 ? args[asIdx + 1] : null\n      current = { index: stages.length, name, base, instructions: [], expose: [] }\n      stages.push(current)\n      continue\n    }\n    if (!current) continue\n\n    const ins = { cmd, args }\n    if (cmd === 'COPY' || cmd === 'ADD') {\n      const fromIdx = args.findIndex((a) => a.startsWith('--from='))\n      if (fromIdx >= 0) {\n        ins.copyFrom = args[fromIdx].slice('--from='.length)\n        ins.args = args.filter((a) => !a.startsWith('--from='))\n        ins.args = ins.args.filter((a) => !a.startsWith('--'))\n      }\n    }\n    if (cmd === 'EXPOSE') {\n      for (const a of args) current.expose.push(Number(a))\n    }\n    current.instructions.push(ins)\n  }\n\n  return { stages, finalStage: stages.length ? stages.length - 1 : -1 }\n}\n\nfunction layerCache(text, changedFiles) {\n  const d = parseDockerfile(text)\n  const changed = changedFiles || []\n  const layers = []\n  let rebuildFrom = -1\n  let broken = false\n\n  for (const stage of d.stages) {\n    for (const ins of stage.instructions) {\n      if (ins.cmd !== 'COPY' && ins.cmd !== 'RUN' && ins.cmd !== 'ADD') continue\n      let cache = true\n      if (ins.cmd === 'COPY' || ins.cmd === 'ADD') {\n        for (const f of changed) {\n          if (ins.args.some((a) => f === a || f.startsWith(a.replace(/\\.\\/?$/, '') + '/'))) {\n            cache = false\n            break\n          }\n        }\n      }\n      if (!cache) broken = true\n      if (broken) cache = false\n      if (!cache && rebuildFrom < 0) rebuildFrom = layers.length\n      layers.push({ stage: stage.index, cmd: ins.cmd, cache })\n    }\n  }\n  return { layers, rebuildFrom }\n}\n\nfunction containerLimits(opts) {\n  const period = opts.cpuPeriod || 100000\n  return {\n    cores: opts.cpuQuota === undefined ? null : opts.cpuQuota / period,\n    sharesPct: opts.cpuShares === undefined ? null : (opts.cpuShares / 1024) * 100,\n    memoryMiB: opts.memoryBytes === undefined ? null : opts.memoryBytes / 1024 / 1024\n  }\n}\n\nfunction isOvercommitted(limits, nodeCores) {\n  let total = 0\n  for (const l of limits) {\n    if (l.cores === null || l.cores === undefined) continue\n    total += l.cores\n  }\n  return total > nodeCores\n}",
+          "test": "{\n  check('CPU quota 换算核数', () => {\n    const r = containerLimits({ cpuQuota: 50000, cpuPeriod: 100000 })\n    same(r.cores, 0.5)\n    same(containerLimits({ cpuQuota: 200000 }).cores, 2, 'period 默认 100000')\n  })\n  check('cpuShares 换算相对权重', () => {\n    same(containerLimits({ cpuShares: 512 }).sharesPct, 50)\n    same(containerLimits({ cpuShares: 1024 }).sharesPct, 100)\n    same(containerLimits({ cpuShares: 2048 }).sharesPct, 200)\n  })\n  check('内存字节换算 MiB', () => {\n    const r = containerLimits({ memoryBytes: 512 * 1024 * 1024 })\n    same(r.memoryMiB, 512)\n    same(containerLimits({ memoryBytes: 1024 * 1024 * 1024 + 512 * 1024 }).memoryMiB, 1024.5)\n  })\n  check('没给 quota 时 cores 为 null（不限额）', () => {\n    const r = containerLimits({ cpuShares: 256 })\n    same(r.cores, null)\n    same(r.memoryMiB, null)\n  })\n  check('超配判定：所有容器限额之和超过节点核数', () => {\n    same(isOvercommitted([{ cores: 1.5 }, { cores: 1.5 }], 2), true)\n    same(isOvercommitted([{ cores: 1.5 }, { cores: 1 }], 3), false)\n    same(isOvercommitted([{ cores: 1 }, { cores: null }], 1), false, '不限额不算超配')\n  })\n}",
+          "diag": [
+            "cores 用了 quota / 100000 但 period 传了别的值没生效。",
+            "没给 quota 时默认成 1（应该 null）。",
+            "sharesPct 用了 shares / 1024 * 100 却写反成 1024 / shares。",
+            "MiB 换算用了 1000 进制。",
+            "isOvercommitted 把 null 当 0 累加，或把 null 直接相加得到 NaN。"
+          ]
+        }
+      ],
+      "skeleton": "function parseDockerfile(text) {\n  // TODO: 按 FROM 切阶段，收集指令 / EXPOSE / COPY --from\n  throw new Error('parseDockerfile 还没实现')\n}\n\nfunction layerCache(text, changedFiles) {\n  // TODO: 拍平 COPY/ADD/RUN 层，按 changedFiles 找第一个失效层\n  throw new Error('layerCache 还没实现')\n}\n\nfunction containerLimits(opts) {\n  // TODO: quota→核数、shares→权重、bytes→MiB\n  throw new Error('containerLimits 还没实现')\n}\n\nfunction isOvercommitted(limits, nodeCores) {\n  // TODO: 累计限额与节点核数比较\n  throw new Error('isOvercommitted 还没实现')\n}",
+      "solution": "function parseDockerfile(text) {\n  const stages = []\n  let current = null\n\n  for (const raw of String(text || '').split('\\n')) {\n    const line = raw.trim()\n    if (!line || line.startsWith('#')) continue\n    const parts = line.split(/\\s+/)\n    const cmd = parts[0].toUpperCase()\n    const args = parts.slice(1)\n\n    if (cmd === 'FROM') {\n      const asIdx = args.findIndex((a) => a.toUpperCase() === 'AS')\n      const base = args[0]\n      const name = asIdx >= 0 ? args[asIdx + 1] : null\n      current = { index: stages.length, name, base, instructions: [], expose: [] }\n      stages.push(current)\n      continue\n    }\n    if (!current) continue\n\n    const ins = { cmd, args }\n    if (cmd === 'COPY' || cmd === 'ADD') {\n      const fromIdx = args.findIndex((a) => a.startsWith('--from='))\n      if (fromIdx >= 0) {\n        ins.copyFrom = args[fromIdx].slice('--from='.length)\n        ins.args = args.filter((a) => !a.startsWith('--from='))\n        ins.args = ins.args.filter((a) => !a.startsWith('--'))\n      }\n    }\n    if (cmd === 'EXPOSE') {\n      for (const a of args) current.expose.push(Number(a))\n    }\n    current.instructions.push(ins)\n  }\n\n  return { stages, finalStage: stages.length ? stages.length - 1 : -1 }\n}\n\nfunction layerCache(text, changedFiles) {\n  const d = parseDockerfile(text)\n  const changed = changedFiles || []\n  const layers = []\n  let rebuildFrom = -1\n  let broken = false\n\n  for (const stage of d.stages) {\n    for (const ins of stage.instructions) {\n      if (ins.cmd !== 'COPY' && ins.cmd !== 'RUN' && ins.cmd !== 'ADD') continue\n      let cache = true\n      if (ins.cmd === 'COPY' || ins.cmd === 'ADD') {\n        for (const f of changed) {\n          if (ins.args.some((a) => f === a || f.startsWith(a.replace(/\\.\\/?$/, '') + '/'))) {\n            cache = false\n            break\n          }\n        }\n      }\n      if (!cache) broken = true\n      if (broken) cache = false\n      if (!cache && rebuildFrom < 0) rebuildFrom = layers.length\n      layers.push({ stage: stage.index, cmd: ins.cmd, cache })\n    }\n  }\n  return { layers, rebuildFrom }\n}\n\nfunction containerLimits(opts) {\n  const period = opts.cpuPeriod || 100000\n  return {\n    cores: opts.cpuQuota === undefined ? null : opts.cpuQuota / period,\n    sharesPct: opts.cpuShares === undefined ? null : (opts.cpuShares / 1024) * 100,\n    memoryMiB: opts.memoryBytes === undefined ? null : opts.memoryBytes / 1024 / 1024\n  }\n}\n\nfunction isOvercommitted(limits, nodeCores) {\n  let total = 0\n  for (const l of limits) {\n    if (l.cores === null || l.cores === undefined) continue\n    total += l.cores\n  }\n  return total > nodeCores\n}",
+      "finalCode": "function parseDockerfile(text) {\n  const stages = []\n  let current = null\n\n  for (const raw of String(text || '').split('\\n')) {\n    const line = raw.trim()\n    if (!line || line.startsWith('#')) continue\n    const parts = line.split(/\\s+/)\n    const cmd = parts[0].toUpperCase()\n    const args = parts.slice(1)\n\n    if (cmd === 'FROM') {\n      const asIdx = args.findIndex((a) => a.toUpperCase() === 'AS')\n      const base = args[0]\n      const name = asIdx >= 0 ? args[asIdx + 1] : null\n      current = { index: stages.length, name, base, instructions: [], expose: [] }\n      stages.push(current)\n      continue\n    }\n    if (!current) continue\n\n    const ins = { cmd, args }\n    if (cmd === 'COPY' || cmd === 'ADD') {\n      const fromIdx = args.findIndex((a) => a.startsWith('--from='))\n      if (fromIdx >= 0) {\n        ins.copyFrom = args[fromIdx].slice('--from='.length)\n        ins.args = args.filter((a) => !a.startsWith('--from='))\n        ins.args = ins.args.filter((a) => !a.startsWith('--'))\n      }\n    }\n    if (cmd === 'EXPOSE') {\n      for (const a of args) current.expose.push(Number(a))\n    }\n    current.instructions.push(ins)\n  }\n\n  return { stages, finalStage: stages.length ? stages.length - 1 : -1 }\n}\n\nfunction layerCache(text, changedFiles) {\n  const d = parseDockerfile(text)\n  const changed = changedFiles || []\n  const layers = []\n  let rebuildFrom = -1\n  let broken = false\n\n  for (const stage of d.stages) {\n    for (const ins of stage.instructions) {\n      if (ins.cmd !== 'COPY' && ins.cmd !== 'RUN' && ins.cmd !== 'ADD') continue\n      let cache = true\n      if (ins.cmd === 'COPY' || ins.cmd === 'ADD') {\n        for (const f of changed) {\n          if (ins.args.some((a) => f === a || f.startsWith(a.replace(/\\.\\/?$/, '') + '/'))) {\n            cache = false\n            break\n          }\n        }\n      }\n      if (!cache) broken = true\n      if (broken) cache = false\n      if (!cache && rebuildFrom < 0) rebuildFrom = layers.length\n      layers.push({ stage: stage.index, cmd: ins.cmd, cache })\n    }\n  }\n  return { layers, rebuildFrom }\n}\n\nfunction containerLimits(opts) {\n  const period = opts.cpuPeriod || 100000\n  return {\n    cores: opts.cpuQuota === undefined ? null : opts.cpuQuota / period,\n    sharesPct: opts.cpuShares === undefined ? null : (opts.cpuShares / 1024) * 100,\n    memoryMiB: opts.memoryBytes === undefined ? null : opts.memoryBytes / 1024 / 1024\n  }\n}\n\nfunction isOvercommitted(limits, nodeCores) {\n  let total = 0\n  for (const l of limits) {\n    if (l.cores === null || l.cores === undefined) continue\n    total += l.cores\n  }\n  return total > nodeCores\n}",
+      "tests": "{\n  var DF = [\n    'FROM node:20-alpine AS build',\n    'WORKDIR /app',\n    'COPY package.json pnpm-lock.yaml ./',\n    'RUN pnpm install',\n    'COPY . .',\n    'RUN pnpm build',\n    '',\n    'FROM nginx:1.27-alpine AS runtime',\n    'COPY --from=build /app/dist /usr/share/nginx/html',\n    'EXPOSE 80 443',\n    'CMD [\"nginx\", \"-g\", \"daemon off;\"]'\n  ].join('\\n')\n\n  check('多阶段：阶段名与基础镜像', () => {\n    const d = parseDockerfile(DF)\n    same(d.stages.length, 2)\n    same(d.stages.map((s) => s.name), ['build', 'runtime'])\n    same(d.stages.map((s) => s.base), ['node:20-alpine', 'nginx:1.27-alpine'])\n  })\n  check('最终阶段是最后一个 FROM', () => {\n    const d = parseDockerfile(DF)\n    same(d.finalStage, 1)\n    same(d.stages[1].instructions.map((i) => i.cmd), ['COPY', 'EXPOSE', 'CMD'])\n  })\n  check('EXPOSE 收集端口', () => {\n    const d = parseDockerfile(DF)\n    same(d.stages[1].expose, [80, 443])\n    same(d.stages[0].expose, [])\n  })\n  check('COPY --from 记录来源阶段', () => {\n    const d = parseDockerfile(DF)\n    const copy = d.stages[1].instructions[0]\n    same(copy.cmd, 'COPY')\n    same(copy.copyFrom, 'build')\n    same(copy.args.join(' '), '/app/dist /usr/share/nginx/html')\n  })\n  check('空文本返回空阶段', () => {\n    same(parseDockerfile('').stages, [])\n    same(parseDockerfile('   \\n  ').stages, [])\n  })\n}\n{\n  var DF = [\n    'FROM node:20-alpine',\n    'WORKDIR /app',\n    'COPY package.json pnpm-lock.yaml ./',\n    'RUN pnpm install',\n    'COPY src ./src',\n    'RUN pnpm build'\n  ].join('\\n')\n\n  check('只改源码：依赖安装层命中缓存', () => {\n    const r = layerCache(DF, ['src/a.ts'])\n    same(r.layers.map((l) => l.cache), [true, true, false, false])\n    same(r.rebuildFrom, 2)\n  })\n  check('改 lockfile：从 COPY 依赖那层就失效', () => {\n    const r = layerCache(DF, ['pnpm-lock.yaml'])\n    same(r.rebuildFrom, 0)\n    same(r.layers.every((l) => l.cache === false), true)\n  })\n  check('没有文件变化：全部命中', () => {\n    const r = layerCache(DF, [])\n    same(r.rebuildFrom, -1)\n    same(r.layers.every((l) => l.cache), true)\n  })\n  check('目录前缀匹配（COPY src ./src 命中 src/a/b.ts）', () => {\n    same(layerCache(DF, ['src/a/b.ts']).rebuildFrom, 2)\n    same(layerCache(DF, ['srcx/a.ts']).rebuildFrom, -1, 'srcx 不是 src 的子路径')\n  })\n  check('层只统计 COPY / RUN / ADD', () => {\n    const r = layerCache(DF, [])\n    same(r.layers.map((l) => l.cmd), ['COPY', 'RUN', 'COPY', 'RUN'])\n  })\n}\n{\n  check('CPU quota 换算核数', () => {\n    const r = containerLimits({ cpuQuota: 50000, cpuPeriod: 100000 })\n    same(r.cores, 0.5)\n    same(containerLimits({ cpuQuota: 200000 }).cores, 2, 'period 默认 100000')\n  })\n  check('cpuShares 换算相对权重', () => {\n    same(containerLimits({ cpuShares: 512 }).sharesPct, 50)\n    same(containerLimits({ cpuShares: 1024 }).sharesPct, 100)\n    same(containerLimits({ cpuShares: 2048 }).sharesPct, 200)\n  })\n  check('内存字节换算 MiB', () => {\n    const r = containerLimits({ memoryBytes: 512 * 1024 * 1024 })\n    same(r.memoryMiB, 512)\n    same(containerLimits({ memoryBytes: 1024 * 1024 * 1024 + 512 * 1024 }).memoryMiB, 1024.5)\n  })\n  check('没给 quota 时 cores 为 null（不限额）', () => {\n    const r = containerLimits({ cpuShares: 256 })\n    same(r.cores, null)\n    same(r.memoryMiB, null)\n  })\n  check('超配判定：所有容器限额之和超过节点核数', () => {\n    same(isOvercommitted([{ cores: 1.5 }, { cores: 1.5 }], 2), true)\n    same(isOvercommitted([{ cores: 1.5 }, { cores: 1 }], 3), false)\n    same(isOvercommitted([{ cores: 1 }, { cores: null }], 1), false, '不限额不算超配')\n  })\n}"
+    },
+    {
+      "id": "lv4",
+      "title": "K8s：调度过滤、探针决策与滚动步进",
+      "emoji": "☸️",
+      "xp": 55,
+      "goal": "实现 Pod 调度过滤（选择器/污点/资源/cordon）、探针组合决策，以及滚动更新每一步的副本数。",
+      "why": "K8s 面试最容易被问倒的不是概念，是「为什么这个 Pod 调度不上去」和「滚动更新时会不会有请求失败」。前者要能把调度器的 filter 阶段一个个走一遍并给出具体原因，后者要能算出 maxSurge/maxUnavailable 每一刻的副本组合。这一关把两者都变成可执行代码。",
+      "nodes": [
+        "cs.devops.k8s",
+        "cs.devops.k8s.arch-object",
+        "cs.devops.k8s.network-config",
+        "cs.devops.k8s.release-ops",
+        "cs.devops.k8s.schedule-probe"
+      ],
+      "thinking": [
+        {
+          "title": "调度是一个「过滤 + 打分」的漏斗",
+          "md": "filter 阶段把不满足硬约束的节点删掉（资源不足、污点不容忍、选择器不匹配、cordon），剩下的节点进入 score 阶段排序（分散/紧凑/镜像本地性）。\n\n面试里说「调度失败」时要能定位到 filter 的哪一步：`kubectl describe pod` 的 Events 会写 `0/3 nodes are available: 1 node(s) had untolerated taint, 2 Insufficient cpu`——这就是 filter 结果的直方图。"
+        },
+        {
+          "title": "三种探针各管一件事",
+          "md": "startup 只管「启动完了没有」，在它通过之前 liveness/readiness 都不生效（避免慢启动应用被误杀）。liveness 失败 → 重启容器；readiness 失败 → 从 Service 端点摘掉（不重启）。\n\n最常见的配置错误：把 readine 写成检查数据库连通性，数据库抖一下全部 Pod 被摘流量，造成雪崩。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "maxSurge 与 maxUnavailable 的约束",
+          "md": "滚动更新时 `new + old` 总量不能超过 `replicas + maxSurge`（多出来的临时副本），同时可用副本不能低于 `replicas - maxUnavailable`。两个都为 0 就没法滚动——新 Pod 没位置起，老 Pod 不能先删。"
+        },
+        {
+          "title": "百分比参数向上取整",
+          "md": "`maxSurge: 25%` 在 replicas=3 时是 0.75 → 向上取整 1。用 Math.ceil，不用 Math.round。"
+        }
+      ],
+      "api": [
+        {
+          "name": "schedule",
+          "sig": "schedule(pod, nodes) => { feasible: string[], rejected: [{ node, reason }] }",
+          "args": "pod 有 selector（nodeSelector）、tolerations、requests；node 有 labels、taints、cpu、mem、unschedulable。",
+          "returns": "reason 取 unschedulable / selector-mismatch / taint / insufficient-cpu / insufficient-mem。",
+          "example": "schedule({ requests: { cpu: 6, mem: 2 } }, nodes)\\n// rejected 里出现 { node: 'n2', reason: 'insufficient-cpu' }"
+        },
+        {
+          "name": "probeAction",
+          "sig": "probeAction({ startup, liveness, readiness }) => string",
+          "args": "每个探针是 { pass, attempts?, threshold? }。",
+          "returns": "wait-startup / restart / not-ready / ready 之一。",
+          "example": "probeAction({ startup: { pass: true }, liveness: { pass: false }, readiness: { pass: true } })  // 'restart'"
+        },
+        {
+          "name": "rolloutPlan",
+          "sig": "rolloutPlan({ replicas, maxSurge, maxUnavailable }) => { steps, surge, unavailable, deadlock }",
+          "args": "maxSurge / maxUnavailable 可以是数字或百分比字符串。",
+          "returns": "steps 每项 { new, old }，表示该步完成后新老副本数。",
+          "example": "rolloutPlan({ replicas: 4, maxSurge: 1, maxUnavailable: 0 }).steps\\n// [{new:1,old:4}, {new:2,old:3}, {new:3,old:2}, {new:4,old:0}]"
+        }
+      ],
+      "usage": "kubectl create deployment app --image=app:1 --replicas=4\nkubectl set image deployment/app app=app:2\nkubectl rollout status deployment/app   # 观察上面那四步\nkubectl describe pod app-xxx | grep -A5 Events   # 调度失败原因",
+      "hints": [
+        "第 1 步：先判 unschedulable，再判 selector，再判污点（每个污点都要在 tolerations 里），最后判 cpu/mem。",
+        "第 2 步：startup 存在且未通过时，先看 attempts >= threshold 决定重启还是等；之后才轮到 liveness 和 readiness。",
+        "第 3 步：step = surge || unavailable；每步 new += step，old = (new 到顶 ? 0 : min(old, replicas - new + surge))。"
+      ],
+      "concepts": [
+        {
+          "title": "为什么 liveness 探测不能查依赖",
+          "md": "liveness 失败会重启容器。如果它检查数据库连通性，数据库抖一下所有 Pod 同时被判定不健康并重启，重启期间又连不上，形成级联雪崩。\n\n正确做法：liveness 只检查进程自身（HTTP 200 / 端口存活），依赖健康交给 readiness（摘流量）或熔断。"
+        },
+        {
+          "title": "滚动更新为什么不会丢请求",
+          "md": "两个机制配合：readiness 保证新 Pod 就绪后才进 Endpoints（老 Pod 摘流量也有优雅期），maxUnavailable 保证任何时刻可用副本不低于下限。\n\n所以 `maxUnavailable > 0` 的代价是「容量会短暂低于期望」，对延迟敏感的服务通常会设 0 + surge。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "调度过滤",
+          "think": "按 filter 的真实顺序写：cordon → nodeSelector → 污点 → 资源。每排除一个节点都记下原因，调用方才能拼出「0/3 nodes are available」的完整解释。",
+          "hint": "污点判定用 node.taints.find(t => !tolerations.includes(t))，任何一个没容忍就排除。",
+          "code": "function schedule(pod, nodes) {\n  const feasible = []\n  const rejected = []\n  const req = pod.requests || {}\n  const selector = pod.selector || {}\n  const tolerations = pod.tolerations || []\n\n  for (const node of nodes) {\n    if (node.unschedulable) {\n      rejected.push({ node: node.name, reason: 'unschedulable' })\n      continue\n    }\n    let matched = true\n    for (const key of Object.keys(selector)) {\n      if ((node.labels || {})[key] !== selector[key]) { matched = false; break }\n    }\n    if (!matched) {\n      rejected.push({ node: node.name, reason: 'selector-mismatch' })\n      continue\n    }\n    const untolerated = (node.taints || []).find((t) => !tolerations.includes(t))\n    if (untolerated) {\n      rejected.push({ node: node.name, reason: 'taint' })\n      continue\n    }\n    if ((req.cpu || 0) > node.cpu) {\n      rejected.push({ node: node.name, reason: 'insufficient-cpu' })\n      continue\n    }\n    if ((req.mem || 0) > node.mem) {\n      rejected.push({ node: node.name, reason: 'insufficient-mem' })\n      continue\n    }\n    feasible.push(node.name)\n  }\n  return { feasible, rejected }\n}",
+          "test": "{\n  var nodes = [\n    { name: 'n1', labels: { zone: 'a' }, taints: ['gpu'], cpu: 8, mem: 16 },\n    { name: 'n2', labels: { zone: 'b' }, taints: [], cpu: 2, mem: 4 },\n    { name: 'n3', labels: { zone: 'a' }, taints: [], cpu: 8, mem: 16, unschedulable: true }\n  ]\n\n  check('nodeSelector 不匹配的被排除', () => {\n    const r = schedule({ selector: { zone: 'b' }, requests: { cpu: 1, mem: 1 } }, nodes)\n    same(r.feasible, ['n2'])\n  })\n  check('资源不足给出具体原因', () => {\n    const r = schedule({ requests: { cpu: 6, mem: 2 } }, nodes)\n    same(r.feasible, [])\n    same(r.rejected.find((x) => x.node === 'n2').reason, 'insufficient-cpu')\n  })\n  check('污点必须在容忍列表里', () => {\n    const r = schedule({ requests: { cpu: 1, mem: 1 }, tolerations: ['gpu'] }, nodes)\n    same(r.feasible.includes('n1'), true)\n    const r2 = schedule({ requests: { cpu: 1, mem: 1 } }, nodes)\n    same(r2.feasible.includes('n1'), false)\n    same(r2.rejected.find((x) => x.node === 'n1').reason, 'taint')\n  })\n  check('cordon 过的节点直接排除', () => {\n    const r = schedule({ requests: { cpu: 1, mem: 1 } }, nodes)\n    same(r.rejected.find((x) => x.node === 'n3').reason, 'unschedulable')\n  })\n  check('没有任何节点满足时返回空', () => {\n    same(schedule({ requests: { cpu: 20, mem: 1 } }, nodes).feasible, [])\n    same(schedule({ requests: { cpu: 1, mem: 1 } }, []).feasible, [])\n  })\n}",
+          "diag": [
+            "污点判定写成「有交集就排除」（应该反过来：没被容忍才排除）。",
+            "资源判定用了 >=（正好够也应该能调度）。",
+            "selector 只看了第一个 key，多标签时漏判。",
+            "unschedulable 的节点仍然进了 feasible。",
+            "rejected 只记了节点名没记原因，调用方无法解释失败。"
+          ]
+        },
+        {
+          "n": 2,
+          "title": "探针组合决策",
+          "think": "优先级链：startup 未完成 → 等或重启；liveness 失败 → 重启；readiness 失败 → 摘流量；全过 → ready。顺序错了会把「慢启动」误判成「不健康」，直接杀掉。",
+          "hint": "startup 的 attempts/threshold 用来判定是「还在启动」还是「启动失败」。",
+          "code": "function schedule(pod, nodes) {\n  const feasible = []\n  const rejected = []\n  const req = pod.requests || {}\n  const selector = pod.selector || {}\n  const tolerations = pod.tolerations || []\n\n  for (const node of nodes) {\n    if (node.unschedulable) {\n      rejected.push({ node: node.name, reason: 'unschedulable' })\n      continue\n    }\n    let matched = true\n    for (const key of Object.keys(selector)) {\n      if ((node.labels || {})[key] !== selector[key]) { matched = false; break }\n    }\n    if (!matched) {\n      rejected.push({ node: node.name, reason: 'selector-mismatch' })\n      continue\n    }\n    const untolerated = (node.taints || []).find((t) => !tolerations.includes(t))\n    if (untolerated) {\n      rejected.push({ node: node.name, reason: 'taint' })\n      continue\n    }\n    if ((req.cpu || 0) > node.cpu) {\n      rejected.push({ node: node.name, reason: 'insufficient-cpu' })\n      continue\n    }\n    if ((req.mem || 0) > node.mem) {\n      rejected.push({ node: node.name, reason: 'insufficient-mem' })\n      continue\n    }\n    feasible.push(node.name)\n  }\n  return { feasible, rejected }\n}\n\nfunction probeAction(probes) {\n  const startup = probes.startup\n  const liveness = probes.liveness || { pass: true }\n  const readiness = probes.readiness || { pass: true }\n\n  if (startup && !startup.pass) {\n    if (startup.threshold && (startup.attempts || 0) >= startup.threshold) return 'restart'\n    return 'wait-startup'\n  }\n  if (!liveness.pass) return 'restart'\n  if (!readiness.pass) return 'not-ready'\n  return 'ready'\n}",
+          "test": "{\n  check('startup 未通过前不接流量', () => {\n    same(probeAction({ startup: { pass: false }, liveness: { pass: true }, readiness: { pass: true } }), 'wait-startup')\n  })\n  check('startup 通过、readiness 失败 → 摘流量但不重启', () => {\n    same(probeAction({ startup: { pass: true }, liveness: { pass: true }, readiness: { pass: false } }), 'not-ready')\n  })\n  check('liveness 失败 → 重启', () => {\n    same(probeAction({ startup: { pass: true }, liveness: { pass: false }, readiness: { pass: true } }), 'restart')\n  })\n  check('startup 连续失败达到阈值 → 重启', () => {\n    same(probeAction({ startup: { pass: false, attempts: 3, threshold: 3 }, liveness: { pass: true }, readiness: { pass: true } }), 'restart')\n    same(probeAction({ startup: { pass: false, attempts: 1, threshold: 3 }, liveness: { pass: true }, readiness: { pass: true } }), 'wait-startup')\n  })\n  check('全部通过 → ready', () => {\n    same(probeAction({ startup: { pass: true }, liveness: { pass: true }, readiness: { pass: true } }), 'ready')\n    same(probeAction({ liveness: { pass: true }, readiness: { pass: true } }), 'ready', '没有 startup 探针时直接看 readiness')\n  })\n}",
+          "diag": [
+            "没有先判 startup，慢启动应用被 liveness 直接重启。",
+            "startup 失败时只返回 wait-startup，不管 attempts 是否已超阈值。",
+            "liveness 与 readiness 的返回写反了（failure→not-ready / →restart）。",
+            "没有 startup 探针时直接返回 wait-startup（应该看 readiness）。",
+            "threshold 判定用了 >= attempts 而不是 attempts >= threshold。"
+          ]
+        },
+        {
+          "n": 3,
+          "title": "滚动更新步进",
+          "think": "每步先按 step 增加新副本，再按「总量 ≤ replicas + surge」收缩老副本。收尾那一步老副本必须清零，否则 Deployment 永远不完成。",
+          "hint": "surge 与 unavailable 都可能是百分比，先 resolveCount 成整数；两者都为 0 直接返回 deadlock。",
+          "code": "function schedule(pod, nodes) {\n  const feasible = []\n  const rejected = []\n  const req = pod.requests || {}\n  const selector = pod.selector || {}\n  const tolerations = pod.tolerations || []\n\n  for (const node of nodes) {\n    if (node.unschedulable) {\n      rejected.push({ node: node.name, reason: 'unschedulable' })\n      continue\n    }\n    let matched = true\n    for (const key of Object.keys(selector)) {\n      if ((node.labels || {})[key] !== selector[key]) { matched = false; break }\n    }\n    if (!matched) {\n      rejected.push({ node: node.name, reason: 'selector-mismatch' })\n      continue\n    }\n    const untolerated = (node.taints || []).find((t) => !tolerations.includes(t))\n    if (untolerated) {\n      rejected.push({ node: node.name, reason: 'taint' })\n      continue\n    }\n    if ((req.cpu || 0) > node.cpu) {\n      rejected.push({ node: node.name, reason: 'insufficient-cpu' })\n      continue\n    }\n    if ((req.mem || 0) > node.mem) {\n      rejected.push({ node: node.name, reason: 'insufficient-mem' })\n      continue\n    }\n    feasible.push(node.name)\n  }\n  return { feasible, rejected }\n}\n\nfunction probeAction(probes) {\n  const startup = probes.startup\n  const liveness = probes.liveness || { pass: true }\n  const readiness = probes.readiness || { pass: true }\n\n  if (startup && !startup.pass) {\n    if (startup.threshold && (startup.attempts || 0) >= startup.threshold) return 'restart'\n    return 'wait-startup'\n  }\n  if (!liveness.pass) return 'restart'\n  if (!readiness.pass) return 'not-ready'\n  return 'ready'\n}\n\nfunction rolloutPlan(opts) {\n  const replicas = opts.replicas\n  const surge = resolveCount(opts.maxSurge, replicas)\n  const unavailable = resolveCount(opts.maxUnavailable, replicas)\n\n  if (surge === 0 && unavailable === 0) return { deadlock: true, steps: [], surge, unavailable }\n\n  const step = surge || unavailable\n  const steps = []\n  let newN = 0\n  let oldN = replicas\n\n  while (newN < replicas) {\n    newN = Math.min(replicas, newN + step)\n    oldN = newN === replicas ? 0 : Math.min(oldN, replicas - newN + surge)\n    steps.push({ new: newN, old: oldN })\n  }\n  return { deadlock: false, steps, surge, unavailable }\n}\n\nfunction resolveCount(value, replicas) {\n  if (typeof value === 'number') return value\n  if (typeof value === 'string' && value.endsWith('%')) {\n    return Math.ceil((replicas * parseFloat(value)) / 100)\n  }\n  return 0\n}",
+          "test": "{\n  check('滚动更新：新副本逐个递增', () => {\n    const p = rolloutPlan({ replicas: 4, maxSurge: 1, maxUnavailable: 0 })\n    same(p.steps.map((s) => s.new), [1, 2, 3, 4])\n    same(p.steps.map((s) => s.old), [4, 3, 2, 0])\n  })\n  check('总量不超过 replicas + surge，且不低于 replicas - unavailable', () => {\n    const p = rolloutPlan({ replicas: 4, maxSurge: 1, maxUnavailable: 0 })\n    for (const s of p.steps) {\n      ok(s.new + s.old <= 5, '超了 surge')\n      ok(s.new + s.old >= 4, '可用副本不够')\n    }\n    same(p.steps[p.steps.length - 1].old, 0)\n  })\n  check('surge 为百分比时向上取整', () => {\n    const p = rolloutPlan({ replicas: 5, maxSurge: '20%', maxUnavailable: 0 })\n    same(p.surge, 1)\n    same(p.steps.length, 5)\n  })\n  check('surge=0 时靠 maxUnavailable 腾位置', () => {\n    const p = rolloutPlan({ replicas: 4, maxSurge: 0, maxUnavailable: 1 })\n    same(p.steps.map((s) => s.new), [1, 2, 3, 4])\n    same(p.steps[0].new + p.steps[0].old, 4, '没有 surge 时总量保持 replicas')\n  })\n  check('surge 与 unavailable 都为 0 → 无法滚动', () => {\n    const p = rolloutPlan({ replicas: 3, maxSurge: 0, maxUnavailable: 0 })\n    same(p.deadlock, true)\n    same(p.steps, [])\n  })\n}",
+          "diag": [
+            "百分比用了 Math.round 或向下取整。",
+            "没有检查 surge===0 && unavailable===0 的死锁。",
+            "收尾时没有把 old 清零，Deployment 卡在 99%。",
+            "总量算成 replicas + surge + unavailable（两个上限不能叠加）。",
+            "new 每步直接跳到 replicas，等于一次性全量替换。"
+          ]
+        }
+      ],
+      "skeleton": "function schedule(pod, nodes) {\n  // TODO: unschedulable / selector / taint / 资源 四道过滤\n  throw new Error('schedule 还没实现')\n}\n\nfunction probeAction(probes) {\n  // TODO: startup → liveness → readiness 的优先级判定\n  throw new Error('probeAction 还没实现')\n}\n\nfunction rolloutPlan(opts) {\n  // TODO: 按 maxSurge / maxUnavailable 逐步替换\n  throw new Error('rolloutPlan 还没实现')\n}",
+      "solution": "function schedule(pod, nodes) {\n  const feasible = []\n  const rejected = []\n  const req = pod.requests || {}\n  const selector = pod.selector || {}\n  const tolerations = pod.tolerations || []\n\n  for (const node of nodes) {\n    if (node.unschedulable) {\n      rejected.push({ node: node.name, reason: 'unschedulable' })\n      continue\n    }\n    let matched = true\n    for (const key of Object.keys(selector)) {\n      if ((node.labels || {})[key] !== selector[key]) { matched = false; break }\n    }\n    if (!matched) {\n      rejected.push({ node: node.name, reason: 'selector-mismatch' })\n      continue\n    }\n    const untolerated = (node.taints || []).find((t) => !tolerations.includes(t))\n    if (untolerated) {\n      rejected.push({ node: node.name, reason: 'taint' })\n      continue\n    }\n    if ((req.cpu || 0) > node.cpu) {\n      rejected.push({ node: node.name, reason: 'insufficient-cpu' })\n      continue\n    }\n    if ((req.mem || 0) > node.mem) {\n      rejected.push({ node: node.name, reason: 'insufficient-mem' })\n      continue\n    }\n    feasible.push(node.name)\n  }\n  return { feasible, rejected }\n}\n\nfunction probeAction(probes) {\n  const startup = probes.startup\n  const liveness = probes.liveness || { pass: true }\n  const readiness = probes.readiness || { pass: true }\n\n  if (startup && !startup.pass) {\n    if (startup.threshold && (startup.attempts || 0) >= startup.threshold) return 'restart'\n    return 'wait-startup'\n  }\n  if (!liveness.pass) return 'restart'\n  if (!readiness.pass) return 'not-ready'\n  return 'ready'\n}\n\nfunction rolloutPlan(opts) {\n  const replicas = opts.replicas\n  const surge = resolveCount(opts.maxSurge, replicas)\n  const unavailable = resolveCount(opts.maxUnavailable, replicas)\n\n  if (surge === 0 && unavailable === 0) return { deadlock: true, steps: [], surge, unavailable }\n\n  const step = surge || unavailable\n  const steps = []\n  let newN = 0\n  let oldN = replicas\n\n  while (newN < replicas) {\n    newN = Math.min(replicas, newN + step)\n    oldN = newN === replicas ? 0 : Math.min(oldN, replicas - newN + surge)\n    steps.push({ new: newN, old: oldN })\n  }\n  return { deadlock: false, steps, surge, unavailable }\n}\n\nfunction resolveCount(value, replicas) {\n  if (typeof value === 'number') return value\n  if (typeof value === 'string' && value.endsWith('%')) {\n    return Math.ceil((replicas * parseFloat(value)) / 100)\n  }\n  return 0\n}",
+      "finalCode": "function schedule(pod, nodes) {\n  const feasible = []\n  const rejected = []\n  const req = pod.requests || {}\n  const selector = pod.selector || {}\n  const tolerations = pod.tolerations || []\n\n  for (const node of nodes) {\n    if (node.unschedulable) {\n      rejected.push({ node: node.name, reason: 'unschedulable' })\n      continue\n    }\n    let matched = true\n    for (const key of Object.keys(selector)) {\n      if ((node.labels || {})[key] !== selector[key]) { matched = false; break }\n    }\n    if (!matched) {\n      rejected.push({ node: node.name, reason: 'selector-mismatch' })\n      continue\n    }\n    const untolerated = (node.taints || []).find((t) => !tolerations.includes(t))\n    if (untolerated) {\n      rejected.push({ node: node.name, reason: 'taint' })\n      continue\n    }\n    if ((req.cpu || 0) > node.cpu) {\n      rejected.push({ node: node.name, reason: 'insufficient-cpu' })\n      continue\n    }\n    if ((req.mem || 0) > node.mem) {\n      rejected.push({ node: node.name, reason: 'insufficient-mem' })\n      continue\n    }\n    feasible.push(node.name)\n  }\n  return { feasible, rejected }\n}\n\nfunction probeAction(probes) {\n  const startup = probes.startup\n  const liveness = probes.liveness || { pass: true }\n  const readiness = probes.readiness || { pass: true }\n\n  if (startup && !startup.pass) {\n    if (startup.threshold && (startup.attempts || 0) >= startup.threshold) return 'restart'\n    return 'wait-startup'\n  }\n  if (!liveness.pass) return 'restart'\n  if (!readiness.pass) return 'not-ready'\n  return 'ready'\n}\n\nfunction rolloutPlan(opts) {\n  const replicas = opts.replicas\n  const surge = resolveCount(opts.maxSurge, replicas)\n  const unavailable = resolveCount(opts.maxUnavailable, replicas)\n\n  if (surge === 0 && unavailable === 0) return { deadlock: true, steps: [], surge, unavailable }\n\n  const step = surge || unavailable\n  const steps = []\n  let newN = 0\n  let oldN = replicas\n\n  while (newN < replicas) {\n    newN = Math.min(replicas, newN + step)\n    oldN = newN === replicas ? 0 : Math.min(oldN, replicas - newN + surge)\n    steps.push({ new: newN, old: oldN })\n  }\n  return { deadlock: false, steps, surge, unavailable }\n}\n\nfunction resolveCount(value, replicas) {\n  if (typeof value === 'number') return value\n  if (typeof value === 'string' && value.endsWith('%')) {\n    return Math.ceil((replicas * parseFloat(value)) / 100)\n  }\n  return 0\n}",
+      "tests": "{\n  var nodes = [\n    { name: 'n1', labels: { zone: 'a' }, taints: ['gpu'], cpu: 8, mem: 16 },\n    { name: 'n2', labels: { zone: 'b' }, taints: [], cpu: 2, mem: 4 },\n    { name: 'n3', labels: { zone: 'a' }, taints: [], cpu: 8, mem: 16, unschedulable: true }\n  ]\n\n  check('nodeSelector 不匹配的被排除', () => {\n    const r = schedule({ selector: { zone: 'b' }, requests: { cpu: 1, mem: 1 } }, nodes)\n    same(r.feasible, ['n2'])\n  })\n  check('资源不足给出具体原因', () => {\n    const r = schedule({ requests: { cpu: 6, mem: 2 } }, nodes)\n    same(r.feasible, [])\n    same(r.rejected.find((x) => x.node === 'n2').reason, 'insufficient-cpu')\n  })\n  check('污点必须在容忍列表里', () => {\n    const r = schedule({ requests: { cpu: 1, mem: 1 }, tolerations: ['gpu'] }, nodes)\n    same(r.feasible.includes('n1'), true)\n    const r2 = schedule({ requests: { cpu: 1, mem: 1 } }, nodes)\n    same(r2.feasible.includes('n1'), false)\n    same(r2.rejected.find((x) => x.node === 'n1').reason, 'taint')\n  })\n  check('cordon 过的节点直接排除', () => {\n    const r = schedule({ requests: { cpu: 1, mem: 1 } }, nodes)\n    same(r.rejected.find((x) => x.node === 'n3').reason, 'unschedulable')\n  })\n  check('没有任何节点满足时返回空', () => {\n    same(schedule({ requests: { cpu: 20, mem: 1 } }, nodes).feasible, [])\n    same(schedule({ requests: { cpu: 1, mem: 1 } }, []).feasible, [])\n  })\n}\n{\n  check('startup 未通过前不接流量', () => {\n    same(probeAction({ startup: { pass: false }, liveness: { pass: true }, readiness: { pass: true } }), 'wait-startup')\n  })\n  check('startup 通过、readiness 失败 → 摘流量但不重启', () => {\n    same(probeAction({ startup: { pass: true }, liveness: { pass: true }, readiness: { pass: false } }), 'not-ready')\n  })\n  check('liveness 失败 → 重启', () => {\n    same(probeAction({ startup: { pass: true }, liveness: { pass: false }, readiness: { pass: true } }), 'restart')\n  })\n  check('startup 连续失败达到阈值 → 重启', () => {\n    same(probeAction({ startup: { pass: false, attempts: 3, threshold: 3 }, liveness: { pass: true }, readiness: { pass: true } }), 'restart')\n    same(probeAction({ startup: { pass: false, attempts: 1, threshold: 3 }, liveness: { pass: true }, readiness: { pass: true } }), 'wait-startup')\n  })\n  check('全部通过 → ready', () => {\n    same(probeAction({ startup: { pass: true }, liveness: { pass: true }, readiness: { pass: true } }), 'ready')\n    same(probeAction({ liveness: { pass: true }, readiness: { pass: true } }), 'ready', '没有 startup 探针时直接看 readiness')\n  })\n}\n{\n  check('滚动更新：新副本逐个递增', () => {\n    const p = rolloutPlan({ replicas: 4, maxSurge: 1, maxUnavailable: 0 })\n    same(p.steps.map((s) => s.new), [1, 2, 3, 4])\n    same(p.steps.map((s) => s.old), [4, 3, 2, 0])\n  })\n  check('总量不超过 replicas + surge，且不低于 replicas - unavailable', () => {\n    const p = rolloutPlan({ replicas: 4, maxSurge: 1, maxUnavailable: 0 })\n    for (const s of p.steps) {\n      ok(s.new + s.old <= 5, '超了 surge')\n      ok(s.new + s.old >= 4, '可用副本不够')\n    }\n    same(p.steps[p.steps.length - 1].old, 0)\n  })\n  check('surge 为百分比时向上取整', () => {\n    const p = rolloutPlan({ replicas: 5, maxSurge: '20%', maxUnavailable: 0 })\n    same(p.surge, 1)\n    same(p.steps.length, 5)\n  })\n  check('surge=0 时靠 maxUnavailable 腾位置', () => {\n    const p = rolloutPlan({ replicas: 4, maxSurge: 0, maxUnavailable: 1 })\n    same(p.steps.map((s) => s.new), [1, 2, 3, 4])\n    same(p.steps[0].new + p.steps[0].old, 4, '没有 surge 时总量保持 replicas')\n  })\n  check('surge 与 unavailable 都为 0 → 无法滚动', () => {\n    const p = rolloutPlan({ replicas: 3, maxSurge: 0, maxUnavailable: 0 })\n    same(p.deadlock, true)\n    same(p.steps, [])\n  })\n}"
+    },
+    {
+      "id": "lv5",
+      "title": "CI/CD：流水线 DAG、制品版本与分支策略",
+      "emoji": "🔁",
+      "xp": 50,
+      "goal": "把流水线 job 的依赖排成并行波次并检测环，算出制品版本名与保留策略，按分支类型决定跑哪些 job。",
+      "why": "CI/CD 面试的两个真问题：为什么这条流水线要跑 40 分钟（并行度没排出来）、为什么这次发布找不回上一个版本（制品命名与保留策略混乱）。前者是 DAG 拓扑分层，后者是 semver + sha 的可追溯命名。这一关把两者都写成函数。",
+      "nodes": [
+        "cs.devops.cicd",
+        "cs.devops.cicd.artifact",
+        "cs.devops.cicd.git-flow",
+        "cs.devops.cicd.pipeline"
+      ],
+      "thinking": [
+        {
+          "title": "流水线时长 ≈ 关键路径，不是 job 总数",
+          "md": "一串串行 job 的耗时是各段之和；把没有依赖的 job 并行后，总时长变成最长路径（关键路径）。所以优化顺序是：先找关键路径上的 job，再看能不能拆。\n\n`planPipeline` 输出的 waves 就是「每波内的 job 可以同时跑」——wave 数就是串行段数。"
+        },
+        {
+          "title": "制品名要能反推出「哪次提交、什么版本」",
+          "md": "`app-1.2.4-abcdef1` 里同时编码了语义版本与提交短 sha。版本用于人读与回滚决策，sha 用于精确定位代码。只有版本没有 sha，回滚时无法确定当时构建的是哪个提交。\n\n保留策略要按 semver 排序而不是字符串排序：字典序里 1.10.0 排在 1.9.0 前面，会删掉最新的。"
+        }
+      ],
+      "prereq": [
+        {
+          "title": "拓扑排序的两种实现",
+          "md": "Kahn 算法（不断摘出入度为 0 的节点）天然产出「波次」；DFS 输出的是线性顺序。要并行波次就用 Kahn：每轮把所有入度为 0 的节点一起取出来。\n\n检测环：某一轮没有任何入度为 0 的节点，说明剩下的节点互相依赖成环。"
+        },
+        {
+          "title": "semver 的预发布优先级",
+          "md": "`1.0.0-alpha < 1.0.0-rc.1 < 1.0.0`。同一个核心版本下，有预发布标记的永远小于正式版。比较预发布标记本身时按字符串逐段比较（alpha < beta < rc）。"
+        }
+      ],
+      "api": [
+        {
+          "name": "planPipeline",
+          "sig": "planPipeline(jobs) => { waves: string[][], cycle: boolean, missing: string[] }",
+          "args": "jobs 每项 { id, needs? }，needs 是前置 job 的 id 数组。",
+          "returns": "waves 是并行波次（每波内元素按输入顺序）；有环时 waves 为空且 cycle=true。",
+          "example": "planPipeline([{ id: 'a' }, { id: 'b', needs: ['a'] }])\\n// { waves: [['a'], ['b']], cycle: false }"
+        },
+        {
+          "name": "bumpVersion / artifactName / prune",
+          "sig": "bumpVersion(v, kind) => string；artifactName(v, sha) => string；prune(versions, keep) => string[]",
+          "args": "kind 取 patch/minor/major；prune 保留按 semver 排序最大的 keep 个。",
+          "returns": "分别返回新版本号、制品名、保留后的版本列表（升序）。",
+          "example": "bumpVersion('1.2.3', 'minor')  // '1.3.0'\\nartifactName('1.3.0', 'deadbeef1234')  // 'app-1.3.0-deadbee'\\nprune(['1.9.0','1.10.0'], 1)  // ['1.10.0']"
+        },
+        {
+          "name": "gitFlowTrigger",
+          "sig": "gitFlowTrigger({ event, branch, tag }) => string[]",
+          "args": "event 取 push / pull_request；tag 存在时优先按 tag 处理。",
+          "returns": "按分支类型返回要执行的 job 列表。",
+          "example": "gitFlowTrigger({ event: 'push', branch: 'main' })\\n// ['build', 'deploy-staging', 'deploy-prod']"
+        }
+      ],
+      "usage": "# .github/workflows/ci.yml 里把 needs 关系画出来，planPipeline 帮你验证有没有环\nnode -e \"const {planPipeline}=...; console.log(planPipeline(jobs).waves)\"\n\n# 制品\nAPP_VER=$(bumpVersion $(cat package.json | jq -r .version) patch)\nSHA=$(git rev-parse --short=7 HEAD)\nartifactName $APP_VER $SHA   # app-1.3.0-deadbee",
+      "hints": [
+        "第 1 步：每轮筛出「所有 needs 都已完成」的 job，一起进同一个 wave；某轮筛不出东西就是有环。",
+        "第 2 步：compareVersion 先比三段数字，再处理预发布：没有预发布的大于有预发布的；都有就字符串比较。",
+        "第 3 步：判断顺序是 tag → PR → main/master → hotfix → release → 其它（feature）。"
+      ],
+      "concepts": [
+        {
+          "title": "为什么 hotfix 不能直接进 main 的生产流水线",
+          "md": "hotfix 是从生产版本拉出来的最小修复分支，它必须先经过测试和 staging 验证，但不能直接触发生产发布——生产发布通常要人工审批或等下一个发布窗口。\n\n本关的返回 ['test','build','deploy-staging'] 就是这个策略：hotfix 自动到 staging，但 prod 一步留人工。"
+        },
+        {
+          "title": "制品保留不能只看数量",
+          "md": "只按「保留最近 N 个」会删掉仍在生产运行的老版本——回滚时正好需要它。生产上常见做法是「最近 N 个 + 所有仍在部署中的版本 + 每个大版本至少一个」的并集。"
+        }
+      ],
+      "stages": [
+        {
+          "n": 1,
+          "title": "流水线拓扑分波",
+          "think": "Kahn 算法的变体：每轮取出所有「依赖已满足」的 job 作为一波，然后标记完成。如果某轮一个都取不出来又不是空，就是有环。",
+          "hint": "ready = remaining.filter(j => (j.needs||[]).every(d => done.has(d)))；ready 为空且 remaining 非空 → cycle。",
+          "code": "function planPipeline(jobs) {\n  const ids = new Set(jobs.map((j) => j.id))\n  const missing = []\n  for (const j of jobs) {\n    for (const dep of j.needs || []) {\n      if (!ids.has(dep)) missing.push(dep)\n    }\n  }\n\n  const waves = []\n  const done = new Set()\n  const remaining = jobs.slice()\n\n  while (remaining.length) {\n    const ready = remaining.filter((j) => (j.needs || []).every((d) => done.has(d)))\n    if (!ready.length) return { waves: [], cycle: true, missing }\n    waves.push(ready.map((j) => j.id))\n    for (const j of ready) {\n      done.add(j.id)\n      remaining.splice(remaining.indexOf(j), 1)\n    }\n  }\n  return { waves, cycle: false, missing }\n}",
+          "test": "{\n  check('无依赖的 job 全部并行（一个波次）', () => {\n    const p = planPipeline([{ id: 'lint' }, { id: 'test' }, { id: 'build' }])\n    same(p.cycle, false)\n    same(p.waves.length, 1)\n    same(p.waves[0], ['lint', 'test', 'build'])\n  })\n  check('链式依赖分成三波', () => {\n    const p = planPipeline([\n      { id: 'build', needs: ['test'] },\n      { id: 'test', needs: ['lint'] },\n      { id: 'lint' }\n    ])\n    same(p.waves.map((w) => w[0]), ['lint', 'test', 'build'])\n  })\n  check('菱形依赖：join 在最后一波', () => {\n    const p = planPipeline([\n      { id: 'a' },\n      { id: 'b', needs: ['a'] },\n      { id: 'c', needs: ['a'] },\n      { id: 'd', needs: ['b', 'c'] }\n    ])\n    same(p.waves.length, 3)\n    same(p.waves[0], ['a'])\n    same(p.waves[1], ['b', 'c'])\n    same(p.waves[2], ['d'])\n  })\n  check('有环就报 cycle，不返回半成品波次', () => {\n    const p = planPipeline([{ id: 'a', needs: ['b'] }, { id: 'b', needs: ['a'] }])\n    same(p.cycle, true)\n    same(p.waves, [])\n  })\n  check('未知依赖单独报告 missing', () => {\n    const p = planPipeline([{ id: 'build', needs: ['ghost'] }])\n    same(p.missing, ['ghost'])\n  })\n}",
+          "diag": [
+            "每轮只取一个 job，并行度完全没排出来。",
+            "needs 判定用 done.has(d) 写反成 !done.has(d)。",
+            "有环时返回了部分 waves（应该清空并置 cycle）。",
+            "missing 检测在拓扑循环之后，环里的缺失依赖被吞掉。",
+            "ready 里的 job 没有从 remaining 移除，死循环。"
+          ]
+        },
+        {
+          "n": 2,
+          "title": "制品版本与保留",
+          "think": "版本号三段数字 + 可选预发布；比较时数字按数值比、预发布按字符串比，正式版永远大于同版本预发布。保留策略就是「排序后取尾部」。",
+          "hint": "parseSemver 用 split(\"-\") 拆核心与预发布；compareVersion 里三段循环比完再判 pre 的有无。",
+          "code": "function planPipeline(jobs) {\n  const ids = new Set(jobs.map((j) => j.id))\n  const missing = []\n  for (const j of jobs) {\n    for (const dep of j.needs || []) {\n      if (!ids.has(dep)) missing.push(dep)\n    }\n  }\n\n  const waves = []\n  const done = new Set()\n  const remaining = jobs.slice()\n\n  while (remaining.length) {\n    const ready = remaining.filter((j) => (j.needs || []).every((d) => done.has(d)))\n    if (!ready.length) return { waves: [], cycle: true, missing }\n    waves.push(ready.map((j) => j.id))\n    for (const j of ready) {\n      done.add(j.id)\n      remaining.splice(remaining.indexOf(j), 1)\n    }\n  }\n  return { waves, cycle: false, missing }\n}\n\nfunction parseSemver(v) {\n  const [core, pre] = String(v).split('-')\n  return { nums: core.split('.').map(Number), pre: pre || null }\n}\n\nfunction compareVersion(a, b) {\n  const x = parseSemver(a)\n  const y = parseSemver(b)\n  for (let i = 0; i < 3; i++) {\n    const d = (x.nums[i] || 0) - (y.nums[i] || 0)\n    if (d !== 0) return d > 0 ? 1 : -1\n  }\n  if (x.pre === y.pre) return 0\n  if (!x.pre) return 1\n  if (!y.pre) return -1\n  return x.pre > y.pre ? 1 : -1\n}\n\nfunction bumpVersion(v, kind) {\n  const { nums } = parseSemver(v)\n  const [major, minor, patch] = nums\n  if (kind === 'major') return major + 1 + '.0.0'\n  if (kind === 'minor') return major + '.' + (minor + 1) + '.0'\n  return major + '.' + minor + '.' + (patch + 1)\n}\n\nfunction artifactName(version, sha) {\n  return 'app-' + version + '-' + String(sha).slice(0, 7)\n}\n\nfunction prune(versions, keep) {\n  return versions.slice().sort(compareVersion).slice(versions.length - keep > 0 ? versions.length - keep : 0)\n}",
+          "test": "{\n  check('semver 递增', () => {\n    same(bumpVersion('1.2.3', 'patch'), '1.2.4')\n    same(bumpVersion('1.2.3', 'minor'), '1.3.0')\n    same(bumpVersion('1.2.3', 'major'), '2.0.0')\n  })\n  check('制品名 = 应用-版本-短 sha', () => {\n    same(artifactName('1.2.4', 'abcdef1234deadbeef'), 'app-1.2.4-abcdef1')\n  })\n  check('保留策略只留最近 N 个发布版', () => {\n    same(prune(['1.0.0', '1.2.0', '1.1.0', '2.0.0'], 2), ['1.2.0', '2.0.0'])\n  })\n  check('版本比较按数值不是字典序', () => {\n    same(compareVersion('1.9.0', '1.10.0'), -1)\n    same(prune(['1.9.0', '1.10.0'], 1), ['1.10.0'])\n  })\n  check('预发布版本排在同版本正式版之前', () => {\n    same(compareVersion('1.0.0-alpha', '1.0.0'), -1)\n    same(compareVersion('1.0.0-rc.1', '1.0.0-rc.2'), -1)\n    same(prune(['1.0.0', '1.0.0-rc.1'], 1), ['1.0.0'])\n  })\n}",
+          "diag": [
+            "版本比较用了字符串 localeCompare，1.10.0 被判成小于 1.9.0。",
+            "core 没拆成数字就比，10 < 9。",
+            "没有预发布标记的版本被判成最小的。",
+            "bumpVersion 的 minor 分支没把 patch 归零。",
+            "artifactName 没有截断 sha（名称过长且不可读）。"
+          ]
+        },
+        {
+          "n": 3,
+          "title": "分支策略",
+          "think": "这是一张决策表：tag 优先（发布制品）、PR 只做检查、main 走完整链路、hotfix 到 staging 停下、release 分支只做 staging、其它（feature）只做检查。",
+          "hint": "判断顺序决定结果：tag 必须最先判，否则 tag 触发的 push 会被 branch=main 抢先。",
+          "code": "function planPipeline(jobs) {\n  const ids = new Set(jobs.map((j) => j.id))\n  const missing = []\n  for (const j of jobs) {\n    for (const dep of j.needs || []) {\n      if (!ids.has(dep)) missing.push(dep)\n    }\n  }\n\n  const waves = []\n  const done = new Set()\n  const remaining = jobs.slice()\n\n  while (remaining.length) {\n    const ready = remaining.filter((j) => (j.needs || []).every((d) => done.has(d)))\n    if (!ready.length) return { waves: [], cycle: true, missing }\n    waves.push(ready.map((j) => j.id))\n    for (const j of ready) {\n      done.add(j.id)\n      remaining.splice(remaining.indexOf(j), 1)\n    }\n  }\n  return { waves, cycle: false, missing }\n}\n\nfunction parseSemver(v) {\n  const [core, pre] = String(v).split('-')\n  return { nums: core.split('.').map(Number), pre: pre || null }\n}\n\nfunction compareVersion(a, b) {\n  const x = parseSemver(a)\n  const y = parseSemver(b)\n  for (let i = 0; i < 3; i++) {\n    const d = (x.nums[i] || 0) - (y.nums[i] || 0)\n    if (d !== 0) return d > 0 ? 1 : -1\n  }\n  if (x.pre === y.pre) return 0\n  if (!x.pre) return 1\n  if (!y.pre) return -1\n  return x.pre > y.pre ? 1 : -1\n}\n\nfunction bumpVersion(v, kind) {\n  const { nums } = parseSemver(v)\n  const [major, minor, patch] = nums\n  if (kind === 'major') return major + 1 + '.0.0'\n  if (kind === 'minor') return major + '.' + (minor + 1) + '.0'\n  return major + '.' + minor + '.' + (patch + 1)\n}\n\nfunction artifactName(version, sha) {\n  return 'app-' + version + '-' + String(sha).slice(0, 7)\n}\n\nfunction prune(versions, keep) {\n  return versions.slice().sort(compareVersion).slice(versions.length - keep > 0 ? versions.length - keep : 0)\n}\n\nfunction gitFlowTrigger(ctx) {\n  if (ctx.tag) return ['release']\n  const branch = ctx.branch || ''\n  if (ctx.event === 'pull_request') return ['lint', 'test', 'build']\n  if (branch === 'main' || branch === 'master') return ['build', 'deploy-staging', 'deploy-prod']\n  if (branch.indexOf('hotfix/') === 0) return ['test', 'build', 'deploy-staging']\n  if (branch.indexOf('release/') === 0) return ['build', 'deploy-staging']\n  return ['lint', 'test']\n}",
+          "test": "{\n  check('main 分支 push → 构建 + 两级部署', () => {\n    same(gitFlowTrigger({ event: 'push', branch: 'main' }), ['build', 'deploy-staging', 'deploy-prod'])\n  })\n  check('PR → 只做检查与构建', () => {\n    same(gitFlowTrigger({ event: 'pull_request', branch: 'main' }), ['lint', 'test', 'build'])\n  })\n  check('feature 分支 push 只跑检查', () => {\n    same(gitFlowTrigger({ event: 'push', branch: 'feature/login' }), ['lint', 'test'])\n  })\n  check('打 tag → 只出 release 制品', () => {\n    same(gitFlowTrigger({ event: 'push', tag: 'v1.2.3' }), ['release'])\n  })\n  check('hotfix → 测试构建并只进 staging', () => {\n    same(gitFlowTrigger({ event: 'push', branch: 'hotfix/1.2.3' }), ['test', 'build', 'deploy-staging'])\n  })\n}",
+          "diag": [
+            "tag 判定放在了分支判定之后，release 永远跑不到。",
+            "hotfix 直接部署了生产（少了一道人工闸）。",
+            "feature 分支也触发了部署。",
+            "PR 事件没有单独分支，跑成了完整发布链。",
+            "分支判断用了 === 精确匹配 hotfix，hotfix/1.2.3 匹配不上。"
+          ]
+        }
+      ],
+      "skeleton": "function planPipeline(jobs) {\n  // TODO: Kahn 分层，检测环与缺失依赖\n  throw new Error('planPipeline 还没实现')\n}\n\nfunction compareVersion(a, b) {\n  // TODO: semver 比较（含预发布）\n  throw new Error('compareVersion 还没实现')\n}\n\nfunction gitFlowTrigger(ctx) {\n  // TODO: tag / PR / main / hotfix / release / feature 决策表\n  throw new Error('gitFlowTrigger 还没实现')\n}",
+      "solution": "function planPipeline(jobs) {\n  const ids = new Set(jobs.map((j) => j.id))\n  const missing = []\n  for (const j of jobs) {\n    for (const dep of j.needs || []) {\n      if (!ids.has(dep)) missing.push(dep)\n    }\n  }\n\n  const waves = []\n  const done = new Set()\n  const remaining = jobs.slice()\n\n  while (remaining.length) {\n    const ready = remaining.filter((j) => (j.needs || []).every((d) => done.has(d)))\n    if (!ready.length) return { waves: [], cycle: true, missing }\n    waves.push(ready.map((j) => j.id))\n    for (const j of ready) {\n      done.add(j.id)\n      remaining.splice(remaining.indexOf(j), 1)\n    }\n  }\n  return { waves, cycle: false, missing }\n}\n\nfunction parseSemver(v) {\n  const [core, pre] = String(v).split('-')\n  return { nums: core.split('.').map(Number), pre: pre || null }\n}\n\nfunction compareVersion(a, b) {\n  const x = parseSemver(a)\n  const y = parseSemver(b)\n  for (let i = 0; i < 3; i++) {\n    const d = (x.nums[i] || 0) - (y.nums[i] || 0)\n    if (d !== 0) return d > 0 ? 1 : -1\n  }\n  if (x.pre === y.pre) return 0\n  if (!x.pre) return 1\n  if (!y.pre) return -1\n  return x.pre > y.pre ? 1 : -1\n}\n\nfunction bumpVersion(v, kind) {\n  const { nums } = parseSemver(v)\n  const [major, minor, patch] = nums\n  if (kind === 'major') return major + 1 + '.0.0'\n  if (kind === 'minor') return major + '.' + (minor + 1) + '.0'\n  return major + '.' + minor + '.' + (patch + 1)\n}\n\nfunction artifactName(version, sha) {\n  return 'app-' + version + '-' + String(sha).slice(0, 7)\n}\n\nfunction prune(versions, keep) {\n  return versions.slice().sort(compareVersion).slice(versions.length - keep > 0 ? versions.length - keep : 0)\n}\n\nfunction gitFlowTrigger(ctx) {\n  if (ctx.tag) return ['release']\n  const branch = ctx.branch || ''\n  if (ctx.event === 'pull_request') return ['lint', 'test', 'build']\n  if (branch === 'main' || branch === 'master') return ['build', 'deploy-staging', 'deploy-prod']\n  if (branch.indexOf('hotfix/') === 0) return ['test', 'build', 'deploy-staging']\n  if (branch.indexOf('release/') === 0) return ['build', 'deploy-staging']\n  return ['lint', 'test']\n}",
+      "finalCode": "function planPipeline(jobs) {\n  const ids = new Set(jobs.map((j) => j.id))\n  const missing = []\n  for (const j of jobs) {\n    for (const dep of j.needs || []) {\n      if (!ids.has(dep)) missing.push(dep)\n    }\n  }\n\n  const waves = []\n  const done = new Set()\n  const remaining = jobs.slice()\n\n  while (remaining.length) {\n    const ready = remaining.filter((j) => (j.needs || []).every((d) => done.has(d)))\n    if (!ready.length) return { waves: [], cycle: true, missing }\n    waves.push(ready.map((j) => j.id))\n    for (const j of ready) {\n      done.add(j.id)\n      remaining.splice(remaining.indexOf(j), 1)\n    }\n  }\n  return { waves, cycle: false, missing }\n}\n\nfunction parseSemver(v) {\n  const [core, pre] = String(v).split('-')\n  return { nums: core.split('.').map(Number), pre: pre || null }\n}\n\nfunction compareVersion(a, b) {\n  const x = parseSemver(a)\n  const y = parseSemver(b)\n  for (let i = 0; i < 3; i++) {\n    const d = (x.nums[i] || 0) - (y.nums[i] || 0)\n    if (d !== 0) return d > 0 ? 1 : -1\n  }\n  if (x.pre === y.pre) return 0\n  if (!x.pre) return 1\n  if (!y.pre) return -1\n  return x.pre > y.pre ? 1 : -1\n}\n\nfunction bumpVersion(v, kind) {\n  const { nums } = parseSemver(v)\n  const [major, minor, patch] = nums\n  if (kind === 'major') return major + 1 + '.0.0'\n  if (kind === 'minor') return major + '.' + (minor + 1) + '.0'\n  return major + '.' + minor + '.' + (patch + 1)\n}\n\nfunction artifactName(version, sha) {\n  return 'app-' + version + '-' + String(sha).slice(0, 7)\n}\n\nfunction prune(versions, keep) {\n  return versions.slice().sort(compareVersion).slice(versions.length - keep > 0 ? versions.length - keep : 0)\n}\n\nfunction gitFlowTrigger(ctx) {\n  if (ctx.tag) return ['release']\n  const branch = ctx.branch || ''\n  if (ctx.event === 'pull_request') return ['lint', 'test', 'build']\n  if (branch === 'main' || branch === 'master') return ['build', 'deploy-staging', 'deploy-prod']\n  if (branch.indexOf('hotfix/') === 0) return ['test', 'build', 'deploy-staging']\n  if (branch.indexOf('release/') === 0) return ['build', 'deploy-staging']\n  return ['lint', 'test']\n}",
+      "tests": "{\n  check('无依赖的 job 全部并行（一个波次）', () => {\n    const p = planPipeline([{ id: 'lint' }, { id: 'test' }, { id: 'build' }])\n    same(p.cycle, false)\n    same(p.waves.length, 1)\n    same(p.waves[0], ['lint', 'test', 'build'])\n  })\n  check('链式依赖分成三波', () => {\n    const p = planPipeline([\n      { id: 'build', needs: ['test'] },\n      { id: 'test', needs: ['lint'] },\n      { id: 'lint' }\n    ])\n    same(p.waves.map((w) => w[0]), ['lint', 'test', 'build'])\n  })\n  check('菱形依赖：join 在最后一波', () => {\n    const p = planPipeline([\n      { id: 'a' },\n      { id: 'b', needs: ['a'] },\n      { id: 'c', needs: ['a'] },\n      { id: 'd', needs: ['b', 'c'] }\n    ])\n    same(p.waves.length, 3)\n    same(p.waves[0], ['a'])\n    same(p.waves[1], ['b', 'c'])\n    same(p.waves[2], ['d'])\n  })\n  check('有环就报 cycle，不返回半成品波次', () => {\n    const p = planPipeline([{ id: 'a', needs: ['b'] }, { id: 'b', needs: ['a'] }])\n    same(p.cycle, true)\n    same(p.waves, [])\n  })\n  check('未知依赖单独报告 missing', () => {\n    const p = planPipeline([{ id: 'build', needs: ['ghost'] }])\n    same(p.missing, ['ghost'])\n  })\n}\n{\n  check('semver 递增', () => {\n    same(bumpVersion('1.2.3', 'patch'), '1.2.4')\n    same(bumpVersion('1.2.3', 'minor'), '1.3.0')\n    same(bumpVersion('1.2.3', 'major'), '2.0.0')\n  })\n  check('制品名 = 应用-版本-短 sha', () => {\n    same(artifactName('1.2.4', 'abcdef1234deadbeef'), 'app-1.2.4-abcdef1')\n  })\n  check('保留策略只留最近 N 个发布版', () => {\n    same(prune(['1.0.0', '1.2.0', '1.1.0', '2.0.0'], 2), ['1.2.0', '2.0.0'])\n  })\n  check('版本比较按数值不是字典序', () => {\n    same(compareVersion('1.9.0', '1.10.0'), -1)\n    same(prune(['1.9.0', '1.10.0'], 1), ['1.10.0'])\n  })\n  check('预发布版本排在同版本正式版之前', () => {\n    same(compareVersion('1.0.0-alpha', '1.0.0'), -1)\n    same(compareVersion('1.0.0-rc.1', '1.0.0-rc.2'), -1)\n    same(prune(['1.0.0', '1.0.0-rc.1'], 1), ['1.0.0'])\n  })\n}\n{\n  check('main 分支 push → 构建 + 两级部署', () => {\n    same(gitFlowTrigger({ event: 'push', branch: 'main' }), ['build', 'deploy-staging', 'deploy-prod'])\n  })\n  check('PR → 只做检查与构建', () => {\n    same(gitFlowTrigger({ event: 'pull_request', branch: 'main' }), ['lint', 'test', 'build'])\n  })\n  check('feature 分支 push 只跑检查', () => {\n    same(gitFlowTrigger({ event: 'push', branch: 'feature/login' }), ['lint', 'test'])\n  })\n  check('打 tag → 只出 release 制品', () => {\n    same(gitFlowTrigger({ event: 'push', tag: 'v1.2.3' }), ['release'])\n  })\n  check('hotfix → 测试构建并只进 staging', () => {\n    same(gitFlowTrigger({ event: 'push', branch: 'hotfix/1.2.3' }), ['test', 'build', 'deploy-staging'])\n  })\n}"
+    }
+  ]
+}
