@@ -4,11 +4,14 @@
 > `content/projects-src/<slug>.mjs` 一次就能过 `project-build`，并且内容是**真的能教人**的，
 > 不是「为了盖住知识点凑出来的空壳」。
 >
-> 先读两个现成范例（不要跳过，格式细节都在里面）：
-> - `content/projects-src/lru-cache.mjs` —— 3 关工具箱式项目，结构最干净
-> - `content/projects-src/redis-cache.mjs` —— 4 关模拟器式项目，适合后端/系统类
+> 先读一个现成范例（很小，14KB，完整可构建）：
+> - `docs/design/PROJECT-LEVEL-TEMPLATE.mjs` —— 一个 1 关的完整例子，包含分步、diag、骨架、最终解。
 >
-> 判题与校验的完整规则在 `src/shared/project-core.mjs`，构建脚本是 `scripts/project-build.mjs`。
+> ⚠️ 不要读 `content/projects-src/lru-cache.mjs` / `redis-cache.mjs`（40〜150KB）：它们只是旧范例，
+> 读完会把你自己的上下文用光，导致写不完内容。需要「模拟器风格」的灵感时，读本规范第 3 节就够。
+>
+> 判题与校验的完整规则在 `src/shared/project-core.mjs`。**也不要整文件读它**（485 行）：
+> 需要时只看 `validateStages` / `dryRunProject` 这两个函数附近即可。
 
 ---
 
@@ -83,7 +86,7 @@ const LV1 = {
 
 ## 3. stages 分步制（核心）
 
-每一关拆成 **3~4 步**，每步一个独立的 `code`（这一步完成后的完整代码）+ 一个 `test`（只测这一步新增的能力）。
+每一关拆成 **2~3 步**（2 步是最小合法值：必须让「这一步不会做下一步」被测试证明），每步一个独立的 `code`（这一步完成后的完整代码）+ 一个 `test`（只测这一步新增的能力）。
 
 ```js
 const S1 = `{
@@ -131,7 +134,7 @@ stages: [
 
 ### 测试质量
 
-- 每步至少 **4 个 check**，每关 ≥12 个 check。要测边界：空输入、容量 0/1、重复操作、顺序变化、错误路径。
+- 每步至少 **4 个 check**（每关 2 步 ≥8 个、3 步 ≥12 个）。要测边界：空输入、容量 0/1、重复操作、顺序变化、错误路径。
 - check 的 name 用**中文陈述句**，说清「这一条在证明什么」。
 - 不要用 `ok(true)` 这种假测试；不要只测 happy path。
 - 测试之间可以共享同一段 `code` 里的类/函数，但每个 check 自己构造实例，避免相互污染。

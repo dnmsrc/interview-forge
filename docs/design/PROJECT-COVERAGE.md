@@ -69,7 +69,13 @@ node scripts/project-coverage.mjs --check --min=100   # 覆盖率门槛（CI 用
 
 ## 5. 当前批次（补齐全量流水线）
 
-2026-11 起把剩余 368 个缺口切成 **26 个项目 / 103 关**，规划文件在 `data/project-plan.json`
+**进度（2026-11-20 晚）**：16 个项目 / 54 关，覆盖 **106 / 402（26.4%）**；AI 域已 100%。
+本轮新增：ai-tools、ai-memory、ai-eval（AI 域收尾）、be-java、be-micro、be-mysql。
+
+剩余约 296 个知识点、20 个项目：be 域（be-python/spring 等）、cs 域 6 个、fe 域 11 个、eng-warstory。
+每个项目按「规划 → 写内容 → project-build 全绿 → project-audit → 覆盖率上升 → UI 回归 → 提交」推进。
+
+2026-11 起把剩余缺口切成 **24 个项目 / 83 关**，规划文件在 `data/project-plan.json`
 （`npm run project:plan -- --write` 可重算，图谱增删后要重跑）。
 
 | 分组 | 项目 | 关数 | 覆盖 |
