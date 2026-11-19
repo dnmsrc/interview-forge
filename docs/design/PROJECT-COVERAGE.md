@@ -32,7 +32,9 @@
 - 同一关内不重复；
 - **id 必须存在于 `content/nodes`**——写错一个字母构建直接失败，不会留到覆盖率报表里变成「永远补不上的幽灵节点」。
 
-章节分组也来自它：一关的章节 = `nodes[0]` 所属的 topic，章节名取该 topic 在知识图谱里的中文标题。
+章节分组也来自它：一关的章节 = `nodes[0]` 所属的 topic（**第一个是主知识点**），章节名取该 topic 在知识图谱里的中文标题。
+所以写内容时让同一章的关卡在项目里连续排：`lv1、lv2` 同属「过期与淘汰」，`lv3` 才切到「缓存三问题」。
+否则章节网格里会出现「第 4 关又回到第 1 章」的跳号——UI 会如实列出「关 1、4」，但读起来别扭。
 没写 `nodes` 的关卡在 UI 上归入「主线」，并且不参与覆盖统计（会在报表里单独列出来）。
 
 ## 3. 机检
@@ -49,26 +51,33 @@ node scripts/project-coverage.mjs --check --min=100   # 覆盖率门槛（CI 用
 
 ## 4. 补齐路线
 
-现状（2026-11）：9 个项目、33 关，先做**映射**（给现有关卡补 `nodes`），再按 stack 缺口建新项目。
+现状（2026-11）：9 个项目、33 关映射后覆盖 **25 / 402（6.2%）**。剩下的 377 个知识点要靠新项目承接，
+粗略估：每关 3~5 个知识点 → 还需要 **70~100 关 / 25~35 个新项目**。这是几十个内容批次的工作量，
+必须一批一批来，每批都要过构建、覆盖率可见上升、在真实应用里点一遍。
 
 建项目的原则：
 
-1. **一个 stack 一个项目**（fe.vue / fe.js / cs.algo …），项目内按 topic 分章，一章 2~4 关；
-2. 每关 3~6 个知识点，优先吃 mustMaster；
-3. 语言是 JavaScript（沙箱限制），后端/工程类的知识点用「可运行的模拟实现」承接——
+1. **一个 stack 一个项目**（fe.vue / fe.js / cs.algo …），项目内按 topic 分章，一章 1~3 关；超过 30 个知识点的 stack（fe.vue 48、cs.algo 25）拆成两个项目；
+2. 每关 3~5 个知识点，优先吃 mustMaster；
+3. `nodes[0]` 当主知识点，让同章的关卡在项目里连续排列（见 §2）；
+4. 语言是 JavaScript（沙箱限制），后端/工程类的知识点用「可运行的模拟实现」承接——
    例如 Redis 过期策略写成过期字典 + 惰性/定期删除的模拟器，而不是连真 Redis；
-4. 一个 stack 的知识点如果超过 30 个（如 fe.vue 49 个），允许拆成多个项目（内核 / 渲染编译 / 生态）。
+5. 每关仍然遵守 v3 硬规则（分阶段、每步答案过本步不过下一步、骨架必红），不因为「覆盖」而放松质量线。
 
-分批推进，每批完成后跑一遍 `project:build` + `project-coverage --check`，覆盖率必须可见上升；
+分批推进，每批完成后跑一遍 `project:build` + `project-coverage`，覆盖率必须可见上升；
 每批都要在真实应用里点一遍（关卡网格、章节、筛选、跑一关），不允许「内容进了库但 UI 撑不住」。
 
 ## 5. 当前批次
 
 | 批次 | 范围 | 目标 |
 | --- | --- | --- |
-| B0 | 现有 9 项目 33 关补 `nodes` 映射 | 先让覆盖率从 0 变成一个真数 |
-| B1 | fe.vue 剩余 / fe.js 剩余 | 前端主力栈先打穿 |
-| B2 | cs.*（algo/design/devops/net/os/seceq） | 公共基础 |
-| B3 | be.*（java/spring/mysql/redis/mq/micro/node/python） | 后端 |
-| B4 | ai.* + fe 周边（browser/css/html/network/perf/build/ts/eco/electron/uniapp） | AI 与前端周边 |
-| B5 | eng（warstory） | 工程难题 |
+| B0 ✅ | 现有 9 项目 33 关补 `nodes` 映射 | 25/402（6.2%） |
+| B1 | be.redis（9）→ `redis-cache` 4 关 | be 域先开张 |
+| B2 | be 其余：java(19)/spring(9)/mysql(12)/mq(6)/micro(8)/node(6)/python(6) | be 75 节点收编 |
+| B3 | cs：algo(25)/design(24)/devops(19)/net(14)/os(22)/seceq(16) | cs 120 节点收编 |
+| B4 | fe：vue(48)/js(24)/browser(12)/css(11)/network(12)/perf(9)/build(10)/ts(6)/html(5)/eco(8)/electron(8)/uniapp(8) | fe 161 节点收编 |
+| B5 | ai：eval/harness/memory/multi/rag/serving/tools/train | ai 33 节点收编 |
+| B6 | eng：warstory（13） | 工程难题收编 |
+
+每批的具体项目清单与关数，在该批开始前按 `project-coverage --gaps` 的缺口重算一遍再定稿——
+图谱会增删节点，提前写死的关数表很快就过期。

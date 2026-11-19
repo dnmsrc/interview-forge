@@ -8,7 +8,13 @@
 //   5) 关卡数量与内容文件一致，没有任何关卡被 UI 吞掉。
 //
 // 只读不写：不点进关卡、不跑测试、不改进度。
+import { readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import { Cdp, sleep } from './cdp.mjs'
+
+// 项目数不写死：每新增一个项目这里跟着变，脚本只验「卡片数 = 内容库项目数」
+const projectCount = readdirSync(join(import.meta.dirname, '..', '..', 'content', 'projects'))
+  .filter((f) => f.endsWith('.json')).length
 
 const fail = []
 const check = (name, ok, detail = '') => {
@@ -23,7 +29,7 @@ await sleep(1200)
 
 // ---------- 1. 项目列表 ----------
 await cdp.nav('/projects')
-await cdp.waitFor("document.querySelectorAll('.pcard').length >= 9", 25000, '项目卡片')
+await cdp.waitFor(`document.querySelectorAll('.pcard').length >= ${projectCount}`, 25000, '项目卡片')
 
 const listInfo = await cdp.evaluate(`return (() => {
   const cards = [...document.querySelectorAll('.pcard')]
@@ -52,7 +58,7 @@ const listInfo = await cdp.evaluate(`return (() => {
   }
 })()`)
 
-check('项目卡片数 = 9', listInfo.cards === 9, `实际 ${listInfo.cards}`)
+check(`项目卡片数 = ${projectCount}（与内容库一致）`, listInfo.cards === projectCount, `实际 ${listInfo.cards}`)
 check('按领域分 4 组（前端/后端/公共基础/AI）', listInfo.groups.length === 4, JSON.stringify(listInfo.groups))
 check('卡片墙：同屏至少两列', listInfo.twoPerRow, `grid-template-columns=${listInfo.gridCols}`)
 check('有知识图谱覆盖总览', listInfo.hasCov)
@@ -146,6 +152,28 @@ await cdp.shot('data/qa/r44-search.png')
 
 await cdp.fill('.lv-search input', '')
 await sleep(300)
+
+// ---------- 4. 新项目（redis-cache）：跨 topic 的章节分组 ----------
+// 一个项目里关卡可以属于不同 topic，章节必须按 topic 聚、相邻 topic 合并成一章；
+// 章节头列真实关号（关 3–4），不能把跳号写成区间骗人。
+await cdp.nav('/projects/redis-cache')
+await cdp.waitFor("document.querySelectorAll('.lv-tile').length === 4", 15000, 'redis 关卡网格')
+const redis = await cdp.evaluate(`return (() => {
+  const chapters = [...document.querySelectorAll('.chapter')].map((c) => ({
+    title: (c.querySelector('.chapter-head h3') || {}).textContent?.trim() || '',
+    range: ((c.querySelector('.chapter-head .micro') || {}).textContent || '').replace(/\\s+/g, ' ').trim(),
+    n: c.querySelectorAll('.lv-tile').length
+  }))
+  return { tiles: document.querySelectorAll('.lv-tile').length, chapters,
+    pills: [...document.querySelectorAll('.lv-tile-nodes')].map((e) => e.textContent.trim()) }
+})()`)
+check('redis-cache：4 关按 3 个知识点 topic 分成 3 章', redis.tiles === 4 && redis.chapters.length === 3,
+  JSON.stringify(redis.chapters.map((c) => `${c.title}:${c.n}`)))
+check('redis-cache：同 topic 的相邻关合并成一章（关 3–4）',
+  (redis.chapters[2]?.range || '').includes('3–4'), JSON.stringify(redis.chapters.map((c) => c.range)))
+check('redis-cache：每关都标了覆盖几个知识点', redis.pills.length === 4, JSON.stringify(redis.pills))
+await sleep(900)
+await cdp.shot('data/qa/r44-redis.png')
 
 console.log('')
 if (fail.length) {

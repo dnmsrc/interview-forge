@@ -8,4 +8,7 @@ const run = (f) => {
 run('qa1-pages.mjs')
 run('qa2-responsive.mjs')
 run('qa3-interact.mjs')
+// 项目闯关：内容库逐关渲染（r42）+ 项目卡片墙、覆盖总览、关卡章节网格（r44）
+run('r42-project-library.mjs')
+run('r44-project-grid.mjs')
 console.log(process.exitCode ? '\n=== 回归存在失败 ===' : '\n=== 全部通过 ===')
