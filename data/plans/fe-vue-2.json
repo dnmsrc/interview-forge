@@ -1,0 +1,43 @@
+{
+  "domain": "fe",
+  "stacks": [
+    "vue"
+  ],
+  "slug": "fe-vue-2",
+  "levels": [
+    {
+      "topic": "composition",
+      "stack": "vue",
+      "nodes": [
+        "fe.vue.composition",
+        "fe.vue.composition.composable-design",
+        "fe.vue.composition.options-vs-composition",
+        "fe.vue.composition.setup-lifecycle",
+        "fe.vue.composition.sfc-macros"
+      ]
+    },
+    {
+      "topic": "communication",
+      "stack": "vue",
+      "nodes": [
+        "fe.vue.communication",
+        "fe.vue.communication.attrs-expose",
+        "fe.vue.communication.props-emit",
+        "fe.vue.communication.provide-inject",
+        "fe.vue.communication.slot-advanced"
+      ]
+    },
+    {
+      "topic": "lifecycle",
+      "stack": "vue",
+      "nodes": [
+        "fe.vue.lifecycle",
+        "fe.vue.lifecycle.keepalive",
+        "fe.vue.lifecycle.mount-unmount",
+        "fe.vue.state",
+        "fe.vue.state.pinia-internals",
+        "fe.vue.state.pinia-vs-vuex"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "domain": "fe",
+  "stacks": [
+    "browser",
+    "build"
+  ],
+  "slug": "fe-browser",
+  "levels": [
+    {
+      "topic": "render",
+      "stack": "browser",
+      "nodes": [
+        "fe.browser.render",
+        "fe.browser.render.pipeline",
+        "fe.browser.render.reflow-repaint",
+        "fe.browser.events",
+        "fe.browser.events.event-loop",
+        "fe.browser.events.input-frame"
+      ]
+    },
+    {
+      "topic": "storage",
+      "stack": "browser",
+      "nodes": [
+        "fe.browser.storage",
+        "fe.browser.storage.local",
+        "fe.browser.worker.thread",
+        "fe.browser.v8",
+        "fe.browser.v8.engine",
+        "fe.browser.v8.memory"
+      ]
+    },
+    {
+      "topic": "toolchain",
+      "stack": "build",
+      "nodes": [
+        "fe.build.toolchain",
+        "fe.build.toolchain.package-manager",
+        "fe.build.toolchain.vite",
+        "fe.build.toolchain.webpack"
+      ]
+    },
+    {
+      "topic": "module",
+      "stack": "build",
+      "nodes": [
+        "fe.build.module",
+        "fe.build.module.esm-cjs",
+        "fe.build.module.transform",
+        "fe.build.bundle",
+        "fe.build.bundle.caching",
+        "fe.build.bundle.optimization"
+      ]
+    }
+  ]
+}

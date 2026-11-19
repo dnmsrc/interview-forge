@@ -1,0 +1,28 @@
+{
+  "domain": "ai",
+  "stacks": [
+    "tools",
+    "train"
+  ],
+  "slug": "ai-tools",
+  "levels": [
+    {
+      "topic": "tool-calling",
+      "stack": "tools",
+      "nodes": [
+        "ai.tools.tool-calling",
+        "ai.tools.tool-calling.mcp-protocol"
+      ]
+    },
+    {
+      "topic": "finetune-vs-rag",
+      "stack": "train",
+      "nodes": [
+        "ai.train.finetune-vs-rag",
+        "ai.train.finetune-vs-rag.alignment-preference",
+        "ai.train.finetune-vs-rag.finetune-decision",
+        "ai.train.finetune-vs-rag.lora-peft"
+      ]
+    }
+  ]
+}

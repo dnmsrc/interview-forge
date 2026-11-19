@@ -1,0 +1,47 @@
+{
+  "domain": "fe",
+  "stacks": [
+    "js",
+    "network"
+  ],
+  "slug": "fe-network",
+  "levels": [
+    {
+      "topic": "es6",
+      "stack": "js",
+      "nodes": [
+        "fe.js.es6"
+      ]
+    },
+    {
+      "topic": "transport",
+      "stack": "network",
+      "nodes": [
+        "fe.network.transport",
+        "fe.network.transport.cache-strategy",
+        "fe.network.transport.cors-cookie",
+        "fe.network.transport.http-basics"
+      ]
+    },
+    {
+      "topic": "realtime",
+      "stack": "network",
+      "nodes": [
+        "fe.network.realtime",
+        "fe.network.realtime.sse",
+        "fe.network.realtime.websocket",
+        "fe.network.transfer",
+        "fe.network.transfer.upload"
+      ]
+    },
+    {
+      "topic": "optimize",
+      "stack": "network",
+      "nodes": [
+        "fe.network.optimize",
+        "fe.network.optimize.conn-reuse",
+        "fe.network.optimize.load-priority"
+      ]
+    }
+  ]
+}

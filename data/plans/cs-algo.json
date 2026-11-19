@@ -1,0 +1,39 @@
+{
+  "domain": "cs",
+  "stacks": [
+    "algo"
+  ],
+  "slug": "cs-algo",
+  "levels": [
+    {
+      "topic": "complexity",
+      "stack": "algo",
+      "nodes": [
+        "cs.algo.complexity",
+        "cs.algo.complexity.master-theorem",
+        "cs.algo.linear",
+        "cs.algo.linear.stack-queue-monotonic"
+      ]
+    },
+    {
+      "topic": "tree",
+      "stack": "algo",
+      "nodes": [
+        "cs.algo.tree",
+        "cs.algo.tree.balanced-tree",
+        "cs.algo.tree.heap-topk",
+        "cs.algo.tree.traversal-bst"
+      ]
+    },
+    {
+      "topic": "graph",
+      "stack": "algo",
+      "nodes": [
+        "cs.algo.graph",
+        "cs.algo.graph.dsu",
+        "cs.algo.graph.mst-topo",
+        "cs.algo.graph.shortest-path"
+      ]
+    }
+  ]
+}

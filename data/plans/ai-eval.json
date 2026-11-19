@@ -1,0 +1,39 @@
+{
+  "domain": "ai",
+  "stacks": [
+    "eval",
+    "harness"
+  ],
+  "slug": "ai-eval",
+  "levels": [
+    {
+      "topic": "evaluation-qa",
+      "stack": "eval",
+      "nodes": [
+        "ai.eval.evaluation-qa",
+        "ai.eval.evaluation-qa.llm-as-judge",
+        "ai.eval.evaluation-qa.metrics-dataset",
+        "ai.eval.evaluation-qa.online-regression"
+      ]
+    },
+    {
+      "topic": "agent-orchestration",
+      "stack": "eval",
+      "nodes": [
+        "ai.multi.agent-orchestration",
+        "ai.multi.agent-orchestration.framework-mechanics",
+        "ai.multi.agent-orchestration.shared-state",
+        "ai.multi.agent-orchestration.topology-selection"
+      ]
+    },
+    {
+      "topic": "agent-loop",
+      "stack": "harness",
+      "nodes": [
+        "ai.harness.agent-loop",
+        "ai.harness.agent-loop.compaction-recovery",
+        "ai.harness.agent-loop.context-budget"
+      ]
+    }
+  ]
+}

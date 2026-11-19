@@ -1,0 +1,55 @@
+{
+  "domain": "be",
+  "stacks": [
+    "python",
+    "spring"
+  ],
+  "slug": "be-python",
+  "levels": [
+    {
+      "topic": "core",
+      "stack": "node",
+      "nodes": [
+        "be.node.core",
+        "be.node.core.async-stream",
+        "be.node.core.eventloop",
+        "be.node.runtime",
+        "be.node.runtime.cluster-bff",
+        "be.node.runtime.module-process"
+      ]
+    },
+    {
+      "topic": "core",
+      "stack": "python",
+      "nodes": [
+        "be.python.core",
+        "be.python.core.gil-concurrency",
+        "be.python.core.lang-advanced",
+        "be.python.web",
+        "be.python.web.asyncio",
+        "be.python.web.framework"
+      ]
+    },
+    {
+      "topic": "ioc",
+      "stack": "spring",
+      "nodes": [
+        "be.spring.ioc",
+        "be.spring.ioc.bean-lifecycle",
+        "be.spring.ioc.inject-scan",
+        "be.spring.aop",
+        "be.spring.aop.proxy",
+        "be.spring.aop.transaction"
+      ]
+    },
+    {
+      "topic": "mvc",
+      "stack": "spring",
+      "nodes": [
+        "be.spring.mvc",
+        "be.spring.mvc.autoconfig",
+        "be.spring.mvc.request-flow"
+      ]
+    }
+  ]
+}

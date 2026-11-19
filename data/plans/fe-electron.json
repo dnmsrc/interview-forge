@@ -1,0 +1,41 @@
+{
+  "domain": "fe",
+  "stacks": [
+    "electron",
+    "html"
+  ],
+  "slug": "fe-electron",
+  "levels": [
+    {
+      "topic": "process",
+      "stack": "electron",
+      "nodes": [
+        "fe.electron.process",
+        "fe.electron.process.model",
+        "fe.electron.ipc.channels",
+        "fe.electron.security",
+        "fe.electron.security.csp"
+      ]
+    },
+    {
+      "topic": "ship",
+      "stack": "electron",
+      "nodes": [
+        "fe.electron.ship",
+        "fe.electron.ship.native-os",
+        "fe.electron.ship.package"
+      ]
+    },
+    {
+      "topic": "foundation",
+      "stack": "html",
+      "nodes": [
+        "fe.html.foundation",
+        "fe.html.foundation.block-inline",
+        "fe.html.foundation.semantic-tags",
+        "fe.html.form",
+        "fe.html.form.form-basics"
+      ]
+    }
+  ]
+}

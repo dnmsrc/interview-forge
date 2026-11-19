@@ -1,0 +1,49 @@
+{
+  "domain": "eng",
+  "stacks": [
+    "ai",
+    "be",
+    "data",
+    "fe"
+  ],
+  "slug": "eng-warstory",
+  "levels": [
+    {
+      "topic": "ai-warstory",
+      "stack": "ai",
+      "nodes": [
+        "eng.warstory.ai",
+        "eng.warstory.ai.context-overflow"
+      ]
+    },
+    {
+      "topic": "be-warstory",
+      "stack": "be",
+      "nodes": [
+        "eng.warstory.be",
+        "eng.warstory.be.hashmap-loop",
+        "eng.warstory.be.threadlocal-leak",
+        "eng.warstory.be.threadpool-sizing"
+      ]
+    },
+    {
+      "topic": "data-warstory",
+      "stack": "data",
+      "nodes": [
+        "eng.warstory.data",
+        "eng.warstory.data.deep-pagination",
+        "eng.warstory.data.cache-trio"
+      ]
+    },
+    {
+      "topic": "fe-warstory",
+      "stack": "fe",
+      "nodes": [
+        "eng.warstory.fe",
+        "eng.warstory.fe.useeffect-loop",
+        "eng.warstory.fe.memory-leak",
+        "eng.warstory.fe.cors-preflight"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "domain": "cs",
+  "stacks": [
+    "seceq"
+  ],
+  "slug": "cs-seceq-2",
+  "levels": [
+    {
+      "topic": "sec-eng",
+      "stack": "seceq",
+      "nodes": [
+        "cs.seceq.sec-eng",
+        "cs.seceq.sec-eng.audit",
+        "cs.seceq.sec-eng.owasp",
+        "cs.seceq.sec-eng.ratelimit-waf"
+      ]
+    }
+  ]
+}

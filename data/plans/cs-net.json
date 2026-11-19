@@ -1,0 +1,53 @@
+{
+  "domain": "cs",
+  "stacks": [
+    "devops",
+    "net"
+  ],
+  "slug": "cs-net",
+  "levels": [
+    {
+      "topic": "observ",
+      "stack": "devops",
+      "nodes": [
+        "cs.devops.observ",
+        "cs.devops.observ.alert-slo",
+        "cs.devops.observ.three-pillars",
+        "cs.devops.iac",
+        "cs.devops.iac.release-strategy",
+        "cs.devops.iac.terraform"
+      ]
+    },
+    {
+      "topic": "tcpip-overview",
+      "stack": "net",
+      "nodes": [
+        "cs.net.tcpip",
+        "cs.net.http",
+        "cs.net.dns",
+        "cs.net.tcpip.congestion",
+        "cs.net.tcpip.handshake",
+        "cs.net.tcpip.layering"
+      ]
+    },
+    {
+      "topic": "tcpip",
+      "stack": "net",
+      "nodes": [
+        "cs.net.tcpip.reliable-flow",
+        "cs.net.tcpip.tcp-vs-udp",
+        "cs.net.http.cache",
+        "cs.net.http.http2-3",
+        "cs.net.http.tls-handshake"
+      ]
+    },
+    {
+      "topic": "dns",
+      "stack": "net",
+      "nodes": [
+        "cs.net.dns.advanced",
+        "cs.net.dns.resolve"
+      ]
+    }
+  ]
+}

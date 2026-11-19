@@ -1,0 +1,44 @@
+{
+  "domain": "fe",
+  "stacks": [
+    "js"
+  ],
+  "slug": "fe-js",
+  "levels": [
+    {
+      "topic": "dsa",
+      "stack": "js",
+      "nodes": [
+        "fe.js.dsa",
+        "fe.js.dsa.complexity",
+        "fe.js.dsa.hash",
+        "fe.js.dsa.heap",
+        "fe.js.dsa.linear",
+        "fe.js.dsa.sort"
+      ]
+    },
+    {
+      "topic": "dsa",
+      "stack": "js",
+      "nodes": [
+        "fe.js.dsa.tree",
+        "fe.js.basics",
+        "fe.js.basics.coercion",
+        "fe.js.scope",
+        "fe.js.scope.hoisting"
+      ]
+    },
+    {
+      "topic": "oop",
+      "stack": "js",
+      "nodes": [
+        "fe.js.oop",
+        "fe.js.oop.prototype",
+        "fe.js.async",
+        "fe.js.dom",
+        "fe.js.dom.dom-api",
+        "fe.js.dom.event"
+      ]
+    }
+  ]
+}

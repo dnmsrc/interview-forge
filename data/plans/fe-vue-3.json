@@ -1,0 +1,40 @@
+{
+  "domain": "fe",
+  "stacks": [
+    "vue"
+  ],
+  "slug": "fe-vue-3",
+  "levels": [
+    {
+      "topic": "state",
+      "stack": "vue",
+      "nodes": [
+        "fe.vue.state.setup-store",
+        "fe.vue.router",
+        "fe.vue.router.dynamic-routes",
+        "fe.vue.router.history-mode",
+        "fe.vue.router.navigation-guard"
+      ]
+    },
+    {
+      "topic": "perf",
+      "stack": "vue",
+      "nodes": [
+        "fe.vue.perf",
+        "fe.vue.perf.dom-reuse",
+        "fe.vue.perf.granularity-tools",
+        "fe.vue.perf.virtual-list"
+      ]
+    },
+    {
+      "topic": "ecosystem",
+      "stack": "vue",
+      "nodes": [
+        "fe.vue.ecosystem",
+        "fe.vue.ecosystem.vapor-signals",
+        "fe.vue.ecosystem.vue-versions",
+        "fe.vue.ecosystem.vue-vs-react"
+      ]
+    }
+  ]
+}

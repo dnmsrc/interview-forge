@@ -1,0 +1,43 @@
+{
+  "domain": "be",
+  "stacks": [
+    "java"
+  ],
+  "slug": "be-java",
+  "levels": [
+    {
+      "topic": "dsa",
+      "stack": "java",
+      "nodes": [
+        "be.java.dsa",
+        "be.java.dsa.complexity",
+        "be.java.dsa.hash",
+        "be.java.dsa.heap",
+        "be.java.dsa.linear",
+        "be.java.dsa.sort"
+      ]
+    },
+    {
+      "topic": "dsa",
+      "stack": "java",
+      "nodes": [
+        "be.java.dsa.tree",
+        "be.java.core",
+        "be.java.core.collection",
+        "be.java.core.exception-generic",
+        "be.java.core.oop",
+        "be.java.core.string-common"
+      ]
+    },
+    {
+      "topic": "core",
+      "stack": "java",
+      "nodes": [
+        "be.java.core.syntax-basics",
+        "be.java.concurrent",
+        "be.java.concurrent.thread-basics",
+        "be.java.concurrent.threadpool-lock"
+      ]
+    }
+  ]
+}

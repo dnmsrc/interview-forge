@@ -119,34 +119,28 @@
           "be.java.dsa",
           "be.java.dsa.complexity",
           "be.java.dsa.hash",
-          "be.java.dsa.heap"
+          "be.java.dsa.heap",
+          "be.java.dsa.linear",
+          "be.java.dsa.sort"
         ]
       },
       {
         "topic": "dsa",
         "stack": "java",
         "nodes": [
-          "be.java.dsa.linear",
-          "be.java.dsa.sort",
-          "be.java.dsa.tree"
+          "be.java.dsa.tree",
+          "be.java.core",
+          "be.java.core.collection",
+          "be.java.core.exception-generic",
+          "be.java.core.oop",
+          "be.java.core.string-common"
         ]
       },
       {
         "topic": "core",
         "stack": "java",
         "nodes": [
-          "be.java.core",
-          "be.java.core.collection",
-          "be.java.core.exception-generic",
-          "be.java.core.oop",
-          "be.java.core.string-common",
-          "be.java.core.syntax-basics"
-        ]
-      },
-      {
-        "topic": "concurrent",
-        "stack": "java",
-        "nodes": [
+          "be.java.core.syntax-basics",
           "be.java.concurrent",
           "be.java.concurrent.thread-basics",
           "be.java.concurrent.threadpool-lock"
@@ -177,13 +171,7 @@
         "nodes": [
           "be.micro.governance",
           "be.micro.governance.registry-gateway",
-          "be.micro.governance.resilience"
-        ]
-      },
-      {
-        "topic": "distributed-tx",
-        "stack": "micro",
-        "nodes": [
+          "be.micro.governance.resilience",
           "be.micro.distributed-tx",
           "be.micro.distributed-tx.cap-base",
           "be.micro.distributed-tx.solutions"
@@ -213,13 +201,7 @@
         "nodes": [
           "be.mq.arch",
           "be.mq.arch.kafka",
-          "be.mq.arch.rabbitmq"
-        ]
-      },
-      {
-        "topic": "reliability",
-        "stack": "mq",
-        "nodes": [
+          "be.mq.arch.rabbitmq",
           "be.mq.reliability",
           "be.mq.reliability.delivery",
           "be.mq.reliability.idempotent"
@@ -231,13 +213,7 @@
         "nodes": [
           "be.mysql.index",
           "be.mysql.index.bplus-tree",
-          "be.mysql.index.left-prefix-explain"
-        ]
-      },
-      {
-        "topic": "transaction",
-        "stack": "mysql",
-        "nodes": [
+          "be.mysql.index.left-prefix-explain",
           "be.mysql.transaction",
           "be.mysql.transaction.isolation-mvcc",
           "be.mysql.transaction.lock-deadlock"
@@ -261,7 +237,7 @@
     "domain": "be",
     "stacks": [
       "python",
-      "node"
+      "spring"
     ],
     "slug": "be-python",
     "levels": [
@@ -271,13 +247,7 @@
         "nodes": [
           "be.node.core",
           "be.node.core.async-stream",
-          "be.node.core.eventloop"
-        ]
-      },
-      {
-        "topic": "runtime",
-        "stack": "node",
-        "nodes": [
+          "be.node.core.eventloop",
           "be.node.runtime",
           "be.node.runtime.cluster-bff",
           "be.node.runtime.module-process"
@@ -289,40 +259,19 @@
         "nodes": [
           "be.python.core",
           "be.python.core.gil-concurrency",
-          "be.python.core.lang-advanced"
-        ]
-      },
-      {
-        "topic": "web",
-        "stack": "python",
-        "nodes": [
+          "be.python.core.lang-advanced",
           "be.python.web",
           "be.python.web.asyncio",
           "be.python.web.framework"
         ]
-      }
-    ]
-  },
-  {
-    "domain": "be",
-    "stacks": [
-      "spring"
-    ],
-    "slug": "be-spring",
-    "levels": [
+      },
       {
         "topic": "ioc",
         "stack": "spring",
         "nodes": [
           "be.spring.ioc",
           "be.spring.ioc.bean-lifecycle",
-          "be.spring.ioc.inject-scan"
-        ]
-      },
-      {
-        "topic": "aop",
-        "stack": "spring",
-        "nodes": [
+          "be.spring.ioc.inject-scan",
           "be.spring.aop",
           "be.spring.aop.proxy",
           "be.spring.aop.transaction"
@@ -375,15 +324,6 @@
           "cs.algo.graph.mst-topo",
           "cs.algo.graph.shortest-path"
         ]
-      },
-      {
-        "topic": "sort",
-        "stack": "algo",
-        "nodes": [
-          "cs.algo.sort",
-          "cs.algo.sort.binary-search",
-          "cs.algo.sort.quick-merge-heap"
-        ]
       }
     ]
   },
@@ -396,12 +336,21 @@
     "slug": "cs-design",
     "levels": [
       {
+        "topic": "sort",
+        "stack": "algo",
+        "nodes": [
+          "cs.algo.sort",
+          "cs.algo.sort.binary-search",
+          "cs.algo.sort.quick-merge-heap",
+          "cs.algo.paradigm",
+          "cs.algo.paradigm.backtracking",
+          "cs.algo.paradigm.dynamic-programming"
+        ]
+      },
+      {
         "topic": "paradigm",
         "stack": "algo",
         "nodes": [
-          "cs.algo.paradigm",
-          "cs.algo.paradigm.backtracking",
-          "cs.algo.paradigm.dynamic-programming",
           "cs.algo.paradigm.greedy-divide",
           "cs.algo.paradigm.two-pointer-window"
         ]
@@ -412,23 +361,17 @@
         "nodes": [
           "cs.design.capacity",
           "cs.design.capacity.ddia-tradeoff",
-          "cs.design.capacity.estimation"
+          "cs.design.capacity.estimation",
+          "cs.design.cache",
+          "cs.design.cache.consistency",
+          "cs.design.cache.pattern"
         ]
       },
       {
         "topic": "cache",
         "stack": "design",
         "nodes": [
-          "cs.design.cache",
-          "cs.design.cache.consistency",
-          "cs.design.cache.pattern",
-          "cs.design.cache.problems"
-        ]
-      },
-      {
-        "topic": "sharding",
-        "stack": "design",
-        "nodes": [
+          "cs.design.cache.problems",
           "cs.design.sharding",
           "cs.design.sharding.id-gen",
           "cs.design.sharding.readwrite"
@@ -460,16 +403,16 @@
         "nodes": [
           "cs.design.limit",
           "cs.design.limit.algorithm",
-          "cs.design.limit.circuit-breaker"
+          "cs.design.limit.circuit-breaker",
+          "cs.design.cases",
+          "cs.design.cases.feed-timeline",
+          "cs.design.cases.seckill"
         ]
       },
       {
         "topic": "cases",
         "stack": "design",
         "nodes": [
-          "cs.design.cases",
-          "cs.design.cases.feed-timeline",
-          "cs.design.cases.seckill",
           "cs.design.cases.shortlink"
         ]
       },
@@ -503,15 +446,6 @@
           "cs.devops.cicd.git-flow",
           "cs.devops.cicd.pipeline"
         ]
-      },
-      {
-        "topic": "observ",
-        "stack": "devops",
-        "nodes": [
-          "cs.devops.observ",
-          "cs.devops.observ.alert-slo",
-          "cs.devops.observ.three-pillars"
-        ]
       }
     ]
   },
@@ -524,9 +458,12 @@
     "slug": "cs-net",
     "levels": [
       {
-        "topic": "iac",
+        "topic": "observ",
         "stack": "devops",
         "nodes": [
+          "cs.devops.observ",
+          "cs.devops.observ.alert-slo",
+          "cs.devops.observ.three-pillars",
           "cs.devops.iac",
           "cs.devops.iac.release-strategy",
           "cs.devops.iac.terraform"
@@ -538,24 +475,18 @@
         "nodes": [
           "cs.net.tcpip",
           "cs.net.http",
-          "cs.net.dns"
+          "cs.net.dns",
+          "cs.net.tcpip.congestion",
+          "cs.net.tcpip.handshake",
+          "cs.net.tcpip.layering"
         ]
       },
       {
         "topic": "tcpip",
         "stack": "net",
         "nodes": [
-          "cs.net.tcpip.congestion",
-          "cs.net.tcpip.handshake",
-          "cs.net.tcpip.layering",
           "cs.net.tcpip.reliable-flow",
-          "cs.net.tcpip.tcp-vs-udp"
-        ]
-      },
-      {
-        "topic": "http",
-        "stack": "net",
-        "nodes": [
+          "cs.net.tcpip.tcp-vs-udp",
           "cs.net.http.cache",
           "cs.net.http.http2-3",
           "cs.net.http.tls-handshake"
@@ -609,16 +540,6 @@
           "cs.os.memory.tlb-pagefault",
           "cs.os.memory.virtual-memory"
         ]
-      },
-      {
-        "topic": "io",
-        "stack": "os",
-        "nodes": [
-          "cs.os.io",
-          "cs.os.io.epoll",
-          "cs.os.io.models",
-          "cs.os.io.zero-copy"
-        ]
       }
     ]
   },
@@ -630,6 +551,16 @@
     ],
     "slug": "cs-seceq",
     "levels": [
+      {
+        "topic": "io",
+        "stack": "os",
+        "nodes": [
+          "cs.os.io",
+          "cs.os.io.epoll",
+          "cs.os.io.models",
+          "cs.os.io.zero-copy"
+        ]
+      },
       {
         "topic": "linux",
         "stack": "os",
@@ -669,7 +600,16 @@
           "cs.seceq.crypto.sym-asym",
           "cs.seceq.crypto.tls-pki"
         ]
-      },
+      }
+    ]
+  },
+  {
+    "domain": "cs",
+    "stacks": [
+      "seceq"
+    ],
+    "slug": "cs-seceq-2",
+    "levels": [
       {
         "topic": "sec-eng",
         "stack": "seceq",
@@ -734,7 +674,8 @@
   {
     "domain": "fe",
     "stacks": [
-      "browser"
+      "browser",
+      "build"
     ],
     "slug": "fe-browser",
     "levels": [
@@ -744,13 +685,7 @@
         "nodes": [
           "fe.browser.render",
           "fe.browser.render.pipeline",
-          "fe.browser.render.reflow-repaint"
-        ]
-      },
-      {
-        "topic": "events",
-        "stack": "browser",
-        "nodes": [
+          "fe.browser.render.reflow-repaint",
           "fe.browser.events",
           "fe.browser.events.event-loop",
           "fe.browser.events.input-frame"
@@ -762,27 +697,12 @@
         "nodes": [
           "fe.browser.storage",
           "fe.browser.storage.local",
-          "fe.browser.worker.thread"
-        ]
-      },
-      {
-        "topic": "v8",
-        "stack": "browser",
-        "nodes": [
+          "fe.browser.worker.thread",
           "fe.browser.v8",
           "fe.browser.v8.engine",
           "fe.browser.v8.memory"
         ]
-      }
-    ]
-  },
-  {
-    "domain": "fe",
-    "stacks": [
-      "build"
-    ],
-    "slug": "fe-build",
-    "levels": [
+      },
       {
         "topic": "toolchain",
         "stack": "build",
@@ -799,13 +719,7 @@
         "nodes": [
           "fe.build.module",
           "fe.build.module.esm-cjs",
-          "fe.build.module.transform"
-        ]
-      },
-      {
-        "topic": "bundle",
-        "stack": "build",
-        "nodes": [
+          "fe.build.module.transform",
           "fe.build.bundle",
           "fe.build.bundle.caching",
           "fe.build.bundle.optimization"
@@ -816,7 +730,8 @@
   {
     "domain": "fe",
     "stacks": [
-      "css"
+      "css",
+      "eco"
     ],
     "slug": "fe-css",
     "levels": [
@@ -838,27 +753,11 @@
           "fe.css.layout",
           "fe.css.layout.flex",
           "fe.css.layout.grid",
-          "fe.css.layout.position"
-        ]
-      },
-      {
-        "topic": "responsive",
-        "stack": "css",
-        "nodes": [
+          "fe.css.layout.position",
           "fe.css.responsive",
           "fe.css.responsive.media-query"
         ]
-      }
-    ]
-  },
-  {
-    "domain": "fe",
-    "stacks": [
-      "eco",
-      "electron"
-    ],
-    "slug": "fe-eco",
-    "levels": [
+      },
       {
         "topic": "react",
         "stack": "eco",
@@ -878,7 +777,17 @@
           "fe.eco.styles",
           "fe.eco.styles.tailwind"
         ]
-      },
+      }
+    ]
+  },
+  {
+    "domain": "fe",
+    "stacks": [
+      "electron",
+      "html"
+    ],
+    "slug": "fe-electron",
+    "levels": [
       {
         "topic": "process",
         "stack": "electron",
@@ -898,34 +807,27 @@
           "fe.electron.ship.native-os",
           "fe.electron.ship.package"
         ]
-      }
-    ]
-  },
-  {
-    "domain": "fe",
-    "stacks": [
-      "html",
-      "js"
-    ],
-    "slug": "fe-js",
-    "levels": [
+      },
       {
         "topic": "foundation",
         "stack": "html",
         "nodes": [
           "fe.html.foundation",
           "fe.html.foundation.block-inline",
-          "fe.html.foundation.semantic-tags"
-        ]
-      },
-      {
-        "topic": "form",
-        "stack": "html",
-        "nodes": [
+          "fe.html.foundation.semantic-tags",
           "fe.html.form",
           "fe.html.form.form-basics"
         ]
-      },
+      }
+    ]
+  },
+  {
+    "domain": "fe",
+    "stacks": [
+      "js"
+    ],
+    "slug": "fe-js",
+    "levels": [
       {
         "topic": "dsa",
         "stack": "js",
@@ -933,22 +835,16 @@
           "fe.js.dsa",
           "fe.js.dsa.complexity",
           "fe.js.dsa.hash",
-          "fe.js.dsa.heap"
+          "fe.js.dsa.heap",
+          "fe.js.dsa.linear",
+          "fe.js.dsa.sort"
         ]
       },
       {
         "topic": "dsa",
         "stack": "js",
         "nodes": [
-          "fe.js.dsa.linear",
-          "fe.js.dsa.sort",
-          "fe.js.dsa.tree"
-        ]
-      },
-      {
-        "topic": "basics",
-        "stack": "js",
-        "nodes": [
+          "fe.js.dsa.tree",
           "fe.js.basics",
           "fe.js.basics.coercion",
           "fe.js.scope",
@@ -1000,15 +896,15 @@
         "nodes": [
           "fe.network.realtime",
           "fe.network.realtime.sse",
-          "fe.network.realtime.websocket"
+          "fe.network.realtime.websocket",
+          "fe.network.transfer",
+          "fe.network.transfer.upload"
         ]
       },
       {
-        "topic": "transfer",
+        "topic": "optimize",
         "stack": "network",
         "nodes": [
-          "fe.network.transfer",
-          "fe.network.transfer.upload",
           "fe.network.optimize",
           "fe.network.optimize.conn-reuse",
           "fe.network.optimize.load-priority"
@@ -1019,7 +915,8 @@
   {
     "domain": "fe",
     "stacks": [
-      "perf"
+      "perf",
+      "ts"
     ],
     "slug": "fe-perf",
     "levels": [
@@ -1029,13 +926,7 @@
         "nodes": [
           "fe.perf.metrics",
           "fe.perf.metrics.core",
-          "fe.perf.metrics.profiling"
-        ]
-      },
-      {
-        "topic": "loading",
-        "stack": "perf",
-        "nodes": [
+          "fe.perf.metrics.profiling",
           "fe.perf.loading",
           "fe.perf.loading.critical-path",
           "fe.perf.loading.resource-hint"
@@ -1049,48 +940,36 @@
           "fe.perf.longlist.offload",
           "fe.perf.longlist.virtual"
         ]
-      }
-    ]
-  },
-  {
-    "domain": "fe",
-    "stacks": [
-      "ts",
-      "uniapp"
-    ],
-    "slug": "fe-uniapp",
-    "levels": [
+      },
       {
         "topic": "type-system",
         "stack": "ts",
         "nodes": [
           "fe.ts.type-system",
           "fe.ts.type-system.structural-typing",
-          "fe.ts.type-system.type-narrowing"
-        ]
-      },
-      {
-        "topic": "advanced",
-        "stack": "ts",
-        "nodes": [
+          "fe.ts.type-system.type-narrowing",
           "fe.ts.advanced",
           "fe.ts.advanced.generics-utility",
           "fe.ts.advanced.mapped-conditional"
         ]
-      },
+      }
+    ]
+  },
+  {
+    "domain": "fe",
+    "stacks": [
+      "uniapp",
+      "vue"
+    ],
+    "slug": "fe-vue",
+    "levels": [
       {
         "topic": "compile",
         "stack": "uniapp",
         "nodes": [
           "fe.uniapp.compile",
           "fe.uniapp.compile.conditional",
-          "fe.uniapp.compile.cross-platform"
-        ]
-      },
-      {
-        "topic": "mini",
-        "stack": "uniapp",
-        "nodes": [
+          "fe.uniapp.compile.cross-platform",
           "fe.uniapp.mini",
           "fe.uniapp.mini.lifecycle",
           "fe.uniapp.mini.runtime"
@@ -1103,16 +982,7 @@
           "fe.uniapp.ecosystem",
           "fe.uniapp.ecosystem.cross-framework"
         ]
-      }
-    ]
-  },
-  {
-    "domain": "fe",
-    "stacks": [
-      "vue"
-    ],
-    "slug": "fe-vue",
-    "levels": [
+      },
       {
         "topic": "reactivity",
         "stack": "vue",
@@ -1145,17 +1015,6 @@
           "fe.vue.runtime.diff-key",
           "fe.vue.runtime.update-flow"
         ]
-      },
-      {
-        "topic": "composition",
-        "stack": "vue",
-        "nodes": [
-          "fe.vue.composition",
-          "fe.vue.composition.composable-design",
-          "fe.vue.composition.options-vs-composition",
-          "fe.vue.composition.setup-lifecycle",
-          "fe.vue.composition.sfc-macros"
-        ]
       }
     ]
   },
@@ -1166,6 +1025,17 @@
     ],
     "slug": "fe-vue-2",
     "levels": [
+      {
+        "topic": "composition",
+        "stack": "vue",
+        "nodes": [
+          "fe.vue.composition",
+          "fe.vue.composition.composable-design",
+          "fe.vue.composition.options-vs-composition",
+          "fe.vue.composition.setup-lifecycle",
+          "fe.vue.composition.sfc-macros"
+        ]
+      },
       {
         "topic": "communication",
         "stack": "vue",
@@ -1183,27 +1053,10 @@
         "nodes": [
           "fe.vue.lifecycle",
           "fe.vue.lifecycle.keepalive",
-          "fe.vue.lifecycle.mount-unmount"
-        ]
-      },
-      {
-        "topic": "state",
-        "stack": "vue",
-        "nodes": [
+          "fe.vue.lifecycle.mount-unmount",
           "fe.vue.state",
           "fe.vue.state.pinia-internals",
-          "fe.vue.state.pinia-vs-vuex",
-          "fe.vue.state.setup-store"
-        ]
-      },
-      {
-        "topic": "router",
-        "stack": "vue",
-        "nodes": [
-          "fe.vue.router",
-          "fe.vue.router.dynamic-routes",
-          "fe.vue.router.history-mode",
-          "fe.vue.router.navigation-guard"
+          "fe.vue.state.pinia-vs-vuex"
         ]
       }
     ]
@@ -1215,6 +1068,17 @@
     ],
     "slug": "fe-vue-3",
     "levels": [
+      {
+        "topic": "state",
+        "stack": "vue",
+        "nodes": [
+          "fe.vue.state.setup-store",
+          "fe.vue.router",
+          "fe.vue.router.dynamic-routes",
+          "fe.vue.router.history-mode",
+          "fe.vue.router.navigation-guard"
+        ]
+      },
       {
         "topic": "perf",
         "stack": "vue",

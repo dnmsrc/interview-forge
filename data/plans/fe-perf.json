@@ -1,0 +1,43 @@
+{
+  "domain": "fe",
+  "stacks": [
+    "perf",
+    "ts"
+  ],
+  "slug": "fe-perf",
+  "levels": [
+    {
+      "topic": "metrics",
+      "stack": "perf",
+      "nodes": [
+        "fe.perf.metrics",
+        "fe.perf.metrics.core",
+        "fe.perf.metrics.profiling",
+        "fe.perf.loading",
+        "fe.perf.loading.critical-path",
+        "fe.perf.loading.resource-hint"
+      ]
+    },
+    {
+      "topic": "longlist",
+      "stack": "perf",
+      "nodes": [
+        "fe.perf.longlist",
+        "fe.perf.longlist.offload",
+        "fe.perf.longlist.virtual"
+      ]
+    },
+    {
+      "topic": "type-system",
+      "stack": "ts",
+      "nodes": [
+        "fe.ts.type-system",
+        "fe.ts.type-system.structural-typing",
+        "fe.ts.type-system.type-narrowing",
+        "fe.ts.advanced",
+        "fe.ts.advanced.generics-utility",
+        "fe.ts.advanced.mapped-conditional"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "domain": "be",
+  "stacks": [
+    "java",
+    "micro"
+  ],
+  "slug": "be-micro",
+  "levels": [
+    {
+      "topic": "jvm",
+      "stack": "java",
+      "nodes": [
+        "be.java.jvm",
+        "be.java.jvm.classloader",
+        "be.java.jvm.memory-gc"
+      ]
+    },
+    {
+      "topic": "governance",
+      "stack": "micro",
+      "nodes": [
+        "be.micro.governance",
+        "be.micro.governance.registry-gateway",
+        "be.micro.governance.resilience",
+        "be.micro.distributed-tx",
+        "be.micro.distributed-tx.cap-base",
+        "be.micro.distributed-tx.solutions"
+      ]
+    },
+    {
+      "topic": "communication",
+      "stack": "micro",
+      "nodes": [
+        "be.micro.communication",
+        "be.micro.communication.id-lock"
+      ]
+    }
+  ]
+}

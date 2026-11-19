@@ -1,0 +1,63 @@
+{
+  "domain": "fe",
+  "stacks": [
+    "uniapp",
+    "vue"
+  ],
+  "slug": "fe-vue",
+  "levels": [
+    {
+      "topic": "compile",
+      "stack": "uniapp",
+      "nodes": [
+        "fe.uniapp.compile",
+        "fe.uniapp.compile.conditional",
+        "fe.uniapp.compile.cross-platform",
+        "fe.uniapp.mini",
+        "fe.uniapp.mini.lifecycle",
+        "fe.uniapp.mini.runtime"
+      ]
+    },
+    {
+      "topic": "ecosystem",
+      "stack": "uniapp",
+      "nodes": [
+        "fe.uniapp.ecosystem",
+        "fe.uniapp.ecosystem.cross-framework"
+      ]
+    },
+    {
+      "topic": "reactivity",
+      "stack": "vue",
+      "nodes": [
+        "fe.vue.reactivity",
+        "fe.vue.reactivity.ref-family",
+        "fe.vue.scheduler",
+        "fe.vue.scheduler.nexttick",
+        "fe.vue.scheduler.watcher-flush"
+      ]
+    },
+    {
+      "topic": "compiler",
+      "stack": "vue",
+      "nodes": [
+        "fe.vue.compiler",
+        "fe.vue.compiler.ast-pipeline",
+        "fe.vue.compiler.block-tree",
+        "fe.vue.compiler.slot-compile",
+        "fe.vue.compiler.static-hoist"
+      ]
+    },
+    {
+      "topic": "runtime",
+      "stack": "vue",
+      "nodes": [
+        "fe.vue.runtime",
+        "fe.vue.runtime.builtin-components",
+        "fe.vue.runtime.custom-renderer",
+        "fe.vue.runtime.diff-key",
+        "fe.vue.runtime.update-flow"
+      ]
+    }
+  ]
+}

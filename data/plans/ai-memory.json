@@ -1,0 +1,39 @@
+{
+  "domain": "ai",
+  "stacks": [
+    "memory",
+    "rag",
+    "serving"
+  ],
+  "slug": "ai-memory",
+  "levels": [
+    {
+      "topic": "memory-skill",
+      "stack": "memory",
+      "nodes": [
+        "ai.memory.memory-skill",
+        "ai.memory.memory-skill.long-term-memory",
+        "ai.memory.memory-skill.skill-lib"
+      ]
+    },
+    {
+      "topic": "retrieval-pipeline",
+      "stack": "rag",
+      "nodes": [
+        "ai.rag.retrieval-pipeline",
+        "ai.rag.retrieval-pipeline.chunking-strategies",
+        "ai.rag.retrieval-pipeline.generation-grounding"
+      ]
+    },
+    {
+      "topic": "infer-serving",
+      "stack": "serving",
+      "nodes": [
+        "ai.serving.infer-serving",
+        "ai.serving.infer-serving.cost-latency",
+        "ai.serving.infer-serving.kv-cache-batching",
+        "ai.serving.infer-serving.quantize-accel"
+      ]
+    }
+  ]
+}

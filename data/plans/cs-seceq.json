@@ -1,0 +1,60 @@
+{
+  "domain": "cs",
+  "stacks": [
+    "os",
+    "seceq"
+  ],
+  "slug": "cs-seceq",
+  "levels": [
+    {
+      "topic": "io",
+      "stack": "os",
+      "nodes": [
+        "cs.os.io",
+        "cs.os.io.epoll",
+        "cs.os.io.models",
+        "cs.os.io.zero-copy"
+      ]
+    },
+    {
+      "topic": "linux",
+      "stack": "os",
+      "nodes": [
+        "cs.os.linux",
+        "cs.os.linux.filesystem-inode",
+        "cs.os.linux.process-states",
+        "cs.os.linux.troubleshoot-cmds"
+      ]
+    },
+    {
+      "topic": "web",
+      "stack": "seceq",
+      "nodes": [
+        "cs.seceq.web",
+        "cs.seceq.web.csrf",
+        "cs.seceq.web.injection",
+        "cs.seceq.web.xss"
+      ]
+    },
+    {
+      "topic": "auth",
+      "stack": "seceq",
+      "nodes": [
+        "cs.seceq.auth",
+        "cs.seceq.auth.oauth-sso",
+        "cs.seceq.auth.rbac-iacl",
+        "cs.seceq.auth.session-token"
+      ]
+    },
+    {
+      "topic": "crypto",
+      "stack": "seceq",
+      "nodes": [
+        "cs.seceq.crypto",
+        "cs.seceq.crypto.random-secret",
+        "cs.seceq.crypto.sym-asym",
+        "cs.seceq.crypto.tls-pki"
+      ]
+    }
+  ]
+}

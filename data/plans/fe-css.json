@@ -1,0 +1,53 @@
+{
+  "domain": "fe",
+  "stacks": [
+    "css",
+    "eco"
+  ],
+  "slug": "fe-css",
+  "levels": [
+    {
+      "topic": "foundation",
+      "stack": "css",
+      "nodes": [
+        "fe.css.foundation",
+        "fe.css.foundation.selector-cascade",
+        "fe.css.box",
+        "fe.css.box.bfc",
+        "fe.css.box.box-model"
+      ]
+    },
+    {
+      "topic": "layout",
+      "stack": "css",
+      "nodes": [
+        "fe.css.layout",
+        "fe.css.layout.flex",
+        "fe.css.layout.grid",
+        "fe.css.layout.position",
+        "fe.css.responsive",
+        "fe.css.responsive.media-query"
+      ]
+    },
+    {
+      "topic": "react",
+      "stack": "eco",
+      "nodes": [
+        "fe.eco.react",
+        "fe.eco.react.mechanism",
+        "fe.eco.ssr",
+        "fe.eco.ssr.frameworks"
+      ]
+    },
+    {
+      "topic": "desktop",
+      "stack": "eco",
+      "nodes": [
+        "fe.eco.desktop",
+        "fe.eco.desktop.tauri",
+        "fe.eco.styles",
+        "fe.eco.styles.tailwind"
+      ]
+    }
+  ]
+}

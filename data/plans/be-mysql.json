@@ -1,0 +1,46 @@
+{
+  "domain": "be",
+  "stacks": [
+    "mq",
+    "mysql"
+  ],
+  "slug": "be-mysql",
+  "levels": [
+    {
+      "topic": "arch",
+      "stack": "mq",
+      "nodes": [
+        "be.mq.arch",
+        "be.mq.arch.kafka",
+        "be.mq.arch.rabbitmq",
+        "be.mq.reliability",
+        "be.mq.reliability.delivery",
+        "be.mq.reliability.idempotent"
+      ]
+    },
+    {
+      "topic": "index",
+      "stack": "mysql",
+      "nodes": [
+        "be.mysql.index",
+        "be.mysql.index.bplus-tree",
+        "be.mysql.index.left-prefix-explain",
+        "be.mysql.transaction",
+        "be.mysql.transaction.isolation-mvcc",
+        "be.mysql.transaction.lock-deadlock"
+      ]
+    },
+    {
+      "topic": "log",
+      "stack": "mysql",
+      "nodes": [
+        "be.mysql.log",
+        "be.mysql.log.redo-binlog-replication",
+        "be.mysql.jdbc-type-mapping",
+        "be.mysql.jdbc-type-mapping.bigdecimal-precision",
+        "be.mysql.jdbc-type-mapping.rowmapper-naming",
+        "be.mysql.jdbc-type-mapping.type-mapping"
+      ]
+    }
+  ]
+}

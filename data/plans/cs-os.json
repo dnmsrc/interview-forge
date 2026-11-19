@@ -1,0 +1,41 @@
+{
+  "domain": "cs",
+  "stacks": [
+    "os"
+  ],
+  "slug": "cs-os",
+  "levels": [
+    {
+      "topic": "process",
+      "stack": "os",
+      "nodes": [
+        "cs.os.process",
+        "cs.os.process.context-switch",
+        "cs.os.process.scheduling",
+        "cs.os.process.thread-models",
+        "cs.os.process.thread-vs-process"
+      ]
+    },
+    {
+      "topic": "sync",
+      "stack": "os",
+      "nodes": [
+        "cs.os.sync",
+        "cs.os.sync.cas-lockfree",
+        "cs.os.sync.deadlock",
+        "cs.os.sync.lock-vs-spinlock",
+        "cs.os.sync.semaphore-classic"
+      ]
+    },
+    {
+      "topic": "memory",
+      "stack": "os",
+      "nodes": [
+        "cs.os.memory",
+        "cs.os.memory.page-replacement",
+        "cs.os.memory.tlb-pagefault",
+        "cs.os.memory.virtual-memory"
+      ]
+    }
+  ]
+}

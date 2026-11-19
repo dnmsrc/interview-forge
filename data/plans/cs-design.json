@@ -1,0 +1,62 @@
+{
+  "domain": "cs",
+  "stacks": [
+    "algo",
+    "design"
+  ],
+  "slug": "cs-design",
+  "levels": [
+    {
+      "topic": "sort",
+      "stack": "algo",
+      "nodes": [
+        "cs.algo.sort",
+        "cs.algo.sort.binary-search",
+        "cs.algo.sort.quick-merge-heap",
+        "cs.algo.paradigm",
+        "cs.algo.paradigm.backtracking",
+        "cs.algo.paradigm.dynamic-programming"
+      ]
+    },
+    {
+      "topic": "paradigm",
+      "stack": "algo",
+      "nodes": [
+        "cs.algo.paradigm.greedy-divide",
+        "cs.algo.paradigm.two-pointer-window"
+      ]
+    },
+    {
+      "topic": "capacity",
+      "stack": "design",
+      "nodes": [
+        "cs.design.capacity",
+        "cs.design.capacity.ddia-tradeoff",
+        "cs.design.capacity.estimation",
+        "cs.design.cache",
+        "cs.design.cache.consistency",
+        "cs.design.cache.pattern"
+      ]
+    },
+    {
+      "topic": "cache",
+      "stack": "design",
+      "nodes": [
+        "cs.design.cache.problems",
+        "cs.design.sharding",
+        "cs.design.sharding.id-gen",
+        "cs.design.sharding.readwrite"
+      ]
+    },
+    {
+      "topic": "mq-dedup",
+      "stack": "design",
+      "nodes": [
+        "cs.design.mq-dedup",
+        "cs.design.mq-dedup.delay",
+        "cs.design.mq-dedup.idempotent",
+        "cs.design.mq-dedup.peak-shaving"
+      ]
+    }
+  ]
+}

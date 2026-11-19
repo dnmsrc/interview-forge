@@ -1,0 +1,60 @@
+{
+  "domain": "cs",
+  "stacks": [
+    "design",
+    "devops"
+  ],
+  "slug": "cs-devops",
+  "levels": [
+    {
+      "topic": "limit",
+      "stack": "design",
+      "nodes": [
+        "cs.design.limit",
+        "cs.design.limit.algorithm",
+        "cs.design.limit.circuit-breaker",
+        "cs.design.cases",
+        "cs.design.cases.feed-timeline",
+        "cs.design.cases.seckill"
+      ]
+    },
+    {
+      "topic": "cases",
+      "stack": "design",
+      "nodes": [
+        "cs.design.cases.shortlink"
+      ]
+    },
+    {
+      "topic": "docker",
+      "stack": "devops",
+      "nodes": [
+        "cs.devops.docker",
+        "cs.devops.docker.image-dockerfile",
+        "cs.devops.docker.namespace-cgroup",
+        "cs.devops.docker.network-volume"
+      ]
+    },
+    {
+      "topic": "k8s",
+      "stack": "devops",
+      "nodes": [
+        "cs.devops.k8s",
+        "cs.devops.k8s.arch-object",
+        "cs.devops.k8s.network-config",
+        "cs.devops.k8s.release-ops",
+        "cs.devops.k8s.schedule-probe"
+      ]
+    },
+    {
+      "topic": "cicd",
+      "stack": "devops",
+      "nodes": [
+        "cs.devops.cicd",
+        "cs.devops.cicd.artifact",
+        "cs.devops.cicd.git-flow",
+        "cs.devops.cicd.pipeline"
+      ]
+    }
+  ]
+}
